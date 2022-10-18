@@ -1,3 +1,5 @@
+mod index_parser;
+
 use std::fs;
 use std::env;
 use std::io::{Read, stdin, Write};
@@ -135,10 +137,12 @@ fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
 
 fn calc_mmpbsa(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) {
     // TODO: 选组
-    let ligand_grp = -1;
-    let receptor_grp = -1;
-    let complex_grp = -1;
-    // ndx = IndexParser.Index(Vector{IndexParser.IndexGroup}())
+    // let mut ligand_grp = -1;
+    // let mut receptor_grp = -1;
+    // let mut complex_grp = -1;
+    let ndx = index_parser::Index::new(ndx);
+    println!("{:?}", ndx.groups[0].indexes);
+    // ndx = index_parser.Index(Vector{IndexParser.IndexGroup}())
     // 这部分留到第二步, 因为后面可能要修改选择原子的规则
     // println!(" 3 Select ligand groups, current: {}", match ligand_grp {
     //     -1 => "undefined",
@@ -146,5 +150,5 @@ fn calc_mmpbsa(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) 
     // };
     // println!(" 4 Select receptor groups, current: $(receptor_grp != -1 ? "$receptor_grp " * ndx.groups[receptor_grp + 1].name : "undefined")");
     // println!(" 5 Select complex groups, current: $(complex_grp != -1 ? "$complex_grp " * ndx.groups[complex_grp + 1].name : "undefined")");
-    println!("Select groups and do calculations.");
+    // println!("Select groups and do calculations.");
 }
