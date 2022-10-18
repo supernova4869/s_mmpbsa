@@ -23,7 +23,14 @@ fn main() {
         },
         2 => tpr = args[1].to_string(),
         _ => {
-            println!("TODO: 判断是否是-f -s -n方法使用, 根据情况处理");
+            for i in 1..args.len() {
+                match args[i].as_str() {
+                    "-f" => { trj = args[i + 1].to_string() },
+                    "-s" => { tpr = args[i + 1].to_string() },
+                    "-n" => { ndx = args[i + 1].to_string() },
+                    _ => {}
+                }
+            }
         },
     }
     let tpr = tpr.trim();
