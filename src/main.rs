@@ -53,7 +53,7 @@ fn main() {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
         println!("-1 Toggle whether to use Debye-Huckel shielding method, current: {}", use_dh);
-        println!(" 0 Do MM-PBSA calculations now!");
+        println!(" 0 Ready for MM-PBSA calculations");
         println!(" 1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
             0 => "undefined",
             _ => trj.as_str()
@@ -76,7 +76,7 @@ fn main() {
                     // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
-                    calc_mmpbsa(&trj, &tpr, &ndx, use_dh, use_ts);
+                    mmpbsa_calculation(&trj, &tpr, &ndx, use_dh, use_ts);
                 }
             },
             1 => {
@@ -135,20 +135,57 @@ fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
     println!("Finished loading tpr file, md parameters dumped to {}", wd.join("_mdout.mdp").display());
 }
 
-fn calc_mmpbsa(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) {
-    // TODO: 选组
-    // let mut ligand_grp = -1;
-    // let mut receptor_grp = -1;
-    // let mut complex_grp = -1;
+fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) {
+    let mut ligand_grp = 100;
+    let mut receptor_grp = 100;
+    let mut complex_grp = 100;
     let ndx = index_parser::Index::new(ndx);
-    println!("{:?}", ndx.groups[0].indexes);
-    // ndx = index_parser.Index(Vector{IndexParser.IndexGroup}())
-    // 这部分留到第二步, 因为后面可能要修改选择原子的规则
-    // println!(" 3 Select ligand groups, current: {}", match ligand_grp {
-    //     -1 => "undefined",
-    //     _ => format("{} {}", ligand_grp, ndx.groups[ligand_grp + 1].name)
-    // };
-    // println!(" 4 Select receptor groups, current: $(receptor_grp != -1 ? "$receptor_grp " * ndx.groups[receptor_grp + 1].name : "undefined")");
-    // println!(" 5 Select complex groups, current: $(complex_grp != -1 ? "$complex_grp " * ndx.groups[complex_grp + 1].name : "undefined")");
-    // println!("Select groups and do calculations.");
+    loop {
+        println!("\n                 ************ MM-PBSA calculation ************");
+        println!(" 0 Do MM-PBSA calculations now!");
+        println!(" 1 Select complex group, current: {}", match complex_grp {
+            100 => String::from("undefined"),
+            _ => format!("{} {}", complex_grp, ndx.groups[complex_grp].name)
+        });
+        println!(" 2 Select receptor groups, current: {}", match receptor_grp {
+            100 => String::from("undefined"),
+            _ => format!("{} {}", receptor_grp, ndx.groups[receptor_grp].name)
+        });
+        println!(" 3 Select ligand groups, current: {}", match ligand_grp {
+            100 => String::from("undefined"),
+            _ => format!("{} {}", ligand_grp, ndx.groups[ligand_grp].name)
+        });
+        let mut i:String = String::from("");
+        stdin().read_line(&mut i).expect("Error input");
+        let i:i32 = i.trim().parse().expect("Error input");
+        match i {
+            0 => {
+                println!("Select groups and do calculations.");
+                break;
+            },
+            1 => {
+                ndx.list_groups();
+                println!("Input complex group num:");
+                complex_grp = get_input_sel();
+            }
+            2 => {
+                ndx.list_groups();
+                println!("Input receptor group num:");
+                receptor_grp = get_input_sel();
+            }
+            3 => {
+                ndx.list_groups();
+                println!("Input ligand group num:");
+                ligand_grp = get_input_sel();
+            }
+            _ => println!("Error input")
+        }
+    }
+}
+
+fn get_input_sel() -> usize {
+    let mut temp = String::from("");
+    stdin().read_line(&mut temp).expect("Error input.");
+    let temp: usize = temp.trim().parse().expect("Error convert to int.");
+    return temp;
 }

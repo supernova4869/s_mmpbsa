@@ -42,4 +42,10 @@ impl Index {
         let index = Index{ groups: groups };
         return index;
     }
+
+    pub fn list_groups(&self) {
+        for i in 0..self.groups.len() {
+            println!("{:>3}): {:<-15}{:>10} atoms", i, self.groups[i].name, self.groups[i].indexes.len())
+        }
+    }
 }
