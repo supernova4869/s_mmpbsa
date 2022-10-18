@@ -1,4 +1,5 @@
 use std::fs;
+use std::env;
 use std::io::{Read, stdin, Write};
 use std::path::Path;
 use std::process::{Command, exit};
@@ -6,24 +7,35 @@ use std::process::{Command, exit};
 fn main() {
     //parameters
     let gmx = "gmx";
-
-    welcome();
+    let args: Vec<String> = env::args().collect();
     let mut tpr = String::new();
-    stdin().read_line(&mut tpr).expect("Failed to read tpr file.");
-    let tpr = tpr.trim();
-    let tprpath = Path::new(tpr);
-    if !tprpath.is_file() {
-        println!("Input not valid file.");
-        exit(1);
-    }
-    // working directory (path of tpr location)
-    let wd = tprpath.parent().expect("Failed getting parent directory.");
-    println!("Currently working at {}", wd.display());
-    dump_tpr(tpr, wd, gmx);
     let mut trj = String::from("");
     let mut ndx = String::from("");
     let use_dh = true;
     let use_ts = true;
+
+    // start workflow
+    welcome();
+    match args.len() {
+        1 => {
+            println!("Input path of .tpr file, e.g. D:/Study/ZhangYang.tpr");
+            stdin().read_line(&mut tpr).expect("Failed to read tpr file.");
+        },
+        2 => tpr = args[1].to_string(),
+        _ => {
+            println!("TODO: 判断是否是-f -s -n方法使用, 根据情况处理");
+        },
+    }
+    let tpr = tpr.trim();
+    let tpr_path = Path::new(tpr);
+    if !tpr_path.is_file() {
+        println!("Not valid tpr file.");
+        exit(1);
+    }
+    // working directory (path of tpr location)
+    let wd = tpr_path.parent().expect("Failed getting parent directory.");
+    println!("Currently working at path: {}", wd.display());
+    dump_tpr(tpr, wd, gmx);
     loop {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
@@ -96,8 +108,9 @@ molecular mechanics Poisson–Boltzmann surface area (MM-PBSA) method.\n\
 Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
 Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
 Version 0.1, first release: 2022-Oct-17\n\n\
-Hint: you can directly load .tpr file by command: `SuperMMPBSA WangBingBing.tpr`\n\
-Input path of .tpr file, e.g. D:/Study/ZhangYang.tpr");
+Usage 1: run `SuperMMPBSA` and follow the prompts.\n\
+Usage 2: run `SuperMMPBSA WangBingBing.tpr` to directly load WangBingBing.tpr.\n\
+Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n");
 }
 
 fn dump_tpr(tpr:&str, wd:&Path, gmx:&str) {
