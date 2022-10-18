@@ -63,9 +63,7 @@ fn main() {
             _ => ndx.as_str()
         });
         println!(" 3 Exit program");
-        let mut i:String = String::from("");
-        stdin().read_line(&mut i).expect("Error input");
-        let i:i32 = i.trim().parse().expect("Error input");
+        let i = get_input_sel();
         match i {
             -2 => { let use_dh = !use_dh; },
             -1 => { let use_ts = !use_ts; },
@@ -155,9 +153,7 @@ fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts
             100 => String::from("undefined"),
             _ => format!("{} {}", ligand_grp, ndx.groups[ligand_grp].name)
         });
-        let mut i:String = String::from("");
-        stdin().read_line(&mut i).expect("Error input");
-        let i:i32 = i.trim().parse().expect("Error input");
+        let i = get_input_sel();
         match i {
             0 => {
                 println!("Select groups and do calculations.");
@@ -166,26 +162,26 @@ fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts
             1 => {
                 ndx.list_groups();
                 println!("Input complex group num:");
-                complex_grp = get_input_sel();
+                complex_grp = get_input_sel() as usize;
             }
             2 => {
                 ndx.list_groups();
                 println!("Input receptor group num:");
-                receptor_grp = get_input_sel();
+                receptor_grp = get_input_sel() as usize;
             }
             3 => {
                 ndx.list_groups();
                 println!("Input ligand group num:");
-                ligand_grp = get_input_sel();
+                ligand_grp = get_input_sel() as usize;
             }
             _ => println!("Error input")
         }
     }
 }
 
-fn get_input_sel() -> usize {
+fn get_input_sel() -> i32 {
     let mut temp = String::from("");
     stdin().read_line(&mut temp).expect("Error input.");
-    let temp: usize = temp.trim().parse().expect("Error convert to int.");
+    let temp: i32 = temp.trim().parse().expect("Error convert to int.");
     return temp;
 }
