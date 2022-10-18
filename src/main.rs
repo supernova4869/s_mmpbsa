@@ -2,7 +2,7 @@ use std::fs;
 use std::env;
 use std::io::{Read, stdin, Write};
 use std::path::Path;
-use std::process::{Command, exit};
+use std::process::Command;
 
 fn main() {
     //parameters
@@ -28,21 +28,25 @@ fn main() {
                     "-f" => { trj = args[i + 1].to_string() },
                     "-s" => { tpr = args[i + 1].to_string() },
                     "-n" => { ndx = args[i + 1].to_string() },
-                    _ => {}
+                    _ => {
+                        if i % 2 == 1 {
+                            println!("Omitted invalid option: {}", args[i])
+                        }
+                    }
                 }
             }
         },
     }
-    let tpr = tpr.trim();
-    let tpr_path = Path::new(tpr);
-    if !tpr_path.is_file() {
-        println!("Not valid tpr file.");
-        exit(1);
+    let mut tpr_path = Path::new(tpr.trim());
+    while !tpr_path.is_file() {
+        println!("Not valid tpr file. Input path of .tpr file again.");
+        stdin().read_line(&mut tpr).expect("Failed to read tpr file.");
+        tpr_path = Path::new(tpr.trim());
     }
     // working directory (path of tpr location)
     let wd = tpr_path.parent().expect("Failed getting parent directory.");
     println!("Currently working at path: {}", wd.display());
-    dump_tpr(tpr, wd, gmx);
+    dump_tpr(&tpr, wd, gmx);
     loop {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
@@ -70,7 +74,7 @@ fn main() {
                     // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
-                    calc_mmpbsa(&trj, tpr, &ndx, use_dh, use_ts);
+                    calc_mmpbsa(&trj, &tpr, &ndx, use_dh, use_ts);
                 }
             },
             1 => {
@@ -120,7 +124,7 @@ Usage 2: run `SuperMMPBSA WangBingBing.tpr` to directly load WangBingBing.tpr.\n
 Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n");
 }
 
-fn dump_tpr(tpr:&str, wd:&Path, gmx:&str) {
+fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
     // gmx = settings["environments"]["gmx"];
     let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
@@ -129,7 +133,7 @@ fn dump_tpr(tpr:&str, wd:&Path, gmx:&str) {
     println!("Finished loading tpr file, md parameters dumped to {}", wd.join("_mdout.mdp").display());
 }
 
-fn calc_mmpbsa(trj:&String, tpr:&str, ndx:&String, use_dh:bool, use_ts:bool) {
+fn calc_mmpbsa(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) {
     // TODO: 选组
     let ligand_grp = -1;
     let receptor_grp = -1;
