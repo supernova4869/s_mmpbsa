@@ -157,12 +157,12 @@ fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts
 }
 
 fn get_input_sel() -> i32 {
-    let mut temp = String::from("");
-    stdin().read_line(&mut temp).expect("Error input.");
-    while temp.trim().len() == 0 {
-        stdin().read_line(&mut temp).expect("Error input.");
+    let mut input = String::from("");
+    stdin().read_line(&mut input).expect("Error input.");
+    while input.trim().len() == 0 {
+        stdin().read_line(&mut input).expect("Error input.");
     }
-    let temp: i32 = temp.trim().parse().expect("Error convert to int.");
+    let temp: i32 = input.trim().parse().expect("Error convert to int.");
     return temp;
 }
 
