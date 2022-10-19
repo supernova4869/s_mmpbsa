@@ -39,14 +39,9 @@ fn main() {
             }
         },
     }
-    let mut tpr_path = Path::new(tpr.trim());
-    while !tpr_path.is_file() {
-        println!("Not valid tpr file. Input path of .tpr file again.");
-        stdin().read_line(&mut tpr).expect("Failed to read tpr file.");
-        tpr_path = Path::new(tpr.trim());
-    }
+    tpr = confirm_file_validity(&tpr, vec!["tpr"]);
     // working directory (path of tpr location)
-    let wd = tpr_path.parent().expect("Failed getting parent directory.");
+    let wd = Path::new(&tpr).parent().expect("Failed getting parent directory.");
     println!("Currently working at path: {}", wd.display());
     dump_tpr(&tpr, wd, gmx);
     loop {
@@ -80,32 +75,12 @@ fn main() {
             1 => {
                 println!("Input trajectory file path:");
                 stdin().read_line(&mut trj).expect("Failed while reading trajectory");
-                let p = Path::new(trj.trim());
-                let ext = p.extension().unwrap().to_str().expect("");
-                if !p.is_file() {
-                    println!("Error, not file.");
-                    trj = "".to_string();
-                } else if !(ext.eq("xtc")) && !(ext.eq("trr")) {
-                    println!("Error, not xtc/trr extension.");
-                    trj = "".to_string();
-                } else {
-                    trj = trj.trim().to_string();
-                }
+                trj = confirm_file_validity(&trj, vec!["xtc", "trr"]);
             },
             2 => {
                 println!("Input index file path:");
                 stdin().read_line(&mut ndx).expect("Failed while reading index");
-                let p = Path::new(ndx.trim());
-                let ext = p.extension().unwrap().to_str().expect("");
-                if !p.is_file() {
-                    println!("Error, not file.");
-                    ndx = "".to_string();
-                } else if !(ext == "ndx") {
-                    println!("Error, not ndx extension.");
-                    ndx = "".to_string();
-                } else {
-                    ndx = ndx.trim().to_string();
-                }
+                ndx = confirm_file_validity(&ndx, vec!["ndx"]);
             },
             3 => break,
             _ => println!("Error input.")
@@ -134,27 +109,29 @@ fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
 }
 
 fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) {
-    let mut ligand_grp = 100;
-    let mut receptor_grp = 100;
-    let mut complex_grp = 100;
+    let mut ligand_grp = -1;
+    let mut receptor_grp = -1;
+    let mut complex_grp = -1;
     let ndx = index_parser::Index::new(ndx);
     loop {
         println!("\n                 ************ MM-PBSA calculation ************");
-        println!(" 0 Do MM-PBSA calculations now!");
-        println!(" 1 Select complex group, current: {}", match complex_grp {
-            100 => String::from("undefined"),
-            _ => format!("{} {}", complex_grp, ndx.groups[complex_grp].name)
+        println!("-10 Return");
+        println!("  0 Do MM-PBSA calculations now!");
+        println!("  1 Select complex group, current: {}", match complex_grp {
+            -1 => String::from("undefined"),
+            _ => format!("{} {}", complex_grp, ndx.groups[complex_grp as usize].name)
         });
-        println!(" 2 Select receptor groups, current: {}", match receptor_grp {
-            100 => String::from("undefined"),
-            _ => format!("{} {}", receptor_grp, ndx.groups[receptor_grp].name)
+        println!("  2 Select receptor groups, current: {}", match receptor_grp {
+            -1 => String::from("undefined"),
+            _ => format!("{} {}", receptor_grp, ndx.groups[receptor_grp as usize].name)
         });
-        println!(" 3 Select ligand groups, current: {}", match ligand_grp {
-            100 => String::from("undefined"),
-            _ => format!("{} {}", ligand_grp, ndx.groups[ligand_grp].name)
+        println!("  3 Select ligand groups, current: {}", match ligand_grp {
+            -1 => String::from("undefined"),
+            _ => format!("{} {}", ligand_grp, ndx.groups[ligand_grp as usize].name)
         });
         let i = get_input_sel();
         match i {
+            -10 => return,
             0 => {
                 println!("Select groups and do calculations.");
                 break;
@@ -162,17 +139,17 @@ fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts
             1 => {
                 ndx.list_groups();
                 println!("Input complex group num:");
-                complex_grp = get_input_sel() as usize;
+                complex_grp = get_input_sel();
             }
             2 => {
                 ndx.list_groups();
                 println!("Input receptor group num:");
-                receptor_grp = get_input_sel() as usize;
+                receptor_grp = get_input_sel();
             }
             3 => {
                 ndx.list_groups();
                 println!("Input ligand group num:");
-                ligand_grp = get_input_sel() as usize;
+                ligand_grp = get_input_sel();
             }
             _ => println!("Error input")
         }
@@ -182,6 +159,35 @@ fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts
 fn get_input_sel() -> i32 {
     let mut temp = String::from("");
     stdin().read_line(&mut temp).expect("Error input.");
+    while temp.trim().len() == 0 {
+        stdin().read_line(&mut temp).expect("Error input.");
+    }
     let temp: i32 = temp.trim().parse().expect("Error convert to int.");
     return temp;
+}
+
+fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>) -> String {
+    let mut new_file_name = String::from(file_name);
+    let mut file_path = Path::new(file_name.trim());
+    loop {
+        if !file_path.is_file() {
+            println!("Not valid file: {}. Input file path again.", file_path.display());
+            new_file_name.clear();
+            stdin().read_line(&mut new_file_name).expect("Failed to read file name.");
+            file_path = Path::new(new_file_name.trim());
+        } else {
+            let file_ext = Path::new(file_path).extension().unwrap().to_str().unwrap();
+            for i in 0..ext_list.len() {
+                if file_ext != ext_list[i] {
+                    continue;
+                } else {
+                    return new_file_name.trim().to_string();
+                }
+            }
+            println!("Not valid {:?} file, currently {}. Input file path again.", ext_list, file_ext);
+            new_file_name.clear();
+            stdin().read_line(&mut new_file_name).expect("Failed to read file name.");
+            file_path = Path::new(new_file_name.trim());
+        }
+    }
 }
