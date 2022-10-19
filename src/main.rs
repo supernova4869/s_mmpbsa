@@ -39,7 +39,7 @@ fn main() {
             }
         },
     }
-    tpr = confirm_file_validity(&tpr, vec!["tpr"]);
+    tpr = confirm_file_validity(&mut tpr, vec!["tpr"]);
     // working directory (path of tpr location)
     let wd = Path::new(&tpr).parent().expect("Failed getting parent directory.");
     println!("Currently working at path: {}", wd.display());
@@ -75,12 +75,12 @@ fn main() {
             1 => {
                 println!("Input trajectory file path:");
                 stdin().read_line(&mut trj).expect("Failed while reading trajectory");
-                trj = confirm_file_validity(&trj, vec!["xtc", "trr"]);
+                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"]);
             },
             2 => {
                 println!("Input index file path:");
                 stdin().read_line(&mut ndx).expect("Failed while reading index");
-                ndx = confirm_file_validity(&ndx, vec!["ndx"]);
+                ndx = confirm_file_validity(&mut ndx, vec!["ndx"]);
             },
             3 => break,
             _ => println!("Error input.")
@@ -166,28 +166,29 @@ fn get_input_sel() -> i32 {
     return temp;
 }
 
-fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>) -> String {
-    let mut new_file_name = String::from(file_name);
+fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String {
     let mut file_path = Path::new(file_name.trim());
     loop {
+        // check validity
         if !file_path.is_file() {
             println!("Not valid file: {}. Input file path again.", file_path.display());
-            new_file_name.clear();
-            stdin().read_line(&mut new_file_name).expect("Failed to read file name.");
-            file_path = Path::new(new_file_name.trim());
-        } else {
-            let file_ext = Path::new(file_path).extension().unwrap().to_str().unwrap();
-            for i in 0..ext_list.len() {
-                if file_ext != ext_list[i] {
-                    continue;
-                } else {
-                    return new_file_name.trim().to_string();
-                }
-            }
-            println!("Not valid {:?} file, currently {}. Input file path again.", ext_list, file_ext);
-            new_file_name.clear();
-            stdin().read_line(&mut new_file_name).expect("Failed to read file name.");
-            file_path = Path::new(new_file_name.trim());
+            file_name.clear();
+            stdin().read_line(file_name).expect("Failed to read file name.");
+            file_path = Path::new(file_name.trim());
+            continue;
         }
+        // check extension
+        let file_ext = Path::new(file_path).extension().unwrap().to_str().unwrap();
+        for i in 0..ext_list.len() {
+            if file_ext != ext_list[i] {
+                continue;
+            } else {
+                return file_name.trim().to_string();
+            }
+        }
+        println!("Not valid {:?} file, currently {}. Input file path again.", ext_list, file_ext);
+        file_name.clear();
+        stdin().read_line(file_name).expect("Failed to read file name.");
+        file_path = Path::new(file_name.trim());
     }
 }
