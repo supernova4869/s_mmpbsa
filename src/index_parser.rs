@@ -27,7 +27,9 @@ impl Index {
                 let atom_list:Vec<&str> = ndx[i].trim().split(" ").collect();
                 let mut at_list:Vec<i32> = vec![];
                 for atom in atom_list {
-                    at_list.push(atom.parse().expect("Failed to get index atom"));
+                    let at:i32 = atom.parse().expect("Failed to get index atom");
+                    // gromacs index file starts at 1, but we need 0 as index slice
+                    at_list.push(at - 1);
                 }
                 group_atoms.push(at_list);
             }

@@ -1,4 +1,5 @@
 mod index_parser;
+mod mmpbsa;
 
 use std::fs;
 use std::env;
@@ -109,9 +110,9 @@ fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
 }
 
 fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) {
-    let mut ligand_grp = -1;
-    let mut receptor_grp = -1;
-    let mut complex_grp = -1;
+    let mut complex_grp: i32 = -1;
+    let mut receptor_grp: i32 = -1;
+    let mut ligand_grp: i32 = -1;
     let ndx = index_parser::Index::new(ndx);
     loop {
         println!("\n                 ************ MM-PBSA calculation ************");
@@ -133,7 +134,10 @@ fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts
         match i {
             -10 => return,
             0 => {
-                println!("Select groups and do calculations.");
+                mmpbsa::do_mmpbsa_calculations(trj, tpr, &ndx, use_dh, use_ts,
+                                               complex_grp as usize,
+                                               receptor_grp as usize,
+                                               ligand_grp as usize);
                 break;
             },
             1 => {
