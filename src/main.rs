@@ -10,6 +10,11 @@ use std::process::Command;
 fn main() {
     //parameters
     let gmx = "gmx";
+    if !check_programs_validity() {
+        println!("Error: Programs not correctly configured.");
+        return;
+    }
+
     let args: Vec<String> = env::args().collect();
     let mut tpr = String::new();
     let mut trj = String::from("");
@@ -195,4 +200,31 @@ fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String 
         stdin().read_line(file_name).expect("Failed to read file name.");
         file_path = Path::new(file_name.trim());
     }
+}
+
+fn check_programs_validity() -> bool {
+    let gmx = "gmx";
+    let apbs = "apbs";
+
+    // gmx
+    let test_gmx = Command::new("gmx").arg("--version").output().expect("running gmx failed.");
+    let test_gmx = String::from_utf8(test_gmx.stdout).expect("Getting gmx output failed.");
+    if test_gmx.find("GROMACS version") != None {
+        println!("GROMACS status: OK");
+    } else {
+        println!("GROMACS status: ERROR");
+        return false;
+    }
+
+    // apbs
+    let test_apbs = Command::new("apbs").arg("--version").output().expect("running apbs failed.");
+    let test_apbs = String::from_utf8(test_apbs.stdout).expect("Getting apbs output failed.");
+    if test_apbs.find("Version") != None {
+        println!("APBS status: OK");
+    } else {
+        println!("APBS status: ERROR");
+        return false;
+    }
+    fs::remove_file(Path::new("io.mc")).unwrap();
+    return true;
 }
