@@ -4,7 +4,7 @@ mod mmpbsa;
 use std::fs;
 use std::env;
 use std::io::{Read, stdin, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use regex::Regex;
 use toml;
@@ -26,14 +26,6 @@ struct Parameters {
 }
 
 fn main() {
-    //parameters
-    let params = init_params();
-
-    if !check_programs_validity(params.gmx.as_str(), params.apbs.as_str()) {
-        println!("Error: Programs not correctly configured.");
-        return;
-    }
-
     let args: Vec<String> = env::args().collect();
     let mut tpr = String::new();
     let mut trj = String::from("");
@@ -43,6 +35,12 @@ fn main() {
 
     // start workflow
     welcome();
+    // initialize parameters
+    let params = init_params();
+    if !check_programs_validity(params.gmx.as_str(), params.apbs.as_str()) {
+        println!("Error: Programs not correctly configured.");
+        return;
+    }
     match args.len() {
         1 => {
             println!("Input path of .tpr file, e.g. D:/Study/ZhangYang.tpr");
@@ -241,46 +239,73 @@ fn check_programs_validity(gmx: &str, apbs: &str) -> bool {
 }
 
 fn init_params() -> Parameters {
-    let mut rad_type:i32 = 1;
-    let mut rad_lj0:f64 = 1.2;
-    let mut mesh_type:i32 = 0;
-    let mut grid_type:i32 = 1;
-    let mut cfac:f64 = 3.0;
-    let mut fadd:f64 = 10.0;
-    let mut df:f64 = 0.5;
-    let mut dt:i32 = 1000;
-    let mut nkernels:i32 = 8;
-    let mut preserve:bool = true;
-    let mut gmx = String::from("gmx");
-    let mut apbs = String::from("apbs");
+    let mut params: Parameters;
     if Path::new("settings.ini").is_file() {
+        // Find settings locally
         let settings = fs::read_to_string("settings.ini").unwrap();
         let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
         let settings: Value = toml::from_str(settings.as_str()).unwrap();
-        rad_type = settings.get("radType").unwrap().to_string().parse().unwrap();
-        rad_lj0 = settings.get("radLJ0").unwrap().to_string().parse().unwrap();
-        mesh_type = settings.get("meshType").unwrap().to_string().parse().unwrap();
-        grid_type = settings.get("gridType").unwrap().to_string().parse().unwrap();
-        cfac = settings.get("cfac").unwrap().to_string().parse().unwrap();
-        fadd = settings.get("fadd").unwrap().to_string().parse().unwrap();
-        df = settings.get("df").unwrap().to_string().parse().unwrap();
-        dt = settings.get("dt").unwrap().to_string().parse().unwrap();
-        nkernels = settings.get("nkernels").unwrap().to_string().parse().unwrap();
-        match settings.get("preserve").unwrap().as_str().unwrap() {
-            "y" => preserve = true,
-            "Y" => preserve = true,
-            _ => preserve = false
-        }
-        gmx = settings.get("gmx").unwrap().to_string();
-        apbs = settings.get("apbs").unwrap().to_string();
-        if gmx.starts_with("\"") && gmx.ends_with("\"") {
-            gmx = gmx[1..gmx.len() - 1].to_string();
-        }
-        if apbs.starts_with("\"") && apbs.ends_with("\"") {
-            apbs = apbs[1..apbs.len() - 1].to_string();
-        }
+        params = read_settings(&settings);
+        println!("Found settings.ini in the current path. Will use {} kernels.", params.nkernels);
     } else {
         // Find $SuperMMPBSAPath
+        let mut super_mmpbsa_path = String::from("");
+        // to help determine if file exists in $SuperMMPBSAPath
+        let mut path: PathBuf = PathBuf::new();
+        for (k, v) in env::vars() {
+            if k == "SuperMMPBSAPath" {
+                super_mmpbsa_path = v;
+            }
+        }
+        if super_mmpbsa_path != "" {
+            for entry in Path::new(super_mmpbsa_path.as_str()).read_dir().unwrap() {
+                let entry = entry.unwrap();
+                path = entry.path();
+                let fname = path.file_name().unwrap();
+                if fname == "settings.ini" {
+                    break;
+                }
+            }
+        }
+        if super_mmpbsa_path != "" && path.file_name().unwrap() == "settings.ini" {
+            let settings = fs::read_to_string(path).unwrap();
+            let settings = Regex::new(r"\\").unwrap()
+                .replace_all(settings.as_str(), "/").to_string();
+            let settings: Value = toml::from_str(settings.as_str()).unwrap();
+            params = read_settings(&settings);
+            println!("Found settings.ini in $SuperMMPBSAPath. Will use {} kernels.", params.nkernels);
+        } else {
+            params = Parameters { rad_type: 1, rad_lj0: 1.2, mesh_type: 0, grid_type: 1, cfac: 3.0,
+                fadd: 10.0, df: 0.5, dt: 1000, nkernels: 1, preserve: true,
+                gmx: String::from("gmx"), apbs: String::from("apbs") };
+            println!("Did not found settings.ini. Will use 1 kernels.");
+        }
+    }
+    return params;
+}
+
+fn read_settings(settings: &Value) -> Parameters {
+    let rad_type = settings.get("radType").unwrap().to_string().parse().unwrap();
+    let rad_lj0 = settings.get("radLJ0").unwrap().to_string().parse().unwrap();
+    let mesh_type = settings.get("meshType").unwrap().to_string().parse().unwrap();
+    let grid_type = settings.get("gridType").unwrap().to_string().parse().unwrap();
+    let cfac = settings.get("cfac").unwrap().to_string().parse().unwrap();
+    let fadd = settings.get("fadd").unwrap().to_string().parse().unwrap();
+    let df = settings.get("df").unwrap().to_string().parse().unwrap();
+    let dt = settings.get("dt").unwrap().to_string().parse().unwrap();
+    let nkernels = settings.get("nkernels").unwrap().to_string().parse().unwrap();
+    let preserve = match settings.get("preserve").unwrap().as_str().unwrap() {
+        "y" => true,
+        "Y" => true,
+        _ => false
+    };
+    let mut gmx = settings.get("gmx").unwrap().to_string();
+    if gmx.starts_with("\"") && gmx.ends_with("\"") {
+        gmx = gmx[1..gmx.len() - 1].to_string();
+    }
+    let mut apbs = settings.get("apbs").unwrap().to_string();
+    if apbs.starts_with("\"") && apbs.ends_with("\"") {
+        apbs = apbs[1..apbs.len() - 1].to_string();
     }
     return Parameters { rad_type, rad_lj0, mesh_type, grid_type, cfac, fadd,
         df, dt, nkernels, preserve, gmx, apbs };
