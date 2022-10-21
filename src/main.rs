@@ -6,11 +6,30 @@ use std::env;
 use std::io::{Read, stdin, Write};
 use std::path::Path;
 use std::process::Command;
+use regex::Regex;
+use toml;
+use toml::Value;
+
+struct Parameters {
+    rad_type:i32,
+    rad_lj0:f64,
+    mesh_type:i32,
+    grid_type:i32,
+    cfac:f64,
+    fadd:f64,
+    df:f64,
+    dt:i32,
+    nkernels:i32,
+    preserve:bool,
+    gmx:String,
+    apbs:String
+}
 
 fn main() {
     //parameters
-    let gmx = "gmx";
-    if !check_programs_validity() {
+    let params = init_params();
+
+    if !check_programs_validity(params.gmx.as_str(), params.apbs.as_str()) {
         println!("Error: Programs not correctly configured.");
         return;
     }
@@ -49,7 +68,7 @@ fn main() {
     // working directory (path of tpr location)
     let wd = Path::new(&tpr).parent().expect("Failed getting parent directory.");
     println!("Currently working at path: {}", wd.display());
-    dump_tpr(&tpr, wd, gmx);
+    dump_tpr(&tpr, wd, params.gmx.as_str());
     loop {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
@@ -106,7 +125,6 @@ Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed
 }
 
 fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
-    // gmx = settings["environments"]["gmx"];
     let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
     let mut outfile = fs::File::create(wd.join("_mdout.mdp")).unwrap();
@@ -202,29 +220,68 @@ fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String 
     }
 }
 
-fn check_programs_validity() -> bool {
-    let gmx = "gmx";
-    let apbs = "apbs";
-
+fn check_programs_validity(gmx: &str, apbs: &str) -> bool {
     // gmx
-    let test_gmx = Command::new("gmx").arg("--version").output().expect("running gmx failed.");
+    let test_gmx = Command::new(gmx).arg("--version").output().expect("running gmx failed.");
     let test_gmx = String::from_utf8(test_gmx.stdout).expect("Getting gmx output failed.");
-    if test_gmx.find("GROMACS version") != None {
-        println!("GROMACS status: OK");
-    } else {
+    if test_gmx.find("GROMACS version") == None {
         println!("GROMACS status: ERROR");
         return false;
     }
 
     // apbs
-    let test_apbs = Command::new("apbs").arg("--version").output().expect("running apbs failed.");
+    let test_apbs = Command::new(apbs).arg("--version").output().expect("running apbs failed.");
     let test_apbs = String::from_utf8(test_apbs.stdout).expect("Getting apbs output failed.");
-    if test_apbs.find("Version") != None {
-        println!("APBS status: OK");
-    } else {
+    if test_apbs.find("Version") == None {
         println!("APBS status: ERROR");
         return false;
     }
     fs::remove_file(Path::new("io.mc")).unwrap();
     return true;
+}
+
+fn init_params() -> Parameters {
+    let mut rad_type:i32 = 1;
+    let mut rad_lj0:f64 = 1.2;
+    let mut mesh_type:i32 = 0;
+    let mut grid_type:i32 = 1;
+    let mut cfac:f64 = 3.0;
+    let mut fadd:f64 = 10.0;
+    let mut df:f64 = 0.5;
+    let mut dt:i32 = 1000;
+    let mut nkernels:i32 = 8;
+    let mut preserve:bool = true;
+    let mut gmx = String::from("gmx");
+    let mut apbs = String::from("apbs");
+    if Path::new("settings.ini").is_file() {
+        let settings = fs::read_to_string("settings.ini").unwrap();
+        let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
+        let settings: Value = toml::from_str(settings.as_str()).unwrap();
+        rad_type = settings.get("radType").unwrap().to_string().parse().unwrap();
+        rad_lj0 = settings.get("radLJ0").unwrap().to_string().parse().unwrap();
+        mesh_type = settings.get("meshType").unwrap().to_string().parse().unwrap();
+        grid_type = settings.get("gridType").unwrap().to_string().parse().unwrap();
+        cfac = settings.get("cfac").unwrap().to_string().parse().unwrap();
+        fadd = settings.get("fadd").unwrap().to_string().parse().unwrap();
+        df = settings.get("df").unwrap().to_string().parse().unwrap();
+        dt = settings.get("dt").unwrap().to_string().parse().unwrap();
+        nkernels = settings.get("nkernels").unwrap().to_string().parse().unwrap();
+        match settings.get("preserve").unwrap().as_str().unwrap() {
+            "y" => preserve = true,
+            "Y" => preserve = true,
+            _ => preserve = false
+        }
+        gmx = settings.get("gmx").unwrap().to_string();
+        apbs = settings.get("apbs").unwrap().to_string();
+        if gmx.starts_with("\"") && gmx.ends_with("\"") {
+            gmx = gmx[1..gmx.len() - 1].to_string();
+        }
+        if apbs.starts_with("\"") && apbs.ends_with("\"") {
+            apbs = apbs[1..apbs.len() - 1].to_string();
+        }
+    } else {
+        // Find $SuperMMPBSAPath
+    }
+    return Parameters { rad_type, rad_lj0, mesh_type, grid_type, cfac, fadd,
+        df, dt, nkernels, preserve, gmx, apbs };
 }

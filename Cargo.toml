@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 regex = "1"
 xdrfile = "^0.3.0"
+toml = "^0.5.2"
