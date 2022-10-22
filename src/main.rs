@@ -10,7 +10,7 @@ use regex::Regex;
 use toml;
 use toml::Value;
 
-struct Parameters {
+pub struct Parameters {
     rad_type: i32,
     rad_lj0: f64,
     mesh_type: i32,
@@ -18,7 +18,6 @@ struct Parameters {
     cfac: f64,
     fadd: f64,
     df: f64,
-    dt: i32,
     nkernels: i32,
     preserve: bool,
     gmx: String,
@@ -66,7 +65,7 @@ fn main() {
     // working directory (path of tpr location)
     let wd = Path::new(&tpr).parent().expect("Failed getting parent directory.");
     println!("Currently working at path: {}", wd.display());
-    dump_tpr(&tpr, wd, params.gmx.as_str());
+    tpr = dump_tpr(&tpr, wd, params.gmx.as_str());
     loop {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
@@ -92,7 +91,7 @@ fn main() {
                     // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
-                    mmpbsa_calculation(&trj, &tpr, &ndx, use_dh, use_ts);
+                    mmpbsa_calculation(&trj, &tpr, &ndx, use_dh, use_ts, &params);
                 }
             }
             1 => {
@@ -122,18 +121,22 @@ Usage 2: run `SuperMMPBSA WangBingBing.tpr` to directly load WangBingBing.tpr.\n
 Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n");
 }
 
-fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) {
+fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) -> String {
     let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
     let mut outfile = fs::File::create(wd.join("_mdout.mdp")).unwrap();
     outfile.write(tpr_dump.as_bytes()).unwrap();
     println!("Finished loading tpr file, md parameters dumped to {}", wd.join("_mdout.mdp").display());
+    return wd.join("_mdout.mdp").to_str().unwrap().to_string();
 }
 
-fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, use_ts: bool) {
+fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, use_ts: bool, params: &Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
+    let mut bt: f64 = 0.0;
+    let mut et: f64 = 40000.0;
+    let mut dt: f64 = 1000.0;
     let ndx = index_parser::Index::new(ndx);
     loop {
         println!("\n                 ************ MM-PBSA calculation ************");
@@ -151,6 +154,9 @@ fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, us
             -1 => String::from("undefined"),
             _ => format!("{} {}", ligand_grp, ndx.groups[ligand_grp as usize].name)
         });
+        println!("  4 Set start time of analysis, current: {} ns", bt / 1000.0);
+        println!("  5 Set end time of analysis, current: {} ns", et / 1000.0);
+        println!("  6 Set time interval of analysis, current: {} ps", dt);
         let i = get_input_sel();
         match i {
             -10 => return,
@@ -158,7 +164,9 @@ fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, us
                 mmpbsa::do_mmpbsa_calculations(trj, tpr, &ndx, use_dh, use_ts,
                                                complex_grp as usize,
                                                receptor_grp as usize,
-                                               ligand_grp as usize);
+                                               ligand_grp as usize,
+                                               bt, et, dt,
+                                               &params);
                 break;
             }
             1 => {
@@ -176,7 +184,19 @@ fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, us
                 println!("Input ligand group num:");
                 ligand_grp = get_input_sel();
             }
-            _ => println!("Error input")
+            4 => {
+                println!("Input start time (ns):");
+                bt = get_input_value() * 1000.0;
+            }
+            5 => {
+                println!("Input end time (ns):");
+                et = get_input_value() * 1000.0;
+            }
+            6 => {
+                println!("Input interval time (ps):");
+                dt = get_input_value();
+            }
+            _ => println!("Invalid input")
         }
     }
 }
@@ -188,6 +208,16 @@ fn get_input_sel() -> i32 {
         stdin().read_line(&mut input).expect("Error input.");
     }
     let temp: i32 = input.trim().parse().expect("Error convert to int.");
+    return temp;
+}
+
+fn get_input_value() -> f64 {
+    let mut input = String::from("");
+    stdin().read_line(&mut input).expect("Error input.");
+    while input.trim().len() == 0 {
+        stdin().read_line(&mut input).expect("Error input.");
+    }
+    let temp: f64 = input.trim().parse().expect("Error convert to int.");
     return temp;
 }
 
@@ -283,7 +313,6 @@ fn init_params() -> Parameters {
                 cfac: 3.0,
                 fadd: 10.0,
                 df: 0.5,
-                dt: 1000,
                 nkernels: 1,
                 preserve: true,
                 gmx: String::from("gmx"),
@@ -303,7 +332,6 @@ fn read_settings(settings: &Value) -> Parameters {
     let cfac = settings.get("cfac").unwrap().to_string().parse().unwrap();
     let fadd = settings.get("fadd").unwrap().to_string().parse().unwrap();
     let df = settings.get("df").unwrap().to_string().parse().unwrap();
-    let dt = settings.get("dt").unwrap().to_string().parse().unwrap();
     let nkernels = settings.get("nkernels").unwrap().to_string().parse().unwrap();
     let preserve = match settings.get("preserve").unwrap().as_str().unwrap() {
         "y" => true,
@@ -326,7 +354,6 @@ fn read_settings(settings: &Value) -> Parameters {
         cfac,
         fadd,
         df,
-        dt,
         nkernels,
         preserve,
         gmx,
