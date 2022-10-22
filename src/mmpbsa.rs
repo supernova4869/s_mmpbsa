@@ -2,7 +2,7 @@ use crate::index_parser::Index;
 use xdrfile::*;
 
 pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, ndx: &Index, use_dh: bool, use_ts: bool,
-                          complex_grp: usize, receptor_grp: usize, ligand_grp: usize) {
+                              complex_grp: usize, receptor_grp: usize, ligand_grp: usize) {
     let complex = &ndx.groups[complex_grp].indexes;
     let receptor = &ndx.groups[receptor_grp].indexes;
     let ligand = &ndx.groups[ligand_grp].indexes;
@@ -19,7 +19,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, ndx: &Index, use_dh: b
 }
 
 fn get_atoms_trj(trj: XTCTrajectory, at_ids: &Vec<i32>, begin: f64, end: f64, dt: f64) -> Vec<Vec<[f32; 3]>> {
-    let mut coord_matrix:Vec<Vec<[f32; 3]>> = vec![];
+    let mut coord_matrix: Vec<Vec<[f32; 3]>> = vec![];
     let mut start_t = 0.0;
     for result in trj.into_iter() {
         let frame = result.unwrap();

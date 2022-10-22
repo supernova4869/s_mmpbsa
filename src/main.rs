@@ -11,18 +11,18 @@ use toml;
 use toml::Value;
 
 struct Parameters {
-    rad_type:i32,
-    rad_lj0:f64,
-    mesh_type:i32,
-    grid_type:i32,
-    cfac:f64,
-    fadd:f64,
-    df:f64,
-    dt:i32,
-    nkernels:i32,
-    preserve:bool,
-    gmx:String,
-    apbs:String
+    rad_type: i32,
+    rad_lj0: f64,
+    mesh_type: i32,
+    grid_type: i32,
+    cfac: f64,
+    fadd: f64,
+    df: f64,
+    dt: i32,
+    nkernels: i32,
+    preserve: bool,
+    gmx: String,
+    apbs: String,
 }
 
 fn main() {
@@ -45,14 +45,14 @@ fn main() {
         1 => {
             println!("Input path of .tpr file, e.g. D:/Study/ZhangYang.tpr");
             stdin().read_line(&mut tpr).expect("Failed to read tpr file.");
-        },
+        }
         2 => tpr = args[1].to_string(),
         _ => {
             for i in 1..args.len() {
                 match args[i].as_str() {
-                    "-f" => { trj = args[i + 1].to_string() },
-                    "-s" => { tpr = args[i + 1].to_string() },
-                    "-n" => { ndx = args[i + 1].to_string() },
+                    "-f" => { trj = args[i + 1].to_string() }
+                    "-s" => { tpr = args[i + 1].to_string() }
+                    "-n" => { ndx = args[i + 1].to_string() }
                     _ => {
                         if i % 2 == 1 {
                             println!("Omitted invalid option: {}", args[i])
@@ -60,7 +60,7 @@ fn main() {
                     }
                 }
             }
-        },
+        }
     }
     tpr = confirm_file_validity(&mut tpr, vec!["tpr"]);
     // working directory (path of tpr location)
@@ -83,8 +83,8 @@ fn main() {
         println!(" 3 Exit program");
         let i = get_input_sel();
         match i {
-            -2 => { let use_dh = !use_dh; },
-            -1 => { let use_ts = !use_ts; },
+            -2 => { let use_dh = !use_dh; }
+            -1 => { let use_ts = !use_ts; }
             0 => {
                 if trj.len() == 0 {
                     println!("Trajectory file not assigned.");
@@ -94,17 +94,17 @@ fn main() {
                 } else {
                     mmpbsa_calculation(&trj, &tpr, &ndx, use_dh, use_ts);
                 }
-            },
+            }
             1 => {
                 println!("Input trajectory file path:");
                 stdin().read_line(&mut trj).expect("Failed while reading trajectory");
                 trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"]);
-            },
+            }
             2 => {
                 println!("Input index file path:");
                 stdin().read_line(&mut ndx).expect("Failed while reading index");
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx"]);
-            },
+            }
             3 => break,
             _ => println!("Error input.")
         };
@@ -122,7 +122,7 @@ Usage 2: run `SuperMMPBSA WangBingBing.tpr` to directly load WangBingBing.tpr.\n
 Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n");
 }
 
-fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
+fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) {
     let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
     let mut outfile = fs::File::create(wd.join("_mdout.mdp")).unwrap();
@@ -130,7 +130,7 @@ fn dump_tpr(tpr:&String, wd:&Path, gmx:&str) {
     println!("Finished loading tpr file, md parameters dumped to {}", wd.join("_mdout.mdp").display());
 }
 
-fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts:bool) {
+fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, use_ts: bool) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -160,7 +160,7 @@ fn mmpbsa_calculation(trj:&String, tpr:&String, ndx:&String, use_dh:bool, use_ts
                                                receptor_grp as usize,
                                                ligand_grp as usize);
                 break;
-            },
+            }
             1 => {
                 ndx.list_groups();
                 println!("Input complex group num:");
@@ -246,14 +246,14 @@ fn init_params() -> Parameters {
         let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
         let settings: Value = toml::from_str(settings.as_str()).unwrap();
         params = read_settings(&settings);
-        println!("Found settings.ini in the current path. Will use {} kernels.", params.nkernels);
+        println!("Note: found settings.ini in the current path. Will use {} kernels.", params.nkernels);
     } else {
         // Find $SuperMMPBSAPath
         let mut super_mmpbsa_path = String::from("");
         // to help determine if file exists in $SuperMMPBSAPath
         let mut path: PathBuf = PathBuf::new();
         for (k, v) in env::vars() {
-            if k == "SuperMMPBSAPath" {
+            if k.to_lowercase() == "supermmpbsapath" {
                 super_mmpbsa_path = v;
             }
         }
@@ -273,12 +273,23 @@ fn init_params() -> Parameters {
                 .replace_all(settings.as_str(), "/").to_string();
             let settings: Value = toml::from_str(settings.as_str()).unwrap();
             params = read_settings(&settings);
-            println!("Found settings.ini in $SuperMMPBSAPath. Will use {} kernels.", params.nkernels);
+            println!("Note: found settings.ini in $SuperMMPBSAPath. Will use {} kernels.", params.nkernels);
         } else {
-            params = Parameters { rad_type: 1, rad_lj0: 1.2, mesh_type: 0, grid_type: 1, cfac: 3.0,
-                fadd: 10.0, df: 0.5, dt: 1000, nkernels: 1, preserve: true,
-                gmx: String::from("gmx"), apbs: String::from("apbs") };
-            println!("Did not found settings.ini. Will use 1 kernels.");
+            params = Parameters {
+                rad_type: 1,
+                rad_lj0: 1.2,
+                mesh_type: 0,
+                grid_type: 1,
+                cfac: 3.0,
+                fadd: 10.0,
+                df: 0.5,
+                dt: 1000,
+                nkernels: 1,
+                preserve: true,
+                gmx: String::from("gmx"),
+                apbs: String::from("apbs"),
+            };
+            println!("Note: settings.ini not found. Will use 1 kernel.");
         }
     }
     return params;
@@ -307,6 +318,18 @@ fn read_settings(settings: &Value) -> Parameters {
     if apbs.starts_with("\"") && apbs.ends_with("\"") {
         apbs = apbs[1..apbs.len() - 1].to_string();
     }
-    return Parameters { rad_type, rad_lj0, mesh_type, grid_type, cfac, fadd,
-        df, dt, nkernels, preserve, gmx, apbs };
+    return Parameters {
+        rad_type,
+        rad_lj0,
+        mesh_type,
+        grid_type,
+        cfac,
+        fadd,
+        df,
+        dt,
+        nkernels,
+        preserve,
+        gmx,
+        apbs,
+    };
 }
