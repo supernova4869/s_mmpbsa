@@ -1,6 +1,7 @@
 use crate::index_parser::Index;
 use xdrfile::*;
 use crate::Parameters;
+use ndarray::{ArrayBase, Dim, Ix, OwnedRepr};
 
 pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, ndx: &Index, use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
@@ -22,20 +23,28 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, ndx: &Index, use_dh: b
 
     // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
-    let traj_coords = get_atoms_trj(trj);       // atoms: 三维数组, 原子坐标x帧号
+    let coordinates = get_atoms_trj(trj);   // frames x atoms(3x1)
     // pbc whole
-    println!("{}", traj_coords[0][0][0]);
+    println!("{:?}", coordinates);
     // ...
     // 2. 获取每个原子的电荷, 半径, LJ参数, 然后生成qrv文件
     // 3. Mpdb>pqr, 输出apbs, 计算MM, APBS
 }
 
-fn get_atoms_trj(trj: XTCTrajectory) -> Vec<Vec<[f32; 3]>> {
-    let mut coord_matrix: Vec<Vec<[f32; 3]>> = vec![];
+fn get_atoms_trj(trj: XTCTrajectory) -> ArrayBase<OwnedRepr<[f32; 3]>, Dim<[Ix; 2]>> {
+    let mut coord_matrix: Vec<[f32; 3]> = vec![];
+    let mut num_frames = 0;
+    let mut num_atoms = 0;
     for result in trj.into_iter() {
         let frame = result.unwrap();
-        let a = frame.coords.to_vec();
-        coord_matrix.push(a);
+        let atoms = frame.coords.to_vec();
+        for a in atoms {
+            coord_matrix.push(a);
+        }
+        num_frames += 1;
+        num_atoms = frame.num_atoms();
     }
+    let coord_matrix = ndarray::Array::from_shape_vec(
+        (num_frames, num_atoms), coord_matrix).unwrap();
     return coord_matrix;
 }
