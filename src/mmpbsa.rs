@@ -27,9 +27,10 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, ndx: &Index, use_dh: b
         get_atoms_trj(trj);   // frames x atoms(3x1)
     // pbc whole
     // println!("{:?}", coordinates);
-    println!("{:?}", boxes);
-    // ...
+    // println!("{:?}", boxes);
+    // 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
     // 2. 获取每个原子的电荷, 半径, LJ参数, 然后生成qrv文件
+    // PB部分的参数从哪来?是否从前一菜单转移?
     // 3. Mpdb>pqr, 输出apbs, 计算MM, APBS
 }
 
