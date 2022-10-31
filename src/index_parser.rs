@@ -3,7 +3,7 @@ use regex::Regex;
 
 pub struct IndexGroup {
     pub name: String,
-    pub indexes: Vec<i32>,
+    pub indexes: Vec<i32>,      // starts at 0
 }
 
 pub struct Index {
@@ -41,7 +41,7 @@ impl Index {
                 indexes: group_atoms.pop().expect("Error reading index file."),
             });
         }
-        let index = Index { groups: groups };
+        let index = Index { groups };
         return index;
     }
 

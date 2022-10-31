@@ -65,7 +65,7 @@ fn main() {
     // working directory (path of tpr location)
     let wd = Path::new(&tpr).parent().expect("Failed getting parent directory.");
     println!("Currently working at path: {}", wd.display());
-    tpr = dump_tpr(&tpr, wd, params.gmx.as_str());
+    let mdp = dump_tpr(&tpr, wd, params.gmx.as_str());
     loop {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
@@ -91,7 +91,7 @@ fn main() {
                     // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
-                    mmpbsa_calculation(&trj, &tpr, &ndx, use_dh, use_ts, &params);
+                    mmpbsa_calculation(&trj, &mdp, &ndx, wd, use_dh, use_ts, &params);
                 }
             }
             1 => {
@@ -130,7 +130,7 @@ fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) -> String {
     return wd.join("_mdout.mdp").to_str().unwrap().to_string();
 }
 
-fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, use_ts: bool, params: &Parameters) {
+fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_dh: bool, use_ts: bool, params: &Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -161,7 +161,7 @@ fn mmpbsa_calculation(trj: &String, tpr: &String, ndx: &String, use_dh: bool, us
         match i {
             -10 => return,
             0 => {
-                mmpbsa::do_mmpbsa_calculations(trj, tpr, &ndx, use_dh, use_ts,
+                mmpbsa::do_mmpbsa_calculations(trj, mdp, &ndx, wd, use_dh, use_ts,
                                                complex_grp as usize,
                                                receptor_grp as usize,
                                                ligand_grp as usize,
@@ -313,12 +313,12 @@ fn init_params() -> Parameters {
                 cfac: 3.0,
                 fadd: 10.0,
                 df: 0.5,
-                nkernels: 1,
+                nkernels: 4,
                 preserve: true,
                 gmx: String::from("gmx"),
                 apbs: String::from("apbs"),
             };
-            println!("Note: settings.ini not found. Will use 1 kernel.");
+            println!("Note: settings.ini not found. Will use 4 kernel.");
         }
     }
     return params;
