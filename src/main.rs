@@ -170,16 +170,19 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
                 break;
             }
             1 => {
+                println!("Current groups:");
                 ndx.list_groups();
                 println!("Input complex group num:");
                 complex_grp = get_input_sel();
             }
             2 => {
+                println!("Current groups:");
                 ndx.list_groups();
                 println!("Input receptor group num:");
                 receptor_grp = get_input_sel();
             }
             3 => {
+                println!("Current groups:");
                 ndx.list_groups();
                 println!("Input ligand group num:");
                 ligand_grp = get_input_sel();

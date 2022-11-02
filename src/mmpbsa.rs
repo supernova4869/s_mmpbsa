@@ -3,13 +3,14 @@ use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
 use crate::Parameters;
-use ndarray::{array, Array, ArrayBase, Dim, Ix, NdIndex, OwnedRepr, Shape};
+use ndarray::{Array, Array2, ArrayBase, Dim, Ix, NdIndex, OwnedRepr, Shape};
 use fs::File;
 use std::cmp::max;
 use std::io::Write;
 use regex::{Match, Regex};
 use std::str::FromStr;
 use std::fmt::Debug;
+use indicatif::ProgressBar;
 
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path, use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
@@ -90,7 +91,7 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
     let mut locator = locator + 3;
     let mut sigma: Vec<f64> = vec![0.0; atnr];
     let mut epsilon: Vec<f64> = vec![0.0; atnr];
-    let mut rad: Vec<f64> = vec![rad_lj0; atnr];
+    let mut rad: Vec<f64> = vec![0.0; atnr];
 
     // println!("Generating qrv file...");
     // for i in 0..atnr {
@@ -132,29 +133,71 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
     let Nmol: Vec<i32> = get_md_params_all(&mdp, &re);
     // number of atoms
     let re = Regex::new(r"atom \((.+)\):").unwrap();
-    let Natm: Vec<i32> = get_md_params_all(&mdp, &re);
-    let maxNatm = Natm.iter().max().unwrap();
-    // Name = Vector{String}()
-    // Natm = Vector{Int32}()
+    let maxNatm: usize = *get_md_params_all(&mdp, &re).iter().max().unwrap();
+    let mut Name: Vec<String> = vec![];         // name of each system
+    let mut Natm: Vec<usize> = vec![];            // atom number of each system
 
     // locator of molecule types
     let re = Regex::new(r"\s*moltype.+\(").unwrap();
     let locators = get_md_locators_all(&mdp, &re);
 
-
-    // 先看看ndarray再决定下面怎么写
-    let arr: ArrayBase<OwnedRepr<[f32; 3]>, Dim<[Ix; 2]>> = Array::zeros((3, 100));
-    println!("{:?}", arr);
-    // let resID= Array::zeros();
-
-    // Catm = zeros(Int32, length(Nmol), maxNatm)
-    // Ratm = zeros(Float64, length(Nmol), maxNatm)
-    // Satm = zeros(Float64, length(Nmol), maxNatm)
-    // Eatm = zeros(Float64, length(Nmol), maxNatm)
-    // Qatm = zeros(Float64, length(Nmol), maxNatm)
-    // Tatm = Array{String}(undef, length(Nmol), maxNatm)
+    // initialize atom information, each molecule per line
+    let mut res_ids = Array2::<i32>::zeros((Nmol.len(), maxNatm));      // residue ids of each atom
+    let mut Catm = Array2::<usize>::zeros((Nmol.len(), maxNatm));     // atom type
+    let mut Ratm = Array2::<f64>::zeros((Nmol.len(), maxNatm));        // atom radius
+    let mut Satm = Array2::<f64>::zeros((Nmol.len(), maxNatm));        // atom sigma
+    let mut Eatm = Array2::<f64>::zeros((Nmol.len(), maxNatm));        // atom epsilon
+    let mut Qatm = Array2::<f64>::zeros((Nmol.len(), maxNatm));        // atom charge
+    let mut Tatm = Array2::<String>::default((Nmol.len(), maxNatm)); // atom name
 
     // get atom parameters
+    for locator in locators {
+        let re = Regex::new(r"\s*moltype.+\((\d+)\)").unwrap();
+        let Imol = re.captures(&mdp[locator]).unwrap().get(1).unwrap();
+        let Imol: usize = Imol.as_str().parse().unwrap();
+        let re = Regex::new(r"name=(.*)").unwrap();
+        let n = re.captures(&mdp[locator + 1]).unwrap().get(1).unwrap().as_str();
+        Name.push(n[1..(n.len() - 1)].to_string());
+        let re = Regex::new(r"\((.*)\)").unwrap();
+        let num = re.captures(&mdp[locator + 3]).unwrap().get(1).unwrap();
+        let num: usize = num.as_str().parse().unwrap();
+        Natm.push(num);
+        let locator = locator + 4;
+
+        // progress bar
+        println!("Reading the {}/{} system information.", Imol + 1, Nmol.len());
+        println!("Reading atom parameters...");
+        let pb = ProgressBar::new(Natm[Imol] as u64);
+
+        for i in 0..Natm[Imol] {
+            let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
+            let c = re.captures(&mdp[locator + i]).unwrap();
+            let at_type = c.get(1).unwrap();
+            let at_type: usize = at_type.as_str().parse().unwrap();
+            let resID = c.get(3).unwrap();
+            let resID: i32 = resID.as_str().parse().unwrap();
+            res_ids[[Imol, i]] = resID;
+            Catm[[Imol, i]] = at_type;
+            Ratm[[Imol, i]] = rad[at_type];
+            Satm[[Imol, i]] = sigma[at_type];
+            Eatm[[Imol, i]] = epsilon[at_type];
+            let q = c.get(2).unwrap();
+            let q: f64 = q.as_str().parse().unwrap();
+            Qatm[[Imol, i]] = q;
+            pb.inc(1);
+        }
+        let locator = locator + Natm[Imol] + 1;     // 不加1是"atom (3218):"行
+
+        let pb = ProgressBar::new(Natm[Imol] as u64);
+        println!("Reading atom names...");
+        for i in 0..Natm[Imol] {
+            let re = Regex::new(r"name=(.*)").unwrap();
+            let name = re.captures(&mdp[locator + i]).unwrap();
+            let name = name.get(1).unwrap().as_str().trim();
+            Tatm[[Imol, i]] = name[1..name.len() - 2].to_string();
+            pb.inc(1);
+        }
+    }
 }
 
 fn get_md_locators_first(strings: &Vec<&str>, re: &Regex) -> usize {
