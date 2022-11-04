@@ -166,11 +166,9 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
         Natm.push(num);
         let locator = locator + 4;
 
-        // progress bar
         println!("Reading the {}/{} system atoms information.", Imol + 1, Nmol.len());
         println!("Reading atom parameters...");
-        let pb = ProgressBar::new(Natm[Imol] as u64);
-
+        let pb = ProgressBar::new(Natm[Imol] as u64);   // progress bar
         for i in 0..Natm[Imol] {
             let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
             let c = re.captures(&mdp[locator + i]).unwrap();
@@ -232,6 +230,33 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
         }
     }
 
+    // assign H types by connection atoms from angle information
+    let re = Regex::new(r"^ +Angle:").unwrap();
+    let locators = get_md_locators_all(&mdp, &re);
+    for (Imol, locator) in locators.into_iter().enumerate() {
+        let nangles: Vec<&str> = mdp[locator + 1].trim().split(" ").collect();
+        let nangles: usize = nangles[1].parse().unwrap();
+        if nangles > 0 {
+            let re = Regex::new(r"\d+ type=\d+ \(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap();
+            for l_num in locator + 3..locator + 3 + nangles {
+                if re.is_match(&mdp[l_num]) {
+                    let paras = re.captures(&mdp[l_num]).unwrap();
+                    let i = paras.get(1).unwrap();
+                    let i: usize = i.as_str().parse().unwrap();
+                    let j = paras.get(2).unwrap();
+                    let j: usize = j.as_str().parse().unwrap();
+                    let k = paras.get(3).unwrap();
+                    let k: usize = k.as_str().trim().parse().unwrap();
+                    if Tatm[[Imol, i]].starts_with(['H', 'h']) {
+                        Tatm[[Imol, i]] = format!("H{}", Tatm[[Imol, j]]);
+                    }
+                    if Tatm[[Imol, k]].starts_with(['H', 'h']) {
+                        Tatm[[Imol, k]] = format!("H{}", Tatm[[Imol, j]]);
+                    }
+                } else { break; }
+            }
+        }
+    }
 
     println!("Finished generating qrv file.");
 }
