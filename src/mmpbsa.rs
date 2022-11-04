@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
 use crate::Parameters;
-use ndarray::{Array, Array2, ArrayBase, Dim, Ix, NdIndex, OwnedRepr, Shape};
+use ndarray::{Array, Array1, Array2, ArrayBase, Dim, Ix, NdIndex, OwnedRepr, Shape};
 use fs::File;
 use std::cmp::max;
 use std::io::Write;
@@ -93,34 +93,36 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
     let mut epsilon: Vec<f64> = vec![0.0; atnr];
     let mut rad: Vec<f64> = vec![0.0; atnr];
 
-    // println!("Generating qrv file...");
-    // for i in 0..atnr {
-    //     qrv.write_all(format!("{:6}", i).as_bytes()).expect("Writing qrv file failed");
-    //     // 获取每个原子的C6和C12
-    //     for j in 0..atnr {
-    //         let re = Regex::new(r".*c6\s*=\s*(.*),.*").unwrap();
-    //         let re = Regex::new(r".*c12\s*=\s*(.*?)\s*$").unwrap();
-    //         let c6 = re.captures(mdp[locator]).unwrap().get(1).unwrap().as_str();
-    //         let c12 = re.captures(mdp[locator]).unwrap().get(1).unwrap().as_str();
-    //         qrv.write_all(format!(" {} {}", c6, c12).as_bytes()).expect("Writing qrv file failed");
-    //         let c6: f64 = c6.parse().unwrap();
-    //         let c12: f64 = c12.parse().unwrap();
-    //         // 计算每种原子类型的σ, ε, 半径
-    //         if j == i {
-    //             sigma[i] = 0.0;
-    //             epsilon[i] = 0.0;
-    //             rad[i] = rad_lj0;
-    //             if c6 * c12 != 0.0 {
-    //                 sigma[i] = 10.0 * (c12 / c6).powf(1.0 / 6.0); // 转换单位为A
-    //                 epsilon[i] = c6.powi(2) / (4.0 * c12);
-    //                 rad[i] = 0.5 * sigma[i]; // sigma为直径
-    //             }
-    //         }
-    //     }
-    //     locator += 1;
-    //     qrv.write_all("\n".as_bytes()).expect("Writing qrv file failed");
-    // }
-    // println!("Finished generating qrv file.");
+    println!("Generating qrv file...");
+    println!("Writing atom type parameters..");
+    let pb = ProgressBar::new(atnr as u64);
+    for i in 0..atnr {
+        qrv.write_all(format!("{:6}", i).as_bytes()).expect("Writing qrv file failed");
+        // 获取每个原子的C6和C12
+        for j in 0..atnr {
+            let re = Regex::new(r".*c6\s*=\s*(.*),.*").unwrap();
+            let re = Regex::new(r".*c12\s*=\s*(.*?)\s*$").unwrap();
+            let c6 = re.captures(mdp[locator]).unwrap().get(1).unwrap().as_str();
+            let c12 = re.captures(mdp[locator]).unwrap().get(1).unwrap().as_str();
+            qrv.write_all(format!(" {} {}", c6, c12).as_bytes()).expect("Writing qrv file failed");
+            let c6: f64 = c6.parse().unwrap();
+            let c12: f64 = c12.parse().unwrap();
+            // 计算每种原子类型的σ, ε, 半径
+            if j == i {
+                sigma[i] = 0.0;
+                epsilon[i] = 0.0;
+                rad[i] = rad_lj0;
+                if c6 * c12 != 0.0 {
+                    sigma[i] = 10.0 * (c12 / c6).powf(1.0 / 6.0); // 转换单位为A
+                    epsilon[i] = c6.powi(2) / (4.0 * c12);
+                    rad[i] = 0.5 * sigma[i]; // sigma为直径
+                }
+            }
+        }
+        locator += 1;
+        qrv.write_all("\n".as_bytes()).expect("Writing qrv file failed");
+        pb.inc(1);
+    }
 
     // number of systems(?)
     let re = Regex::new(r"\s*#molblock\s*=\s*(.+?)\s*").unwrap();
@@ -165,7 +167,7 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
         let locator = locator + 4;
 
         // progress bar
-        println!("Reading the {}/{} system information.", Imol + 1, Nmol.len());
+        println!("Reading the {}/{} system atoms information.", Imol + 1, Nmol.len());
         println!("Reading atom parameters...");
         let pb = ProgressBar::new(Natm[Imol] as u64);
 
@@ -188,8 +190,9 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
         }
         let locator = locator + Natm[Imol] + 1;     // 不加1是"atom (3218):"行
 
-        let pb = ProgressBar::new(Natm[Imol] as u64);
+        // get atom names
         println!("Reading atom names...");
+        let pb = ProgressBar::new(Natm[Imol] as u64);
         for i in 0..Natm[Imol] {
             let re = Regex::new(r"name=(.*)").unwrap();
             let name = re.captures(&mdp[locator + i]).unwrap();
@@ -198,6 +201,39 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
             pb.inc(1);
         }
     }
+
+    // get residues information
+    let re = Regex::new(r"\s*residue \((\d+)\)").unwrap();
+    let locators = get_md_locators_all(&mdp, &re);
+    let mut resnums: Vec<i32> = vec![];
+    for i in 0..locators.len() {
+        let resnum = re.captures(&mdp[locators[i]]).unwrap().get(1).unwrap();
+        let resnum: i32 = resnum.as_str().trim().parse().unwrap();
+        resnums.push(resnum);
+    }
+    let maxNres: usize = *resnums.iter().max().unwrap() as usize;
+    let mut resName = Array2::<String>::default((Nmol.len(), maxNres));
+
+    for (idx, locator) in locators.into_iter().enumerate() {
+        let re = Regex::new(r"\s*residue \((\d+)\)").unwrap();
+        let Nres = re.captures(&mdp[locator]).unwrap().get(1).unwrap();
+        let Nres: usize = Nres.as_str().parse().unwrap();
+        let re = Regex::new(".*name=\"(.+)\",.*nr=(\\d+).*").unwrap();
+
+        println!("Reading the {}/{} system residues information...", idx + 1, Nmol.len());
+        let pb = ProgressBar::new(resnums[idx] as u64);
+        for i in 0..Nres {
+            let m = re.captures(&mdp[locator + 1 + i]).unwrap();
+            let name = m.get(1).unwrap().as_str();
+            let nr = m.get(2).unwrap().as_str();
+            let nr: i32 = nr.parse().unwrap();
+            resName[[idx, i]] = format!("{:05}{}", nr, name);
+            pb.inc(1);
+        }
+    }
+
+
+    println!("Finished generating qrv file.");
 }
 
 fn get_md_locators_first(strings: &Vec<&str>, re: &Regex) -> usize {
