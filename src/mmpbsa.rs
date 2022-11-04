@@ -11,6 +11,7 @@ use regex::{Match, Regex};
 use std::str::FromStr;
 use std::fmt::Debug;
 use indicatif::ProgressBar;
+use std::collections::HashMap;
 
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path, use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
@@ -126,13 +127,13 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
 
     // number of systems(?)
     let re = Regex::new(r"\s*#molblock\s*=\s*(.+?)\s*").unwrap();
-    let mol_num: i32 = get_md_params_first(&mdp, &re).parse().unwrap();
+    let Ntyp: usize = get_md_params_first(&mdp, &re).parse().unwrap();
     // number of molecule types
     let re = Regex::new(r"\s*moltype\s*=\s*(.+?)\s*").unwrap();
     let Imol: Vec<i32> = get_md_params_all(&mdp, &re);
     // number of molecules
     let re = Regex::new(r"\s*#molecules\s*=\s*(.+?)\s*").unwrap();
-    let Nmol: Vec<i32> = get_md_params_all(&mdp, &re);
+    let Nmol: Vec<usize> = get_md_params_all(&mdp, &re);
     // number of atoms
     let re = Regex::new(r"atom \((.+)\):").unwrap();
     let maxNatm: usize = *get_md_params_all(&mdp, &re).iter().max().unwrap();
@@ -144,7 +145,7 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
     let locators = get_md_locators_all(&mdp, &re);
 
     // initialize atom information, each molecule per line
-    let mut res_ids = Array2::<i32>::zeros((Nmol.len(), maxNatm));      // residue ids of each atom
+    let mut res_ids = Array2::<usize>::zeros((Nmol.len(), maxNatm));      // residue ids of each atom
     let mut Catm = Array2::<usize>::zeros((Nmol.len(), maxNatm));     // atom type
     let mut Ratm = Array2::<f64>::zeros((Nmol.len(), maxNatm));        // atom radius
     let mut Satm = Array2::<f64>::zeros((Nmol.len(), maxNatm));        // atom sigma
@@ -158,7 +159,7 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
         let Imol = re.captures(&mdp[locator]).unwrap().get(1).unwrap();
         let Imol: usize = Imol.as_str().parse().unwrap();
         let re = Regex::new(r"name=(.*)").unwrap();
-        let n = re.captures(&mdp[locator + 1]).unwrap().get(1).unwrap().as_str();
+        let n = re.captures(&mdp[locator + 1]).unwrap().get(1).unwrap().as_str().trim();
         Name.push(n[1..(n.len() - 1)].to_string());
         let re = Regex::new(r"\((.*)\)").unwrap();
         let num = re.captures(&mdp[locator + 3]).unwrap().get(1).unwrap();
@@ -175,7 +176,7 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
             let at_type = c.get(1).unwrap();
             let at_type: usize = at_type.as_str().parse().unwrap();
             let resID = c.get(3).unwrap();
-            let resID: i32 = resID.as_str().parse().unwrap();
+            let resID: usize = resID.as_str().parse().unwrap();
             res_ids[[Imol, i]] = resID;
             Catm[[Imol, i]] = at_type;
             Ratm[[Imol, i]] = rad[at_type];
@@ -198,6 +199,7 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
             Tatm[[Imol, i]] = name[1..name.len() - 2].to_string();
             pb.inc(1);
         }
+        println!("Reading atoms information finished.");
     }
 
     // get residues information
@@ -233,6 +235,8 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
     // assign H types by connection atoms from angle information
     let re = Regex::new(r"^ +Angle:").unwrap();
     let locators = get_md_locators_all(&mdp, &re);
+    println!("Reading angles...");
+    let pb = ProgressBar::new(locators.len() as u64);
     for (Imol, locator) in locators.into_iter().enumerate() {
         let nangles: Vec<&str> = mdp[locator + 1].trim().split(" ").collect();
         let nangles: usize = nangles[1].parse().unwrap();
@@ -254,6 +258,48 @@ fn gen_qrv(mdp: &String, ndx: &Index, wd: &Path, receptor_grp: usize, ligand_grp
                         Tatm[[Imol, k]] = format!("H{}", Tatm[[Imol, j]]);
                     }
                 } else { break; }
+            }
+        }
+        pb.inc(1);
+    }
+
+    // output to qrv file
+    let mut Ntot = 0;
+    let mut Nidx = 0;
+    for i in 0..Ntyp {
+        for n in 0..Nmol[i] {
+            println!("Writing atoms...");
+            let pb = ProgressBar::new(Natm[i] as u64);
+            for j in 0..Natm[i] {
+                if ndx_rec.contains(&Ntot) || ndx_lig.contains(&Ntot) {
+                    Nidx += 1;
+                    let mut radi: f64;
+                    match rad_type {
+                        0 => radi = Ratm[[n, j]],
+                        1 => radi = {
+                            let re = Regex::new(r"([a-zA-Z]+)\d*").unwrap();
+                            let res = re.captures(Tatm[[i, j]].as_str()).unwrap();
+                            let res = res.get(1).unwrap().as_str();
+                            getRadi(res)
+                        },
+                        _ => {
+                            println!("Error: radType should only be 0 or 1. Check settings.");
+                            return;
+                        }
+                    }
+                    qrv.write_all(format!("{:6} {:9.5} {:9.6} {:6} {:9.6} {:9.6} {:6} \"{}\"-1.{} {} {:-6}  ",
+                                          Nidx, Qatm[[i, j]], radi, Catm[[i, j]], Satm[[i, j]],
+                                          Eatm[[i, j]], Ntot, Name[i], j,
+                                          resName[[i, res_ids[[i, j]]]], Tatm[[i, j]]).as_bytes())
+                        .expect("Writing qrv file failed.");
+                    if ndx_rec.contains(&Ntot) {
+                        qrv.write_all("Pro\n".as_bytes()).expect("Writing qrv file failed.");
+                    } else if ndx_lig.contains(&Ntot) {
+                        qrv.write_all("Lig\n".as_bytes()).expect("Writing qrv file failed.");
+                    }
+                }
+                Ntot += 1;
+                pb.inc(1);
             }
         }
     }
@@ -302,4 +348,44 @@ fn get_md_params_all<T: Debug + FromStr>(strings: &Vec<&str>, re: &Regex) -> Vec
         }
     }
     return values;
+}
+
+fn getRadi(at_type: &str) -> f64 { // mBondi from AMBER20/parmed/tools/changeradii.py
+    let radBondi: HashMap<&str, f64> = vec![("C", 1.7),
+                                            ("H", 1.2),
+                                            ("N", 1.55),
+                                            ("HC", 1.3),
+                                            ("O", 1.5),
+                                            ("HN", 1.3),
+                                            ("F", 1.5),
+                                            ("HP", 1.3),
+                                            ("SI", 2.1),
+                                            ("HO", 0.8),
+                                            ("P", 1.85),
+                                            ("HS", 0.8),
+                                            ("S", 1.8),
+                                            ("CL", 1.7),
+                                            ("BR", 1.85),
+                                            ("I", 1.98)].into_iter().collect();
+    let at_type = at_type.to_uppercase();
+    if at_type.len() >= 2 {
+        let r = radBondi.get(&at_type[0..2]);
+        if let Some(m) = r {
+            return *m;
+        } else {
+            let r = radBondi.get(&at_type[0..1]);
+            if let Some(m) = r {
+                return *m;
+            } else {
+                return 1.5;
+            }
+        }
+    } else {
+        let r = radBondi.get(&at_type[0..1]);
+        if let Some(m) = r {
+            return *m;
+        } else {
+            return 1.5;
+        }
+    }
 }
