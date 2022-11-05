@@ -1,5 +1,6 @@
 mod index_parser;
 mod mmpbsa;
+mod gen_qrv;
 
 use std::fs;
 use std::env;
@@ -272,7 +273,7 @@ fn check_programs_validity(gmx: &str, apbs: &str) -> bool {
 }
 
 fn init_params() -> Parameters {
-    let mut params: Parameters;
+    let params: Parameters;
     if Path::new("settings.ini").is_file() {
         // Find settings locally
         let settings = fs::read_to_string("settings.ini").unwrap();
