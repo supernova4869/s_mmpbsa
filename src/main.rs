@@ -36,8 +36,8 @@ fn main() {
     // start workflow
     welcome();
     // initialize parameters
-    let params = init_params();
-    if !check_programs_validity(params.gmx.as_str(), params.apbs.as_str()) {
+    let settings = init_settings();
+    if !check_programs_validity(settings.gmx.as_str(), settings.apbs.as_str()) {
         println!("Error: Programs not correctly configured.");
         return;
     }
@@ -66,7 +66,7 @@ fn main() {
     // working directory (path of tpr location)
     let wd = Path::new(&tpr).parent().expect("Failed getting parent directory.");
     println!("Currently working at path: {}", wd.display());
-    let mdp = dump_tpr(&tpr, wd, params.gmx.as_str());
+    let mdp = dump_tpr(&tpr, wd, settings.gmx.as_str());
     loop {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
@@ -92,7 +92,7 @@ fn main() {
                     // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
-                    mmpbsa_calculation(&trj, &mdp, &ndx, wd, use_dh, use_ts, &params);
+                    mmpbsa_calculation(&trj, &mdp, &ndx, wd, use_dh, use_ts, &settings);
                 }
             }
             1 => {
@@ -131,7 +131,7 @@ fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) -> String {
     return wd.join("_mdout.mdp").to_str().unwrap().to_string();
 }
 
-fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_dh: bool, use_ts: bool, params: &Parameters) {
+fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_dh: bool, use_ts: bool, settings: &Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -167,7 +167,7 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
                                                receptor_grp as usize,
                                                ligand_grp as usize,
                                                bt, et, dt,
-                                               &params);
+                                               &settings);
                 break;
             }
             1 => {
@@ -272,7 +272,7 @@ fn check_programs_validity(gmx: &str, apbs: &str) -> bool {
     return true;
 }
 
-fn init_params() -> Parameters {
+fn init_settings() -> Parameters {
     let params: Parameters;
     if Path::new("settings.ini").is_file() {
         // Find settings locally
