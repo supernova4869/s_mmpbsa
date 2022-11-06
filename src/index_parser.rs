@@ -3,7 +3,7 @@ use regex::Regex;
 
 pub struct IndexGroup {
     pub name: String,
-    pub indexes: Vec<i32>,      // starts at 0
+    pub indexes: Vec<usize>,      // starts at 0
 }
 
 pub struct Index {
@@ -18,16 +18,16 @@ impl Index {
         for cap in re.captures_iter(&ndx) {
             group_names.push((&cap[1]).to_string());
         }
-        let mut group_atoms: Vec<Vec<i32>> = vec![];         // atoms of each group
+        let mut group_atoms: Vec<Vec<usize>> = vec![];         // atoms of each group
         let ndx = re.replace_all(&ndx, "[]");
         let ndx = Regex::new(r"\s+").unwrap().replace_all(&ndx, " ");
         let ndx: Vec<&str> = ndx.split("[]").collect();
         for i in 0..ndx.len() {
             if ndx[i].len() != 0 {
                 let atom_list: Vec<&str> = ndx[i].trim().split(" ").collect();
-                let mut at_list: Vec<i32> = vec![];
+                let mut at_list: Vec<usize> = vec![];
                 for atom in atom_list {
-                    let at: i32 = atom.parse().expect("Failed to get index atom");
+                    let at: usize = atom.parse().expect("Failed to get index atom");
                     // gromacs index file starts at 1, but we need 0 as index slice
                     at_list.push(at - 1);
                 }

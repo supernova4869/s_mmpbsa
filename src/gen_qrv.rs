@@ -228,7 +228,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
                                           res_names[[i, res_ids[[i, j]]]], t_atoms[[i, j]]).as_bytes())
                         .expect("Writing qrv file failed.");
                     if ndx_rec.contains(&atom_id_total) {
-                        qrv.write_all("Pro\n".as_bytes()).expect("Writing qrv file failed.");
+                        qrv.write_all("Rec\n".as_bytes()).expect("Writing qrv file failed.");
                     } else if ndx_lig.contains(&atom_id_total) {
                         qrv.write_all("Lig\n".as_bytes()).expect("Writing qrv file failed.");
                     }

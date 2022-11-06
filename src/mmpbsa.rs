@@ -7,7 +7,7 @@ use ndarray::{Array, Array1, Array2, Array3, ArrayBase, Dim, Ix, NdIndex, OwnedR
 use std::cmp::max;
 use std::fs::File;
 use std::io::stdin;
-use std::ops::Add;
+use std::ops::{Add, Range};
 use std::rc::Rc;
 use regex::Regex;
 use crate::gen_qrv::gen_qrv;
@@ -15,14 +15,7 @@ use crate::gen_qrv::gen_qrv;
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path, use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, settings: &Parameters) {
-    // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
-    let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
-    let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
-    // pbc whole 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
-    let (coordinates, boxes) = get_atoms_trj(frames);   // frames x atoms(3x1)
-    println!("{}", coordinates);
-    println!("{}", boxes);
-    // 2. get charge, radius, LJ parameters of each atoms and generate qrv files
+    // get charge, radius, LJ parameters of each atoms and generate qrv files
     let mut pid = String::from("_Protein_in_water");
     println!("Input system name (default: {}):", pid);
     let mut input = String::new();
@@ -34,11 +27,14 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     let qrv_path = wd.join(qrv_path);
     let qrv_path = qrv_path.to_str().unwrap();
     // gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
-    // 3. Mpdb>pqr, 输出apbs, 计算MM, APBS
-    // do_mmpbsa(trj, mdp, ndx, qrv_path, wd, pid, complex_grp, receptor_grp, ligand_grp, settings);
+    // Mpdb>pqr, 输出apbs, 计算MM, APBS
+    do_mmpbsa(trj, mdp, ndx, qrv_path, wd, pid,
+              complex_grp, receptor_grp, ligand_grp,
+              bt, et, dt,
+              settings, use_dh, use_ts);
 }
 
-fn get_atoms_trj(frames: Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
+fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     let num_frames = frames.len();
     let num_atoms = frames[0].num_atoms();
     let mut coord_matrix = Array3::<f64>::zeros((num_frames, num_atoms, 3));
@@ -49,7 +45,6 @@ fn get_atoms_trj(frames: Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
             for j in 0..3 {
                 coord_matrix[[idx, i, j]] = a[j] as f64;
             }
-
         }
         for (i, b) in frame.box_vector.into_iter().enumerate() {
             for j in 0..3 {
@@ -60,7 +55,10 @@ fn get_atoms_trj(frames: Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     return (coord_matrix, box_size);
 }
 
-fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid: String, complex_grp: usize, receptor_grp: usize, ligand_grp: usize, settings: &Parameters) {
+fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid: String,
+             complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
+             bt: f64, et: f64, dt: f64,
+             settings: &Parameters, use_dh: bool, use_ts: bool) {
     // Running settings
     let gmx = &settings.gmx;
     let apbs = &settings.apbs;
@@ -125,12 +123,10 @@ grid  0.1 0.1 0.1
 calcforce no
 calcenergy total";
     let qrv = wd.join(pid.to_string() + ".qrv");
-    println!("{}", qrv.display());
     let wd = wd.join("temp");
     println!("Temporary files will be placed at {}", wd.display());
     let err = wd.join(pid.to_string() + ".err");
     let pdb = wd.join(pid.to_string() + ".pdb");
-    println!("0. Finished setting up environments and parameters.");
 
     // run MM-PBSA calculatons
     println!("Running MM-PBSA calculatons...");
@@ -177,8 +173,8 @@ calcenergy total";
         Satm[idx] = line[4].parse().unwrap();
         Eatm[idx] = line[5].parse().unwrap();
 
-        if line[line.len() - 1] == "Pro" {
-            resPro[idx] = "P~".to_string() + line[line.len() - 3];
+        if line[line.len() - 1] == "Rec" {
+            resPro[idx] = "R~".to_string() + line[line.len() - 3];
         } else {
             resLig[idx] = "L~".to_string() + line[line.len() - 3];
         }
@@ -246,6 +242,76 @@ calcenergy total";
             }
         }
     }
+    println!("Finished setting parameters.");
 
+    // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
+    let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
+    let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
+    // pbc whole 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
+    let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
+    let mut time = bt;
+    let mut Nfrm: usize = 0;
+    // 有空用map/filter优化一下
+    for f in frames.into_iter() {
+        if f.time as f64 == bt {
+            break
+        }
+        Nfrm += 1;
+    }
+
+    while time <= et {
+        // process each frame
+        let f_name = format!("{}~{}ns", pid, time / 1000.0);
+        println!("{}", f_name);
+        let minXpro = 0.0;
+        let minXlig = 0.0;
+        let minYpro = 0.0;
+        let minYlig = 0.0;
+        let minZpro = 0.0;
+        let minZlig = 0.0;
+
+        let maxXpro = 0.0;
+        let maxXlig = 0.0;
+        let maxYpro = 0.0;
+        let maxYlig = 0.0;
+        let maxZpro = 0.0;
+        let maxZlig = 0.0;
+
+        let minXcom = 0.0;
+        let minYcom = 0.0;
+        let minZcom = 0.0;
+        let maxXcom = 0.0;
+        let maxYcom = 0.0;
+        let maxZcom = 0.0;
+
+        let pqr_com = wd.join(format!("{}_com.pqr", f_name));
+        let pqr_pro = wd.join(format!("{}_pro.pqr", f_name));
+        let pqr_lig = wd.join(format!("{}_lig.pqr", f_name));
+
+        // read atom coordinates
+        let mut coordinates_rec = Array2::<f64>::zeros((ndxPro.len(), 3));
+        let mut coordinates_lig = Array2::<f64>::zeros((ndxLig.len(), 3));
+        for (idx, at_id) in ndxPro.into_iter().enumerate() {
+            for j in 0..3 {
+                coordinates_rec[[idx, j]] = coordinates[[Nfrm, *at_id, j]];
+            }
+        }
+        for (idx, at_id) in ndxLig.into_iter().enumerate() {
+            for j in 0..3 {
+                coordinates_lig[[idx, j]] = coordinates[[Nfrm, *at_id, j]];
+            }
+        }
+        println!("{}", coordinates_rec);
+        println!("{}", coordinates_lig);
+        // get min and max atom coordinates
+        // loop atoms and write pqr information (from pqr)
+        // write qrv files
+        // calculate MM
+        // calculate PBSA by apbs and extract informations
+        // write output
+
+        Nfrm += 1;
+        time += dt;
+    }
 }

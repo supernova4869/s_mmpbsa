@@ -7,9 +7,11 @@ use std::env;
 use std::io::{Read, stdin, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::rc::Rc;
 use regex::Regex;
 use toml;
 use toml::Value;
+use xdrfile::{Frame, XTCTrajectory};
 
 pub struct Parameters {
     rad_type: i32,
@@ -30,8 +32,8 @@ fn main() {
     let mut tpr = String::new();
     let mut trj = String::from("");
     let mut ndx = String::from("");
-    let use_dh = true;
-    let use_ts = true;
+    let mut use_dh = true;
+    let mut use_ts = true;
 
     // start workflow
     welcome();
@@ -83,8 +85,8 @@ fn main() {
         println!(" 3 Exit program");
         let i = get_input_sel();
         match i {
-            -2 => { let use_dh = !use_dh; }
-            -1 => { let use_ts = !use_ts; }
+            -2 => { use_dh = !use_dh; }
+            -1 => { use_ts = !use_ts; }
             0 => {
                 if trj.len() == 0 {
                     println!("Trajectory file not assigned.");
@@ -135,9 +137,11 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
-    let mut bt: f64 = 0.0;
-    let mut et: f64 = 40000.0;
-    let mut dt: f64 = 1000.0;
+    let xtc = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
+    let frames: Vec<Rc<Frame>> = xtc.into_iter().map(|p| p.unwrap()).collect();
+    let mut bt: f64 = frames[0].time as f64;
+    let mut et: f64 = frames[frames.len() - 1].time as f64;
+    let mut dt: f64 = (frames[1].time - frames[0].time) as f64;
     let ndx = index_parser::Index::new(ndx);
     loop {
         println!("\n                 ************ MM-PBSA calculation ************");
@@ -162,7 +166,7 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
         match i {
             -10 => return,
             0 => {
-                mmpbsa::do_mmpbsa_calculations(trj, mdp, &ndx, wd, use_dh, use_ts,
+                mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd, use_dh, use_ts,
                                                complex_grp as usize,
                                                receptor_grp as usize,
                                                ligand_grp as usize,
@@ -189,16 +193,34 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
                 ligand_grp = get_input_sel();
             }
             4 => {
-                println!("Input start time (ns):");
-                bt = get_input_value() * 1000.0;
+                println!("Input start time (ns), should be divisible of {} ns:", dt / 1000.0);
+                let mut new_bt = get_input_value() * 1000.0;
+                while (new_bt - bt) % dt != 0.0 || new_bt > frames[frames.len() - 1].time as f64 || new_bt < 0.0 {
+                    println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
+                    println!("Input start time (ns) again, should be divisible of {} ns:", dt / 1000.0);
+                    new_bt = get_input_value() * 1000.0;
+                }
+                bt = new_bt;
             }
             5 => {
-                println!("Input end time (ns):");
-                et = get_input_value() * 1000.0;
+                println!("Input end time (ns), should be divisible of {} ns:", dt / 1000.0);
+                let mut new_et = get_input_value() * 1000.0;
+                while (new_et - et) % dt != 0.0 || new_et > frames[frames.len() - 1].time as f64 || new_et < 0.0 {
+                    println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
+                    println!("Input end time (ns) again, should be divisible of {} ns:", dt / 1000.0);
+                    new_et = get_input_value() * 1000.0;
+                }
+                et = new_et;
             }
             6 => {
-                println!("Input interval time (ps):");
-                dt = get_input_value();
+                println!("Input interval time (ns), should be divisible of {} ns:", dt / 1000.0);
+                let mut new_dt = get_input_value() * 1000.0;
+                while new_dt % dt != 0.0 {
+                    println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
+                    println!("Input interval time (ns) again, should be divisible of {} ns:", dt / 1000.0);
+                    new_dt = get_input_value() * 1000.0;
+                }
+                dt = new_dt;
             }
             _ => println!("Invalid input")
         }
