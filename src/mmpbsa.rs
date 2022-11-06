@@ -3,12 +3,15 @@ use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
 use crate::Parameters;
-use ndarray::{Array, Array1, Array2, Array3, ArrayBase, Dim, Ix, NdIndex, OwnedRepr, Shape};
-use std::cmp::max;
+use ndarray::{Array, Array1, Array2, Array3, ArrayBase, Dim, Ix, NdIndex, OwnedRepr, Shape, s};
+use std::cmp::{max, min};
+use std::collections::HashSet;
 use std::fs::File;
-use std::io::stdin;
+use std::io::{stdin, Write};
 use std::ops::{Add, Range};
+use std::process::Termination;
 use std::rc::Rc;
+use indicatif::ProgressBar;
 use regex::Regex;
 use crate::gen_qrv::gen_qrv;
 
@@ -125,6 +128,9 @@ calcenergy total";
     let qrv = wd.join(pid.to_string() + ".qrv");
     let wd = wd.join("temp");
     println!("Temporary files will be placed at {}", wd.display());
+    if !wd.is_dir() {
+        fs::create_dir(&wd).expect("Failed to create directory.");
+    }
     let err = wd.join(pid.to_string() + ".err");
     let pdb = wd.join(pid.to_string() + ".pdb");
 
@@ -155,6 +161,10 @@ calcenergy total";
     let mut Catm = Array1::<i32>::zeros(qrv.len() - 3 - Atyp);
     let mut Satm = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
     let mut Eatm = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_index = Array1::<i32>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_name = Array1::<String>::default(qrv.len() - 3 - Atyp);
+    let mut atm_resname = Array1::<String>::default(qrv.len() - 3 - Atyp);
+    let mut atm_resnum = Array1::<i32>::zeros(qrv.len() - 3 - Atyp);
     // 考虑将这两个合并成一个
     let mut resPro = Array1::<String>::default(qrv.len() - 3 - Atyp);
     let mut resLig = Array1::<String>::default(qrv.len() - 3 - Atyp);
@@ -172,6 +182,11 @@ calcenergy total";
         Catm[idx] = line[3].parse().unwrap();
         Satm[idx] = line[4].parse().unwrap();
         Eatm[idx] = line[5].parse().unwrap();
+        atm_index[idx] = line[0].parse().unwrap();
+        atm_name[idx] = line[line.len() - 2].to_string();
+        let res = line[line.len() - 3];
+        atm_resnum[idx] = res[0..5].parse().unwrap();
+        atm_resname[idx] = res[5..].to_string();
 
         if line[line.len() - 1] == "Rec" {
             resPro[idx] = "R~".to_string() + line[line.len() - 3];
@@ -216,7 +231,7 @@ calcenergy total";
         }
     }
 
-    let Iion = &Cion.dot(&(&Qion * &Qion));
+    let Iion = Cion.dot(&(&Qion * &Qion));
     let eps0 = 8.854187812800001e-12;
     let kb = 1.380649e-23;
     let Na = 6.02214076e+23;
@@ -247,6 +262,7 @@ calcenergy total";
     // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
+    let total_frames = frames.len();
     // pbc whole 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
     let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
@@ -255,63 +271,237 @@ calcenergy total";
     // 有空用map/filter优化一下
     for f in frames.into_iter() {
         if f.time as f64 == bt {
-            break
+            break;
         }
         Nfrm += 1;
     }
+    let mut idx = 0;
 
+    // border of the whole molecule
+    let minX = coordinates.slice(s![.., .., 0]).iter().
+        fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+    let maxX = coordinates.slice(s![.., .., 0]).iter().
+        fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+    let minY = coordinates.slice(s![.., .., 1]).iter().
+        fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+    let maxY = coordinates.slice(s![.., .., 1]).iter().
+        fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+    let minZ = coordinates.slice(s![.., .., 2]).iter().
+        fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+    let maxZ = coordinates.slice(s![.., .., 2]).iter().
+        fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+
+    // 最好能按照ndx索引, 不是定一个范围
+    let coordinates_rec = coordinates.
+        slice(s![.., ndxPro[0]..ndxPro[ndxPro.len() - 1] + 1, ..]);
+    let coordinates_lig = coordinates.
+        slice(s![.., ndxLig[0]..ndxLig[ndxLig.len() - 1] + 1, ..]);
+
+    let mut minXpro = Array1::<f64>::zeros(total_frames);
+    let mut minYpro = Array1::<f64>::zeros(total_frames);
+    let mut minZpro = Array1::<f64>::zeros(total_frames);
+    let mut maxXpro = Array1::<f64>::zeros(total_frames);
+    let mut maxYpro = Array1::<f64>::zeros(total_frames);
+    let mut maxZpro = Array1::<f64>::zeros(total_frames);
+
+    let mut minXlig = Array1::<f64>::zeros(total_frames);
+    let mut minYlig = Array1::<f64>::zeros(total_frames);
+    let mut minZlig = Array1::<f64>::zeros(total_frames);
+    let mut maxXlig = Array1::<f64>::zeros(total_frames);
+    let mut maxYlig = Array1::<f64>::zeros(total_frames);
+    let mut maxZlig = Array1::<f64>::zeros(total_frames);
+
+    let mut minXcom = Array1::<f64>::zeros(total_frames);
+    let mut minYcom = Array1::<f64>::zeros(total_frames);
+    let mut minZcom = Array1::<f64>::zeros(total_frames);
+    let mut maxXcom = Array1::<f64>::zeros(total_frames);
+    let mut maxYcom = Array1::<f64>::zeros(total_frames);
+    let mut maxZcom = Array1::<f64>::zeros(total_frames);
+
+    println!("Preparing qrv files...");
+    let pb = ProgressBar::new(total_frames as u64);
     while time <= et {
         // process each frame
+
+        // get min and max atom coordinates
+        let coordinates_rec = coordinates_rec.slice(s![Nfrm, .., ..]);
+        let coordinates_lig = coordinates_lig.slice(s![Nfrm, .., ..]);
+        minXpro[Nfrm] = coordinates_rec.slice(s![.., 0]).iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minYpro[Nfrm] = coordinates_rec.slice(s![.., 1]).iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minZpro[Nfrm] = coordinates_rec.slice(s![.., 2]).iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        maxXpro[Nfrm] = coordinates_rec.slice(s![.., 0]).iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxYpro[Nfrm] = coordinates_rec.slice(s![.., 1]).iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxZpro[Nfrm] = coordinates_rec.slice(s![.., 2]).iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        minXlig[Nfrm] = coordinates_lig.slice(s![.., 0]).iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minYlig[Nfrm] = coordinates_lig.slice(s![.., 1]).iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minZlig[Nfrm] = coordinates_lig.slice(s![.., 2]).iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        maxXlig[Nfrm] = coordinates_lig.slice(s![.., 0]).iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxYlig[Nfrm] = coordinates_lig.slice(s![.., 1]).iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxZlig[Nfrm] = coordinates_lig.slice(s![.., 2]).iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+
         let f_name = format!("{}~{}ns", pid, time / 1000.0);
-        println!("{}", f_name);
-        let minXpro = 0.0;
-        let minXlig = 0.0;
-        let minYpro = 0.0;
-        let minYlig = 0.0;
-        let minZpro = 0.0;
-        let minZlig = 0.0;
-
-        let maxXpro = 0.0;
-        let maxXlig = 0.0;
-        let maxYpro = 0.0;
-        let maxYlig = 0.0;
-        let maxZpro = 0.0;
-        let maxZlig = 0.0;
-
-        let minXcom = 0.0;
-        let minYcom = 0.0;
-        let minZcom = 0.0;
-        let maxXcom = 0.0;
-        let maxYcom = 0.0;
-        let maxZcom = 0.0;
+        // println!("{}", f_name);
 
         let pqr_com = wd.join(format!("{}_com.pqr", f_name));
+        let mut pqr_com = File::create(pqr_com).unwrap();
         let pqr_pro = wd.join(format!("{}_pro.pqr", f_name));
+        let mut pqr_pro = File::create(pqr_pro).unwrap();
         let pqr_lig = wd.join(format!("{}_lig.pqr", f_name));
+        let mut pqr_lig = File::create(pqr_lig).unwrap();
 
-        // read atom coordinates
-        let mut coordinates_rec = Array2::<f64>::zeros((ndxPro.len(), 3));
-        let mut coordinates_lig = Array2::<f64>::zeros((ndxLig.len(), 3));
-        for (idx, at_id) in ndxPro.into_iter().enumerate() {
-            for j in 0..3 {
-                coordinates_rec[[idx, j]] = coordinates[[Nfrm, *at_id, j]];
-            }
-        }
-        for (idx, at_id) in ndxLig.into_iter().enumerate() {
-            for j in 0..3 {
-                coordinates_lig[[idx, j]] = coordinates[[Nfrm, *at_id, j]];
-            }
-        }
-        println!("{}", coordinates_rec);
-        println!("{}", coordinates_lig);
-        // get min and max atom coordinates
         // loop atoms and write pqr information (from pqr)
-        // write qrv files
-        // calculate MM
-        // calculate PBSA by apbs and extract informations
-        // write output
+        for at_id in ndxCom {
+            let at_id = *at_id;
+            let index = atm_index[at_id];
+            let at_name = &atm_name[at_id];
+            let resname = &atm_resname[at_id];
+            let chain = "X";
+            let resnum = atm_resnum[at_id];
+            let coord = coordinates.slice(s![Nfrm, at_id, ..]);
+            let x = coord[0];
+            let y = coord[1];
+            let z = coord[2];
+            let q = Qatm[at_id];
+            let r = Ratm[at_id];
+            let atom_line = format!("ATOM  {:5} {:-4} {:3} X{:4}    {:8.3} {:8.3} {:8.3} {:12.6} {:12.6}\n",
+                                    index, at_name, resname, resnum, x, y, z, q, r);
+
+            // expand border atom radius
+            if ndxPro.contains(&at_id) {
+                // write qrv files
+                pqr_pro.write_all(atom_line.as_bytes()).unwrap();
+                minXpro[Nfrm] = match minXpro[Nfrm] < x - r {
+                    true => minXpro[Nfrm],
+                    false => x - r
+                };
+                maxXpro[Nfrm] = match maxXpro[Nfrm] > x + r {
+                    true => maxXpro[Nfrm],
+                    false => x + r
+                };
+                minYpro[Nfrm] = match minYpro[Nfrm] < y - r {
+                    true => minYpro[Nfrm],
+                    false => y - r
+                };
+                maxYpro[Nfrm] = match maxYpro[Nfrm] > y + r {
+                    true => maxYpro[Nfrm],
+                    false => y + r
+                };
+                minZpro[Nfrm] = match minZpro[Nfrm] < z - r {
+                    true => minZpro[Nfrm],
+                    false => z - r
+                };
+                maxZpro[Nfrm] = match maxZpro[Nfrm] > z + r {
+                    true => maxZpro[Nfrm],
+                    false => z + r
+                };
+            }
+            if ndxLig.contains(&at_id) {
+                // write qrv files
+                pqr_lig.write_all(atom_line.as_bytes()).unwrap();
+                minXlig[Nfrm] = match minXlig[Nfrm] < x - r {
+                    true => minXlig[Nfrm],
+                    false => x - r
+                };
+                maxXlig[Nfrm] = match maxXlig[Nfrm] > x + r {
+                    true => maxXlig[Nfrm],
+                    false => x + r
+                };
+                minYlig[Nfrm] = match minYlig[Nfrm] < y - r {
+                    true => minYlig[Nfrm],
+                    false => y - r
+                };
+                maxYlig[Nfrm] = match maxYlig[Nfrm] > y + r {
+                    true => maxYlig[Nfrm],
+                    false => y + r
+                };
+                minZlig[Nfrm] = match minZlig[Nfrm] < z - r {
+                    true => minZlig[Nfrm],
+                    false => z - r
+                };
+                maxZlig[Nfrm] = match maxZlig[Nfrm] > z + r {
+                    true => maxZlig[Nfrm],
+                    false => z + r
+                };
+            }
+            // write qrv files
+            pqr_com.write_all(atom_line.as_bytes()).unwrap();
+            minXcom[Nfrm] = match minXpro[Nfrm] < minXlig[Nfrm] {
+                true => minXpro[Nfrm],
+                false => minXlig[Nfrm]
+            };
+            minYcom[Nfrm] = match minYpro[Nfrm] < minYlig[Nfrm] {
+                true => minYpro[Nfrm],
+                false => minYlig[Nfrm]
+            };
+            minZcom[Nfrm] = match minZpro[Nfrm] < minZlig[Nfrm] {
+                true => minZpro[Nfrm],
+                false => minZlig[Nfrm]
+            };
+            maxXcom[Nfrm] = match maxXpro[Nfrm] > maxXlig[Nfrm] {
+                true => maxXpro[Nfrm],
+                false => maxXlig[Nfrm]
+            };
+            maxYcom[Nfrm] = match maxYpro[Nfrm] > maxYlig[Nfrm] {
+                true => maxYpro[Nfrm],
+                false => maxYlig[Nfrm]
+            };
+            maxZcom[Nfrm] = match maxZpro[Nfrm] > maxZlig[Nfrm] {
+                true => maxZpro[Nfrm],
+                false => maxZlig[Nfrm]
+            };
+        }
 
         Nfrm += 1;
+        idx += 1;
         time += dt;
+        pb.inc(1);
     }
+
+    // calculate MM and PBSA
+    let kJcou = 1389.35457520287;
+    let Rcut = f64::INFINITY;
+
+    let mut Nres = HashSet::new();
+    for res in atm_resnum {
+        Nres.insert(res);
+    }
+    let Nres = Nres.len();
+
+    let dE = Array1::<f64>::zeros(Nres);
+    let dGres = Array2::<f64>::zeros((Nres, 2));
+    let dHres = Array2::<f64>::zeros((Nres, 2));
+    let MMres = Array2::<f64>::zeros((Nres, 2));
+    let COUres = Array2::<f64>::zeros((Nres, 2));
+    let VDWres = Array1::<f64>::zeros(Nres);
+    let dPBres = Array1::<f64>::zeros(Nres);
+    let dSAres = Array1::<f64>::zeros(Nres);
+
+    let vdw = Array1::<f64>::zeros(Nfrm);
+    let pb = Array1::<f64>::zeros(Nfrm);
+    let sa = Array1::<f64>::zeros(Nfrm);
+    let cou = Array2::<f64>::zeros((Nfrm, 2));
+    let mm = Array2::<f64>::zeros((Nfrm, 2));
+    let dh = Array2::<f64>::zeros((Nfrm, 2));
+
+    let PBres = Array1::<f64>::zeros(Nres);
+    let SAres = Array1::<f64>::zeros(Nres);
+
+    let preK = 1.0;
+
+    let Ipro = ndxPro[0];
+    let Ilig = ndxLig[0];
+
+    // write output
 }
