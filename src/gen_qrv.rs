@@ -34,7 +34,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
     let mut rad: Vec<f64> = vec![rad_lj0; atnr];
 
     println!("Generating qrv file...");
-    println!("Writing atom type parameters..");
+    println!("Writing atom L-J parameters..");
     let pb = ProgressBar::new(atnr as u64);
     for i in 0..atnr {
         qrv.write_all(format!("{:6}", i).as_bytes()).expect("Writing qrv file failed");
@@ -57,6 +57,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
         qrv.write_all("\n".as_bytes()).expect("Writing qrv file failed");
         pb.inc(1);
     }
+    pb.reset();
 
     // number of groups
     let re = Regex::new(r"\s*#molblock\s*=\s*(.+?)\s*").unwrap();
@@ -105,7 +106,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
         let locator = locator + 4;
 
         println!("Reading the {}/{} system atoms information.", mol_id + 1, mol_num.len());
-        println!("Reading atom parameters...");
+        println!("Reading atom property parameters...");
         let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);   // progress bar
         for i in 0..sys_atom_nums[mol_id] {
             let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
@@ -124,6 +125,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
             q_atoms[[mol_id, i]] = q;
             pb.inc(1);
         }
+        pb.reset();
         let locator = locator + sys_atom_nums[mol_id] + 1;     // 不加1是"atom (3218):"行
 
         // get atom names
@@ -136,7 +138,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
             t_atoms[[mol_id, i]] = name.to_string();
             pb.inc(1);
         }
-        println!("Reading atoms information finished.");
+        pb.reset();
     }
 
     // get residues information
@@ -195,6 +197,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
                 } else { break; }
                 pb.inc(1);
             }
+            pb.reset();
         }
     }
 
@@ -236,6 +239,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
                 atom_id_total += 1;
                 pb.inc(1);
             }
+            pb.reset();
         }
     }
 

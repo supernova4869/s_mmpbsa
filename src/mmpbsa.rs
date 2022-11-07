@@ -30,7 +30,9 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     let qrv_path = String::from(pid.as_str()) + ".qrv";
     let qrv_path = wd.join(qrv_path);
     let qrv_path = qrv_path.to_str().unwrap();
-    // gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
+    let rad_type = settings.rad_type;
+    let rad_lj0 = settings.rad_lj0;
+    gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
     // Mpdb>pqr, 输出apbs, 计算MM, APBS
     do_mmpbsa(trj, mdp, ndx, qrv_path, wd, pid,
               complex_grp, receptor_grp, ligand_grp,
@@ -66,8 +68,6 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     // Running settings
     let gmx = &settings.gmx;
     let apbs = &settings.apbs;
-    let rad_type = settings.rad_type;
-    let rad_lj0 = settings.rad_lj0;
     let mesh_type = settings.mesh_type;
     let grid_type = settings.grid_type;
     let cfac = settings.cfac;
@@ -335,97 +335,98 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     let total_frames = (ef - bf) / dframe + 1;
     let ef = ef + 1;        // range lefts the last frame
 
-    // println!("Preparing qrv files...");
-    // let pb = ProgressBar::new(total_frames as u64);
-    // for cur_frm in (bf..ef).step_by(dframe) {
-    //     // process each frame
-    //
-    //     let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
-    //     let pqr_com = wd.join(format!("{}_com.pqr", f_name));
-    //     let mut pqr_com = File::create(pqr_com).unwrap();
-    //     let pqr_pro = wd.join(format!("{}_pro.pqr", f_name));
-    //     let mut pqr_pro = File::create(pqr_pro).unwrap();
-    //     let pqr_lig = wd.join(format!("{}_lig.pqr", f_name));
-    //     let mut pqr_lig = File::create(pqr_lig).unwrap();
-    //
-    //     // get min and max atom coordinates
-    //     let coordinates = coordinates.slice(s![cur_frm, .., ..]);
-    //
-    //     let atoms_rec_x_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 0]] - Ratm[p]).collect();
-    //     let atoms_rec_y_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 1]] - Ratm[p]).collect();
-    //     let atoms_rec_z_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 2]] - Ratm[p]).collect();
-    //     let atoms_rec_x_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 0]] + Ratm[p]).collect();
-    //     let atoms_rec_y_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 1]] + Ratm[p]).collect();
-    //     let atoms_rec_z_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 2]] + Ratm[p]).collect();
-    //     minXpro[cur_frm] = atoms_rec_x_lb.iter().
-    //         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    //     minYpro[cur_frm] = atoms_rec_y_lb.iter().
-    //         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    //     minZpro[cur_frm] = atoms_rec_z_lb.iter().
-    //         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    //     maxXpro[cur_frm] = atoms_rec_x_ub.iter().
-    //         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    //     maxYpro[cur_frm] = atoms_rec_y_ub.iter().
-    //         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    //     maxZpro[cur_frm] = atoms_rec_z_ub.iter().
-    //         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    //
-    //     let atoms_lig_x_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 0]] - Ratm[p]).collect();
-    //     let atoms_lig_y_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 1]] - Ratm[p]).collect();
-    //     let atoms_lig_z_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 2]] - Ratm[p]).collect();
-    //     let atoms_lig_x_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 0]] + Ratm[p]).collect();
-    //     let atoms_lig_y_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 1]] + Ratm[p]).collect();
-    //     let atoms_lig_z_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 2]] + Ratm[p]).collect();
-    //     minXlig[cur_frm] = atoms_lig_x_lb.iter().
-    //         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    //     minYlig[cur_frm] = atoms_lig_y_lb.iter().
-    //         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    //     minZlig[cur_frm] = atoms_lig_z_lb.iter().
-    //         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    //     maxXlig[cur_frm] = atoms_lig_x_ub.iter().
-    //         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    //     maxYlig[cur_frm] = atoms_lig_y_ub.iter().
-    //         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    //     maxZlig[cur_frm] = atoms_lig_z_ub.iter().
-    //         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    //
-    //     minXcom[cur_frm] = minXpro[cur_frm].min(minXpro[cur_frm]);
-    //     minYcom[cur_frm] = minYpro[cur_frm].min(minYpro[cur_frm]);
-    //     minZcom[cur_frm] = minZpro[cur_frm].min(minZpro[cur_frm]);
-    //     maxXcom[cur_frm] = maxXpro[cur_frm].max(maxXpro[cur_frm]);
-    //     maxYcom[cur_frm] = maxYpro[cur_frm].max(maxYpro[cur_frm]);
-    //     maxZcom[cur_frm] = maxZpro[cur_frm].max(maxZpro[cur_frm]);
-    //
-    //     // loop atoms and write pqr information (from pqr)
-    //     for at_id in ndxCom {
-    //         let at_id = *at_id;
-    //         let index = atm_index[at_id];
-    //         let at_name = &atm_name[at_id];
-    //         let resname = &atm_resname[at_id];
-    //         let chain = "X";
-    //         let resnum = atm_resnum[at_id];
-    //         let coord = coordinates.slice(s![at_id, ..]);
-    //         let x = coord[0];
-    //         let y = coord[1];
-    //         let z = coord[2];
-    //         let q = Qatm[at_id];
-    //         let r = Ratm[at_id];
-    //         let atom_line = format!("ATOM  {:5} {:-4} {:3} X{:4}    {:8.3} {:8.3} {:8.3} \
-    //         {:12.6} {:12.6}\n",
-    //                                 index, at_name, resname, resnum, x, y, z, q, r);
-    //
-    //         // write qrv files
-    //         pqr_com.write_all(atom_line.as_bytes()).unwrap();
-    //         if ndxPro.contains(&at_id) {
-    //             pqr_pro.write_all(atom_line.as_bytes()).unwrap();
-    //         }
-    //         if ndxLig.contains(&at_id) {
-    //             pqr_lig.write_all(atom_line.as_bytes()).unwrap();
-    //         }
-    //     }
-    //
-    //     pb.inc(1);
-    // }
+    println!("Preparing qrv files...");
+    let pb = ProgressBar::new(total_frames as u64);
+    for cur_frm in (bf..ef).step_by(dframe) {
+        // process each frame
+
+        let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
+        let pqr_com = wd.join(format!("{}_com.pqr", f_name));
+        let mut pqr_com = File::create(pqr_com).unwrap();
+        let pqr_pro = wd.join(format!("{}_pro.pqr", f_name));
+        let mut pqr_pro = File::create(pqr_pro).unwrap();
+        let pqr_lig = wd.join(format!("{}_lig.pqr", f_name));
+        let mut pqr_lig = File::create(pqr_lig).unwrap();
+
+        // get min and max atom coordinates
+        let coordinates = coordinates.slice(s![cur_frm, .., ..]);
+
+        let atoms_rec_x_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 0]] - Ratm[p]).collect();
+        let atoms_rec_y_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 1]] - Ratm[p]).collect();
+        let atoms_rec_z_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 2]] - Ratm[p]).collect();
+        let atoms_rec_x_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 0]] + Ratm[p]).collect();
+        let atoms_rec_y_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 1]] + Ratm[p]).collect();
+        let atoms_rec_z_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 2]] + Ratm[p]).collect();
+        minXpro[cur_frm] = atoms_rec_x_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minYpro[cur_frm] = atoms_rec_y_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minZpro[cur_frm] = atoms_rec_z_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        maxXpro[cur_frm] = atoms_rec_x_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxYpro[cur_frm] = atoms_rec_y_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxZpro[cur_frm] = atoms_rec_z_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+
+        let atoms_lig_x_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 0]] - Ratm[p]).collect();
+        let atoms_lig_y_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 1]] - Ratm[p]).collect();
+        let atoms_lig_z_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 2]] - Ratm[p]).collect();
+        let atoms_lig_x_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 0]] + Ratm[p]).collect();
+        let atoms_lig_y_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 1]] + Ratm[p]).collect();
+        let atoms_lig_z_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 2]] + Ratm[p]).collect();
+        minXlig[cur_frm] = atoms_lig_x_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minYlig[cur_frm] = atoms_lig_y_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        minZlig[cur_frm] = atoms_lig_z_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        maxXlig[cur_frm] = atoms_lig_x_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxYlig[cur_frm] = atoms_lig_y_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        maxZlig[cur_frm] = atoms_lig_z_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+
+        minXcom[cur_frm] = minXpro[cur_frm].min(minXpro[cur_frm]);
+        minYcom[cur_frm] = minYpro[cur_frm].min(minYpro[cur_frm]);
+        minZcom[cur_frm] = minZpro[cur_frm].min(minZpro[cur_frm]);
+        maxXcom[cur_frm] = maxXpro[cur_frm].max(maxXpro[cur_frm]);
+        maxYcom[cur_frm] = maxYpro[cur_frm].max(maxYpro[cur_frm]);
+        maxZcom[cur_frm] = maxZpro[cur_frm].max(maxZpro[cur_frm]);
+
+        // loop atoms and write pqr information (from pqr)
+        for at_id in ndxCom {
+            let at_id = *at_id;
+            let index = atm_index[at_id];
+            let at_name = &atm_name[at_id];
+            let resname = &atm_resname[at_id];
+            let chain = "X";
+            let resnum = atm_resnum[at_id];
+            let coord = coordinates.slice(s![at_id, ..]);
+            let x = coord[0];
+            let y = coord[1];
+            let z = coord[2];
+            let q = Qatm[at_id];
+            let r = Ratm[at_id];
+            let atom_line = format!("ATOM  {:5} {:-4} {:3} X{:4}    {:8.3} {:8.3} {:8.3} \
+            {:12.6} {:12.6}\n",
+                                    index, at_name, resname, resnum, x, y, z, q, r);
+
+            // write qrv files
+            pqr_com.write_all(atom_line.as_bytes()).unwrap();
+            if ndxPro.contains(&at_id) {
+                pqr_pro.write_all(atom_line.as_bytes()).unwrap();
+            }
+            if ndxLig.contains(&at_id) {
+                pqr_lig.write_all(atom_line.as_bytes()).unwrap();
+            }
+        }
+
+        pb.inc(1);
+    }
+    pb.reset();
 
     // calculate MM and PBSA
     let Iion = Cion.dot(&(&Qion * &Qion));
@@ -467,109 +468,108 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     let pb = ProgressBar::new(total_frames as u64);
     pb.inc(0);
     for cur_frm in (bf..ef).step_by(dframe) {
-        // // MM
-        // let coord = coordinates.slice(s![cur_frm, .., ..]);
-        // let mut dEcou = Array1::<f64>::zeros(Nres);
-        // let mut dEvdw = Array1::<f64>::zeros(Nres);
-        // // traverse receptor/ligand atoms to store parameters
-        // for i in 0..Npro {
-        //     let ii = i + Ipro;
-        //     let qi = Qatm[ii];
-        //     let ci = Catm[ii];
-        //     let xi = coord[[ii, 0]];
-        //     let yi = coord[[ii, 1]];
-        //     let zi = coord[[ii, 2]];
-        //     for j in 0..Nlig {
-        //         let jj = j + Ilig;
-        //         let qj = Qatm[jj];
-        //         let cj = Catm[jj];
-        //         let xj = coord[[jj, 0]];
-        //         let yj = coord[[jj, 1]];
-        //         let zj = coord[[jj, 2]];
-        //         let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
-        //         if r < Rcut {
-        //             let mut Ecou = qi * qj / r / 10.0;
-        //             if use_dh {
-        //                 Ecou = Ecou * f64::exp(-kap * r);
-        //             }
-        //             let Evdw = C12[[ci, cj]] / r.powi(12) - C6[[ci, cj]] / r.powi(6);
-        //             dEcou[atm_resnum[ii]] += Ecou;
-        //             dEcou[atm_resnum[jj]] += Ecou;
-        //             dEvdw[atm_resnum[ii]] += Evdw;
-        //             dEvdw[atm_resnum[jj]] += Evdw;
-        //         }
-        //     }
-        // }
-        // for i in 0..Nres {
-        //     dEcou[i] *= kJcou / (2.0 * pdie);
-        //     dEvdw[i] /= 2.0;
-        // }
-        // let Evdw = dEvdw.sum();
-        // let Ecou = dEcou.sum();
-        //
-        // // APBS
-        let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
-        // let mut input_apbs = File::create(wd.join(format!("{}.apbs", f_name))).unwrap();
-        // input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
-        // input_apbs.write_all(format!("  mol pqr {0}_com.pqr\n  \
-        // mol pqr {0}_pro.pqr\n  \
-        // mol pqr {0}_lig.pqr\n\
-        // end\n\n", f_name).as_bytes())
-        //     .expect("Failed to write apbs input file.");
-        //
-        // if mesh_type == 0 {
-        //     // GMXPBSA
-        //     input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
-        //                                  minX, maxX, minY,
-        //                                  maxY, minZ, maxZ,
-        //                                  cfac, fadd, df, grid_type,
-        //                                  PBEset, PBEset0, PBAset).as_bytes()).
-        //         expect("Failed writing apbs file.");
-        //     input_apbs.write_all(dimAPBS(format!("{f_name}_pro").as_str(), 2,
-        //                                  minX, maxX, minY,
-        //                                  maxY, minZ, maxZ,
-        //                                  cfac, fadd, df, grid_type,
-        //                                  PBEset, PBEset0, PBAset).as_bytes()).
-        //         expect("Failed writing apbs file.");
-        //     input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
-        //                                  minX, maxX, minY,
-        //                                  maxY, minZ, maxZ,
-        //                                  cfac, fadd, df, grid_type,
-        //                                  PBEset, PBEset0, PBAset).as_bytes()).
-        //         expect("Failed writing apbs file.");
-        // } else if mesh_type == 1 {
-        //     // g_mmpbsa
-        //     input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
-        //                                  minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
-        //                                  maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
-        //                                  cfac, fadd, df, grid_type,
-        //                                  PBEset, PBEset0, PBAset).as_bytes()).
-        //         expect("Failed writing apbs file.");
-        //     input_apbs.write_all(dimAPBS(format!("{f_name}_pro").as_str(), 2,
-        //                                  minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
-        //                                  maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
-        //                                  cfac, fadd, df, grid_type,
-        //                                  PBEset, PBEset0, PBAset).as_bytes()).
-        //         expect("Failed writing apbs file.");
-        //     input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
-        //                                  minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
-        //                                  maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
-        //                                  cfac, fadd, df, grid_type,
-        //                                  PBEset, PBEset0, PBAset).as_bytes()).
-        //         expect("Failed writing apbs file.");
-        // }
+        // MM
+        let coord = coordinates.slice(s![cur_frm, .., ..]);
+        let mut dEcou = Array1::<f64>::zeros(Nres);
+        let mut dEvdw = Array1::<f64>::zeros(Nres);
+        // traverse receptor/ligand atoms to store parameters
+        for i in 0..Npro {
+            let ii = i + Ipro;
+            let qi = Qatm[ii];
+            let ci = Catm[ii];
+            let xi = coord[[ii, 0]];
+            let yi = coord[[ii, 1]];
+            let zi = coord[[ii, 2]];
+            for j in 0..Nlig {
+                let jj = j + Ilig;
+                let qj = Qatm[jj];
+                let cj = Catm[jj];
+                let xj = coord[[jj, 0]];
+                let yj = coord[[jj, 1]];
+                let zj = coord[[jj, 2]];
+                let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
+                if r < Rcut {
+                    let mut Ecou = qi * qj / r / 10.0;
+                    if use_dh {
+                        Ecou = Ecou * f64::exp(-kap * r);
+                    }
+                    let Evdw = C12[[ci, cj]] / r.powi(12) - C6[[ci, cj]] / r.powi(6);
+                    dEcou[atm_resnum[ii]] += Ecou;
+                    dEcou[atm_resnum[jj]] += Ecou;
+                    dEvdw[atm_resnum[ii]] += Evdw;
+                    dEvdw[atm_resnum[jj]] += Evdw;
+                }
+            }
+        }
+        for i in 0..Nres {
+            dEcou[i] *= kJcou / (2.0 * pdie);
+            dEvdw[i] /= 2.0;
+        }
+        let Evdw = dEvdw.sum();
+        let Ecou = dEcou.sum();
 
-        // let mut apbs_out = File::create(wd.join(format!("{}.out", f_name))).
-        //     expect("Failed to create apbs out file");
-        // let apbs_result = Command::new(apbs).
-        //     arg(wd.join(format!("{}.apbs", f_name))).
-        //     current_dir(&wd).output().expect("running apbs failed.");
-        // let apbs_output = String::from_utf8(apbs_result.stdout).
-        //     expect("Failed to get apbs output.");
-        // apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
+        // APBS
+        let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
+        let mut input_apbs = File::create(wd.join(format!("{}.apbs", f_name))).unwrap();
+        input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
+        input_apbs.write_all(format!("  mol pqr {0}_com.pqr\n  \
+        mol pqr {0}_pro.pqr\n  \
+        mol pqr {0}_lig.pqr\n\
+        end\n\n", f_name).as_bytes())
+            .expect("Failed to write apbs input file.");
+
+        if mesh_type == 0 {
+            // GMXPBSA
+            input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
+                                         minX, maxX, minY,
+                                         maxY, minZ, maxZ,
+                                         cfac, fadd, df, grid_type,
+                                         PBEset, PBEset0, PBAset).as_bytes()).
+                expect("Failed writing apbs file.");
+            input_apbs.write_all(dimAPBS(format!("{f_name}_pro").as_str(), 2,
+                                         minX, maxX, minY,
+                                         maxY, minZ, maxZ,
+                                         cfac, fadd, df, grid_type,
+                                         PBEset, PBEset0, PBAset).as_bytes()).
+                expect("Failed writing apbs file.");
+            input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
+                                         minX, maxX, minY,
+                                         maxY, minZ, maxZ,
+                                         cfac, fadd, df, grid_type,
+                                         PBEset, PBEset0, PBAset).as_bytes()).
+                expect("Failed writing apbs file.");
+        } else if mesh_type == 1 {
+            // g_mmpbsa
+            input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
+                                         minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
+                                         maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
+                                         cfac, fadd, df, grid_type,
+                                         PBEset, PBEset0, PBAset).as_bytes()).
+                expect("Failed writing apbs file.");
+            input_apbs.write_all(dimAPBS(format!("{f_name}_pro").as_str(), 2,
+                                         minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
+                                         maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
+                                         cfac, fadd, df, grid_type,
+                                         PBEset, PBEset0, PBAset).as_bytes()).
+                expect("Failed writing apbs file.");
+            input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
+                                         minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
+                                         maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
+                                         cfac, fadd, df, grid_type,
+                                         PBEset, PBEset0, PBAset).as_bytes()).
+                expect("Failed writing apbs file.");
+        }
+
+        let mut apbs_out = File::create(wd.join(format!("{}.out", f_name))).
+            expect("Failed to create apbs out file");
+        let apbs_result = Command::new(apbs).
+            arg(wd.join(format!("{}.apbs", f_name))).
+            current_dir(&wd).output().expect("running apbs failed.");
+        let apbs_output = String::from_utf8(apbs_result.stdout).
+            expect("Failed to get apbs output.");
+        apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
 
         // parse output
-        // let apbs_out = fs::read_to_string(apbs_out).unwrap();
         let apbs_out = fs::read_to_string(wd.join(format!("{}.out", f_name))).unwrap();
         let Esol = Array2::<f64>::zeros((3, Ncom));
         let Evac = Array2::<f64>::zeros((3, Ncom));
