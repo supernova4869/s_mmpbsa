@@ -43,7 +43,7 @@ ELEC name _Protein_in_water_9ns_com_VAC
   cgcent 63.510  62.880  30.980  # 粗略格点中心
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
-  sdie  1       # 溶剂介电常数, 真空1, 水78.54
+  sdie  1           # 溶剂介电常数, 真空1, 水78.54
   
   npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
   bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
@@ -138,7 +138,7 @@ ELEC name _Protein_in_water_9ns_rec_VAC
   cgcent 63.510  62.880  30.980  # 粗略格点中心
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
-  sdie  1       # 溶剂介电常数, 真空1, 水78.54
+  sdie  1           # 溶剂介电常数, 真空1, 水78.54
   
   npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
   bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
@@ -233,7 +233,7 @@ ELEC name _Protein_in_water_9ns_lig_VAC
   cgcent 63.510  62.880  30.980  # 粗略格点中心
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
-  sdie  1       # 溶剂介电常数, 真空1, 水78.54
+  sdie  1           # 溶剂介电常数, 真空1, 水78.54
   
   npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
   bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
