@@ -16,9 +16,11 @@ use indicatif::ProgressBar;
 use regex::Regex;
 use crate::gen_qrv::gen_qrv;
 
-pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path, use_dh: bool, use_ts: bool,
+pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path,
+                              use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
-                              bt: f64, et: f64, dt: f64, settings: &Parameters) {
+                              bt: f64, et: f64, dt: f64, settings: &Parameters)
+    -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // get charge, radius, LJ parameters of each atoms and generate qrv files
     let mut pid = String::from("_Protein_in_water");
     println!("Input system name (default: {}):", pid);
@@ -32,12 +34,13 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     let qrv_path = qrv_path.to_str().unwrap();
     let rad_type = settings.rad_type;
     let rad_lj0 = settings.rad_lj0;
-    gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
+    // gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
     // Mpdb>pqr, 输出apbs, 计算MM, APBS
-    do_mmpbsa(trj, mdp, ndx, qrv_path, wd, pid,
+    let results = do_mmpbsa(trj, mdp, ndx, qrv_path, wd, pid,
               complex_grp, receptor_grp, ligand_grp,
               bt, et, dt,
               settings, use_dh, use_ts);
+    return results;
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
@@ -64,7 +67,8 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
 fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid: String,
              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
              bt: f64, et: f64, dt: f64,
-             settings: &Parameters, use_dh: bool, use_ts: bool) {
+             settings: &Parameters, use_dh: bool, use_ts: bool)
+    -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // Running settings
     let gmx = &settings.gmx;
     let apbs = &settings.apbs;
@@ -75,8 +79,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     let df = settings.df;
 
     // PB部分的参数从哪来?是否从前一菜单转移?
-    let PBEset0 = "\
-    \n  temp  298.15      # 温度\
+    let PBEset0 = "  temp  298.15      # 温度\
     \n  pdie  2           # 溶质介电常数\
     \n  sdie  1       # 溶剂介电常数, 真空1, 水78.54\
     \n  \
@@ -94,8 +97,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     \n  \
     \n  calcforce  no\
     \n  calcenergy comps";
-    let PBEset = "
-    \n  temp  298.15      # 温度\
+    let PBEset = "  temp  298.15      # 温度\
     \n  pdie  2           # 溶质介电常数\
     \n  sdie  78.54       # 溶剂介电常数, 真空1, 水78.54\
     \n  \
@@ -113,8 +115,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     \n  \
     \n  calcforce  no\
     \n  calcenergy comps";
-    let PBAset = "
-    \n  temp  298.15 # 温度\
+    let PBAset = "  temp  298.15 # 温度\
     \n  srfm  sacc   # 构建溶剂相关表面或体积的模型\
     \n  swin  0.3    # 立方样条窗口(A), 用于定义样条表面\
     \n  \
@@ -173,22 +174,22 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         }
     }
 
-    let ndxCom = &ndx.groups[complex_grp].indexes;
-    let ndxPro = &ndx.groups[receptor_grp].indexes;
-    let ndxLig = &ndx.groups[ligand_grp].indexes;
-    let mut Qatm = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut Ratm = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut Catm = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
-    let mut Satm = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut Eatm = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let ndx_com = &ndx.groups[complex_grp].indexes;
+    let ndx_rec = &ndx.groups[receptor_grp].indexes;
+    let ndx_lig = &ndx.groups[ligand_grp].indexes;
+    let mut atm_charge = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_radius = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_typeindex = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_sigma = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_epsilon = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
     let mut atm_index = Array1::<i32>::zeros(qrv.len() - 3 - Atyp);
     let mut atm_name = Array1::<String>::default(qrv.len() - 3 - Atyp);
     let mut atm_resname = Array1::<String>::default(qrv.len() - 3 - Atyp);
     let mut atm_resnum = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
-    // resPro has blanks in the left part
-    let mut resPro = Array1::<String>::default(qrv.len() - 3 - Atyp);
-    // resLig has blanks in the right part
-    let mut resLig = Array1::<String>::default(qrv.len() - 3 - Atyp);
+    // res_rec has blanks in the left part
+    let mut res_rec = Array1::<String>::default(qrv.len() - 3 - Atyp);
+    // res_lig has blanks in the right part
+    let mut res_lig = Array1::<String>::default(qrv.len() - 3 - Atyp);
     let mut idx = 0;
     for line in &qrv[Atyp + 2..qrv.len() - 1] { // there's a blank line at the end
         let line: Vec<&str> = line
@@ -198,11 +199,11 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
                 _ => Some(p)
             })
             .collect();
-        Qatm[idx] = line[1].parse().unwrap();
-        Ratm[idx] = line[2].parse().unwrap();
-        Catm[idx] = line[3].parse().unwrap();
-        Satm[idx] = line[4].parse().unwrap();
-        Eatm[idx] = line[5].parse().unwrap();
+        atm_charge[idx] = line[1].parse().unwrap();
+        atm_radius[idx] = line[2].parse().unwrap();
+        atm_typeindex[idx] = line[3].parse().unwrap();
+        atm_sigma[idx] = line[4].parse().unwrap();
+        atm_epsilon[idx] = line[5].parse().unwrap();
         atm_index[idx] = line[0].parse().unwrap();
         atm_name[idx] = line[line.len() - 2].to_string();
         let res = line[line.len() - 3];
@@ -210,9 +211,9 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         atm_resname[idx] = res[5..].to_string();
 
         if line[line.len() - 1] == "Rec" {
-            resPro[idx] = "R~".to_string() + line[line.len() - 3];
+            res_rec[idx] = "R~".to_string() + line[line.len() - 3];
         } else {
-            resLig[idx] = "L~".to_string() + line[line.len() - 3];
+            res_lig[idx] = "L~".to_string() + line[line.len() - 3];
         }
         idx += 1;
     }
@@ -233,9 +234,11 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     }
 
     // atom number of receptor and ligand
-    let Npro = ndxPro.len();
-    let Nlig = ndxLig.len();
-    let Ncom = Npro + Nlig;
+    let atom_num_rec = ndx_rec.len();
+    let atom_num_lig = ndx_lig.len();
+    let atom_num_com = atom_num_rec + atom_num_lig;
+
+    // PBSA parameters
     let mut temp = 0.0;
     let mut pdie = 0.0;
     let mut sdie = 0.0;
@@ -273,7 +276,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     for i in PBAset.split("\n") {
         if i.trim().len() != 0 {
             let paras: Vec<&str> = i
-                .split("\n")
+                .split(" ")
                 .filter_map(|p| match p.len() {
                     0 => None,
                     _ => Some(p)
@@ -295,39 +298,39 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
     // border of the whole molecule
-    let minX = coordinates.slice(s![.., .., 0]).iter().
+    let min_x = coordinates.slice(s![.., .., 0]).iter().
         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    let maxX = coordinates.slice(s![.., .., 0]).iter().
+    let max_x = coordinates.slice(s![.., .., 0]).iter().
         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    let minY = coordinates.slice(s![.., .., 1]).iter().
+    let min_y = coordinates.slice(s![.., .., 1]).iter().
         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    let maxY = coordinates.slice(s![.., .., 1]).iter().
+    let max_y = coordinates.slice(s![.., .., 1]).iter().
         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    let minZ = coordinates.slice(s![.., .., 2]).iter().
+    let min_z = coordinates.slice(s![.., .., 2]).iter().
         fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    let maxZ = coordinates.slice(s![.., .., 2]).iter().
+    let max_z = coordinates.slice(s![.., .., 2]).iter().
         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
 
-    let mut minXpro = Array1::<f64>::zeros(total_frames);
-    let mut minYpro = Array1::<f64>::zeros(total_frames);
-    let mut minZpro = Array1::<f64>::zeros(total_frames);
-    let mut maxXpro = Array1::<f64>::zeros(total_frames);
-    let mut maxYpro = Array1::<f64>::zeros(total_frames);
-    let mut maxZpro = Array1::<f64>::zeros(total_frames);
+    let mut min_x_rec = Array1::<f64>::zeros(total_frames);
+    let mut min_y_rec = Array1::<f64>::zeros(total_frames);
+    let mut min_z_rec = Array1::<f64>::zeros(total_frames);
+    let mut max_x_rec = Array1::<f64>::zeros(total_frames);
+    let mut max_y_rec = Array1::<f64>::zeros(total_frames);
+    let mut max_z_rec = Array1::<f64>::zeros(total_frames);
 
-    let mut minXlig = Array1::<f64>::zeros(total_frames);
-    let mut minYlig = Array1::<f64>::zeros(total_frames);
-    let mut minZlig = Array1::<f64>::zeros(total_frames);
-    let mut maxXlig = Array1::<f64>::zeros(total_frames);
-    let mut maxYlig = Array1::<f64>::zeros(total_frames);
-    let mut maxZlig = Array1::<f64>::zeros(total_frames);
+    let mut min_x_lig = Array1::<f64>::zeros(total_frames);
+    let mut min_y_lig = Array1::<f64>::zeros(total_frames);
+    let mut min_z_lig = Array1::<f64>::zeros(total_frames);
+    let mut max_x_lig = Array1::<f64>::zeros(total_frames);
+    let mut max_y_lig = Array1::<f64>::zeros(total_frames);
+    let mut max_z_lig = Array1::<f64>::zeros(total_frames);
 
-    let mut minXcom = Array1::<f64>::zeros(total_frames);
-    let mut minYcom = Array1::<f64>::zeros(total_frames);
-    let mut minZcom = Array1::<f64>::zeros(total_frames);
-    let mut maxXcom = Array1::<f64>::zeros(total_frames);
-    let mut maxYcom = Array1::<f64>::zeros(total_frames);
-    let mut maxZcom = Array1::<f64>::zeros(total_frames);
+    let mut min_x_com = Array1::<f64>::zeros(total_frames);
+    let mut min_y_com = Array1::<f64>::zeros(total_frames);
+    let mut min_z_com = Array1::<f64>::zeros(total_frames);
+    let mut max_x_com = Array1::<f64>::zeros(total_frames);
+    let mut max_y_com = Array1::<f64>::zeros(total_frames);
+    let mut max_z_com = Array1::<f64>::zeros(total_frames);
 
     let bf = (bt / frames[1].time as f64) as usize;
     let ef = (et / frames[1].time as f64) as usize;
@@ -343,61 +346,73 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
         let pqr_com = wd.join(format!("{}_com.pqr", f_name));
         let mut pqr_com = File::create(pqr_com).unwrap();
-        let pqr_pro = wd.join(format!("{}_pro.pqr", f_name));
-        let mut pqr_pro = File::create(pqr_pro).unwrap();
+        let pqr_rec = wd.join(format!("{}_rec.pqr", f_name));
+        let mut pqr_rec = File::create(pqr_rec).unwrap();
         let pqr_lig = wd.join(format!("{}_lig.pqr", f_name));
         let mut pqr_lig = File::create(pqr_lig).unwrap();
 
         // get min and max atom coordinates
         let coordinates = coordinates.slice(s![cur_frm, .., ..]);
 
-        let atoms_rec_x_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 0]] - Ratm[p]).collect();
-        let atoms_rec_y_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 1]] - Ratm[p]).collect();
-        let atoms_rec_z_lb: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 2]] - Ratm[p]).collect();
-        let atoms_rec_x_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 0]] + Ratm[p]).collect();
-        let atoms_rec_y_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 1]] + Ratm[p]).collect();
-        let atoms_rec_z_ub: Vec<f64> = ndxPro.iter().map(|&p| coordinates[[p, 2]] + Ratm[p]).collect();
-        minXpro[cur_frm] = atoms_rec_x_lb.iter().
+        let atoms_rec_x_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] - atm_radius
+            [p]).collect();
+        let atoms_rec_y_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] - atm_radius
+            [p]).collect();
+        let atoms_rec_z_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] - atm_radius
+            [p]).collect();
+        let atoms_rec_x_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] + atm_radius
+            [p]).collect();
+        let atoms_rec_y_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] + atm_radius
+            [p]).collect();
+        let atoms_rec_z_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] + atm_radius
+            [p]).collect();
+        min_x_rec[cur_frm] = atoms_rec_x_lb.iter().
             fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        minYpro[cur_frm] = atoms_rec_y_lb.iter().
+        min_y_rec[cur_frm] = atoms_rec_y_lb.iter().
             fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        minZpro[cur_frm] = atoms_rec_z_lb.iter().
+        min_z_rec[cur_frm] = atoms_rec_z_lb.iter().
             fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        maxXpro[cur_frm] = atoms_rec_x_ub.iter().
+        max_x_rec[cur_frm] = atoms_rec_x_ub.iter().
             fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        maxYpro[cur_frm] = atoms_rec_y_ub.iter().
+        max_y_rec[cur_frm] = atoms_rec_y_ub.iter().
             fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        maxZpro[cur_frm] = atoms_rec_z_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-
-        let atoms_lig_x_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 0]] - Ratm[p]).collect();
-        let atoms_lig_y_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 1]] - Ratm[p]).collect();
-        let atoms_lig_z_lb: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 2]] - Ratm[p]).collect();
-        let atoms_lig_x_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 0]] + Ratm[p]).collect();
-        let atoms_lig_y_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 1]] + Ratm[p]).collect();
-        let atoms_lig_z_ub: Vec<f64> = ndxLig.iter().map(|&p| coordinates[[p, 2]] + Ratm[p]).collect();
-        minXlig[cur_frm] = atoms_lig_x_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        minYlig[cur_frm] = atoms_lig_y_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        minZlig[cur_frm] = atoms_lig_z_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        maxXlig[cur_frm] = atoms_lig_x_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        maxYlig[cur_frm] = atoms_lig_y_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        maxZlig[cur_frm] = atoms_lig_z_ub.iter().
+        max_z_rec[cur_frm] = atoms_rec_z_ub.iter().
             fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
 
-        minXcom[cur_frm] = minXpro[cur_frm].min(minXpro[cur_frm]);
-        minYcom[cur_frm] = minYpro[cur_frm].min(minYpro[cur_frm]);
-        minZcom[cur_frm] = minZpro[cur_frm].min(minZpro[cur_frm]);
-        maxXcom[cur_frm] = maxXpro[cur_frm].max(maxXpro[cur_frm]);
-        maxYcom[cur_frm] = maxYpro[cur_frm].max(maxYpro[cur_frm]);
-        maxZcom[cur_frm] = maxZpro[cur_frm].max(maxZpro[cur_frm]);
+        let atoms_lig_x_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] - atm_radius
+            [p]).collect();
+        let atoms_lig_y_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] - atm_radius
+            [p]).collect();
+        let atoms_lig_z_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] - atm_radius
+            [p]).collect();
+        let atoms_lig_x_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] + atm_radius
+            [p]).collect();
+        let atoms_lig_y_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] + atm_radius
+            [p]).collect();
+        let atoms_lig_z_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] + atm_radius
+            [p]).collect();
+        min_x_lig[cur_frm] = atoms_lig_x_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        min_y_lig[cur_frm] = atoms_lig_y_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        min_z_lig[cur_frm] = atoms_lig_z_lb.iter().
+            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
+        max_x_lig[cur_frm] = atoms_lig_x_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        max_y_lig[cur_frm] = atoms_lig_y_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+        max_z_lig[cur_frm] = atoms_lig_z_ub.iter().
+            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
+
+        min_x_com[cur_frm] = min_x_rec[cur_frm].min(min_x_rec[cur_frm]);
+        min_y_com[cur_frm] = min_y_rec[cur_frm].min(min_y_rec[cur_frm]);
+        min_z_com[cur_frm] = min_z_rec[cur_frm].min(min_z_rec[cur_frm]);
+        max_x_com[cur_frm] = max_x_rec[cur_frm].max(max_x_rec[cur_frm]);
+        max_y_com[cur_frm] = max_y_rec[cur_frm].max(max_y_rec[cur_frm]);
+        max_z_com[cur_frm] = max_z_rec[cur_frm].max(max_z_rec[cur_frm]);
 
         // loop atoms and write pqr information (from pqr)
-        for at_id in ndxCom {
+        for at_id in ndx_com {
             let at_id = *at_id;
             let index = atm_index[at_id];
             let at_name = &atm_name[at_id];
@@ -408,25 +423,25 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
             let x = coord[0];
             let y = coord[1];
             let z = coord[2];
-            let q = Qatm[at_id];
-            let r = Ratm[at_id];
+            let q = atm_charge[at_id];
+            let r = atm_radius
+                [at_id];
             let atom_line = format!("ATOM  {:5} {:-4} {:3} X{:4}    {:8.3} {:8.3} {:8.3} \
             {:12.6} {:12.6}\n",
                                     index, at_name, resname, resnum, x, y, z, q, r);
 
             // write qrv files
             pqr_com.write_all(atom_line.as_bytes()).unwrap();
-            if ndxPro.contains(&at_id) {
-                pqr_pro.write_all(atom_line.as_bytes()).unwrap();
+            if ndx_rec.contains(&at_id) {
+                pqr_rec.write_all(atom_line.as_bytes()).unwrap();
             }
-            if ndxLig.contains(&at_id) {
+            if ndx_lig.contains(&at_id) {
                 pqr_lig.write_all(atom_line.as_bytes()).unwrap();
             }
         }
 
         pb.inc(1);
     }
-    pb.reset();
 
     // calculate MM and PBSA
     let Iion = Cion.dot(&(&Qion * &Qion));
@@ -440,50 +455,51 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     let kJcou = 1389.35457520287;
     let Rcut = f64::INFINITY;
 
-    let Nres = atm_resnum[atm_resnum.len() - 1] + 1;
+    let total_res_num = atm_resnum[atm_resnum.len() - 1] + 1;
 
-    let dE = Array1::<f64>::zeros(Nres);
-    let dGres = Array2::<f64>::zeros((Nres, 2));
-    let dHres = Array2::<f64>::zeros((Nres, 2));
-    let MMres = Array2::<f64>::zeros((Nres, 2));
-    let COUres = Array2::<f64>::zeros((Nres, 2));
-    let VDWres = Array1::<f64>::zeros(Nres);
-    let dPBres = Array1::<f64>::zeros(Nres);
-    let dSAres = Array1::<f64>::zeros(Nres);
+    let mut dE = Array1::<f64>::zeros(total_res_num);
+    let mut dGres = Array1::<f64>::zeros(total_res_num);
+    let mut dHres = Array1::<f64>::zeros(total_res_num);
+    let mut MMres = Array1::<f64>::zeros(total_res_num);
+    let mut COUres = Array1::<f64>::zeros(total_res_num);
+    let mut VDWres = Array1::<f64>::zeros(total_res_num);
+    let mut dPBres = Array1::<f64>::zeros(total_res_num);
+    let mut dSAres = Array1::<f64>::zeros(total_res_num);
 
-    let vdw = Array1::<f64>::zeros(total_frames);
-    let pb = Array1::<f64>::zeros(total_frames);
-    let sa = Array1::<f64>::zeros(total_frames);
-    let cou = Array2::<f64>::zeros((total_frames, 2));
-    let mm = Array2::<f64>::zeros((total_frames, 2));
-    let dh = Array2::<f64>::zeros((total_frames, 2));
+    let mut vdw = Array1::<f64>::zeros(total_frames);
+    let mut pb = Array1::<f64>::zeros(total_frames);
+    let mut sa = Array1::<f64>::zeros(total_frames);
+    let mut cou = Array1::<f64>::zeros(total_frames);
+    let mut mm = Array1::<f64>::zeros(total_frames);
+    let mut dh = Array1::<f64>::zeros(total_frames);
 
-    let PBres = Array1::<f64>::zeros(Nres);
-    let SAres = Array1::<f64>::zeros(Nres);
+    let mut PBres = Array1::<f64>::zeros(total_res_num);
+    let mut SAres = Array1::<f64>::zeros(total_res_num);
 
-    let Ipro = ndxPro[0];
-    let Ilig = ndxLig[0];
+    let rec_shift = ndx_rec[0];
+    let lig_shift = ndx_lig[0];
 
     println!("Start MM/PB-SA calculations...");
-    let pb = ProgressBar::new(total_frames as u64);
-    pb.inc(0);
+    let pgb = ProgressBar::new(total_frames as u64);
+    pgb.inc(0);
+    let mut idx = 0;
     for cur_frm in (bf..ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
-        let mut dEcou = Array1::<f64>::zeros(Nres);
-        let mut dEvdw = Array1::<f64>::zeros(Nres);
+        let mut dEcou = Array1::<f64>::zeros(total_res_num);
+        let mut dEvdw = Array1::<f64>::zeros(total_res_num);
         // traverse receptor/ligand atoms to store parameters
-        for i in 0..Npro {
-            let ii = i + Ipro;
-            let qi = Qatm[ii];
-            let ci = Catm[ii];
+        for i in 0..atom_num_rec {
+            let ii = i + rec_shift;
+            let qi = atm_charge[ii];
+            let ci = atm_typeindex[ii];
             let xi = coord[[ii, 0]];
             let yi = coord[[ii, 1]];
             let zi = coord[[ii, 2]];
-            for j in 0..Nlig {
-                let jj = j + Ilig;
-                let qj = Qatm[jj];
-                let cj = Catm[jj];
+            for j in 0..atom_num_lig {
+                let jj = j + lig_shift;
+                let qj = atm_charge[jj];
+                let cj = atm_typeindex[jj];
                 let xj = coord[[jj, 0]];
                 let yj = coord[[jj, 1]];
                 let zj = coord[[jj, 2]];
@@ -501,7 +517,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
                 }
             }
         }
-        for i in 0..Nres {
+        for i in 0..total_res_num {
             dEcou[i] *= kJcou / (2.0 * pdie);
             dEvdw[i] /= 2.0;
         }
@@ -513,7 +529,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         let mut input_apbs = File::create(wd.join(format!("{}.apbs", f_name))).unwrap();
         input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
         input_apbs.write_all(format!("  mol pqr {0}_com.pqr\n  \
-        mol pqr {0}_pro.pqr\n  \
+        mol pqr {0}_rec.pqr\n  \
         mol pqr {0}_lig.pqr\n\
         end\n\n", f_name).as_bytes())
             .expect("Failed to write apbs input file.");
@@ -521,40 +537,40 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         if mesh_type == 0 {
             // GMXPBSA
             input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
-                                         minX, maxX, minY,
-                                         maxY, minZ, maxZ,
+                                         min_x, max_x, min_y,
+                                         max_y, min_z, max_z,
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{f_name}_pro").as_str(), 2,
-                                         minX, maxX, minY,
-                                         maxY, minZ, maxZ,
+            input_apbs.write_all(dimAPBS(format!("{f_name}_rec").as_str(), 2,
+                                         min_x, max_x, min_y,
+                                         max_y, min_z, max_z,
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
             input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
-                                         minX, maxX, minY,
-                                         maxY, minZ, maxZ,
+                                         min_x, max_x, min_y,
+                                         max_y, min_z, max_z,
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
         } else if mesh_type == 1 {
             // g_mmpbsa
             input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
-                                         minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
-                                         maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
+                                         min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
+                                         max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{f_name}_pro").as_str(), 2,
-                                         minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
-                                         maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
+            input_apbs.write_all(dimAPBS(format!("{f_name}_rec").as_str(), 2,
+                                         min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
+                                         max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
             input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
-                                         minXcom[cur_frm], maxXcom[cur_frm], minYcom[cur_frm],
-                                         maxYcom[cur_frm], minZcom[cur_frm], maxZcom[cur_frm],
+                                         min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
+                                         max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
@@ -570,101 +586,222 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
 
         // parse output
-        let apbs_out = fs::read_to_string(wd.join(format!("{}.out", f_name))).unwrap();
-        let Esol = Array2::<f64>::zeros((3, Ncom));
-        let Evac = Array2::<f64>::zeros((3, Ncom));
-        let Esas = Array2::<f64>::zeros((3, Ncom));
-        let s: Vec<&str> = apbs_out
+        let apbs_info = fs::read_to_string(wd.join(format!("{}.out", f_name))).unwrap();
+        let mut Esol = Array2::<f64>::zeros((3, atom_num_com));
+        let mut Evac = Array2::<f64>::zeros((3, atom_num_com));
+        let mut Esas = Array2::<f64>::zeros((3, atom_num_com));
+        let apbs_info = apbs_info
             .split("\n")
             .filter_map(|p|
                 if p.trim().starts_with("CALCULATION ") ||
-                    p.trim().starts_with("Per-atom energies:") ||
                     p.trim().starts_with("Atom") ||
-                    p.trim().starts_with("Solvent Accessible Surface Area") ||
                     p.trim().starts_with("SASA") {
                     Some(p.trim())
                 } else { None }
             )
-            .collect();
-        println!("{}", s.len());
+            .collect::<Vec<&str>>()
+            .join("\n");
 
-        pb.inc(1);
+        // extract apbs results
+        let apbs_info: Vec<&str> = apbs_info        // list of apbs calculation results
+            .split("CALCULATION ")
+            .filter_map(|p| match p.trim().len() {
+                0 => None,
+                _ => Some(p.trim())
+            })
+            .collect();
+        for info in apbs_info {
+            let info: Vec<&str> = info
+                .split("\n")
+                .collect();
+
+            let mut sys_idx;    // com: 0, rec: 1, lig: 2
+            let mut n: f64;
+            if info[0].contains(format!("{}_com", f_name).as_str()) {
+                sys_idx = 0;
+                n = atom_num_com as f64;
+            } else if info[0].contains(format!("{}_rec", f_name).as_str()) {
+                sys_idx = 1;
+                n = atom_num_rec as f64;
+            } else {
+                sys_idx = 2;
+                n = atom_num_lig as f64;
+            }
+
+            if info[0].contains("_VAC") {
+                for (idx, v) in info[1..].into_iter().enumerate() {
+                    let v: Vec<&str> = v
+                        .split(" ")
+                        .filter_map(|p| match p.trim().len() {
+                            0 => None,
+                            _ => Some(p)
+                        }).collect();
+                    let v: f64 = v[v.len() - 2].parse().unwrap();
+                    Evac[[sys_idx, idx]] = v;
+                }
+            } else if info[0].contains("_SAS") {
+                for (idx, v) in info[1..].into_iter().enumerate() {
+                    let v: Vec<&str> = v
+                        .split(" ")
+                        .filter_map(|p| match p.trim().len() {
+                            0 => None,
+                            _ => Some(p)
+                        }).collect();
+                    let v: f64 = v[v.len() - 1].parse().unwrap();
+                    Esas[[sys_idx, idx]] = gamma * v + _const / n;
+                }
+            } else {
+                for (idx, v) in info[1..].into_iter().enumerate() {
+                    let v: Vec<&str> = v
+                        .split(" ")
+                        .filter_map(|p| match p.trim().len() {
+                            0 => None,
+                            _ => Some(p)
+                        }).collect();
+                    let v: f64 = v[v.len() - 2].parse().unwrap();
+                    Esol[[sys_idx, idx]] = v;
+                }
+            }
+        }
+
+        let Esol = Esol - Evac;
+        let pb_com: f64 = Esol.slice(s![0, ..]).iter().sum::<f64>();
+        let sa_com: f64 = Esas.slice(s![0, ..]).iter().sum::<f64>();
+        let pb_rec: f64 = Esol.slice(s![1, ..]).iter().sum::<f64>();
+        let sa_rec: f64 = Esas.slice(s![1, ..]).iter().sum::<f64>();
+        let pb_lig: f64 = Esol.slice(s![2, ..]).iter().sum::<f64>();
+        let sa_lig: f64 = Esas.slice(s![2, ..]).iter().sum::<f64>();
+
+        vdw[idx] = Evdw;
+        cou[idx] = Ecou;
+        mm[idx] = Ecou + Evdw;
+        pb[idx] = pb_com - pb_rec - pb_lig;
+        sa[idx] = sa_com - sa_rec - sa_lig;
+        dh[idx] = mm[idx] + pb[idx] + sa[idx];
+
+        // residue decomposition
+        for i in 0..atom_num_rec {
+            dPBres[atm_resnum[i + rec_shift]] += Esol[[0, i + rec_shift]] - Esol[[1, i]];
+            dSAres[atm_resnum[i + rec_shift]] += Esas[[0, i + rec_shift]] - Esas[[1, i]];
+        }
+        for i in 0..atom_num_lig {
+            dPBres[atm_resnum[i + lig_shift]] += Esol[[0, i + lig_shift]] - Esol[[2, i]];
+            dSAres[atm_resnum[i + lig_shift]] += Esas[[0, i + lig_shift]] - Esas[[2, i]];
+        }
+
+        COUres += &dEcou;
+        VDWres += &dEvdw;
+        PBres += &dPBres;
+        SAres += &dSAres;
+
+        idx += 1;
+        pgb.inc(1);
     }
-    pb.finish();
+    pgb.finish();
+
+    // residue time average
+    COUres /= total_frames as f64;
+    VDWres /= total_frames as f64;
+    PBres /= total_frames as f64;
+    SAres /= total_frames as f64;
+    MMres = COUres + VDWres;
+    dHres = MMres + PBres + SAres;
+
+    // totally time average and ts
+    let dH = dh.iter().sum::<f64>() / dh.len() as f64;
+    let MM = mm.iter().sum::<f64>() / mm.len() as f64;
+    let COU = cou.iter().sum::<f64>() / cou.len() as f64;
+    let VDW = vdw.iter().sum::<f64>() / vdw.len() as f64;
+    let PB = pb.iter().sum::<f64>() / pb.len() as f64;
+    let SA = sa.iter().sum::<f64>() / sa.len() as f64;
+
+    let TdS = mm.iter()
+        .map(|&p| f64::exp((p - MM) / RT2kJ) )
+        .sum::<f64>() / mm.len() as f64;
+    let TdS = -RT2kJ * TdS.ln();
+    let dG = dH - TdS;
+    let Ki = f64::exp(dG / RT2kJ);
+
     println!("MM-PBSA calculation finished.");
+    return (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki);
 }
 
-fn dimAPBS(file: &str, Imol: i32, minX: f64, maxX: f64, minY: f64, maxY: f64, minZ: f64, maxZ: f64,
-           cfac: f64, fadd: f64, df: f64, grid_type: i32, PBEset: &str, PBEset0: &str, PBAset: &str) -> String {
-    let lenX = (maxX - minX).max(0.1);
-    let cntX = (maxX + minX) / 2.0;
-    let lenY = (maxY - minY).max(0.1);
-    let cntY = (maxY + minY) / 2.0;
-    let lenZ = (maxZ - minZ).max(0.1);
-    let cntZ = (maxZ + minZ) / 2.0;
-    let mut cX = lenX * cfac;
-    let mut fX = cX.min(lenX + fadd);
-    let mut cY = lenY * cfac;
-    let mut fY = cY.min(lenY + fadd);
-    let mut cZ = lenZ * cfac;
-    let mut fZ = cZ.min(lenZ + fadd);
+fn dimAPBS(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y: f64, min_z: f64, max_z: f64,
+           cfac: f64, fadd: f64, df: f64, grid_type: i32, pbe_set: &str, pbe_set0: &str, pba_set: &str) -> String {
+    // convert to A
+    let min_x = min_x * 10.0;
+    let min_y = min_y * 10.0;
+    let min_z = min_z * 10.0;
+    let max_x = max_x * 10.0;
+    let max_y = max_y * 10.0;
+    let max_z = max_z * 10.0;
 
-    let levN = 4;    // split level
-    let t: i32 = 2_i32.pow(levN + 1);
-    let mut nX: i32 = max((fX / df) as i32, 33);
-    let mut nY: i32 = max((fY / df) as i32, 33);
-    let mut nZ: i32 = max((fZ / df) as i32, 33);
+    let x_len = (max_x - min_x).max(0.1);
+    let x_center = (max_x + min_x) / 2.0;
+    let y_len = (max_y - min_y).max(0.1);
+    let y_center = (max_y + min_y) / 2.0;
+    let z_len = (max_z - min_z).max(0.1);
+    let z_center = (max_z + min_z) / 2.0;
 
-    if grid_type == 0 { // GMXPBSA method
-        let fpre = 1;
-        let cfac = 1.7;
-        fX = lenX + 2.0 * fadd;
-        cX = fX * cfac;
-        nX = t * ((fX / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
-        fY = lenY + 2.0 * fadd;
-        cY = fY * cfac;
-        nY = t * ((fY / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
-        fZ = lenZ + 2.0 * fadd;
-        cZ = fZ * cfac;
-        nZ = t * ((fZ / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
+    let mut cX = 0.0;
+    let mut cY = 0.0;
+    let mut cZ = 0.0;
+    let mut fX = 0.0;
+    let mut fY = 0.0;
+    let mut fZ = 0.0;
+    let mut nX = 0;
+    let mut nY = 0;
+    let mut nZ = 0;
+
+    let split_level = 4;    // split level
+    let t: i32 = 2_i32.pow(split_level + 1);
+
+    match grid_type {
+        0 => {
+            let fpre = 1;
+            let cfac = 1.7;
+            fX = x_len + 2.0 * fadd;
+            cX = fX * cfac;
+            nX = t * ((fX / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
+            fY = y_len + 2.0 * fadd;
+            cY = fY * cfac;
+            nY = t * ((fY / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
+            fZ = z_len + 2.0 * fadd;
+            cZ = fZ * cfac;
+            nZ = t * ((fZ / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
+        }
+        _ => {
+            cX = x_len * cfac;
+            fX = cX.min(x_len + fadd);
+            cY = y_len * cfac;
+            fY = cY.min(y_len + fadd);
+            cZ = z_len * cfac;
+            fZ = cZ.min(z_len + fadd);
+            nX = max((fX / df) as i32, t + 1);
+            nY = max((fY / df) as i32, t + 1);
+            nZ = max((fZ / df) as i32, t + 1);
+        }
     }
     let MGset = "mg-auto";
     let mem = 200 * nX * nY * nZ / 1024 / 1024;       // MB
 
-//		npX=nX; npY=nY; npZ=nZ
-//		gmem=4000
-//		ofrac=0.1
-//		if(mem>=gmem) {
-//			while(mem>gmem) {
-//				maxN=max(npX, max(npY, npZ))
-//					 if(maxN==npX) npX = t*((npX-1)/t-1)+1
-//				else if(maxN==npY) npY = t*((npY-1)/t-1)+1
-//				else if(maxN==npZ) npZ = t*((npZ-1)/t-1)+1
-//				mem = 200*npX*npY*npZ/1024./1024
-//			}
-
-//			t=nX/npX; if(t>1) npX = int(t*(1+2*ofrac) + 1.0);
-//			t=nY/npY; if(t>1) npY = int(t*(1+2*ofrac) + 1.0);
-//			t=nZ/npZ; if(t>1) npZ = int(t*(1+2*ofrac) + 1.0);
-//			MGset="mg-para\n  ofrac "ofrac"\n  pdime "npX" "npY" "npZ
-//		}
-    let XYZset = format!("  {MGset}\n  mol {Imol}\
+    let XYZset = format!("  {MGset}\n  mol {mol_index}\
         \n  dime   {nX:.0}  {nY:.0}  {nZ:.0}        # 格点数目, 所需内存: {mem} MB\
         \n  cglen  {cX:.3}  {cY:.3}  {cZ:.3}        # 粗略格点长度\
         \n  fglen  {fX:.3}  {fY:.3}  {fZ:.3}        # 细密格点长度\
-        \n  fgcent {cntX:.3}  {cntY:.3}  {cntZ:.3}  # 细密格点中心\
-        \n  cgcent {cntX:.3}  {cntY:.3}  {cntZ:.3}  # 粗略格点中心");
+        \n  fgcent {x_center:.3}  {y_center:.3}  {z_center:.3}  # 细密格点中心\
+        \n  cgcent {x_center:.3}  {y_center:.3}  {z_center:.3}  # 粗略格点中心");
 
     return format!("\nELEC name {file}\n\
     {XYZset} \n\
-    {PBEset} \n\
+    {pbe_set} \n\
     end\n\n\
     ELEC name {file}_VAC\n\
     {XYZset}\n\
-    {PBEset0} \n\
+    {pbe_set0} \n\
     end\n\n\
     APOLAR name {file}_SAS\n  \
-    mol {Imol}\n{PBAset}\n\
+    mol {mol_index}\n{pba_set}\n\
     end\n\n\
     print elecEnergy {file} - {file}_VAC end\n\
     print apolEnergy {file}_SAS end\n\n");

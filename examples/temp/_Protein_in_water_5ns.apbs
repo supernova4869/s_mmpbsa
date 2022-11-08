@@ -1,6 +1,6 @@
 read
   mol pqr _Protein_in_water_5ns_com.pqr
-  mol pqr _Protein_in_water_5ns_pro.pqr
+  mol pqr _Protein_in_water_5ns_rec.pqr
   mol pqr _Protein_in_water_5ns_lig.pqr
 end
 
@@ -8,11 +8,11 @@ end
 ELEC name _Protein_in_water_5ns_com
   mg-auto
   mol 1
-  dime   33  33  33        # 格点数目, 所需内存: 6 MB
-  cglen  18.942  19.176  18.684        # 粗略格点长度
-  fglen  16.314  16.392  16.228        # 细密格点长度
-  fgcent 6.351  6.288  3.098  # 细密格点中心
-  cgcent 6.351  6.288  3.098  # 粗略格点中心 
+  dime   146  147  144        # 格点数目, 所需内存: 589 MB
+  cglen  189.420  191.760  186.840        # 粗略格点长度
+  fglen  73.140  73.920  72.280        # 细密格点长度
+  fgcent 63.510  62.880  30.980  # 细密格点中心
+  cgcent 63.510  62.880  30.980  # 粗略格点中心 
 
     
   temp  298.15      # 温度
@@ -38,11 +38,11 @@ end
 ELEC name _Protein_in_water_5ns_com_VAC
   mg-auto
   mol 1
-  dime   33  33  33        # 格点数目, 所需内存: 6 MB
-  cglen  18.942  19.176  18.684        # 粗略格点长度
-  fglen  16.314  16.392  16.228        # 细密格点长度
-  fgcent 6.351  6.288  3.098  # 细密格点中心
-  cgcent 6.351  6.288  3.098  # 粗略格点中心
+  dime   146  147  144        # 格点数目, 所需内存: 589 MB
+  cglen  189.420  191.760  186.840        # 粗略格点长度
+  fglen  73.140  73.920  72.280        # 细密格点长度
+  fgcent 63.510  62.880  30.980  # 细密格点中心
+  cgcent 63.510  62.880  30.980  # 粗略格点中心
 
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
@@ -105,14 +105,14 @@ print elecEnergy _Protein_in_water_5ns_com - _Protein_in_water_5ns_com_VAC end
 print apolEnergy _Protein_in_water_5ns_com_SAS end
 
 
-ELEC name _Protein_in_water_5ns_pro
+ELEC name _Protein_in_water_5ns_rec
   mg-auto
   mol 2
-  dime   33  33  33        # 格点数目, 所需内存: 6 MB
-  cglen  18.942  19.176  18.684        # 粗略格点长度
-  fglen  16.314  16.392  16.228        # 细密格点长度
-  fgcent 6.351  6.288  3.098  # 细密格点中心
-  cgcent 6.351  6.288  3.098  # 粗略格点中心 
+  dime   146  147  144        # 格点数目, 所需内存: 589 MB
+  cglen  189.420  191.760  186.840        # 粗略格点长度
+  fglen  73.140  73.920  72.280        # 细密格点长度
+  fgcent 63.510  62.880  30.980  # 细密格点中心
+  cgcent 63.510  62.880  30.980  # 粗略格点中心 
 
     
   temp  298.15      # 温度
@@ -135,14 +135,14 @@ ELEC name _Protein_in_water_5ns_pro
   calcenergy comps 
 end
 
-ELEC name _Protein_in_water_5ns_pro_VAC
+ELEC name _Protein_in_water_5ns_rec_VAC
   mg-auto
   mol 2
-  dime   33  33  33        # 格点数目, 所需内存: 6 MB
-  cglen  18.942  19.176  18.684        # 粗略格点长度
-  fglen  16.314  16.392  16.228        # 细密格点长度
-  fgcent 6.351  6.288  3.098  # 细密格点中心
-  cgcent 6.351  6.288  3.098  # 粗略格点中心
+  dime   146  147  144        # 格点数目, 所需内存: 589 MB
+  cglen  189.420  191.760  186.840        # 粗略格点长度
+  fglen  73.140  73.920  72.280        # 细密格点长度
+  fgcent 63.510  62.880  30.980  # 细密格点中心
+  cgcent 63.510  62.880  30.980  # 粗略格点中心
 
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
@@ -164,7 +164,7 @@ ELEC name _Protein_in_water_5ns_pro_VAC
   calcenergy comps 
 end
 
-APOLAR name _Protein_in_water_5ns_pro_SAS
+APOLAR name _Protein_in_water_5ns_rec_SAS
   mol 2
 
     
@@ -201,18 +201,18 @@ APOLAR name _Protein_in_water_5ns_pro_SAS
   calcenergy total
 end
 
-print elecEnergy _Protein_in_water_5ns_pro - _Protein_in_water_5ns_pro_VAC end
-print apolEnergy _Protein_in_water_5ns_pro_SAS end
+print elecEnergy _Protein_in_water_5ns_rec - _Protein_in_water_5ns_rec_VAC end
+print apolEnergy _Protein_in_water_5ns_rec_SAS end
 
 
 ELEC name _Protein_in_water_5ns_lig
   mg-auto
   mol 3
-  dime   33  33  33        # 格点数目, 所需内存: 6 MB
-  cglen  18.942  19.176  18.684        # 粗略格点长度
-  fglen  16.314  16.392  16.228        # 细密格点长度
-  fgcent 6.351  6.288  3.098  # 细密格点中心
-  cgcent 6.351  6.288  3.098  # 粗略格点中心 
+  dime   146  147  144        # 格点数目, 所需内存: 589 MB
+  cglen  189.420  191.760  186.840        # 粗略格点长度
+  fglen  73.140  73.920  72.280        # 细密格点长度
+  fgcent 63.510  62.880  30.980  # 细密格点中心
+  cgcent 63.510  62.880  30.980  # 粗略格点中心 
 
     
   temp  298.15      # 温度
@@ -238,11 +238,11 @@ end
 ELEC name _Protein_in_water_5ns_lig_VAC
   mg-auto
   mol 3
-  dime   33  33  33        # 格点数目, 所需内存: 6 MB
-  cglen  18.942  19.176  18.684        # 粗略格点长度
-  fglen  16.314  16.392  16.228        # 细密格点长度
-  fgcent 6.351  6.288  3.098  # 细密格点中心
-  cgcent 6.351  6.288  3.098  # 粗略格点中心
+  dime   146  147  144        # 格点数目, 所需内存: 589 MB
+  cglen  189.420  191.760  186.840        # 粗略格点长度
+  fglen  73.140  73.920  72.280        # 细密格点长度
+  fgcent 63.510  62.880  30.980  # 细密格点中心
+  cgcent 63.510  62.880  30.980  # 粗略格点中心
 
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数

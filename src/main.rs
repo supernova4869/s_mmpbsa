@@ -1,6 +1,7 @@
 mod index_parser;
 mod mmpbsa;
 mod gen_qrv;
+mod analyzation;
 
 use std::fs;
 use std::env;
@@ -166,12 +167,14 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
         match i {
             -10 => return,
             0 => {
-                mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd, use_dh, use_ts,
-                                               complex_grp as usize,
-                                               receptor_grp as usize,
-                                               ligand_grp as usize,
-                                               bt, et, dt,
-                                               &settings);
+                let results = mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd,
+                                                             use_dh, use_ts,
+                                                             complex_grp as usize,
+                                                             receptor_grp as usize,
+                                                             ligand_grp as usize,
+                                                             bt, et, dt,
+                                                             &settings);
+                analyzation::analyze(results);
                 break;
             }
             1 => {
