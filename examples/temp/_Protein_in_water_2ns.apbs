@@ -13,8 +13,6 @@ ELEC name _Protein_in_water_2ns_com
   fglen  73.140  73.920  72.280        # 细密格点长度
   fgcent 63.510  62.880  30.980  # 细密格点中心
   cgcent 63.510  62.880  30.980  # 粗略格点中心 
-
-    
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
   sdie  78.54       # 溶剂介电常数, 真空1, 水78.54
@@ -43,10 +41,9 @@ ELEC name _Protein_in_water_2ns_com_VAC
   fglen  73.140  73.920  72.280        # 细密格点长度
   fgcent 63.510  62.880  30.980  # 细密格点中心
   cgcent 63.510  62.880  30.980  # 粗略格点中心
-
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
-  sdie  1       # 溶剂介电常数, 真空1, 水78.54
+  sdie  1           # 溶剂介电常数, 真空1, 水78.54
   
   npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
   bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
@@ -66,8 +63,6 @@ end
 
 APOLAR name _Protein_in_water_2ns_com_SAS
   mol 1
-
-    
   temp  298.15 # 温度
   srfm  sacc   # 构建溶剂相关表面或体积的模型
   swin  0.3    # 立方样条窗口(A), 用于定义样条表面
@@ -113,8 +108,6 @@ ELEC name _Protein_in_water_2ns_rec
   fglen  73.140  73.920  72.280        # 细密格点长度
   fgcent 63.510  62.880  30.980  # 细密格点中心
   cgcent 63.510  62.880  30.980  # 粗略格点中心 
-
-    
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
   sdie  78.54       # 溶剂介电常数, 真空1, 水78.54
@@ -143,10 +136,9 @@ ELEC name _Protein_in_water_2ns_rec_VAC
   fglen  73.140  73.920  72.280        # 细密格点长度
   fgcent 63.510  62.880  30.980  # 细密格点中心
   cgcent 63.510  62.880  30.980  # 粗略格点中心
-
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
-  sdie  1       # 溶剂介电常数, 真空1, 水78.54
+  sdie  1           # 溶剂介电常数, 真空1, 水78.54
   
   npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
   bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
@@ -166,8 +158,6 @@ end
 
 APOLAR name _Protein_in_water_2ns_rec_SAS
   mol 2
-
-    
   temp  298.15 # 温度
   srfm  sacc   # 构建溶剂相关表面或体积的模型
   swin  0.3    # 立方样条窗口(A), 用于定义样条表面
@@ -213,8 +203,6 @@ ELEC name _Protein_in_water_2ns_lig
   fglen  73.140  73.920  72.280        # 细密格点长度
   fgcent 63.510  62.880  30.980  # 细密格点中心
   cgcent 63.510  62.880  30.980  # 粗略格点中心 
-
-    
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
   sdie  78.54       # 溶剂介电常数, 真空1, 水78.54
@@ -243,10 +231,9 @@ ELEC name _Protein_in_water_2ns_lig_VAC
   fglen  73.140  73.920  72.280        # 细密格点长度
   fgcent 63.510  62.880  30.980  # 细密格点中心
   cgcent 63.510  62.880  30.980  # 粗略格点中心
-
   temp  298.15      # 温度
   pdie  2           # 溶质介电常数
-  sdie  1       # 溶剂介电常数, 真空1, 水78.54
+  sdie  1           # 溶剂介电常数, 真空1, 水78.54
   
   npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
   bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
@@ -266,8 +253,6 @@ end
 
 APOLAR name _Protein_in_water_2ns_lig_SAS
   mol 3
-
-    
   temp  298.15 # 温度
   srfm  sacc   # 构建溶剂相关表面或体积的模型
   swin  0.3    # 立方样条窗口(A), 用于定义样条表面

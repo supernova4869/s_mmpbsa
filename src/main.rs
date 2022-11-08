@@ -9,6 +9,7 @@ use std::io::{Read, stdin, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::rc::Rc;
+use std::str::FromStr;
 use regex::Regex;
 use toml;
 use toml::Value;
@@ -84,10 +85,10 @@ fn main() {
             _ => ndx.as_str()
         });
         println!(" 3 Exit program");
-        let i = get_input_sel();
+        let i = get_input_value();
         match i {
-            -2 => { use_dh = !use_dh; }
-            -1 => { use_ts = !use_ts; }
+            -2 => { use_ts = !use_ts; }
+            -1 => { use_dh = !use_dh; }
             0 => {
                 if trj.len() == 0 {
                     println!("Trajectory file not assigned.");
@@ -163,7 +164,7 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
         println!("  4 Set start time of analysis, current: {} ns", bt / 1000.0);
         println!("  5 Set end time of analysis, current: {} ns", et / 1000.0);
         println!("  6 Set time interval of analysis, current: {} ps", dt);
-        let i = get_input_sel();
+        let i = get_input_value();
         match i {
             -10 => return,
             0 => {
@@ -181,47 +182,47 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input complex group num:");
-                complex_grp = get_input_sel();
+                complex_grp = get_input_value();
             }
             2 => {
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input receptor group num:");
-                receptor_grp = get_input_sel();
+                receptor_grp = get_input_value();
             }
             3 => {
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input ligand group num:");
-                ligand_grp = get_input_sel();
+                ligand_grp = get_input_value();
             }
             4 => {
                 println!("Input start time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_bt = get_input_value() * 1000.0;
+                let mut new_bt = get_input_value::<f64>() * 1000.0;
                 while (new_bt - bt) % dt != 0.0 || new_bt > frames[frames.len() - 1].time as f64 || new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
                     println!("Input start time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_bt = get_input_value() * 1000.0;
+                    new_bt = get_input_value::<f64>() * 1000.0;
                 }
                 bt = new_bt;
             }
             5 => {
                 println!("Input end time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_et = get_input_value() * 1000.0;
+                let mut new_et = get_input_value::<f64>() * 1000.0;
                 while (new_et - et) % dt != 0.0 || new_et > frames[frames.len() - 1].time as f64 || new_et < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
                     println!("Input end time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_et = get_input_value() * 1000.0;
+                    new_et = get_input_value::<f64>() * 1000.0;
                 }
                 et = new_et;
             }
             6 => {
                 println!("Input interval time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_dt = get_input_value() * 1000.0;
+                let mut new_dt = get_input_value::<f64>() * 1000.0;
                 while new_dt % dt != 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
                     println!("Input interval time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_dt = get_input_value() * 1000.0;
+                    new_dt = get_input_value::<f64>() * 1000.0;
                 }
                 dt = new_dt;
             }
@@ -230,24 +231,18 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
     }
 }
 
-fn get_input_sel() -> i32 {
-    let mut input = String::from("");
-    stdin().read_line(&mut input).expect("Error input.");
-    while input.trim().len() == 0 {
+fn get_input_value<T: FromStr>() -> T {
+    loop {
+        let mut input = String::from("");
         stdin().read_line(&mut input).expect("Error input.");
+        match input.trim().parse() {
+            Ok(num) => return num,
+            Err(_) => {
+                println!("Error input, input again.");
+                continue;
+            },
+        };
     }
-    let temp: i32 = input.trim().parse().expect("Error convert to int.");
-    return temp;
-}
-
-fn get_input_value() -> f64 {
-    let mut input = String::from("");
-    stdin().read_line(&mut input).expect("Error input.");
-    while input.trim().len() == 0 {
-        stdin().read_line(&mut input).expect("Error input.");
-    }
-    let temp: f64 = input.trim().parse().expect("Error convert to int.");
-    return temp;
 }
 
 fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String {

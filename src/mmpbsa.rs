@@ -20,7 +20,7 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
                               use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, settings: &Parameters)
-    -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+                              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // get charge, radius, LJ parameters of each atoms and generate qrv files
     let mut pid = String::from("_Protein_in_water");
     println!("Input system name (default: {}):", pid);
@@ -34,12 +34,12 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     let qrv_path = qrv_path.to_str().unwrap();
     let rad_type = settings.rad_type;
     let rad_lj0 = settings.rad_lj0;
-    // gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
-    // Mpdb>pqr, 输出apbs, 计算MM, APBS
+    gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
+    // pdb>pqr, output apbs, calculate MM, calculate APBS
     let results = do_mmpbsa(trj, mdp, ndx, qrv_path, wd, pid,
-              complex_grp, receptor_grp, ligand_grp,
-              bt, et, dt,
-              settings, use_dh, use_ts);
+                            complex_grp, receptor_grp, ligand_grp,
+                            bt, et, dt,
+                            settings, use_dh, use_ts);
     return results;
 }
 
@@ -68,7 +68,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
              bt: f64, et: f64, dt: f64,
              settings: &Parameters, use_dh: bool, use_ts: bool)
-    -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+             -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // Running settings
     let gmx = &settings.gmx;
     let apbs = &settings.apbs;
@@ -81,7 +81,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     // PB部分的参数从哪来?是否从前一菜单转移?
     let PBEset0 = "  temp  298.15      # 温度\
     \n  pdie  2           # 溶质介电常数\
-    \n  sdie  1       # 溶剂介电常数, 真空1, 水78.54\
+    \n  sdie  1           # 溶剂介电常数, 真空1, 水78.54\
     \n  \
     \n  npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)\
     \n  bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\
@@ -412,17 +412,16 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         max_z_com[cur_frm] = max_z_rec[cur_frm].max(max_z_rec[cur_frm]);
 
         // loop atoms and write pqr information (from pqr)
-        for at_id in ndx_com {
-            let at_id = *at_id;
+        for &at_id in ndx_com {
             let index = atm_index[at_id];
             let at_name = &atm_name[at_id];
             let resname = &atm_resname[at_id];
             let chain = "X";
             let resnum = atm_resnum[at_id];
             let coord = coordinates.slice(s![at_id, ..]);
-            let x = coord[0];
-            let y = coord[1];
-            let z = coord[2];
+            let x = coord[0] * 10.0;
+            let y = coord[1] * 10.0;
+            let z = coord[2] * 10.0;
             let q = atm_charge[at_id];
             let r = atm_radius
                 [at_id];
@@ -528,10 +527,10 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
         let mut input_apbs = File::create(wd.join(format!("{}.apbs", f_name))).unwrap();
         input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
-        input_apbs.write_all(format!("  mol pqr {0}_com.pqr\n  \
-        mol pqr {0}_rec.pqr\n  \
-        mol pqr {0}_lig.pqr\n\
-        end\n\n", f_name).as_bytes())
+        input_apbs.write_all(format!("  mol pqr {0}_com.pqr\
+        \n  mol pqr {0}_rec.pqr\
+        \n  mol pqr {0}_lig.pqr\
+        \nend\n\n", f_name).as_bytes())
             .expect("Failed to write apbs input file.");
 
         if mesh_type == 0 {
@@ -576,6 +575,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
                 expect("Failed writing apbs file.");
         }
 
+        // invoke apbs program to do apbs calculations
         let mut apbs_out = File::create(wd.join(format!("{}.out", f_name))).
             expect("Failed to create apbs out file");
         let apbs_result = Command::new(apbs).
@@ -716,7 +716,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     let SA = sa.iter().sum::<f64>() / sa.len() as f64;
 
     let TdS = mm.iter()
-        .map(|&p| f64::exp((p - MM) / RT2kJ) )
+        .map(|&p| f64::exp((p - MM) / RT2kJ))
         .sum::<f64>() / mm.len() as f64;
     let TdS = -RT2kJ * TdS.ln();
     let dG = dH - TdS;
