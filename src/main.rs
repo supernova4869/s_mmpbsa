@@ -5,7 +5,7 @@ mod analyzation;
 
 use std::fs;
 use std::env;
-use std::io::{Read, stdin, Write};
+use std::io::{stdin, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::rc::Rc;

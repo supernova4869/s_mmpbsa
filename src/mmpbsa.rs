@@ -3,17 +3,12 @@ use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
 use crate::Parameters;
-use ndarray::{Array, Array1, Array2, Array3, ArrayBase, Dim, Ix, NdIndex, OwnedRepr, Shape, s};
-use std::cmp::{max, min};
-use std::collections::HashSet;
-use std::f32::consts::E;
+use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
 use std::io::{stdin, Write};
-use std::ops::{Add, Range};
-use std::process::{Command, Termination};
+use std::process::Command;
 use std::rc::Rc;
 use indicatif::ProgressBar;
-use regex::Regex;
 use crate::gen_qrv::gen_qrv;
 
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path,
@@ -70,7 +65,6 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
              settings: &Parameters, use_dh: bool, use_ts: bool)
              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // Running settings
-    let gmx = &settings.gmx;
     let apbs = &settings.apbs;
     let mesh_type = settings.mesh_type;
     let grid_type = settings.grid_type;
@@ -153,8 +147,6 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     if !wd.is_dir() {
         fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
     }
-    let err = wd.join(sys_name.to_string() + ".err");
-    let pdb = wd.join(sys_name.to_string() + ".pdb");
 
     // run MM-PBSA calculatons
     println!("Running MM-PBSA calculatons...");
@@ -417,7 +409,6 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
             let index = atm_index[at_id];
             let at_name = &atm_name[at_id];
             let resname = &atm_resname[at_id];
-            let chain = "X";
             let resnum = atm_resnum[at_id];
             let coord = coordinates.slice(s![at_id, ..]);
             let x = coord[0] * 10.0;
@@ -473,8 +464,8 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     let mut mm = Array1::<f64>::zeros(total_frames);
     let mut dh = Array1::<f64>::zeros(total_frames);
 
-    let mut PBres = Array1::<f64>::zeros(total_res_num);
-    let mut SAres = Array1::<f64>::zeros(total_res_num);
+    let mut pb_res = Array1::<f64>::zeros(total_res_num);
+    let mut sa_res = Array1::<f64>::zeros(total_res_num);
 
     let rec_shift = ndx_rec[0];
     let lig_shift = ndx_lig[0];
@@ -486,8 +477,8 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     for cur_frm in (bf..ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
-        let mut dEcou = Array1::<f64>::zeros(total_res_num);
-        let mut dEvdw = Array1::<f64>::zeros(total_res_num);
+        let mut de_cou = Array1::<f64>::zeros(total_res_num);
+        let mut de_vdw = Array1::<f64>::zeros(total_res_num);
         // traverse receptor/ligand atoms to store parameters
         for i in 0..atom_num_rec {
             let ii = i + rec_shift;
@@ -505,24 +496,24 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
                 let zj = coord[[jj, 2]];
                 let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
                 if r < Rcut {
-                    let mut Ecou = qi * qj / r / 10.0;
+                    let mut e_cou = qi * qj / r / 10.0;
                     if use_dh {
-                        Ecou = Ecou * f64::exp(-kap * r);
+                        e_cou = e_cou * f64::exp(-kap * r);
                     }
-                    let Evdw = C12[[ci, cj]] / r.powi(12) - C6[[ci, cj]] / r.powi(6);
-                    dEcou[atm_resnum[ii]] += Ecou;
-                    dEcou[atm_resnum[jj]] += Ecou;
-                    dEvdw[atm_resnum[ii]] += Evdw;
-                    dEvdw[atm_resnum[jj]] += Evdw;
+                    let e_vdw = C12[[ci, cj]] / r.powi(12) - C6[[ci, cj]] / r.powi(6);
+                    de_cou[atm_resnum[ii]] += e_cou;
+                    de_cou[atm_resnum[jj]] += e_cou;
+                    de_vdw[atm_resnum[ii]] += e_vdw;
+                    de_vdw[atm_resnum[jj]] += e_vdw;
                 }
             }
         }
         for i in 0..total_res_num {
-            dEcou[i] *= kJcou / (2.0 * pdie);
-            dEvdw[i] /= 2.0;
+            de_cou[i] *= kJcou / (2.0 * pdie);
+            de_vdw[i] /= 2.0;
         }
-        let Evdw = dEvdw.sum();
-        let Ecou = dEcou.sum();
+        let e_vdw = de_vdw.sum();
+        let e_cou = de_cou.sum();
 
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
@@ -536,43 +527,43 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
 
         if mesh_type == 0 {
             // GMXPBSA
-            input_apbs.write_all(dimAPBS(format!("{}_com", f_name).as_str(), 1,
-                                         min_x, max_x, min_y,
-                                         max_y, min_z, max_z,
-                                         cfac, fadd, df, grid_type,
-                                         PBEset, PBEset0, PBAset).as_bytes()).
+            input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
+                                          min_x, max_x, min_y,
+                                          max_y, min_z, max_z,
+                                          cfac, fadd, df, grid_type,
+                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{}_rec", f_name).as_str(), 2,
-                                         min_x, max_x, min_y,
-                                         max_y, min_z, max_z,
-                                         cfac, fadd, df, grid_type,
-                                         PBEset, PBEset0, PBAset).as_bytes()).
+            input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
+                                          min_x, max_x, min_y,
+                                          max_y, min_z, max_z,
+                                          cfac, fadd, df, grid_type,
+                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{}_lig", f_name).as_str(), 3,
-                                         min_x, max_x, min_y,
-                                         max_y, min_z, max_z,
-                                         cfac, fadd, df, grid_type,
-                                         PBEset, PBEset0, PBAset).as_bytes()).
+            input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
+                                          min_x, max_x, min_y,
+                                          max_y, min_z, max_z,
+                                          cfac, fadd, df, grid_type,
+                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
         } else if mesh_type == 1 {
             // g_mmpbsa
-            input_apbs.write_all(dimAPBS(format!("{}_com", f_name).as_str(), 1,
-                                         min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
-                                         max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                         cfac, fadd, df, grid_type,
-                                         PBEset, PBEset0, PBAset).as_bytes()).
+            input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
+                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
+                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
+                                          cfac, fadd, df, grid_type,
+                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{}_rec", f_name).as_str(), 2,
-                                         min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
-                                         max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                         cfac, fadd, df, grid_type,
-                                         PBEset, PBEset0, PBAset).as_bytes()).
+            input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
+                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
+                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
+                                          cfac, fadd, df, grid_type,
+                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{}_lig", f_name).as_str(), 3,
-                                         min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
-                                         max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                         cfac, fadd, df, grid_type,
-                                         PBEset, PBEset0, PBAset).as_bytes()).
+            input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
+                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
+                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
+                                          cfac, fadd, df, grid_type,
+                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
         }
 
@@ -673,9 +664,9 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
         let pb_lig: f64 = Esol.slice(s![2, ..]).iter().sum::<f64>();
         let sa_lig: f64 = Esas.slice(s![2, ..]).iter().sum::<f64>();
 
-        vdw[idx] = Evdw;
-        cou[idx] = Ecou;
-        mm[idx] = Ecou + Evdw;
+        vdw[idx] = e_vdw;
+        cou[idx] = e_cou;
+        mm[idx] = e_cou + e_vdw;
         pb[idx] = pb_com - pb_rec - pb_lig;
         sa[idx] = sa_com - sa_rec - sa_lig;
         dh[idx] = mm[idx] + pb[idx] + sa[idx];
@@ -690,10 +681,10 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
             dSAres[atm_resnum[i + lig_shift]] += Esas[[0, i + lig_shift]] - Esas[[2, i]];
         }
 
-        COUres += &dEcou;
-        VDWres += &dEvdw;
-        PBres += &dPBres;
-        SAres += &dSAres;
+        COUres += &de_cou;
+        VDWres += &de_vdw;
+        pb_res += &dPBres;
+        sa_res += &dSAres;
 
         idx += 1;
         pgb.inc(1);
@@ -703,10 +694,10 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     // residue time average
     COUres /= total_frames as f64;
     VDWres /= total_frames as f64;
-    PBres /= total_frames as f64;
-    SAres /= total_frames as f64;
+    pb_res /= total_frames as f64;
+    sa_res /= total_frames as f64;
     MMres = COUres + VDWres;
-    dHres = MMres + PBres + SAres;
+    dHres = MMres + pb_res + sa_res;
 
     // totally time average and ts
     let dH = dh.iter().sum::<f64>() / dh.len() as f64;
@@ -727,8 +718,8 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     return (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki);
 }
 
-fn dimAPBS(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y: f64, min_z: f64, max_z: f64,
-           cfac: f64, fadd: f64, df: f64, grid_type: i32, pbe_set: &str, pbe_set0: &str, pba_set: &str) -> String {
+fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y: f64, min_z: f64, max_z: f64,
+            cfac: f64, fadd: f64, df: f64, grid_type: i32, pbe_set: &str, pbe_set0: &str, pba_set: &str) -> String {
     // convert to A
     let min_x = min_x * 10.0;
     let min_y = min_y * 10.0;
@@ -744,15 +735,15 @@ fn dimAPBS(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y
     let z_len = (max_z - min_z).max(0.1);
     let z_center = (max_z + min_z) / 2.0;
 
-    let mut cX = 0.0;
-    let mut cY = 0.0;
-    let mut cZ = 0.0;
-    let mut fX = 0.0;
-    let mut fY = 0.0;
-    let mut fZ = 0.0;
-    let mut nX = 0;
-    let mut nY = 0;
-    let mut nZ = 0;
+    let mut c_x = 0.0;
+    let mut c_y = 0.0;
+    let mut c_z = 0.0;
+    let mut f_x = 0.0;
+    let mut f_y = 0.0;
+    let mut f_z = 0.0;
+    let mut n_x = 0;
+    let mut n_y = 0;
+    let mut n_z = 0;
 
     let split_level = 4;    // split level
     let t: i32 = 2_i32.pow(split_level + 1);
@@ -761,44 +752,44 @@ fn dimAPBS(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y
         0 => {
             let fpre = 1;
             let cfac = 1.7;
-            fX = x_len + 2.0 * fadd;
-            cX = fX * cfac;
-            nX = t * ((fX / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
-            fY = y_len + 2.0 * fadd;
-            cY = fY * cfac;
-            nY = t * ((fY / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
-            fZ = z_len + 2.0 * fadd;
-            cZ = fZ * cfac;
-            nZ = t * ((fZ / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
+            f_x = x_len + 2.0 * fadd;
+            c_x = f_x * cfac;
+            n_x = t * ((f_x / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
+            f_y = y_len + 2.0 * fadd;
+            c_y = f_y * cfac;
+            n_y = t * ((f_y / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
+            f_z = z_len + 2.0 * fadd;
+            c_z = f_z * cfac;
+            n_z = t * ((f_z / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
         }
         _ => {
-            cX = x_len * cfac;
-            fX = cX.min(x_len + fadd);
-            cY = y_len * cfac;
-            fY = cY.min(y_len + fadd);
-            cZ = z_len * cfac;
-            fZ = cZ.min(z_len + fadd);
-            nX = max((fX / df) as i32, t + 1);
-            nY = max((fY / df) as i32, t + 1);
-            nZ = max((fZ / df) as i32, t + 1);
+            c_x = x_len * cfac;
+            f_x = c_x.min(x_len + fadd);
+            c_y = y_len * cfac;
+            f_y = c_y.min(y_len + fadd);
+            c_z = z_len * cfac;
+            f_z = c_z.min(z_len + fadd);
+            n_x = ((f_x / df) as i32).max(t + 1);
+            n_y = ((f_y / df) as i32).max(t + 1);
+            n_z = ((f_z / df) as i32).max(t + 1);
         }
     }
-    let MGset = "mg-auto";
-    let mem = 200 * nX * nY * nZ / 1024 / 1024;       // MB
+    let mg_set = "mg-auto";
+    let mem = 200 * n_x * n_y * n_z / 1024 / 1024;       // MB
 
-    let XYZset = format!("  {MGset}\n  mol {mol_index}\
-        \n  dime   {nX:.0}  {nY:.0}  {nZ:.0}        # 格点数目, 所需内存: {mem} MB\
-        \n  cglen  {cX:.3}  {cY:.3}  {cZ:.3}        # 粗略格点长度\
-        \n  fglen  {fX:.3}  {fY:.3}  {fZ:.3}        # 细密格点长度\
+    let xyz_set = format!("  {mg_set}\n  mol {mol_index}\
+        \n  dime   {n_x:.0}  {n_y:.0}  {n_z:.0}        # 格点数目, 所需内存: {mem} MB\
+        \n  cglen  {c_x:.3}  {c_y:.3}  {c_z:.3}        # 粗略格点长度\
+        \n  fglen  {f_x:.3}  {f_y:.3}  {f_z:.3}        # 细密格点长度\
         \n  fgcent {x_center:.3}  {y_center:.3}  {z_center:.3}  # 细密格点中心\
         \n  cgcent {x_center:.3}  {y_center:.3}  {z_center:.3}  # 粗略格点中心");
 
     return format!("\nELEC name {file}\n\
-    {XYZset} \n\
+    {xyz_set} \n\
     {pbe_set} \n\
     end\n\n\
     ELEC name {file}_VAC\n\
-    {XYZset}\n\
+    {xyz_set}\n\
     {pbe_set0} \n\
     end\n\n\
     APOLAR name {file}_SAS\n  \
