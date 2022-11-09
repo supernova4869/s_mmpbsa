@@ -1,6 +1,6 @@
 mod index_parser;
 mod mmpbsa;
-mod gen_qrv;
+mod parse_tpr;
 mod analyzation;
 
 use std::fs;
