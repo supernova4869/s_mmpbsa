@@ -298,7 +298,7 @@ fn init_settings() -> Parameters {
         // Find settings locally
         let settings = fs::read_to_string("settings.ini").unwrap();
         let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
-        let settings: Value = toml::from_str(settings.as_str()).unwrap();
+        let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini grammar");
         params = read_settings(&settings);
         println!("Note: found settings.ini in the current path. Will use {} kernels.", params.nkernels);
     } else {
@@ -363,12 +363,14 @@ fn read_settings(settings: &Value) -> Parameters {
         _ => false
     };
     let mut gmx = settings.get("gmx").unwrap().to_string();
-    if gmx.starts_with("\"") && gmx.ends_with("\"") {
-        gmx = gmx[1..gmx.len() - 1].to_string();
+    gmx = gmx[1..gmx.len() - 1].to_string();
+    if gmx.len() == 0 {
+        gmx = "gmx".to_string();
     }
     let mut apbs = settings.get("apbs").unwrap().to_string();
-    if apbs.starts_with("\"") && apbs.ends_with("\"") {
-        apbs = apbs[1..apbs.len() - 1].to_string();
+    apbs = apbs[1..apbs.len() - 1].to_string();
+    if apbs.len() == 0 {
+        apbs = "apbs".to_string();
     }
     return Parameters {
         rad_type,

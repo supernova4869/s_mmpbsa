@@ -22,21 +22,21 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
                               bt: f64, et: f64, dt: f64, settings: &Parameters)
                               -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // get charge, radius, LJ parameters of each atoms and generate qrv files
-    let mut pid = String::from("_Protein_in_water");
-    println!("Input system name (default: {}):", pid);
+    let mut sys_name = String::from("_system");
+    println!("Input system name (default: {}):", sys_name);
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error input");
     if input.trim().len() != 0 {
-        pid = input.trim().to_string();
+        sys_name = input.trim().to_string();
     }
-    let qrv_path = String::from(pid.as_str()) + ".qrv";
+    let qrv_path = String::from(sys_name.as_str()) + ".qrv";
     let qrv_path = wd.join(qrv_path);
     let qrv_path = qrv_path.to_str().unwrap();
     let rad_type = settings.rad_type;
     let rad_lj0 = settings.rad_lj0;
     gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
     // pdb>pqr, output apbs, calculate MM, calculate APBS
-    let results = do_mmpbsa(trj, mdp, ndx, qrv_path, wd, pid,
+    let results = do_mmpbsa(trj, mdp, ndx, qrv_path, wd, sys_name.as_str(),
                             complex_grp, receptor_grp, ligand_grp,
                             bt, et, dt,
                             settings, use_dh, use_ts);
@@ -64,7 +64,7 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     return (coord_matrix, box_size);
 }
 
-fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid: String,
+fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_name: &str,
              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
              bt: f64, et: f64, dt: f64,
              settings: &Parameters, use_dh: bool, use_ts: bool)
@@ -146,14 +146,15 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     \n  \
     \n  calcforce no\
     \n  calcenergy total";
-    let qrv = wd.join(pid.to_string() + ".qrv");
-    let wd = wd.join("temp");
+
+    let qrv = wd.join(sys_name.to_string() + ".qrv");
+    let wd = wd.join(sys_name);
     println!("Temporary files will be placed at {}", wd.display());
     if !wd.is_dir() {
-        fs::create_dir(&wd).expect("Failed to create directory.");
+        fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
     }
-    let err = wd.join(pid.to_string() + ".err");
-    let pdb = wd.join(pid.to_string() + ".pdb");
+    let err = wd.join(sys_name.to_string() + ".err");
+    let pdb = wd.join(sys_name.to_string() + ".pdb");
 
     // run MM-PBSA calculatons
     println!("Running MM-PBSA calculatons...");
@@ -343,7 +344,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
     for cur_frm in (bf..ef).step_by(dframe) {
         // process each frame
 
-        let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
+        let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         let pqr_com = wd.join(format!("{}_com.pqr", f_name));
         let mut pqr_com = File::create(pqr_com).unwrap();
         let pqr_rec = wd.join(format!("{}_rec.pqr", f_name));
@@ -524,7 +525,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
         let Ecou = dEcou.sum();
 
         // APBS
-        let f_name = format!("{}_{}ns", pid, frames[cur_frm].time / 1000.0);
+        let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         let mut input_apbs = File::create(wd.join(format!("{}.apbs", f_name))).unwrap();
         input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
         input_apbs.write_all(format!("  mol pqr {0}_com.pqr\
@@ -535,19 +536,19 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
 
         if mesh_type == 0 {
             // GMXPBSA
-            input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
+            input_apbs.write_all(dimAPBS(format!("{}_com", f_name).as_str(), 1,
                                          min_x, max_x, min_y,
                                          max_y, min_z, max_z,
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{f_name}_rec").as_str(), 2,
+            input_apbs.write_all(dimAPBS(format!("{}_rec", f_name).as_str(), 2,
                                          min_x, max_x, min_y,
                                          max_y, min_z, max_z,
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
+            input_apbs.write_all(dimAPBS(format!("{}_lig", f_name).as_str(), 3,
                                          min_x, max_x, min_y,
                                          max_y, min_z, max_z,
                                          cfac, fadd, df, grid_type,
@@ -555,19 +556,19 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, pid:
                 expect("Failed writing apbs file.");
         } else if mesh_type == 1 {
             // g_mmpbsa
-            input_apbs.write_all(dimAPBS(format!("{f_name}_com").as_str(), 1,
+            input_apbs.write_all(dimAPBS(format!("{}_com", f_name).as_str(), 1,
                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{f_name}_rec").as_str(), 2,
+            input_apbs.write_all(dimAPBS(format!("{}_rec", f_name).as_str(), 2,
                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
                                          cfac, fadd, df, grid_type,
                                          PBEset, PBEset0, PBAset).as_bytes()).
                 expect("Failed writing apbs file.");
-            input_apbs.write_all(dimAPBS(format!("{f_name}_lig").as_str(), 3,
+            input_apbs.write_all(dimAPBS(format!("{}_lig", f_name).as_str(), 3,
                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
                                          cfac, fadd, df, grid_type,

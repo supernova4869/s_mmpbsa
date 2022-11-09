@@ -8,8 +8,8 @@ use ndarray::Array2;
 use regex::Regex;
 use crate::index_parser::Index;
 
-pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize, qrv: &str,
-           rad_type: i32, rad_lj0: f64) {
+pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize,
+               qrv: &str, rad_type: i32, rad_lj0: f64) {
     // read mdp file
     let mut qrv = fs::File::create(qrv).expect("Create qrv file failed");
     qrv.write_all("Protein Ligand\n".as_bytes()).expect("Writing qrv file failed");
