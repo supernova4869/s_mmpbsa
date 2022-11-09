@@ -57,7 +57,6 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
         qrv.write_all("\n".as_bytes()).expect("Writing qrv file failed");
         pb.inc(1);
     }
-    pb.reset();
 
     // number of groups
     let re = Regex::new(r"\s*#molblock\s*=\s*(.+?)\s*").unwrap();
