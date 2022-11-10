@@ -2,14 +2,14 @@ use std::fs;
 use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
-use crate::Parameters;
+use crate::{get_input_value, Parameters};
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
 use std::io::{stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::ProgressBar;
-use crate::parse_tpr::fetch_from_tpr;
+use crate::gen_qrv::gen_qrv;
 
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path,
                               use_dh: bool, use_ts: bool,
@@ -24,24 +24,20 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     if input.trim().len() != 0 {
         sys_name = input.trim().to_string();
     }
-    // let qrv_path = String::from(sys_name.as_str()) + ".qrv";
-    // let qrv_path = wd.join(qrv_path);
-    // let qrv_path = qrv_path.to_str().unwrap();
-    let rad_type = settings.rad_type;
-    let rad_lj0 = settings.rad_lj0;
-    let (res_ids,
-        c_atoms,
-        r_atoms,
-        s_atoms,
-        e_atoms,
-        q_atoms)
-        = fetch_from_tpr(mdp, ndx, receptor_grp, ligand_grp, rad_type, rad_lj0);
+    let qrv_path = String::from(sys_name.as_str()) + ".qrv";
+    let qrv_path = wd.join(qrv_path);
+    if qrv_path.is_file() {
+        println!("Found {}. Will not regenerate parameters qrv file.", qrv_path.to_str().unwrap());
+        let qrv_path = qrv_path.to_str().unwrap();
+        let rad_type = settings.rad_type;
+        let rad_lj0 = settings.rad_lj0;
+        gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
+    }
     // pdb>pqr, output apbs, calculate MM, calculate APBS
-    let results = do_mmpbsa(trj, mdp, ndx, wd, sys_name.as_str(),
+    let results = do_mmpbsa(trj, mdp, ndx, qrv_path.to_str().unwrap(), wd, sys_name.as_str(),
                             complex_grp, receptor_grp, ligand_grp,
                             bt, et, dt,
-                            settings, use_dh, use_ts,
-                            res_ids, c_atoms, r_atoms, s_atoms, e_atoms, q_atoms);
+                            settings, use_dh, use_ts);
     return results;
 }
 
@@ -66,13 +62,10 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     return (coord_matrix, box_size);
 }
 
-fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
+fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_name: &str,
              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
              bt: f64, et: f64, dt: f64,
-             settings: &Parameters, use_dh: bool, use_ts: bool,
-             res_ids: Array1<usize>, c_atoms: Array1<usize>,
-             r_atoms: Array1<f64>, s_atoms: Array1<f64>,
-             e_atoms: Array1<f64>, q_atoms: Array1<f64>)
+             settings: &Parameters, use_dh: bool, use_ts: bool)
              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // Running settings
     let apbs = &settings.apbs;
@@ -156,8 +149,15 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
     println!("Temporary files will be placed at {}", wd.display());
     if !wd.is_dir() {
         fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+    } else {
+        println!("Directory {} not empty. Clear? [Y/n]", wd.display());
+        let mut input = String::from("");
+        stdin().read_line(&mut input).expect("Get input error");
+        if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
+            fs::remove_dir_all(&wd).expect("Remove dir failed");
+            fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+        }
     }
-    // 检查路径是否非空
 
     // run MM-PBSA calculatons
     println!("Running MM-PBSA calculatons...");
@@ -181,23 +181,19 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
     let ndx_com = &ndx.groups[complex_grp].indexes;
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
-    let mut q_atoms = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut r_atoms = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut c_atoms = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
-    let mut s_atoms = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut e_atoms = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    // 生成一下序列
+    let mut atm_charge = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_radius = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_typeindex = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_sigma = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_epsilon = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
     let mut atm_index = Array1::<i32>::zeros(qrv.len() - 3 - Atyp);
-    // 原子名也转移过来
     let mut atm_name = Array1::<String>::default(qrv.len() - 3 - Atyp);
-    // 残基名也转移过来
     let mut atm_resname = Array1::<String>::default(qrv.len() - 3 - Atyp);
-    // 残基编号也转移过来
     let mut atm_resnum = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
-    // 残基类型(受体还是配体)在那边确定好
+    // res_rec has blanks in the left part
     let mut res_rec = Array1::<String>::default(qrv.len() - 3 - Atyp);
+    // res_lig has blanks in the right part
     let mut res_lig = Array1::<String>::default(qrv.len() - 3 - Atyp);
-    // 这一段取消掉
     let mut idx = 0;
     for line in &qrv[Atyp + 2..qrv.len() - 1] { // there's a blank line at the end
         let line: Vec<&str> = line
@@ -207,11 +203,11 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
                 _ => Some(p)
             })
             .collect();
-        q_atoms[idx] = line[1].parse().unwrap();
-        r_atoms[idx] = line[2].parse().unwrap();
-        c_atoms[idx] = line[3].parse().unwrap();
-        s_atoms[idx] = line[4].parse().unwrap();
-        e_atoms[idx] = line[5].parse().unwrap();
+        atm_charge[idx] = line[1].parse().unwrap();
+        atm_radius[idx] = line[2].parse().unwrap();
+        atm_typeindex[idx] = line[3].parse().unwrap();
+        atm_sigma[idx] = line[4].parse().unwrap();
+        atm_epsilon[idx] = line[5].parse().unwrap();
         atm_index[idx] = line[0].parse().unwrap();
         atm_name[idx] = line[line.len() - 2].to_string();
         let res = line[line.len() - 3];
@@ -227,7 +223,6 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
     }
 
     // fix resnum as start at 0 and no leap
-    // 这拿到残基编号之后立即处理
     let diff = &atm_resnum.slice(s![1..atm_resnum.len() - 1]) - &atm_resnum.slice(s![0..atm_resnum.len() - 2]);
     let mut boundaries: Vec<usize> = vec![0];
     for (idx, res_num) in diff.into_iter().enumerate() {
@@ -363,17 +358,17 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
         // get min and max atom coordinates
         let coordinates = coordinates.slice(s![cur_frm, .., ..]);
 
-        let atoms_rec_x_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] - r_atoms
+        let atoms_rec_x_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] - atm_radius
             [p]).collect();
-        let atoms_rec_y_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] - r_atoms
+        let atoms_rec_y_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] - atm_radius
             [p]).collect();
-        let atoms_rec_z_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] - r_atoms
+        let atoms_rec_z_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] - atm_radius
             [p]).collect();
-        let atoms_rec_x_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] + r_atoms
+        let atoms_rec_x_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] + atm_radius
             [p]).collect();
-        let atoms_rec_y_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] + r_atoms
+        let atoms_rec_y_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] + atm_radius
             [p]).collect();
-        let atoms_rec_z_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] + r_atoms
+        let atoms_rec_z_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] + atm_radius
             [p]).collect();
         min_x_rec[cur_frm] = atoms_rec_x_lb.iter().
             fold(f64::INFINITY, |prev, curr| prev.min(*curr));
@@ -388,17 +383,17 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
         max_z_rec[cur_frm] = atoms_rec_z_ub.iter().
             fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
 
-        let atoms_lig_x_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] - r_atoms
+        let atoms_lig_x_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] - atm_radius
             [p]).collect();
-        let atoms_lig_y_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] - r_atoms
+        let atoms_lig_y_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] - atm_radius
             [p]).collect();
-        let atoms_lig_z_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] - r_atoms
+        let atoms_lig_z_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] - atm_radius
             [p]).collect();
-        let atoms_lig_x_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] + r_atoms
+        let atoms_lig_x_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] + atm_radius
             [p]).collect();
-        let atoms_lig_y_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] + r_atoms
+        let atoms_lig_y_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] + atm_radius
             [p]).collect();
-        let atoms_lig_z_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] + r_atoms
+        let atoms_lig_z_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] + atm_radius
             [p]).collect();
         min_x_lig[cur_frm] = atoms_lig_x_lb.iter().
             fold(f64::INFINITY, |prev, curr| prev.min(*curr));
@@ -430,8 +425,8 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
             let x = coord[0] * 10.0;
             let y = coord[1] * 10.0;
             let z = coord[2] * 10.0;
-            let q = q_atoms[at_id];
-            let r = r_atoms
+            let q = atm_charge[at_id];
+            let r = atm_radius
                 [at_id];
             let atom_line = format!("ATOM  {:5} {:-4} {:3} X{:4}    {:8.3} {:8.3} {:8.3} \
             {:12.6} {:12.6}\n",
@@ -498,15 +493,15 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, wd: &Path, sys_name: &str,
         // traverse receptor/ligand atoms to store parameters
         for i in 0..atom_num_rec {
             let ii = i + rec_shift;
-            let qi = q_atoms[ii];
-            let ci = c_atoms[ii];
+            let qi = atm_charge[ii];
+            let ci = atm_typeindex[ii];
             let xi = coord[[ii, 0]];
             let yi = coord[[ii, 1]];
             let zi = coord[[ii, 2]];
             for j in 0..atom_num_lig {
                 let jj = j + lig_shift;
-                let qj = q_atoms[jj];
-                let cj = c_atoms[jj];
+                let qj = atm_charge[jj];
+                let cj = atm_typeindex[jj];
                 let xj = coord[[jj, 0]];
                 let yj = coord[[jj, 1]];
                 let zj = coord[[jj, 2]];
