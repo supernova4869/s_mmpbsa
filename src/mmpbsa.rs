@@ -26,7 +26,7 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     }
     let qrv_path = String::from(sys_name.as_str()) + ".qrv";
     let qrv_path = wd.join(qrv_path);
-    if !qrv_path.is_file() {
+    if qrv_path.is_file() {
         println!("Found {}. Will not regenerate parameters qrv file.", qrv_path.to_str().unwrap());
         let qrv_path = qrv_path.to_str().unwrap();
         let rad_type = settings.rad_type;
