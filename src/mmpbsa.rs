@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
-use crate::Parameters;
+use crate::{get_input_value, Parameters};
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
 use std::io::{stdin, Write};
@@ -26,12 +26,15 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     }
     let qrv_path = String::from(sys_name.as_str()) + ".qrv";
     let qrv_path = wd.join(qrv_path);
-    let qrv_path = qrv_path.to_str().unwrap();
-    let rad_type = settings.rad_type;
-    let rad_lj0 = settings.rad_lj0;
-    gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
+    if !qrv_path.is_file() {
+        println!("Found {}. Will not regenerate parameters qrv file.", qrv_path.to_str().unwrap());
+        let qrv_path = qrv_path.to_str().unwrap();
+        let rad_type = settings.rad_type;
+        let rad_lj0 = settings.rad_lj0;
+        gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
+    }
     // pdb>pqr, output apbs, calculate MM, calculate APBS
-    let results = do_mmpbsa(trj, mdp, ndx, qrv_path, wd, sys_name.as_str(),
+    let results = do_mmpbsa(trj, mdp, ndx, qrv_path.to_str().unwrap(), wd, sys_name.as_str(),
                             complex_grp, receptor_grp, ligand_grp,
                             bt, et, dt,
                             settings, use_dh, use_ts);
@@ -146,6 +149,14 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     println!("Temporary files will be placed at {}", wd.display());
     if !wd.is_dir() {
         fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+    } else {
+        println!("Directory {} not empty. Clear? [Y/n]", wd.display());
+        let mut input = String::from("");
+        stdin().read_line(&mut input).expect("Get input error");
+        if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
+            fs::remove_dir_all(&wd).expect("Remove dir failed");
+            fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+        }
     }
 
     // run MM-PBSA calculatons

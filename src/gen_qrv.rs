@@ -20,7 +20,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
 
     // get MD parameters
     let re = Regex::new(r"\s*ffparams:").unwrap();
-    let locator = get_md_locators_all(&mdp, &re)[0];
+    let locator = get_md_locators_first(&mdp, &re);
     // number of atom types
     let re = Regex::new(r"\s*atnr=(\d+)").unwrap();
     let atnr = re.captures(mdp[locator + 1]).unwrap();
@@ -245,7 +245,6 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
     println!("Finished generating qrv file.");
 }
 
-#[warn(dead_code)]
 fn get_md_locators_first(strings: &Vec<&str>, re: &Regex) -> usize {
     for (idx, l) in strings.into_iter().enumerate() {
         if re.is_match(l) {
