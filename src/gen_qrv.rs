@@ -3,29 +3,37 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::fs;
 use std::io::Write;
+use std::path::Path;
 use indicatif::ProgressBar;
 use ndarray::Array2;
 use regex::Regex;
 use crate::index_parser::Index;
+use crate::mmpbsa::gen_file_sha256;
+use crate::Parameters;
 
-pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize,
-               qrv: &str, rad_type: i32, rad_lj0: f64) {
+pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
+               receptor_grp: usize, ligand_grp: usize,
+               qrv: &Path, settings: &Parameters) {
     // read mdp file
-    let mut qrv = fs::File::create(qrv).expect("Create qrv file failed");
-    qrv.write_all("Protein Ligand\n".as_bytes()).expect("Writing qrv file failed");
+    let qrv = qrv.to_str().unwrap();
+    let rad_type = settings.rad_type;
+    let rad_lj0 = settings.rad_lj0;
+
+    let mut qrv_content = fs::File::create(qrv).expect("Create parameter qrv file failed");
+    qrv_content.write_all("Protein Ligand\n".as_bytes()).expect("Writing parameter qrv file failed");
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
-    let mdp = fs::read_to_string(mdp).unwrap();
-    let mdp: Vec<&str> = mdp.split("\n").collect();
+    let mdp_content = fs::read_to_string(mdp).unwrap();
+    let mdp_content: Vec<&str> = mdp_content.split("\n").collect();
 
     // get MD parameters
     let re = Regex::new(r"\s*ffparams:").unwrap();
-    let locator = get_md_locators_first(&mdp, &re);
+    let locator = get_md_locators_first(&mdp_content, &re);
     // number of atom types
     let re = Regex::new(r"\s*atnr=(\d+)").unwrap();
-    let atnr = re.captures(mdp[locator + 1]).unwrap();
+    let atnr = re.captures(mdp_content[locator + 1]).unwrap();
     let atnr = atnr.get(1).unwrap().as_str();
-    qrv.write_all(format!("{}\n", atnr).as_bytes()).expect("Writing qrv file failed");
+    qrv_content.write_all(format!("{}\n", atnr).as_bytes()).expect("Writing qrv file failed");
     let atnr: usize = atnr.parse().unwrap();
     // LJ parameters
     let locator = locator + 3;
@@ -37,14 +45,14 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
     println!("Writing atom L-J parameters..");
     let pb = ProgressBar::new(atnr as u64);
     for i in 0..atnr {
-        qrv.write_all(format!("{:6}", i).as_bytes()).expect("Writing qrv file failed");
+        qrv_content.write_all(format!("{:6}", i).as_bytes()).expect("Writing qrv file failed");
         // get c6 and c12 parameters for each atom
         for j in 0..atnr {
             let re = Regex::new(r".*c6\s*=\s*(.*),.*c12\s*=\s*(.*)").unwrap();
-            let m = re.captures(&mdp[locator + i * atnr + j]).unwrap();
+            let m = re.captures(&mdp_content[locator + i * atnr + j]).unwrap();
             let c6 = m.get(1).unwrap().as_str();
             let c12 = m.get(2).unwrap().as_str().trim();
-            qrv.write_all(format!(" {} {}", c6, c12).as_bytes()).expect("Writing qrv file failed");
+            qrv_content.write_all(format!(" {} {}", c6, c12).as_bytes()).expect("Writing qrv file failed");
             let c6: f64 = c6.parse().unwrap();
             let c12: f64 = c12.parse().unwrap();
             // calculate σ, ε, radius for each atom
@@ -54,25 +62,25 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
                 rad[i] = 0.5 * sigma[i]; // sigma为直径
             }
         }
-        qrv.write_all("\n".as_bytes()).expect("Writing qrv file failed");
+        qrv_content.write_all("\n".as_bytes()).expect("Writing qrv file failed");
         pb.inc(1);
     }
 
     // number of groups
     let re = Regex::new(r"\s*#molblock\s*=\s*(.+?)\s*").unwrap();
-    let grp_num: usize = get_md_params_first(&mdp, &re).parse().unwrap();
+    let grp_num: usize = get_md_params_first(&mdp_content, &re).parse().unwrap();
     // number of molecules
     let re = Regex::new(r"\s*#molecules\s*=\s*(.+?)\s*").unwrap();
-    let mol_num: Vec<usize> = get_md_params_all(&mdp, &re);
+    let mol_num: Vec<usize> = get_md_params_all(&mdp_content, &re);
     // number of atoms
     let re = Regex::new(r"atom \((.+)\):").unwrap();
-    let max_atm_num: usize = *get_md_params_all(&mdp, &re).iter().max().unwrap();
+    let max_atm_num: usize = *get_md_params_all(&mdp_content, &re).iter().max().unwrap();
     let mut sys_names: Vec<String> = vec![];                // name of each system
     let mut sys_atom_nums: Vec<usize> = vec![];             // atom number of each system
 
     // locator of molecule types
     let re = Regex::new(r"\s*moltype.+\(").unwrap();
-    let locators = get_md_locators_all(&mdp, &re);
+    let locators = get_md_locators_all(&mdp_content, &re);
 
     // initialize atom information, each molecule per line
     // 考虑使用泛型值来优化
@@ -93,13 +101,13 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
     // get atom parameters
     for locator in locators {
         let re = Regex::new(r"\s*moltype.+\((\d+)\)").unwrap();
-        let mol_id = re.captures(&mdp[locator]).unwrap().get(1).unwrap();
+        let mol_id = re.captures(&mdp_content[locator]).unwrap().get(1).unwrap();
         let mol_id: usize = mol_id.as_str().parse().unwrap();
         let re = Regex::new(r"name=(.*)").unwrap();
-        let n = re.captures(&mdp[locator + 1]).unwrap().get(1).unwrap().as_str().trim();
+        let n = re.captures(&mdp_content[locator + 1]).unwrap().get(1).unwrap().as_str().trim();
         sys_names.push(n[1..(n.len() - 1)].to_string());
         let re = Regex::new(r"\((.*)\)").unwrap();
-        let num = re.captures(&mdp[locator + 3]).unwrap().get(1).unwrap();
+        let num = re.captures(&mdp_content[locator + 3]).unwrap().get(1).unwrap();
         let num: usize = num.as_str().parse().unwrap();
         sys_atom_nums.push(num);
         let locator = locator + 4;
@@ -109,7 +117,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
         let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);   // progress bar
         for i in 0..sys_atom_nums[mol_id] {
             let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
-            let c = re.captures(&mdp[locator + i]).unwrap();
+            let c = re.captures(&mdp_content[locator + i]).unwrap();
             let at_type = c.get(1).unwrap();
             let at_type: usize = at_type.as_str().parse().unwrap();
             let res_id = c.get(3).unwrap();
@@ -132,7 +140,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
         let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);
         for i in 0..sys_atom_nums[mol_id] {
             let re = Regex::new("name=\"(.*)\"").unwrap();
-            let name = re.captures(&mdp[locator + i]).unwrap();
+            let name = re.captures(&mdp_content[locator + i]).unwrap();
             let name = name.get(1).unwrap().as_str();
             t_atoms[[mol_id, i]] = name.to_string();
             pb.inc(1);
@@ -142,10 +150,10 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
 
     // get residues information
     let re = Regex::new(r"\s*residue \((\d+)\)").unwrap();
-    let locators = get_md_locators_all(&mdp, &re);
+    let locators = get_md_locators_all(&mdp_content, &re);
     let mut resnums: Vec<usize> = vec![];
     for i in 0..locators.len() {
-        let res_num = re.captures(&mdp[locators[i]]).unwrap().get(1).unwrap();
+        let res_num = re.captures(&mdp_content[locators[i]]).unwrap().get(1).unwrap();
         let res_num: usize = res_num.as_str().trim().parse().unwrap();
         resnums.push(res_num);
     }
@@ -157,7 +165,7 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
         println!("Reading residues information...");
         let pb = ProgressBar::new(resnums[idx] as u64);
         for i in 0..resnums[idx] {
-            let m = re.captures(&mdp[locator + 1 + i]).unwrap();
+            let m = re.captures(&mdp_content[locator + 1 + i]).unwrap();
             let name = m.get(1).unwrap().as_str();
             let nr = m.get(2).unwrap().as_str();
             let nr: i32 = nr.parse().unwrap();
@@ -169,18 +177,18 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
 
     // assign H types by connection atoms from angle information
     let re = Regex::new(r"^ +Angle:").unwrap();
-    let locators = get_md_locators_all(&mdp, &re);
+    let locators = get_md_locators_all(&mdp_content, &re);
     println!("Reading angles...");
     for (mol_id, locator) in locators.into_iter().enumerate() {
-        let angles_num: Vec<&str> = (&mdp[locator + 1]).trim().split(" ").collect();
+        let angles_num: Vec<&str> = (&mdp_content[locator + 1]).trim().split(" ").collect();
         let angles_num: usize = angles_num[1].parse().unwrap();
         let angles_num = angles_num / 4;
         if angles_num > 0 {
             let re = Regex::new(r"\d+ type=\d+ \(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap();
             let pb = ProgressBar::new(angles_num as u64);
             for l_num in locator + 3..locator + 3 + angles_num {
-                if re.is_match(&mdp[l_num]) {
-                    let paras = re.captures(&mdp[l_num]).unwrap();
+                if re.is_match(&mdp_content[l_num]) {
+                    let paras = re.captures(&mdp_content[l_num]).unwrap();
                     let i = paras.get(1).unwrap();
                     let i: usize = i.as_str().parse().unwrap();
                     let j = paras.get(2).unwrap();
@@ -224,15 +232,15 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
                             return;
                         }
                     }
-                    qrv.write_all(format!("{:6} {:9.5} {:9.6} {:6} {:9.6} {:9.6} {:6} \"{}\"-1.{} {} {:-6}  ",
-                                          atom_id_feature, q_atoms[[i, j]], radi, c_atoms[[i, j]], s_atoms[[i, j]],
-                                          e_atoms[[i, j]], atom_id_total + 1, sys_names[i], j + 1,
-                                          res_names[[i, res_ids[[i, j]]]], t_atoms[[i, j]]).as_bytes())
+                    qrv_content.write_all(format!("{:6} {:9.5} {:9.6} {:6} {:9.6} {:9.6} {:6} \"{}\"-1.{} {} {:-6}  ",
+                                                  atom_id_feature, q_atoms[[i, j]], radi, c_atoms[[i, j]], s_atoms[[i, j]],
+                                                  e_atoms[[i, j]], atom_id_total + 1, sys_names[i], j + 1,
+                                                  res_names[[i, res_ids[[i, j]]]], t_atoms[[i, j]]).as_bytes())
                         .expect("Writing qrv file failed.");
                     if ndx_rec.contains(&atom_id_total) {
-                        qrv.write_all("Rec\n".as_bytes()).expect("Writing qrv file failed.");
+                        qrv_content.write_all("Rec\n".as_bytes()).expect("Writing qrv file failed.");
                     } else if ndx_lig.contains(&atom_id_total) {
-                        qrv.write_all("Lig\n".as_bytes()).expect("Writing qrv file failed.");
+                        qrv_content.write_all("Lig\n".as_bytes()).expect("Writing qrv file failed.");
                     }
                 }
                 atom_id_total += 1;
@@ -240,6 +248,18 @@ pub fn gen_qrv(mdp: &String, ndx: &Index, receptor_grp: usize, ligand_grp: usize
             }
             pb.reset();
         }
+    }
+
+    // generate md5 for tpr file
+    if Path::new(mdp).is_file() {
+        println!("Generating mdp sha...");
+        let mut mdp_sha = fs::File::create(wd.join(".mdp.sha")).unwrap();
+        mdp_sha.write_all(gen_file_sha256(mdp).as_bytes()).expect("Failed to write sha");
+    }
+    if Path::new(qrv).is_file() {
+        println!("Generating qrv sha...");
+        let mut qrv_sha = fs::File::create(wd.join(".qrv.sha")).unwrap();
+        qrv_sha.write_all(gen_file_sha256(qrv).as_bytes()).expect("Failed to write sha");
     }
 
     println!("Finished generating qrv file.");
