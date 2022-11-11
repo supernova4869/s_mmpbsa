@@ -5,18 +5,17 @@ use xdrfile::*;
 use crate::{get_input_value, Parameters};
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
-use std::io::{stdin, Write};
+use std::io::{Read, stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::ProgressBar;
 use crate::gen_qrv::gen_qrv;
 
-pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path,
+pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, mdp: &String, ndx: &Index, wd: &Path,
                               use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, settings: &Parameters)
                               -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
-    // get charge, radius, LJ parameters of each atoms and generate qrv files
     let mut sys_name = String::from("_system");
     println!("Input system name (default: {}):", sys_name);
     let mut input = String::new();
@@ -26,12 +25,29 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &String, ndx: &Index, wd: &Path
     }
     let qrv_path = String::from(sys_name.as_str()) + ".qrv";
     let qrv_path = wd.join(qrv_path);
+
+    let mut re_gen_qrv = true;
     if qrv_path.is_file() {
-        println!("Found {}. Will not regenerate parameters qrv file.", qrv_path.to_str().unwrap());
-        let qrv_path = qrv_path.to_str().unwrap();
-        let rad_type = settings.rad_type;
-        let rad_lj0 = settings.rad_lj0;
-        gen_qrv(mdp, ndx, receptor_grp, ligand_grp, qrv_path, rad_type, rad_lj0);
+        let mdp_sha = gen_file_sha256(mdp);
+        let qrv_sha = gen_file_sha256(qrv_path.as_path());
+        if wd.join("_mdp.sha").is_file() && wd.join("_qrv.sha").is_file() {
+            let old_mdp_sha = fs::read_to_string(wd.join(".mdp.sha")).unwrap();
+            let old_qrv_sha = fs::read_to_string(wd.join(".qrv.sha")).unwrap();
+            if mdp_sha.eq(&old_mdp_sha) && qrv_sha.eq(&old_qrv_sha) {
+                println!("{}", mdp_sha);
+                println!("{}", old_mdp_sha);
+                println!("{}", qrv_sha);
+                println!("{}", old_qrv_sha);
+                re_gen_qrv = false;
+                println!("Found checked {}. Will not regenerate parameters qrv file.", qrv_path.to_str().unwrap());
+            } else {
+                println!("Parameter qrv file has been changed.");
+            }
+        }
+    }
+    if re_gen_qrv {
+        // get charge, radius, LJ parameters of each atoms and generate qrv files
+        gen_qrv(mdp, tpr, ndx, wd, receptor_grp, ligand_grp, qrv_path.as_path(), settings);
     }
     // pdb>pqr, output apbs, calculate MM, calculate APBS
     let results = do_mmpbsa(trj, mdp, ndx, qrv_path.to_str().unwrap(), wd, sys_name.as_str(),
@@ -808,4 +824,10 @@ fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_
     end\n\n\
     print elecEnergy {file} - {file}_VAC end\n\
     print apolEnergy {file}_SAS end\n\n");
+}
+
+pub fn gen_file_sha256<T: AsRef<Path> + ?Sized>(p: &T) -> String {
+    let s = fs::read_to_string(p).unwrap();
+    let hash = sha256::digest(s);
+    return hash;
 }

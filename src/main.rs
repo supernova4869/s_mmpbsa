@@ -96,7 +96,7 @@ fn main() {
                     // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
-                    mmpbsa_calculation(&trj, &mdp, &ndx, wd, use_dh, use_ts, &settings);
+                    mmpbsa_calculation(&trj, &tpr, &mdp, &ndx, wd, use_dh, use_ts, &settings);
                 }
             }
             1 => {
@@ -135,7 +135,7 @@ fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) -> String {
     return wd.join("_mdout.mdp").to_str().unwrap().to_string();
 }
 
-fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_dh: bool, use_ts: bool, settings: &Parameters) {
+fn mmpbsa_calculation(trj: &String, tpr:&String, mdp: &String, ndx: &String, wd: &Path, use_dh: bool, use_ts: bool, settings: &Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -168,7 +168,7 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
         match i {
             -10 => return,
             0 => {
-                let results = mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd,
+                let results = mmpbsa::do_mmpbsa_calculations(&trj, &tpr, mdp, &ndx, wd,
                                                              use_dh, use_ts,
                                                              complex_grp as usize,
                                                              receptor_grp as usize,
@@ -176,7 +176,6 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String, wd: &Path, use_d
                                                              bt, et, dt,
                                                              &settings);
                 analyzation::analyze(results);
-                break;
             }
             1 => {
                 println!("Current groups:");
