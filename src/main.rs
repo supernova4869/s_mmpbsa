@@ -152,21 +152,21 @@ fn mmpbsa_calculation(trj: &String, tpr: &String, mdp: &String, ndx: &String,
         println!("\n                 ************ MM-PBSA calculation ************");
         println!("-10 Return");
         println!("  0 Do MM-PBSA calculations now!");
-        println!("  1 Select complex group, current: {}", match complex_grp {
+        println!("  1 Select complex group, current:            {}", match complex_grp {
             -1 => String::from("undefined"),
-            _ => format!("{} {}", complex_grp, ndx.groups[complex_grp as usize].name)
+            _ => format!("{}): {}", complex_grp, ndx.groups[complex_grp as usize].name)
         });
-        println!("  2 Select receptor groups, current: {}", match receptor_grp {
+        println!("  2 Select receptor groups, current:          {}", match receptor_grp {
             -1 => String::from("undefined"),
-            _ => format!("{} {}", receptor_grp, ndx.groups[receptor_grp as usize].name)
+            _ => format!("{}): {}", receptor_grp, ndx.groups[receptor_grp as usize].name)
         });
-        println!("  3 Select ligand groups, current: {}", match ligand_grp {
+        println!("  3 Select ligand groups, current:            {}", match ligand_grp {
             -1 => String::from("undefined"),
-            _ => format!("{} {}", ligand_grp, ndx.groups[ligand_grp as usize].name)
+            _ => format!("{}): {}", ligand_grp, ndx.groups[ligand_grp as usize].name)
         });
-        println!("  4 Set start time of analysis, current: {} ns", bt / 1000.0);
-        println!("  5 Set end time of analysis, current: {} ns", et / 1000.0);
-        println!("  6 Set time interval of analysis, current: {} ps", dt);
+        println!("  4 Set start time of analysis, current:      {} ns", bt / 1000.0);
+        println!("  5 Set end time of analysis, current:        {} ns", et / 1000.0);
+        println!("  6 Set time interval of analysis, current:   {} ps", dt);
         let i = get_input_value();
         match i {
             -10 => return,
