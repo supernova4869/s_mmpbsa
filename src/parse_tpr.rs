@@ -24,6 +24,9 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
     let mdp_content = fs::read_to_string(mdp).unwrap();
+    if mdp_content.len() == 0 {
+        println!("Error with _mdout.mdp: file empty");
+    }
     let mdp_content: Vec<&str> = mdp_content.split("\n").collect();
 
     // get MD parameters
@@ -31,9 +34,9 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
     let locator = get_md_locators_first(&mdp_content, &re);
     // number of atom types
     let re = Regex::new(r"\s*atnr=(\d+)").unwrap();
-    let atnr = re.captures(mdp_content[locator + 1]).unwrap();
+    let atnr = re.captures(mdp_content[locator + 1]).expect("Parse mdp file error.");
     let atnr = atnr.get(1).unwrap().as_str();
-    qrv_content.write_all(format!("{}\n", atnr).as_bytes()).expect("Writing qrv file failed");
+    qrv_content.write_all(format!("{}\n", atnr).as_bytes()).expect("Writing parameter qrv file failed");
     let atnr: usize = atnr.parse().unwrap();
     // LJ parameters
     let locator = locator + 3;

@@ -42,7 +42,9 @@ fn main() {
     // initialize parameters
     let settings = init_settings();
     if !check_programs_validity(settings.gmx.as_str(), settings.apbs.as_str()) {
-        println!("Error: Programs not correctly configured.");
+        println!("Press any key to exit.");
+        let mut temp = String::new();
+        stdin().read_line(&mut temp).unwrap();
         return;
     }
     match args.len() {
@@ -135,7 +137,8 @@ fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) -> String {
     return wd.join("_mdout.mdp").to_str().unwrap().to_string();
 }
 
-fn mmpbsa_calculation(trj: &String, tpr:&String, mdp: &String, ndx: &String, wd: &Path, use_dh: bool, use_ts: bool, settings: &Parameters) {
+fn mmpbsa_calculation(trj: &String, tpr: &String, mdp: &String, ndx: &String,
+                      wd: &Path, use_dh: bool, use_ts: bool, settings: &Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -239,7 +242,7 @@ fn get_input_value<T: FromStr>() -> T {
             Err(_) => {
                 println!("Error input, input again.");
                 continue;
-            },
+            }
         };
     }
 }
@@ -273,22 +276,47 @@ fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String 
 
 fn check_programs_validity(gmx: &str, apbs: &str) -> bool {
     // gmx
-    let test_gmx = Command::new(gmx).arg("--version").output().expect("running gmx failed.");
-    let test_gmx = String::from_utf8(test_gmx.stdout).expect("Getting gmx output failed.");
-    if test_gmx.find("GROMACS version") == None {
-        println!("GROMACS status: ERROR");
-        return false;
+    let test_gmx = Command::new(gmx).arg("--version").output();
+    let gmx_validity = match test_gmx {
+        Ok(test_gmx) => {
+            let test_gmx = String::from_utf8(test_gmx.stdout)
+                .expect("Getting gmx output failed.");
+            if test_gmx.find("GROMACS version") == None {
+                println!("GROMACS status: ERROR");
+                false
+            } else {
+                true
+            }
+        }
+        Err(_) => false
+    };
+
+    if !gmx_validity {
+        println!("Warning: Gromacs not configured correctly.");
     }
 
     // apbs
-    let test_apbs = Command::new(apbs).arg("--version").output().expect("running apbs failed.");
-    let test_apbs = String::from_utf8(test_apbs.stdout).expect("Getting apbs output failed.");
-    if test_apbs.find("Version") == None {
-        println!("APBS status: ERROR");
-        return false;
+    let test_apbs = Command::new(apbs).arg("--version").output();
+    let apbs_validity = match test_apbs {
+        Ok(test_apbs) => {
+            let test_apbs = String::from_utf8(test_apbs.stdout)
+                .expect("Getting apbs output failed.");
+            if test_apbs.find("Version") == None {
+                println!("APBS status: ERROR");
+                false
+            } else {
+                fs::remove_file(Path::new("io.mc")).unwrap();
+                true
+            }
+        }
+        Err(_) => false
+    };
+
+    if !apbs_validity {
+        println!("Warning: APBS not configured correctly.");
     }
-    fs::remove_file(Path::new("io.mc")).unwrap();
-    return true;
+
+    return gmx_validity && apbs_validity;
 }
 
 fn init_settings() -> Parameters {
@@ -344,6 +372,7 @@ fn init_settings() -> Parameters {
             println!("Note: settings.ini not found. Will use 4 kernel.");
         }
     }
+    println!("Currently multi-threading not yet utilized.");
     return params;
 }
 

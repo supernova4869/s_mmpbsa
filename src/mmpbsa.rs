@@ -9,7 +9,7 @@ use std::io::{Read, stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::ProgressBar;
-use crate::gen_qrv::gen_qrv;
+use crate::parse_tpr::gen_qrv;
 
 pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, mdp: &String, ndx: &Index, wd: &Path,
                               use_dh: bool, use_ts: bool,
