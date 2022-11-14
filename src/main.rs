@@ -5,6 +5,7 @@ mod analyzation;
 
 use std::fs;
 use std::env;
+use std::fmt::Display;
 use std::io::{stdin, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -40,13 +41,17 @@ fn main() {
     // start workflow
     welcome();
     // initialize parameters
-    let settings = init_settings();
-    if !check_programs_validity(settings.gmx.as_str(), settings.apbs.as_str()) {
+    let mut settings = init_settings();
+    let programs = check_basic_programs(settings.gmx.as_str(), settings.apbs.as_str());
+    settings.gmx = programs.0;
+    settings.apbs = programs.1;
+    if settings.gmx.len() == 0 || settings.apbs.len() == 0 {
         println!("Press any key to exit.");
         let mut temp = String::new();
         stdin().read_line(&mut temp).unwrap();
         return;
     }
+
     match args.len() {
         1 => {
             println!("Input path of .tpr file, e.g. D:/Study/ZhangYang.tpr");
@@ -274,49 +279,103 @@ fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String 
     }
 }
 
-fn check_programs_validity(gmx: &str, apbs: &str) -> bool {
-    // gmx
-    let test_gmx = Command::new(gmx).arg("--version").output();
-    let gmx_validity = match test_gmx {
-        Ok(test_gmx) => {
-            let test_gmx = String::from_utf8(test_gmx.stdout)
-                .expect("Getting gmx output failed.");
-            if test_gmx.find("GROMACS version") == None {
-                println!("GROMACS status: ERROR");
-                false
-            } else {
-                true
+fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
+    let mut gmx_path: String = String::new();
+    let mut apbs_path: String = String::new();
+    match check_program_validity(gmx, "GROMACS version") {
+        Ok(p) => {
+            gmx_path = p;
+            println!("Note: Gromacs configured correctly.");
+        },
+        Err(_) => {
+            println!("Warning: Gromacs not configured correctly. Now trying default gmx.");
+            match check_program_validity("gmx", "GROMACS version") {
+                Ok(p) => {
+                    gmx_path = p;
+                    println!("Note: default gmx valid.");
+                },
+                Err(_) => {
+                    println!("Warning: default gmx not valid. Now trying built-in gmx of super_mmpbsa.");
+                    if cfg!(windows) {
+                        match check_program_validity(
+                            env::current_exe().unwrap().parent().unwrap()
+                                .join("programs").join("gmx")
+                                .join("gmx.exe").to_str().unwrap(),
+                            "GROMACS version"
+                        ) {
+                            Ok(p) => {
+                                gmx_path = p;
+                                println!("Note: built-in gmx valid.");
+                            },
+                            Err(_) => {
+                                println!("Error: no valid Gromacs program in use.");
+                            }
+                        }
+                    } else if cfg!(unix) {
+                        match check_program_validity(
+                            env::current_exe().unwrap().parent().unwrap()
+                                .join("programs").join("gmx")
+                                .join("gmx").to_str().unwrap(),
+                            "GROMACS version"
+                        ) {
+                            Ok(p) => {
+                                gmx_path = p;
+                                println!("Note: built-in gmx valid.");
+                            },
+                            Err(_) => {
+                                println!("Error: no valid Gromacs program in use.");
+                            }
+                        }
+                    }
+                }
             }
         }
-        Err(_) => false
-    };
-
-    if !gmx_validity {
-        println!("Warning: Gromacs not configured correctly.");
     }
 
     // apbs
-    let test_apbs = Command::new(apbs).arg("--version").output();
-    let apbs_validity = match test_apbs {
-        Ok(test_apbs) => {
-            let test_apbs = String::from_utf8(test_apbs.stdout)
-                .expect("Getting apbs output failed.");
-            if test_apbs.find("Version") == None {
-                println!("APBS status: ERROR");
-                false
-            } else {
-                fs::remove_file(Path::new("io.mc")).unwrap();
-                true
+    match check_program_validity(apbs, "Version") {
+        Ok(p) => {
+            apbs_path = p;
+            println!("Note: APBS configured correctly.");
+            fs::remove_file(Path::new("io.mc")).unwrap();
+        },
+        Err(_) => {
+            println!("Warning: APBS not configured correctly. Now trying default apbs.");
+            match check_program_validity("apbs", "Version") {
+                Ok(p) => {
+                    apbs_path = p;
+                    println!("Note: default apbs valid.");
+                    fs::remove_file(Path::new("io.mc")).unwrap();
+                }
+                Err(_) => {
+                    println!("Error: no valid APBS program in use.");
+                }
             }
         }
-        Err(_) => false
-    };
-
-    if !apbs_validity {
-        println!("Warning: APBS not configured correctly.");
     }
 
-    return gmx_validity && apbs_validity;
+    return (gmx_path, apbs_path);
+}
+
+fn check_program_validity(program: &str, target_output: &str) -> Result<String, String> {
+    let test_program = Command::new(program).arg("--version").output();
+    match test_program {
+        Ok(test_program) => {
+            let test_program = String::from_utf8(test_program.stdout)
+                .expect(format!("Getting {} output failed.", program).as_str());
+            if test_program.find(target_output) == None {
+                // println!("{}", format!("{} status: error", program).as_str());
+                Err(program.to_string())
+            } else {
+                // println!("{}", format!("{} status: OK", program).as_str());
+                Ok(program.to_string())
+            }
+        }
+        Err(_) => {
+            // println!("{}", format!("{} status: error", program).as_str());
+            Err(program.to_string())
+        }
+    }
 }
 
 fn init_settings() -> Parameters {
@@ -372,7 +431,7 @@ fn init_settings() -> Parameters {
             println!("Note: settings.ini not found. Will use 4 kernel.");
         }
     }
-    println!("Currently multi-threading not yet utilized.");
+    println!("(Currently multi-threading not yet utilized)");
     return params;
 }
 
