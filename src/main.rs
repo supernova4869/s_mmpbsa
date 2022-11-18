@@ -15,6 +15,7 @@ use regex::Regex;
 use toml;
 use toml::Value;
 use xdrfile::{Frame, XTCTrajectory};
+use chrono::prelude::{Utc, Local};
 
 pub struct Parameters {
     rad_type: i32,
@@ -124,13 +125,15 @@ fn main() {
 
 fn welcome() {
     println!("SuperMMPBSA: Supernova's tool of calculating binding free energy using\n\
-molecular mechanics Poisson–Boltzmann surface area (MM-PBSA) method.\n\
-Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
-Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
-Version 0.1, first release: 2022-Oct-17\n\n\
-Usage 1: run `SuperMMPBSA` and follow the prompts.\n\
-Usage 2: run `SuperMMPBSA WangBingBing.tpr` to directly load WangBingBing.tpr.\n\
-Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n");
+        molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method.\n\
+        Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
+        Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
+        Version 0.1, first release: 2022-Oct-17\n\
+        Current time: {}\n\n\
+        Usage 1: run `SuperMMPBSA` and follow the prompts.\n\
+        Usage 2: run `SuperMMPBSA WangBingBing.tpr` to directly load WangBingBing.tpr.\n\
+        Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n",
+             Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
 }
 
 fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) -> String {
@@ -279,49 +282,47 @@ fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String 
     }
 }
 
+fn get_built_in_gmx(p: &Path) -> String {
+    if cfg!(windows) {
+        p.parent().unwrap().join("programs").join("gmx")
+            .join("gmx.exe").to_str().unwrap().to_string()
+    } else if cfg!(unix) {
+        p.parent().unwrap().join("programs").join("gmx")
+            .join("gmx").to_str().unwrap().to_string()
+    } else {
+        String::new()
+    }
+}
+
 fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     let mut gmx_path: String = String::new();
     let mut apbs_path: String = String::new();
-    match check_program_validity(gmx, "GROMACS version") {
-        Ok(p) => {
-            gmx_path = p;
-            println!("Note: Gromacs configured correctly.");
-        },
-        Err(_) => {
-            println!("Warning: Gromacs not configured correctly. Now trying default gmx.");
-            match check_program_validity("gmx", "GROMACS version") {
-                Ok(p) => {
-                    gmx_path = p;
-                    println!("Note: default gmx valid.");
-                },
-                Err(_) => {
-                    println!("Warning: default gmx not valid. Now trying built-in gmx of super_mmpbsa.");
-                    if cfg!(windows) {
+    if gmx == "built-in" {
+        gmx_path = get_built_in_gmx(&env::current_exe().unwrap());
+        println!("Note: will use built-in gromacs in programs/gmx.");
+    } else {
+        match check_program_validity(gmx, "GROMACS version:") {
+            Ok(p) => {
+                gmx_path = p;
+                println!("Note: Gromacs configured correctly.");
+            }
+            Err(_) => {
+                println!("Warning: Gromacs not configured correctly. Now trying default gmx.");
+                match check_program_validity("gmx", "GROMACS version") {
+                    Ok(p) => {
+                        gmx_path = p;
+                        println!("Note: default gmx valid.");
+                    }
+                    Err(_) => {
+                        println!("Warning: default gmx not valid. Now trying built-in gmx of super_mmpbsa.");
                         match check_program_validity(
-                            env::current_exe().unwrap().parent().unwrap()
-                                .join("programs").join("gmx")
-                                .join("gmx.exe").to_str().unwrap(),
+                            get_built_in_gmx(&env::current_exe().unwrap()).as_str(),
                             "GROMACS version"
                         ) {
                             Ok(p) => {
                                 gmx_path = p;
                                 println!("Note: built-in gmx valid.");
-                            },
-                            Err(_) => {
-                                println!("Error: no valid Gromacs program in use.");
                             }
-                        }
-                    } else if cfg!(unix) {
-                        match check_program_validity(
-                            env::current_exe().unwrap().parent().unwrap()
-                                .join("programs").join("gmx")
-                                .join("gmx").to_str().unwrap(),
-                            "GROMACS version"
-                        ) {
-                            Ok(p) => {
-                                gmx_path = p;
-                                println!("Note: built-in gmx valid.");
-                            },
                             Err(_) => {
                                 println!("Error: no valid Gromacs program in use.");
                             }
@@ -338,7 +339,7 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
             apbs_path = p;
             println!("Note: APBS configured correctly.");
             fs::remove_file(Path::new("io.mc")).unwrap();
-        },
+        }
         Err(_) => {
             println!("Warning: APBS not configured correctly. Now trying default apbs.");
             match check_program_validity("apbs", "Version") {
@@ -364,15 +365,12 @@ fn check_program_validity(program: &str, target_output: &str) -> Result<String, 
             let test_program = String::from_utf8(test_program.stdout)
                 .expect(format!("Getting {} output failed.", program).as_str());
             if test_program.find(target_output) == None {
-                // println!("{}", format!("{} status: error", program).as_str());
                 Err(program.to_string())
             } else {
-                // println!("{}", format!("{} status: OK", program).as_str());
                 Ok(program.to_string())
             }
         }
         Err(_) => {
-            // println!("{}", format!("{} status: error", program).as_str());
             Err(program.to_string())
         }
     }
