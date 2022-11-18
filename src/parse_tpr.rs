@@ -5,13 +5,13 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 use indicatif::ProgressBar;
-use ndarray::Array2;
+use ndarray::{Array1, Array2};
 use regex::Regex;
 use crate::index_parser::Index;
 use crate::mmpbsa::gen_file_sha256;
 use crate::Parameters;
 
-pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
+pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
                receptor_grp: usize, ligand_grp: usize,
                qrv: &Path, settings: &Parameters) {
     // read mdp file
@@ -20,12 +20,15 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
     let rad_lj0 = settings.rad_lj0;
 
     let mut qrv_content = fs::File::create(qrv).expect("Create parameter qrv file failed");
-    qrv_content.write_all("Protein Ligand\n".as_bytes()).expect("Writing parameter qrv file failed");
+    qrv_content.write_all(format!("Receptor: {}\nLigand: {}\n",
+                                  &ndx.groups[receptor_grp].name,
+                                  &ndx.groups[ligand_grp].name).as_bytes())
+        .expect("Writing parameter qrv file failed");
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
     let mdp_content = fs::read_to_string(mdp).unwrap();
     if mdp_content.len() == 0 {
-        println!("Error with _mdout.mdp: file empty");
+        println!("Error with {}: file empty", mdp);
     }
     let mdp_content: Vec<&str> = mdp_content.split("\n").collect();
 
@@ -59,7 +62,7 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
             let c6: f64 = c6.parse().unwrap();
             let c12: f64 = c12.parse().unwrap();
             // calculate σ, ε, radius for each atom
-            if j == i  && c6 != 0.0 && c12 != 0.0 {
+            if j == i && c6 != 0.0 && c12 != 0.0 {
                 sigma[i] = 10.0 * (c12 / c6).powf(1.0 / 6.0); // 转换单位为A
                 epsilon[i] = c6.powi(2) / (4.0 * c12);
                 rad[i] = 0.5 * sigma[i]; // sigma为直径
@@ -69,12 +72,23 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
         pb.inc(1);
     }
 
-    // number of groups
-    let re = Regex::new(r"\s*#molblock\s*=\s*(.+?)\s*").unwrap();
-    let grp_num: usize = get_md_params_first(&mdp_content, &re).parse().unwrap();
-    // number of molecules
-    let re = Regex::new(r"\s*#molecules\s*=\s*(.+?)\s*").unwrap();
-    let mol_num: Vec<usize> = get_md_params_all(&mdp_content, &re);
+    // number of molecule types
+    let re = Regex::new(r"#molblock\s*=\s*(.+?)\s*").unwrap();
+    let mol_types: usize = get_md_params_first(&mdp_content, &re).parse().unwrap();
+    // number of molecules of each type
+    let re = Regex::new(r"moltype\s*=\s*.+").unwrap();
+    let mol_type_locators: Vec<usize> = get_md_locators_all(&mdp_content, &re);
+    let mut mol_nums: Array1<usize> = Array1::zeros(mol_type_locators.len());
+    let re = Regex::new(r"#molecules.*=\s*(\d+)\s*").unwrap();
+    for (i_mol, loc) in mol_type_locators.into_iter().enumerate() {
+        let s = mdp_content[loc + 1];
+        match re.captures(s).unwrap().get(1) {
+            Some(i) => {
+                mol_nums[i_mol] = i.as_str().parse().unwrap();
+            },
+            _ => ()
+        }
+    }
     // number of atoms
     let re = Regex::new(r"atom \((.+)\):").unwrap();
     let max_atm_num: usize = *get_md_params_all(&mdp_content, &re).iter().max().unwrap();
@@ -87,19 +101,13 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
 
     // initialize atom information, each molecule per line
     // 考虑使用泛型值来优化
-    let mut res_ids = Array2::<usize>::zeros((mol_num.len(), max_atm_num));      // residue ids of each atom
-    // atom type
-    let mut c_atoms = Array2::<usize>::zeros((mol_num.len(), max_atm_num));     // atom type
-    // atom radius
-    let mut r_atoms = Array2::<f64>::zeros((mol_num.len(), max_atm_num));        // atom radius
-    // atom sigma
-    let mut s_atoms = Array2::<f64>::zeros((mol_num.len(), max_atm_num));        // atom sigma
-    // atom epsilon
-    let mut e_atoms = Array2::<f64>::zeros((mol_num.len(), max_atm_num));        // atom epsilon
-    // atom charge
-    let mut q_atoms = Array2::<f64>::zeros((mol_num.len(), max_atm_num));        // atom charge
-    // atom name
-    let mut t_atoms = Array2::<String>::default((mol_num.len(), max_atm_num)); // atom name
+    let mut res_ids: Array2<usize> = Array2::zeros((mol_nums.len(), max_atm_num));  // residue ids of each atom
+    let mut c_atoms: Array2<usize> = Array2::zeros((mol_nums.len(), max_atm_num));  // atom type
+    let mut r_atoms: Array2<f64> = Array2::zeros((mol_nums.len(), max_atm_num));    // atom radius
+    let mut s_atoms: Array2<f64> = Array2::zeros((mol_nums.len(), max_atm_num));    // atom sigma
+    let mut e_atoms: Array2<f64> = Array2::zeros((mol_nums.len(), max_atm_num));    // atom epsilon
+    let mut q_atoms: Array2<f64> = Array2::zeros((mol_nums.len(), max_atm_num));    // atom charge
+    let mut t_atoms: Array2<String> = Array2::default((mol_nums.len(), max_atm_num));   // atom name
 
     // get atom parameters
     for locator in locators {
@@ -115,7 +123,7 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
         sys_atom_nums.push(num);
         let locator = locator + 4;
 
-        println!("Reading the {}/{} system atoms information.", mol_id + 1, mol_num.len());
+        println!("Reading the {}/{} system atoms information.", mol_id + 1, mol_nums.len());
         println!("Reading atom property parameters...");
         let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);   // progress bar
         for i in 0..sys_atom_nums[mol_id] {
@@ -161,7 +169,7 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
         resnums.push(res_num);
     }
     let max_res_num: usize = *resnums.iter().max().unwrap() as usize;
-    let mut res_names = Array2::<String>::default((mol_num.len(), max_res_num));
+    let mut res_names = Array2::<String>::default((mol_nums.len(), max_res_num));
 
     for (idx, locator) in locators.into_iter().enumerate() {
         let re = Regex::new(".*name=\"(.+)\",.*nr=(\\d+).*").unwrap();
@@ -214,8 +222,8 @@ pub fn gen_qrv(mdp: &String, tpr:&String, ndx: &Index, wd: &Path,
     // output to qrv file
     let mut atom_id_total = 0;
     let mut atom_id_feature = 0;
-    for i in 0..grp_num {
-        for n in 0..mol_num[i] {
+    for i in 0..mol_types {
+        for n in 0..mol_nums[i] {
             println!("Writing atoms...");
             let pb = ProgressBar::new(sys_atom_nums[i] as u64);
             for j in 0..sys_atom_nums[i] {

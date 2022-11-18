@@ -11,7 +11,7 @@ use std::rc::Rc;
 use indicatif::ProgressBar;
 use crate::parse_tpr::gen_qrv;
 
-pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, mdp: &String, ndx: &Index, wd: &Path,
+pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path,
                               use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, settings: &Parameters)
@@ -29,28 +29,24 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &String, mdp: &String, ndx: &In
     let mut re_gen_qrv = true;
     if qrv_path.is_file() {
         let mdp_sha = gen_file_sha256(mdp);
-        let qrv_sha = gen_file_sha256(qrv_path.as_path());
-        if wd.join("_mdp.sha").is_file() && wd.join("_qrv.sha").is_file() {
+        let qrv_sha = gen_file_sha256(qrv_path.as_path().to_str().unwrap());
+        if wd.join(".mdp.sha").is_file() && wd.join(".qrv.sha").is_file() {
             let old_mdp_sha = fs::read_to_string(wd.join(".mdp.sha")).unwrap();
             let old_qrv_sha = fs::read_to_string(wd.join(".qrv.sha")).unwrap();
             if mdp_sha.eq(&old_mdp_sha) && qrv_sha.eq(&old_qrv_sha) {
-                println!("{}", mdp_sha);
-                println!("{}", old_mdp_sha);
-                println!("{}", qrv_sha);
-                println!("{}", old_qrv_sha);
                 re_gen_qrv = false;
-                println!("Found checked {}. Will not regenerate parameters qrv file.", qrv_path.to_str().unwrap());
+                println!("Found checked {}. Will not regenerate it.", qrv_path.to_str().unwrap());
             } else {
-                println!("Parameter qrv file has been changed.");
+                println!("Parameter file {} has been changed. Regenerating it.", qrv_path.to_str().unwrap());
             }
         }
     }
     if re_gen_qrv {
         // get charge, radius, LJ parameters of each atoms and generate qrv files
-        gen_qrv(mdp, tpr, ndx, wd, receptor_grp, ligand_grp, qrv_path.as_path(), settings);
+        gen_qrv(mdp, ndx, wd, receptor_grp, ligand_grp, qrv_path.as_path(), settings);
     }
     // pdb>pqr, output apbs, calculate MM, calculate APBS
-    let results = do_mmpbsa(trj, mdp, ndx, qrv_path.to_str().unwrap(), wd, sys_name.as_str(),
+    let results = do_mmpbsa(trj, ndx, wd, sys_name.as_str(),
                             complex_grp, receptor_grp, ligand_grp,
                             bt, et, dt,
                             settings, use_dh, use_ts);
@@ -78,7 +74,7 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     return (coord_matrix, box_size);
 }
 
-fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_name: &str,
+fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
              bt: f64, et: f64, dt: f64,
              settings: &Parameters, use_dh: bool, use_ts: bool)
@@ -161,17 +157,17 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     \n  calcenergy total";
 
     let qrv = wd.join(sys_name.to_string() + ".qrv");
-    let wd = wd.join(sys_name);
-    println!("Temporary files will be placed at {}", wd.display());
-    if !wd.is_dir() {
-        fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+    let temp_dir = wd.join(sys_name);
+    println!("Temporary files will be placed at {}/", temp_dir.display());
+    if !temp_dir.is_dir() {
+        fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
     } else {
-        println!("Directory {} not empty. Clear? [Y/n]", wd.display());
+        println!("Directory {} not empty. Clear? [Y/n]", temp_dir.display());
         let mut input = String::from("");
         stdin().read_line(&mut input).expect("Get input error");
         if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
-            fs::remove_dir_all(&wd).expect("Remove dir failed");
-            fs::create_dir(&wd).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         }
     }
 
@@ -180,13 +176,13 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     let qrv = fs::read_to_string(qrv).unwrap();
     let qrv: Vec<&str> = qrv.split("\n").collect();
     // c6 and c12
-    let Atyp = qrv[1];
+    let Atyp = qrv[2];
     let Atyp: usize = Atyp.trim().parse().unwrap();
-    let mut C6 = Array2::<f64>::zeros((Atyp, Atyp));
-    let mut C12 = Array2::<f64>::zeros((Atyp, Atyp));
+    let mut C6: Array2<f64> = Array2::zeros((Atyp, Atyp));
+    let mut C12: Array2<f64> = Array2::zeros((Atyp, Atyp));
     for i in 0..Atyp {
         for j in 0..Atyp {
-            let paralj: Vec<&str> = qrv[i + 2].trim().split(" ").collect();
+            let paralj: Vec<&str> = qrv[i + 3].trim().split(" ").collect();
             let c6: f64 = paralj[2 * j + 1].parse().unwrap();
             C6[[i, j]] = c6;
             let c12: f64 = paralj[2 * j + 2].parse().unwrap();
@@ -211,7 +207,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     // res_lig has blanks in the right part
     let mut res_lig = Array1::<String>::default(qrv.len() - 3 - Atyp);
     let mut idx = 0;
-    for line in &qrv[Atyp + 2..qrv.len() - 1] { // there's a blank line at the end
+    for line in &qrv[Atyp + 3..qrv.len() - 1] { // there's a blank line at the end
         let line: Vec<&str> = line
             .split(" ")
             .filter_map(|p| match p.len() {
@@ -308,9 +304,10 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
             }
         }
     }
-    println!("Finished setting parameters.");
+    println!("Finished parsing parameters.");
 
     // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
+    println!("Reading trajectory...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
     let total_frames = frames.len();
@@ -331,26 +328,26 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     let max_z = coordinates.slice(s![.., .., 2]).iter().
         fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
 
-    let mut min_x_rec = Array1::<f64>::zeros(total_frames);
-    let mut min_y_rec = Array1::<f64>::zeros(total_frames);
-    let mut min_z_rec = Array1::<f64>::zeros(total_frames);
-    let mut max_x_rec = Array1::<f64>::zeros(total_frames);
-    let mut max_y_rec = Array1::<f64>::zeros(total_frames);
-    let mut max_z_rec = Array1::<f64>::zeros(total_frames);
+    let mut min_x_rec: Array1<f64> = Array1::zeros(total_frames);
+    let mut min_y_rec: Array1<f64> = Array1::zeros(total_frames);
+    let mut min_z_rec: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_x_rec: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_y_rec: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_z_rec: Array1<f64> = Array1::zeros(total_frames);
 
-    let mut min_x_lig = Array1::<f64>::zeros(total_frames);
-    let mut min_y_lig = Array1::<f64>::zeros(total_frames);
-    let mut min_z_lig = Array1::<f64>::zeros(total_frames);
-    let mut max_x_lig = Array1::<f64>::zeros(total_frames);
-    let mut max_y_lig = Array1::<f64>::zeros(total_frames);
-    let mut max_z_lig = Array1::<f64>::zeros(total_frames);
+    let mut min_x_lig: Array1<f64> = Array1::zeros(total_frames);
+    let mut min_y_lig: Array1<f64> = Array1::zeros(total_frames);
+    let mut min_z_lig: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_x_lig: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_y_lig: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_z_lig: Array1<f64> = Array1::zeros(total_frames);
 
-    let mut min_x_com = Array1::<f64>::zeros(total_frames);
-    let mut min_y_com = Array1::<f64>::zeros(total_frames);
-    let mut min_z_com = Array1::<f64>::zeros(total_frames);
-    let mut max_x_com = Array1::<f64>::zeros(total_frames);
-    let mut max_y_com = Array1::<f64>::zeros(total_frames);
-    let mut max_z_com = Array1::<f64>::zeros(total_frames);
+    let mut min_x_com: Array1<f64> = Array1::zeros(total_frames);
+    let mut min_y_com: Array1<f64> = Array1::zeros(total_frames);
+    let mut min_z_com: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_x_com: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_y_com: Array1<f64> = Array1::zeros(total_frames);
+    let mut max_z_com: Array1<f64> = Array1::zeros(total_frames);
 
     let bf = (bt / frames[1].time as f64) as usize;
     let ef = (et / frames[1].time as f64) as usize;
@@ -358,17 +355,17 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
     let total_frames = (ef - bf) / dframe + 1;
     let ef = ef + 1;        // range lefts the last frame
 
-    println!("Preparing qrv files...");
+    println!("Preparing APBS inputs...");
     let pb = ProgressBar::new(total_frames as u64);
     for cur_frm in (bf..ef).step_by(dframe) {
         // process each frame
 
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        let pqr_com = wd.join(format!("{}_com.pqr", f_name));
+        let pqr_com = temp_dir.join(format!("{}_com.pqr", f_name));
         let mut pqr_com = File::create(pqr_com).unwrap();
-        let pqr_rec = wd.join(format!("{}_rec.pqr", f_name));
+        let pqr_rec = temp_dir.join(format!("{}_rec.pqr", f_name));
         let mut pqr_rec = File::create(pqr_rec).unwrap();
-        let pqr_lig = wd.join(format!("{}_lig.pqr", f_name));
+        let pqr_lig = temp_dir.join(format!("{}_lig.pqr", f_name));
         let mut pqr_lig = File::create(pqr_lig).unwrap();
 
         // get min and max atom coordinates
@@ -544,7 +541,7 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
 
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        let mut input_apbs = File::create(wd.join(format!("{}.apbs", f_name))).unwrap();
+        let mut input_apbs = File::create(temp_dir.join(format!("{}.apbs", f_name))).unwrap();
         input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
         input_apbs.write_all(format!("  mol pqr {0}_com.pqr\
         \n  mol pqr {0}_rec.pqr\
@@ -595,17 +592,17 @@ fn do_mmpbsa(trj: &String, mdp: &String, ndx: &Index, qrv: &str, wd: &Path, sys_
         }
 
         // invoke apbs program to do apbs calculations
-        let mut apbs_out = File::create(wd.join(format!("{}.out", f_name))).
+        let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
             expect("Failed to create apbs out file");
         let apbs_result = Command::new(apbs).
-            arg(wd.join(format!("{}.apbs", f_name))).
-            current_dir(&wd).output().expect("running apbs failed.");
+            arg(format!("{}.apbs", f_name)).
+            current_dir(&temp_dir).output().expect("running apbs failed.");
         let apbs_output = String::from_utf8(apbs_result.stdout).
             expect("Failed to get apbs output.");
         apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
 
         // parse output
-        let apbs_info = fs::read_to_string(wd.join(format!("{}.out", f_name))).unwrap();
+        let apbs_info = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
         let mut Esol = Array2::<f64>::zeros((3, atom_num_com));
         let mut Evac = Array2::<f64>::zeros((3, atom_num_com));
         let mut Esas = Array2::<f64>::zeros((3, atom_num_com));

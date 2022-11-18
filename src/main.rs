@@ -33,7 +33,7 @@ pub struct Parameters {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut tpr = String::new();
+    let mut tpr_mdp = String::new();
     let mut trj = String::from("");
     let mut ndx = String::from("");
     let mut use_dh = true;
@@ -46,8 +46,8 @@ fn main() {
     let programs = check_basic_programs(settings.gmx.as_str(), settings.apbs.as_str());
     settings.gmx = programs.0;
     settings.apbs = programs.1;
-    if settings.gmx.len() == 0 || settings.apbs.len() == 0 {
-        println!("Press any key to exit.");
+    if settings.apbs.len() == 0 {
+        println!("APBS invalid. Press any key to exit.");
         let mut temp = String::new();
         stdin().read_line(&mut temp).unwrap();
         return;
@@ -55,15 +55,15 @@ fn main() {
 
     match args.len() {
         1 => {
-            println!("Input path of .tpr file, e.g. D:/Study/ZhangYang.tpr");
-            stdin().read_line(&mut tpr).expect("Failed to read tpr file.");
+            println!("Input path of .tpr or dumped .mdp file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang_dump.mdp");
+            stdin().read_line(&mut tpr_mdp).expect("Failed to read tpr or dumped file.");
         }
-        2 => tpr = args[1].to_string(),
+        2 => tpr_mdp = args[1].to_string(),
         _ => {
             for i in 1..args.len() {
                 match args[i].as_str() {
                     "-f" => { trj = args[i + 1].to_string() }
-                    "-s" => { tpr = args[i + 1].to_string() }
+                    "-s" => { tpr_mdp = args[i + 1].to_string() }
                     "-n" => { ndx = args[i + 1].to_string() }
                     _ => {
                         if i % 2 == 1 {
@@ -74,11 +74,16 @@ fn main() {
             }
         }
     }
-    tpr = confirm_file_validity(&mut tpr, vec!["tpr"]);
+    tpr_mdp = confirm_file_validity(&mut tpr_mdp, vec!["tpr", "mdp"]);
     // working directory (path of tpr location)
-    let wd = Path::new(&tpr).parent().expect("Failed getting parent directory.");
-    println!("Currently working at path: {}", wd.display());
-    let mdp = dump_tpr(&tpr, wd, settings.gmx.as_str());
+    let wd = Path::new(&tpr_mdp).parent().unwrap();
+    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr_mdp)).unwrap().as_path().parent().unwrap().display());
+    // get mdp or dump tpr to mdp
+    let mut mdp_path = String::from(&tpr_mdp).clone();
+    if tpr_mdp.ends_with(".tpr") {
+        mdp_path = wd.join(tpr_mdp[0..tpr_mdp.len() - 4].to_string() + "_dumped.mdp").as_path().to_str().unwrap().to_string();
+        dump_tpr(&tpr_mdp, &mdp_path, settings.gmx.as_str());
+    }
     loop {
         println!("\n                 ************ SuperMMPBSA functions ************");
         println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
@@ -104,7 +109,7 @@ fn main() {
                     // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
-                    mmpbsa_calculation(&trj, &tpr, &mdp, &ndx, wd, use_dh, use_ts, &settings);
+                    mmpbsa_calculation(&trj, &mdp_path, &ndx, &wd, use_dh, use_ts, &settings);
                 }
             }
             1 => {
@@ -130,22 +135,23 @@ fn welcome() {
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
         Version 0.1, first release: 2022-Oct-17\n\
         Current time: {}\n\n\
-        Usage 1: run `SuperMMPBSA` and follow the prompts.\n\
-        Usage 2: run `SuperMMPBSA WangBingBing.tpr` to directly load WangBingBing.tpr.\n\
-        Usage 3: run `SuperMMPBSA -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n",
+        Usage 1: run `super_mmpbsa` and follow the prompts.\n\
+        Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
+        Usage 3: run `super_mmpbsa WangBingBing_dumped.mdp` to directly load dump file.\n\
+        Usage 4: run `super_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n\
+        Usage 5: run `super_mmpbsa -f md.xtc -s md_dumped.mdp -n index.ndx` to assign all needed files.\n",
              Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
 }
 
-fn dump_tpr(tpr: &String, wd: &Path, gmx: &str) -> String {
+fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
     let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
-    let mut outfile = fs::File::create(wd.join("_mdout.mdp")).unwrap();
+    let mut outfile = fs::File::create(dump_to).unwrap();
     outfile.write(tpr_dump.as_bytes()).unwrap();
-    println!("Finished loading tpr file, md parameters dumped to {}", wd.join("_mdout.mdp").display());
-    return wd.join("_mdout.mdp").to_str().unwrap().to_string();
+    println!("Finished loading tpr file, md parameters dumped to {}", dump_to);
 }
 
-fn mmpbsa_calculation(trj: &String, tpr: &String, mdp: &String, ndx: &String,
+fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String,
                       wd: &Path, use_dh: bool, use_ts: bool, settings: &Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
@@ -179,7 +185,7 @@ fn mmpbsa_calculation(trj: &String, tpr: &String, mdp: &String, ndx: &String,
         match i {
             -10 => return,
             0 => {
-                let results = mmpbsa::do_mmpbsa_calculations(&trj, &tpr, mdp, &ndx, wd,
+                let results = mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd,
                                                              use_dh, use_ts,
                                                              complex_grp as usize,
                                                              receptor_grp as usize,
@@ -282,14 +288,14 @@ fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String 
     }
 }
 
-fn get_built_in_gmx(p: &Path) -> String {
+fn get_built_in_gmx() -> String {
     if cfg!(windows) {
-        p.parent().unwrap().join("programs").join("gmx")
-            .join("gmx.exe").to_str().unwrap().to_string()
-    } else if cfg!(unix) {
-        p.parent().unwrap().join("programs").join("gmx")
-            .join("gmx").to_str().unwrap().to_string()
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("programs").join("gmx")
+            .join("win").join("gmx.exe").to_str().unwrap().to_string()
+        // p.parent().unwrap().join("programs").join("gmx")
+        //     .join("gmx.exe").to_str().unwrap().to_string()
     } else {
+        println!("Currently not supported.");
         String::new()
     }
 }
@@ -299,29 +305,30 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     let mut apbs_path: String = String::new();
     let mut gmx = gmx.to_string();
     if gmx == "built-in" {
-        gmx = get_built_in_gmx(&env::current_exe().unwrap());
+        // gmx = get_built_in_gmx(&env::current_exe().unwrap());
+        gmx = get_built_in_gmx();
     }
     match check_program_validity(gmx.as_str(), "GROMACS version:") {
         Ok(p) => {
             gmx_path = p;
-            println!("Note: Gromacs configured correctly: {}.", gmx);
+            println!("Using Gromacs: {}", gmx);
         }
         Err(_) => {
-            println!("Warning: Gromacs not configured correctly. Now trying default gmx.");
+            println!("Warning: Gromacs not configured correctly: {}. Now trying default gmx.", gmx);
             match check_program_validity("gmx", "GROMACS version") {
                 Ok(p) => {
                     gmx_path = p;
-                    println!("Note: default gmx valid.");
+                    println!("Using Gromacs: gmx");
                 }
                 Err(_) => {
                     println!("Warning: default gmx invalid. Now trying built-in gmx of super_mmpbsa.");
                     match check_program_validity(
-                        get_built_in_gmx(&env::current_exe().unwrap()).as_str(),
+                        get_built_in_gmx().as_str(),
                         "GROMACS version"
                     ) {
                         Ok(p) => {
                             gmx_path = p;
-                            println!("Note: built-in gmx valid.");
+                            println!("Using Gromacs: {}", get_built_in_gmx().as_str());
                         }
                         Err(_) => {
                             println!("Error: no valid Gromacs program in use.");
@@ -336,7 +343,7 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     match check_program_validity(apbs, "Version") {
         Ok(p) => {
             apbs_path = p;
-            println!("Note: APBS configured correctly: {}.", apbs);
+            println!("Using APBS: {}.", apbs);
             fs::remove_file(Path::new("io.mc")).unwrap();
         }
         Err(_) => {
@@ -344,7 +351,7 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
             match check_program_validity("apbs", "Version") {
                 Ok(p) => {
                     apbs_path = p;
-                    println!("Note: default apbs valid.");
+                    println!("Using APBS: apbs");
                     fs::remove_file(Path::new("io.mc")).unwrap();
                 }
                 Err(_) => {
