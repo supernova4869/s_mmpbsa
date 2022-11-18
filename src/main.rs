@@ -297,35 +297,34 @@ fn get_built_in_gmx(p: &Path) -> String {
 fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     let mut gmx_path: String = String::new();
     let mut apbs_path: String = String::new();
+    let mut gmx = gmx.to_string();
     if gmx == "built-in" {
-        gmx_path = get_built_in_gmx(&env::current_exe().unwrap());
-        println!("Note: will use built-in gromacs in programs/gmx.");
-    } else {
-        match check_program_validity(gmx, "GROMACS version:") {
-            Ok(p) => {
-                gmx_path = p;
-                println!("Note: Gromacs configured correctly.");
-            }
-            Err(_) => {
-                println!("Warning: Gromacs not configured correctly. Now trying default gmx.");
-                match check_program_validity("gmx", "GROMACS version") {
-                    Ok(p) => {
-                        gmx_path = p;
-                        println!("Note: default gmx valid.");
-                    }
-                    Err(_) => {
-                        println!("Warning: default gmx not valid. Now trying built-in gmx of super_mmpbsa.");
-                        match check_program_validity(
-                            get_built_in_gmx(&env::current_exe().unwrap()).as_str(),
-                            "GROMACS version"
-                        ) {
-                            Ok(p) => {
-                                gmx_path = p;
-                                println!("Note: built-in gmx valid.");
-                            }
-                            Err(_) => {
-                                println!("Error: no valid Gromacs program in use.");
-                            }
+        gmx = get_built_in_gmx(&env::current_exe().unwrap());
+    }
+    match check_program_validity(gmx.as_str(), "GROMACS version:") {
+        Ok(p) => {
+            gmx_path = p;
+            println!("Note: Gromacs configured correctly: {}.", gmx);
+        }
+        Err(_) => {
+            println!("Warning: Gromacs not configured correctly. Now trying default gmx.");
+            match check_program_validity("gmx", "GROMACS version") {
+                Ok(p) => {
+                    gmx_path = p;
+                    println!("Note: default gmx valid.");
+                }
+                Err(_) => {
+                    println!("Warning: default gmx invalid. Now trying built-in gmx of super_mmpbsa.");
+                    match check_program_validity(
+                        get_built_in_gmx(&env::current_exe().unwrap()).as_str(),
+                        "GROMACS version"
+                    ) {
+                        Ok(p) => {
+                            gmx_path = p;
+                            println!("Note: built-in gmx valid.");
+                        }
+                        Err(_) => {
+                            println!("Error: no valid Gromacs program in use.");
                         }
                     }
                 }
@@ -337,7 +336,7 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     match check_program_validity(apbs, "Version") {
         Ok(p) => {
             apbs_path = p;
-            println!("Note: APBS configured correctly.");
+            println!("Note: APBS configured correctly: {}.", apbs);
             fs::remove_file(Path::new("io.mc")).unwrap();
         }
         Err(_) => {
