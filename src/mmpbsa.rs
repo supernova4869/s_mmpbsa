@@ -11,18 +11,11 @@ use std::rc::Rc;
 use indicatif::ProgressBar;
 use crate::parse_tpr::gen_qrv;
 
-pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path,
+pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, sys_name: &String,
                               use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, settings: &Parameters)
                               -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
-    let mut sys_name = String::from("_system");
-    println!("Input system name (default: {}):", sys_name);
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("Error input");
-    if input.trim().len() != 0 {
-        sys_name = input.trim().to_string();
-    }
     let qrv_path = String::from(sys_name.as_str()) + ".qrv";
     let qrv_path = wd.join(qrv_path);
 
@@ -39,6 +32,8 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path,
             } else {
                 println!("Parameter file {} has been changed. Regenerating it.", qrv_path.to_str().unwrap());
             }
+        } else {
+            println!("mdp and qrv sha file Not found. Will regenerate parameter file.")
         }
     }
     if re_gen_qrv {
@@ -162,7 +157,7 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     if !temp_dir.is_dir() {
         fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
     } else {
-        println!("Directory {} not empty. Clear? [Y/n]", temp_dir.display());
+        println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
         let mut input = String::from("");
         stdin().read_line(&mut input).expect("Get input error");
         if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
@@ -173,6 +168,7 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
 
     // run MM-PBSA calculatons
     println!("Running MM-PBSA calculatons...");
+    println!("Parsing parameters...");
     let qrv = fs::read_to_string(qrv).unwrap();
     let qrv: Vec<&str> = qrv.split("\n").collect();
     // c6 and c12
@@ -304,7 +300,6 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
             }
         }
     }
-    println!("Finished parsing parameters.");
 
     // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
     println!("Reading trajectory...");

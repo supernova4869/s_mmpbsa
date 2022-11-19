@@ -1,0 +1,12 @@
+Energy Term,kJ/mol,info
+ΔH,-320.337,ΔH=ΔMM+ΔPB+ΔSA
+ΔMM,-419.411,ΔMM=ΔCoulomb+Δvan der Waals
+ΔPB,149.421
+ΔSA,-50.346
+
+ΔCoulomb,-23.828
+Δvan der Waals,-395.584
+
+TΔS,-47.062
+ΔG,-273.275
+Ki,0.000

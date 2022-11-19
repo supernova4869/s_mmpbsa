@@ -5,7 +5,8 @@ mod analyzation;
 
 use std::fs;
 use std::env;
-use std::fmt::Display;
+use std::fmt::{Display, format};
+use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -29,6 +30,7 @@ pub struct Parameters {
     preserve: bool,
     gmx: String,
     apbs: String,
+    last_opened: String,
 }
 
 fn main() {
@@ -74,14 +76,17 @@ fn main() {
             }
         }
     }
-    tpr_mdp = confirm_file_validity(&mut tpr_mdp, vec!["tpr", "mdp"]);
+    tpr_mdp = confirm_file_validity(&mut tpr_mdp, vec!["tpr", "mdp"], &settings);
+
+    change_settings_last_opened(&tpr_mdp);
+
     // working directory (path of tpr location)
     let wd = Path::new(&tpr_mdp).parent().unwrap();
     println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr_mdp)).unwrap().as_path().parent().unwrap().display());
     // get mdp or dump tpr to mdp
     let mut mdp_path = String::from(&tpr_mdp).clone();
     if tpr_mdp.ends_with(".tpr") {
-        mdp_path = wd.join(tpr_mdp[0..tpr_mdp.len() - 4].to_string() + "_dumped.mdp").as_path().to_str().unwrap().to_string();
+        mdp_path = tpr_mdp[0..tpr_mdp.len() - 4].to_string() + "_dumped.mdp";
         dump_tpr(&tpr_mdp, &mdp_path, settings.gmx.as_str());
     }
     loop {
@@ -113,14 +118,16 @@ fn main() {
                 }
             }
             1 => {
-                println!("Input trajectory file path:");
-                stdin().read_line(&mut trj).expect("Failed while reading trajectory");
-                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"]);
+                println!("Input trajectory file path (if in the same directory with tpr, then simply input (e.g.) `?md.xtc`:");
+                stdin().read_line(&mut trj).expect("Failed while reading trajectory file");
+                trj = convert_cur_dir(&trj, &settings);
+                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"], &settings);
             }
             2 => {
-                println!("Input index file path:");
-                stdin().read_line(&mut ndx).expect("Failed while reading index");
-                ndx = confirm_file_validity(&mut ndx, vec!["ndx"]);
+                println!("Input index file path (if in the same directory with tpr, then simply input (e.g.) `?index.ndx`::");
+                stdin().read_line(&mut ndx).expect("Failed while reading index file");
+                ndx = convert_cur_dir(&ndx, &settings);
+                ndx = confirm_file_validity(&mut ndx, vec!["ndx"], &settings);
             }
             3 => break,
             _ => println!("Error input.")
@@ -168,31 +175,50 @@ fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String,
         println!("  0 Do MM-PBSA calculations now!");
         println!("  1 Select complex group, current:            {}", match complex_grp {
             -1 => String::from("undefined"),
-            _ => format!("{}): {}", complex_grp, ndx.groups[complex_grp as usize].name)
+            _ => format!("{}): {}, {} atoms",
+                         complex_grp,
+                         ndx.groups[complex_grp as usize].name,
+                         ndx.groups[complex_grp as usize].indexes.len())
         });
         println!("  2 Select receptor groups, current:          {}", match receptor_grp {
             -1 => String::from("undefined"),
-            _ => format!("{}): {}", receptor_grp, ndx.groups[receptor_grp as usize].name)
+            _ => format!("{}): {}, {} atoms",
+                         receptor_grp,
+                         ndx.groups[receptor_grp as usize].name,
+                         ndx.groups[receptor_grp as usize].indexes.len())
         });
         println!("  3 Select ligand groups, current:            {}", match ligand_grp {
             -1 => String::from("undefined"),
-            _ => format!("{}): {}", ligand_grp, ndx.groups[ligand_grp as usize].name)
+            _ => format!("{}): {}, {} atoms",
+                         ligand_grp,
+                         ndx.groups[ligand_grp as usize].name,
+                         ndx.groups[ligand_grp as usize].indexes.len())
         });
         println!("  4 Set start time of analysis, current:      {} ns", bt / 1000.0);
         println!("  5 Set end time of analysis, current:        {} ns", et / 1000.0);
         println!("  6 Set time interval of analysis, current:   {} ps", dt);
+        println!("  7 Prepare PB parameters: polar");
+        println!("  8 Prepare SA parameters: non-polar");
         let i = get_input_value();
         match i {
             -10 => return,
             0 => {
-                let results = mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd,
+                let mut sys_name = String::from("_system");
+                println!("Input system name (default: {}):", sys_name);
+                let mut input = String::new();
+                stdin().read_line(&mut input).expect("Error input");
+                if input.trim().len() != 0 {
+                    sys_name = input.trim().to_string();
+                }
+                // 定义results形式, 其中应包含所需的全部数据
+                let results = mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd, &sys_name,
                                                              use_dh, use_ts,
                                                              complex_grp as usize,
                                                              receptor_grp as usize,
                                                              ligand_grp as usize,
                                                              bt, et, dt,
                                                              &settings);
-                analyzation::analyze(results);
+                analyzation::analyze_controller(&sys_name, results);
             }
             1 => {
                 println!("Current groups:");
@@ -261,30 +287,29 @@ fn get_input_value<T: FromStr>() -> T {
     }
 }
 
-fn confirm_file_validity(file_name: &mut String, ext_list: Vec<&str>) -> String {
-    let mut file_path = Path::new(file_name.trim());
+// 把ext_list改成enum
+fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Parameters) -> String {
+    let mut f_name = String::from(file_name);
     loop {
-        // check validity
-        if !file_path.is_file() {
-            println!("Not valid file: {}. Input file path again.", file_path.display());
-            file_name.clear();
-            stdin().read_line(file_name).expect("Failed to read file name.");
-            file_path = Path::new(file_name.trim());
+        f_name = convert_cur_dir(&f_name, &settings).trim().to_string();
+        if !Path::new(&f_name).is_file() {
+            println!("Not valid file: {}. Input file path again.", f_name);
+            f_name.clear();
+            stdin().read_line(&mut f_name).expect("Failed to read file name.");
             continue;
         }
         // check extension
-        let file_ext = Path::new(file_path).extension().unwrap().to_str().unwrap();
+        let file_ext = Path::new(&f_name).extension().unwrap().to_str().unwrap();
         for i in 0..ext_list.len() {
             if file_ext != ext_list[i] {
                 continue;
             } else {
-                return file_name.trim().to_string();
+                return f_name.trim().to_string();
             }
         }
         println!("Not valid {:?} file, currently {}. Input file path again.", ext_list, file_ext);
-        file_name.clear();
-        stdin().read_line(file_name).expect("Failed to read file name.");
-        file_path = Path::new(file_name.trim());
+        f_name.clear();
+        stdin().read_line(&mut f_name).expect("Failed to read file name.");
     }
 }
 
@@ -324,7 +349,7 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
                     println!("Warning: default gmx invalid. Now trying built-in gmx of super_mmpbsa.");
                     match check_program_validity(
                         get_built_in_gmx().as_str(),
-                        "GROMACS version"
+                        "GROMACS version",
                     ) {
                         Ok(p) => {
                             gmx_path = p;
@@ -392,27 +417,9 @@ fn init_settings() -> Parameters {
         params = read_settings(&settings);
         println!("Note: found settings.ini in the current path. Will use {} kernels.", params.nkernels);
     } else {
-        // Find $SuperMMPBSAPath
-        let mut super_mmpbsa_path = String::from("");
-        // to help determine if file exists in $SuperMMPBSAPath
-        let mut path: PathBuf = PathBuf::new();
-        for (k, v) in env::vars() {
-            if k.to_lowercase() == "supermmpbsapath" {
-                super_mmpbsa_path = v;
-            }
-        }
-        if super_mmpbsa_path != "" {
-            for entry in Path::new(super_mmpbsa_path.as_str()).read_dir().unwrap() {
-                let entry = entry.unwrap();
-                path = entry.path();
-                let fname = path.file_name().unwrap();
-                if fname == "settings.ini" {
-                    break;
-                }
-            }
-        }
-        if super_mmpbsa_path != "" && path.file_name().unwrap() == "settings.ini" {
-            let settings = fs::read_to_string(path).unwrap();
+        let super_mmpbsa_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("settings.ini");
+        if super_mmpbsa_path.is_file() {
+            let settings = fs::read_to_string(super_mmpbsa_path).unwrap();
             let settings = Regex::new(r"\\").unwrap()
                 .replace_all(settings.as_str(), "/").to_string();
             let settings: Value = toml::from_str(settings.as_str()).unwrap();
@@ -431,6 +438,7 @@ fn init_settings() -> Parameters {
                 preserve: true,
                 gmx: String::from("gmx"),
                 apbs: String::from("apbs"),
+                last_opened: String::new(),
             };
             println!("Note: settings.ini not found. Will use 4 kernel.");
         }
@@ -463,6 +471,11 @@ fn read_settings(settings: &Value) -> Parameters {
     if apbs.len() == 0 {
         apbs = "apbs".to_string();
     }
+    let mut last_opened = settings.get("last_opened").unwrap().to_string();
+    last_opened = last_opened[1..].to_string();
+    if last_opened.len() == 0 {
+        last_opened = "last_opened".to_string();
+    }
     return Parameters {
         rad_type,
         rad_lj0,
@@ -475,5 +488,32 @@ fn read_settings(settings: &Value) -> Parameters {
         preserve,
         gmx,
         apbs,
+        last_opened,
     };
+}
+
+fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
+    if p.starts_with('?') {
+        let last_opened = &settings.last_opened;
+        if last_opened.len() != 0 {
+            Path::new(last_opened).parent().unwrap().join(p[1..].to_string()).to_str().unwrap().to_string()
+        } else {
+            p.to_string()
+        }
+    } else {
+        p.to_string()
+    }
+}
+
+fn change_settings_last_opened(tpr_mdp: &String) {
+    // change settings.ini last opened file
+    let settings = Path::new(env!("CARGO_MANIFEST_DIR")).join("settings.ini");
+    let settings = fs::read_to_string(&settings).unwrap();
+    let re = Regex::new("last_opened.*\".*\"").unwrap();
+    let last_opened = fs::canonicalize(Path::new(&tpr_mdp)).unwrap().display().to_string();
+    let settings = re.replace(settings.as_str(), format!("last_opened = \"{}\"",
+                                                         &last_opened));
+    let mut settings_file = File::create(Path::new(env!("CARGO_MANIFEST_DIR")).join("settings.ini")).unwrap();
+    ;
+    settings_file.write_all(settings.as_bytes()).unwrap();
 }
