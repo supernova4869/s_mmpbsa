@@ -16,7 +16,7 @@ use regex::Regex;
 use toml;
 use toml::Value;
 use xdrfile::{Frame, XTCTrajectory};
-use chrono::prelude::{Utc, Local};
+use chrono::prelude::Local;
 
 pub struct Parameters {
     rad_type: i32,
@@ -58,7 +58,22 @@ fn main() {
     match args.len() {
         1 => {
             println!("Input path of .tpr or dumped .mdp file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang_dump.mdp");
-            stdin().read_line(&mut tpr_mdp).expect("Failed to read tpr or dumped file.");
+            println!("Hint: input \"o\" to simply load last-opened .tpr or dumped .mdp file");
+            loop {
+                stdin().read_line(&mut tpr_mdp).expect("Failed to read tpr or dumped file.");
+                if tpr_mdp.trim() == "o" {
+                    tpr_mdp = settings.last_opened.clone();
+                    if tpr_mdp.len() == 0 {
+                        println!("Last-opened tpr or mdp not found.");
+                    }
+                }
+                if !Path::new(tpr_mdp.trim()).is_file() {
+                    tpr_mdp.clear();
+                    println!("Not file, input again:");
+                } else {
+                    break
+                }
+            }
         }
         2 => tpr_mdp = args[1].to_string(),
         _ => {
@@ -155,7 +170,7 @@ fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
     let mut outfile = fs::File::create(dump_to).unwrap();
     outfile.write(tpr_dump.as_bytes()).unwrap();
-    println!("Finished loading tpr file, md parameters dumped to {}", dump_to);
+    println!("Finished loading tpr file, md parameters dumped to {}", fs::canonicalize(dump_to).unwrap().display());
 }
 
 fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String,
@@ -368,7 +383,7 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     match check_program_validity(apbs, "Version") {
         Ok(p) => {
             apbs_path = p;
-            println!("Using APBS: {}.", apbs);
+            println!("Using APBS: {}", apbs);
             fs::remove_file(Path::new("io.mc")).unwrap();
         }
         Err(_) => {
@@ -472,9 +487,9 @@ fn read_settings(settings: &Value) -> Parameters {
         apbs = "apbs".to_string();
     }
     let mut last_opened = settings.get("last_opened").unwrap().to_string();
-    last_opened = last_opened[1..].to_string();
+    last_opened = last_opened[1..last_opened.len() - 1].to_string();
     if last_opened.len() == 0 {
-        last_opened = "last_opened".to_string();
+        last_opened = String::new();
     }
     return Parameters {
         rad_type,
