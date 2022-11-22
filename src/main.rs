@@ -71,7 +71,7 @@ fn main() {
                     println!("Not file: {}, input again:", tpr_mdp.trim());
                     tpr_mdp.clear();
                 } else {
-                    break
+                    break;
                 }
             }
         }
@@ -330,10 +330,8 @@ fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Par
 
 fn get_built_in_gmx() -> String {
     if cfg!(windows) {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("programs").join("gmx")
-            .join("win").join("gmx.exe").to_str().unwrap().to_string()
-        // p.parent().unwrap().join("programs").join("gmx")
-        //     .join("gmx.exe").to_str().unwrap().to_string()
+        env::current_exe().unwrap().parent().unwrap().join("programs").join("gmx")
+            .join("gmx.exe").to_str().unwrap().to_string()
     } else {
         println!("Currently not supported.");
         String::new()
@@ -432,14 +430,15 @@ fn init_settings() -> Parameters {
         params = read_settings(&settings);
         println!("Note: found settings.ini in the current path. Will use {} kernels.", params.nkernels);
     } else {
-        let super_mmpbsa_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("settings.ini");
+        let super_mmpbsa_path = env::current_exe().unwrap()
+            .parent().unwrap().join("settings.ini");
         if super_mmpbsa_path.is_file() {
             let settings = fs::read_to_string(super_mmpbsa_path).unwrap();
             let settings = Regex::new(r"\\").unwrap()
                 .replace_all(settings.as_str(), "/").to_string();
             let settings: Value = toml::from_str(settings.as_str()).unwrap();
             params = read_settings(&settings);
-            println!("Note: found settings.ini in $SuperMMPBSAPath. Will use {} kernels.", params.nkernels);
+            println!("Note: found settings.ini in super_mmpbsa directory. Will use {} kernels.", params.nkernels);
         } else {
             params = Parameters {
                 rad_type: 1,
@@ -455,7 +454,7 @@ fn init_settings() -> Parameters {
                 apbs: String::from("apbs"),
                 last_opened: String::new(),
             };
-            println!("Note: settings.ini not found. Will use 4 kernel.");
+            println!("Note: settings.ini not found. Will use 1 kernel.");
         }
     }
     println!("(Currently multi-threading not yet utilized)");
@@ -522,13 +521,13 @@ fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
 
 fn change_settings_last_opened(tpr_mdp: &String) {
     // change settings.ini last opened file
-    let settings = Path::new(env!("CARGO_MANIFEST_DIR")).join("settings.ini");
+    let settings = env::current_exe().unwrap().parent().unwrap().join("settings.ini");
     let settings = fs::read_to_string(&settings).unwrap();
     let re = Regex::new("last_opened.*\".*\"").unwrap();
     let last_opened = fs::canonicalize(Path::new(&tpr_mdp)).unwrap().display().to_string();
     let settings = re.replace(settings.as_str(), format!("last_opened = \"{}\"",
                                                          &last_opened));
-    let mut settings_file = File::create(Path::new(env!("CARGO_MANIFEST_DIR")).join("settings.ini")).unwrap();
-    ;
+    let mut settings_file = File::create(env::current_exe().unwrap().parent().unwrap()
+        .join("settings.ini")).unwrap();
     settings_file.write_all(settings.as_bytes()).unwrap();
 }
