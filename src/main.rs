@@ -68,8 +68,8 @@ fn main() {
                     }
                 }
                 if !Path::new(tpr_mdp.trim()).is_file() {
+                    println!("Not file: {}, input again:", tpr_mdp.trim());
                     tpr_mdp.clear();
-                    println!("Not file, input again:");
                 } else {
                     break
                 }
