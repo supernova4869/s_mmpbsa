@@ -151,8 +151,11 @@ fn main() {
 }
 
 fn welcome() {
-    println!("SuperMMPBSA: Supernova's tool of calculating binding free energy using\n\
-        molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method.\n\
+    println!("\
+        ========================================================================\n\
+        | super_mmpbsa: Supernova's tool of calculating binding free energy by |\n\
+        | molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method |\n\
+        ========================================================================\n\
         Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
         Version 0.1, first release: 2022-Oct-17\n\
@@ -421,13 +424,26 @@ fn check_program_validity(program: &str, target_output: &str) -> Result<String, 
 }
 
 fn init_settings() -> Parameters {
-    let params: Parameters;
+    let mut params = Parameters {
+        rad_type: 1,
+        rad_lj0: 1.2,
+        mesh_type: 0,
+        grid_type: 1,
+        cfac: 3.0,
+        fadd: 10.0,
+        df: 0.5,
+        nkernels: 4,
+        preserve: true,
+        gmx: String::from("gmx"),
+        apbs: String::from("apbs"),
+        last_opened: String::new(),
+    };
     if Path::new("settings.ini").is_file() {
         // Find settings locally
         let settings = fs::read_to_string("settings.ini").unwrap();
         let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
         let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini grammar");
-        params = read_settings(&settings);
+        read_user_settings(&mut params, &settings);
         println!("Note: found settings.ini in the current path. Will use {} kernels.", params.nkernels);
     } else {
         let super_mmpbsa_path = env::current_exe().unwrap()
@@ -437,23 +453,9 @@ fn init_settings() -> Parameters {
             let settings = Regex::new(r"\\").unwrap()
                 .replace_all(settings.as_str(), "/").to_string();
             let settings: Value = toml::from_str(settings.as_str()).unwrap();
-            params = read_settings(&settings);
+            read_user_settings(&mut params, &settings);
             println!("Note: found settings.ini in super_mmpbsa directory. Will use {} kernels.", params.nkernels);
         } else {
-            params = Parameters {
-                rad_type: 1,
-                rad_lj0: 1.2,
-                mesh_type: 0,
-                grid_type: 1,
-                cfac: 3.0,
-                fadd: 10.0,
-                df: 0.5,
-                nkernels: 4,
-                preserve: true,
-                gmx: String::from("gmx"),
-                apbs: String::from("apbs"),
-                last_opened: String::new(),
-            };
             println!("Note: settings.ini not found. Will use 1 kernel.");
         }
     }
@@ -461,16 +463,17 @@ fn init_settings() -> Parameters {
     return params;
 }
 
-fn read_settings(settings: &Value) -> Parameters {
-    let rad_type = settings.get("radType").unwrap().to_string().parse().unwrap();
-    let rad_lj0 = settings.get("radLJ0").unwrap().to_string().parse().unwrap();
-    let mesh_type = settings.get("meshType").unwrap().to_string().parse().unwrap();
-    let grid_type = settings.get("gridType").unwrap().to_string().parse().unwrap();
-    let cfac = settings.get("cfac").unwrap().to_string().parse().unwrap();
-    let fadd = settings.get("fadd").unwrap().to_string().parse().unwrap();
-    let df = settings.get("df").unwrap().to_string().parse().unwrap();
-    let nkernels = settings.get("nkernels").unwrap().to_string().parse().unwrap();
-    let preserve = match settings.get("preserve").unwrap().as_str().unwrap() {
+fn read_user_settings(params: &mut Parameters, settings: &Value) {
+    params.rad_type = parse_param(settings, "radType", params.rad_type);
+    params.rad_lj0 = parse_param(settings, "radLJ0", params.rad_lj0);
+    params.mesh_type = parse_param(settings, "meshType", params.mesh_type);
+    params.grid_type = parse_param(settings, "gridType", params.grid_type);
+    params.cfac = parse_param(settings, "cfac", params.cfac);
+    params.fadd = parse_param(settings, "fadd", params.fadd);
+    params.df = parse_param(settings, "df", params.df);
+    params.nkernels = parse_param(settings, "nkernels", params.nkernels);
+    // String type cannot move
+    params.preserve = match settings.get("preserve").unwrap().to_string().as_str() {
         "y" => true,
         "Y" => true,
         _ => false
@@ -480,30 +483,26 @@ fn read_settings(settings: &Value) -> Parameters {
     if gmx.len() == 0 {
         gmx = "gmx".to_string();
     }
+    params.gmx = gmx;
     let mut apbs = settings.get("apbs").unwrap().to_string();
     apbs = apbs[1..apbs.len() - 1].to_string();
     if apbs.len() == 0 {
         apbs = "apbs".to_string();
     }
+    params.apbs = apbs;
     let mut last_opened = settings.get("last_opened").unwrap().to_string();
     last_opened = last_opened[1..last_opened.len() - 1].to_string();
     if last_opened.len() == 0 {
         last_opened = String::new();
     }
-    return Parameters {
-        rad_type,
-        rad_lj0,
-        mesh_type,
-        grid_type,
-        cfac,
-        fadd,
-        df,
-        nkernels,
-        preserve,
-        gmx,
-        apbs,
-        last_opened,
-    };
+    params.last_opened = last_opened;
+}
+
+fn parse_param<T: FromStr>(settings: &Value, key: &str, default: T) -> T {
+    match settings.get(key).unwrap().to_string().parse::<T>() {
+        Ok(v) => v,
+        Err(_) => default
+    }
 }
 
 fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
@@ -521,13 +520,14 @@ fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
 
 fn change_settings_last_opened(tpr_mdp: &String) {
     // change settings.ini last opened file
-    let settings = env::current_exe().unwrap().parent().unwrap().join("settings.ini");
-    let settings = fs::read_to_string(&settings).unwrap();
-    let re = Regex::new("last_opened.*\".*\"").unwrap();
-    let last_opened = fs::canonicalize(Path::new(&tpr_mdp)).unwrap().display().to_string();
-    let settings = re.replace(settings.as_str(), format!("last_opened = \"{}\"",
-                                                         &last_opened));
-    let mut settings_file = File::create(env::current_exe().unwrap().parent().unwrap()
-        .join("settings.ini")).unwrap();
-    settings_file.write_all(settings.as_bytes()).unwrap();
+    let settings_file = env::current_exe().unwrap().parent().unwrap().join("settings.ini");
+    if settings_file.is_file() {
+        let settings = fs::read_to_string(&settings_file).unwrap();
+        let re = Regex::new("last_opened.*\".*\"").unwrap();
+        let last_opened = fs::canonicalize(Path::new(&tpr_mdp)).unwrap().display().to_string();
+        let settings = re.replace(settings.as_str(), format!("last_opened = \"{}\"",
+                                                             &last_opened));
+        let mut settings_file = File::create(settings_file).unwrap();
+        settings_file.write_all(settings.as_bytes()).unwrap();
+    }
 }
