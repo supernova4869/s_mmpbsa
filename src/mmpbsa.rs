@@ -587,14 +587,18 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
         }
 
         // invoke apbs program to do apbs calculations
-        let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
-            expect("Failed to create apbs out file");
-        let apbs_result = Command::new(apbs).
-            arg(format!("{}.apbs", f_name)).
-            current_dir(&temp_dir).output().expect("running apbs failed.");
-        let apbs_output = String::from_utf8(apbs_result.stdout).
-            expect("Failed to get apbs output.");
-        apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
+        if !apbs.is_empty() {
+            let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
+                expect("Failed to create apbs out file");
+            let apbs_result = Command::new(apbs).
+                arg(format!("{}.apbs", f_name)).
+                current_dir(&temp_dir).output().expect("running apbs failed.");
+            let apbs_output = String::from_utf8(apbs_result.stdout).
+                expect("Failed to get apbs output.");
+            apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
+        } else {
+            println!("Warning: APBS not found. Will not calculate solvation energy.");
+        }
 
         // parse output
         let apbs_info = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();

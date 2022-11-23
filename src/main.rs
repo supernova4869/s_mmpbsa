@@ -9,7 +9,7 @@ use std::fmt::{Display, format};
 use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 use std::rc::Rc;
 use std::str::FromStr;
 use regex::Regex;
@@ -48,12 +48,6 @@ fn main() {
     let programs = check_basic_programs(settings.gmx.as_str(), settings.apbs.as_str());
     settings.gmx = programs.0;
     settings.apbs = programs.1;
-    if settings.apbs.len() == 0 {
-        println!("APBS invalid. Press any key to exit.");
-        let mut temp = String::new();
-        stdin().read_line(&mut temp).unwrap();
-        return;
-    }
 
     match args.len() {
         1 => {
@@ -334,7 +328,7 @@ fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Par
 fn get_built_in_gmx() -> String {
     if cfg!(windows) {
         env::current_exe().unwrap().parent().unwrap().join("programs").join("gmx")
-            .join("gmx.exe").to_str().unwrap().to_string()
+            .join("win").join("gmx.exe").to_str().unwrap().to_string()
     } else {
         println!("Currently not supported.");
         String::new()
@@ -349,30 +343,27 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
         // gmx = get_built_in_gmx(&env::current_exe().unwrap());
         gmx = get_built_in_gmx();
     }
-    match check_program_validity(gmx.as_str(), "GROMACS version:") {
+    match check_program_validity(gmx.as_str()) {
         Ok(p) => {
             gmx_path = p;
             println!("Using Gromacs: {}", gmx);
         }
         Err(_) => {
-            println!("Warning: Gromacs not configured correctly: {}. Now trying default gmx.", gmx);
-            match check_program_validity("gmx", "GROMACS version") {
+            println!("Note: Gromacs not configured correctly: {}. Now trying default gmx.", gmx);
+            match check_program_validity("gmx") {
                 Ok(p) => {
                     gmx_path = p;
                     println!("Using Gromacs: gmx");
                 }
                 Err(_) => {
-                    println!("Warning: default gmx invalid. Now trying built-in gmx of super_mmpbsa.");
-                    match check_program_validity(
-                        get_built_in_gmx().as_str(),
-                        "GROMACS version",
-                    ) {
+                    println!("Note: default gmx invalid. Now trying built-in gmx of super_mmpbsa.");
+                    match check_program_validity(get_built_in_gmx().as_str()) {
                         Ok(p) => {
                             gmx_path = p;
                             println!("Using Gromacs: {}", get_built_in_gmx().as_str());
                         }
                         Err(_) => {
-                            println!("Error: no valid Gromacs program in use.");
+                            println!("Warning: no valid Gromacs program in use.");
                         }
                     }
                 }
@@ -381,22 +372,22 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     }
 
     // apbs
-    match check_program_validity(apbs, "Version") {
+    match check_program_validity(apbs) {
         Ok(p) => {
             apbs_path = p;
             println!("Using APBS: {}", apbs);
             fs::remove_file(Path::new("io.mc")).unwrap();
         }
         Err(_) => {
-            println!("Warning: APBS not configured correctly. Now trying default apbs.");
-            match check_program_validity("apbs", "Version") {
+            println!("Note: APBS not configured correctly. Now trying default apbs.");
+            match check_program_validity("apbs") {
                 Ok(p) => {
                     apbs_path = p;
                     println!("Using APBS: apbs");
                     fs::remove_file(Path::new("io.mc")).unwrap();
                 }
                 Err(_) => {
-                    println!("Error: no valid APBS program in use.");
+                    println!("Warning: no valid APBS program in use.");
                 }
             }
         }
@@ -405,21 +396,17 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     return (gmx_path, apbs_path);
 }
 
-fn check_program_validity(program: &str, target_output: &str) -> Result<String, String> {
-    let test_program = Command::new(program).arg("--version").output();
-    match test_program {
-        Ok(test_program) => {
-            let test_program = String::from_utf8(test_program.stdout)
-                .expect(format!("Getting {} output failed.", program).as_str());
-            if test_program.find(target_output) == None {
-                Err(program.to_string())
-            } else {
-                Ok(program.to_string())
+fn check_program_validity(program: &str) -> Result<String, ()> {
+    let output = Command::new(program).arg("--version").output();
+    match output {
+        Ok(output) => {
+            match output.status.code() {
+                Some(0) => Ok(program.to_string()),
+                Some(13) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
+                _ => Err(())
             }
         }
-        Err(_) => {
-            Err(program.to_string())
-        }
+        Err(_) => Err(())
     }
 }
 
