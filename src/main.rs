@@ -340,7 +340,6 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     let mut apbs_path: String = String::new();
     let mut gmx = gmx.to_string();
     if gmx == "built-in" {
-        // gmx = get_built_in_gmx(&env::current_exe().unwrap());
         gmx = get_built_in_gmx();
     }
     match check_program_validity(gmx.as_str()) {

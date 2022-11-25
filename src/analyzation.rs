@@ -22,17 +22,17 @@ pub fn analyze_controller(sys_name: &String, results: (f64, f64, f64, f64, f64, 
                 let (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki) = results;
                 let f_name = format!("{}_MMPBSA.csv", sys_name);
                 let mut energy_sum = fs::File::create(f_name.as_str()).unwrap();
-                energy_sum.write_all(format!("Energy Term,kJ/mol,info\n").as_bytes()).unwrap();
+                energy_sum.write_all("Energy Term,kJ/mol,info\n".as_bytes()).unwrap();
                 energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA\n", dH).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=ΔCoulomb+Δvan der Waals\n", MM).as_bytes()).unwrap();
+                energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelectrostatic+Δvan der Waals\n", MM).as_bytes()).unwrap();
                 energy_sum.write_all(format!("ΔPB,{:.3}\n", PB).as_bytes()).unwrap();
                 energy_sum.write_all(format!("ΔSA,{:.3}\n", SA).as_bytes()).unwrap();
                 energy_sum.write_all(b"\n").unwrap();
-                energy_sum.write_all(format!("ΔCoulomb,{:.3}\n", COU).as_bytes()).unwrap();
+                energy_sum.write_all(format!("Δelectrostatic,{:.3}\n", COU).as_bytes()).unwrap();
                 energy_sum.write_all(format!("Δvan der Waals,{:.3}\n", VDW).as_bytes()).unwrap();
                 energy_sum.write_all(b"\n").unwrap();
                 energy_sum.write_all(format!("TΔS,{:.3}\n", TdS).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔG,{:.3}\n", dG).as_bytes()).unwrap();
+                energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS\n", dG).as_bytes()).unwrap();
                 energy_sum.write_all(format!("Ki,{:.3}\n", Ki).as_bytes()).unwrap();
                 println!("Binding energy terms have been writen to {}", f_name);
             },
