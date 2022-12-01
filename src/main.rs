@@ -2,6 +2,9 @@ mod index_parser;
 mod mmpbsa;
 mod parse_tpr;
 mod analyzation;
+mod fun_para_basic;
+mod fun_para_trj;
+mod fun_para_mmpbsa;
 
 use std::fs;
 use std::env;
@@ -38,10 +41,7 @@ fn main() {
     let mut tpr_mdp = String::new();
     let mut trj = String::from("");
     let mut ndx = String::from("");
-    let mut use_dh = true;
-    let mut use_ts = true;
 
-    // start workflow
     welcome();
     // initialize parameters
     let mut settings = init_settings();
@@ -88,6 +88,7 @@ fn main() {
     tpr_mdp = confirm_file_validity(&mut tpr_mdp, vec!["tpr", "mdp"], &settings);
 
     change_settings_last_opened(&tpr_mdp);
+    settings.last_opened = tpr_mdp.to_string();
 
     // working directory (path of tpr location)
     let wd = Path::new(&tpr_mdp).parent().unwrap();
@@ -95,53 +96,12 @@ fn main() {
     // get mdp or dump tpr to mdp
     let mut mdp_path = String::from(&tpr_mdp).clone();
     if tpr_mdp.ends_with(".tpr") {
-        mdp_path = tpr_mdp[0..tpr_mdp.len() - 4].to_string() + "_dumped.mdp";
+        mdp_path = tpr_mdp[..&tpr_mdp.len() - 4].to_string() + "_dumped.mdp";
         dump_tpr(&tpr_mdp, &mdp_path, settings.gmx.as_str());
     }
-    loop {
-        println!("\n                 ************ SuperMMPBSA functions ************");
-        println!("-2 Toggle whether to use entropy contribution, current: {}", use_ts);
-        println!("-1 Toggle whether to use Debye-Huckel shielding method, current: {}", use_dh);
-        println!(" 0 Ready for MM-PBSA calculations");
-        println!(" 1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
-            0 => "undefined",
-            _ => trj.as_str()
-        });
-        println!(" 2 Assign index file (ndx), current: {}", match ndx.len() {
-            0 => "undefined",
-            _ => ndx.as_str()
-        });
-        println!(" 3 Exit program");
-        let i = get_input_value();
-        match i {
-            -2 => { use_ts = !use_ts; }
-            -1 => { use_dh = !use_dh; }
-            0 => {
-                if trj.len() == 0 {
-                    println!("Trajectory file not assigned.");
-                } else if ndx.len() == 0 {
-                    // 可能要改, 以后不需要index也能算
-                    println!("Index file not assigned.");
-                } else {
-                    mmpbsa_calculation(&trj, &mdp_path, &ndx, &wd, use_dh, use_ts, &settings);
-                }
-            }
-            1 => {
-                println!("Input trajectory file path (if in the same directory with tpr, then simply input (e.g.) `?md.xtc`:");
-                stdin().read_line(&mut trj).expect("Failed while reading trajectory file");
-                trj = convert_cur_dir(&trj, &settings);
-                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"], &settings);
-            }
-            2 => {
-                println!("Input index file path (if in the same directory with tpr, then simply input (e.g.) `?index.ndx`::");
-                stdin().read_line(&mut ndx).expect("Failed while reading index file");
-                ndx = convert_cur_dir(&ndx, &settings);
-                ndx = confirm_file_validity(&mut ndx, vec!["ndx"], &settings);
-            }
-            3 => break,
-            _ => println!("Error input.")
-        };
-    }
+
+    // go to next step
+    fun_para_basic::set_para_basic(&mut trj, &mdp_path, &mut ndx, wd, &mut settings);
 }
 
 fn welcome() {
@@ -162,130 +122,7 @@ fn welcome() {
              Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
 }
 
-fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
-    let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
-    let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
-    let mut outfile = fs::File::create(dump_to).unwrap();
-    outfile.write(tpr_dump.as_bytes()).unwrap();
-    println!("Finished loading tpr file, md parameters dumped to {}", fs::canonicalize(dump_to).unwrap().display());
-}
-
-fn mmpbsa_calculation(trj: &String, mdp: &String, ndx: &String,
-                      wd: &Path, use_dh: bool, use_ts: bool, settings: &Parameters) {
-    let mut complex_grp: i32 = -1;
-    let mut receptor_grp: i32 = -1;
-    let mut ligand_grp: i32 = -1;
-    let xtc = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
-    let frames: Vec<Rc<Frame>> = xtc.into_iter().map(|p| p.unwrap()).collect();
-    let mut bt: f64 = frames[0].time as f64;
-    let mut et: f64 = frames[frames.len() - 1].time as f64;
-    let mut dt: f64 = (frames[1].time - frames[0].time) as f64;
-    let ndx = index_parser::Index::new(ndx);
-    loop {
-        println!("\n                 ************ MM-PBSA calculation ************");
-        println!("-10 Return");
-        println!("  0 Do MM-PBSA calculations now!");
-        println!("  1 Select complex group, current:            {}", match complex_grp {
-            -1 => String::from("undefined"),
-            _ => format!("{}): {}, {} atoms",
-                         complex_grp,
-                         ndx.groups[complex_grp as usize].name,
-                         ndx.groups[complex_grp as usize].indexes.len())
-        });
-        println!("  2 Select receptor groups, current:          {}", match receptor_grp {
-            -1 => String::from("undefined"),
-            _ => format!("{}): {}, {} atoms",
-                         receptor_grp,
-                         ndx.groups[receptor_grp as usize].name,
-                         ndx.groups[receptor_grp as usize].indexes.len())
-        });
-        println!("  3 Select ligand groups, current:            {}", match ligand_grp {
-            -1 => String::from("undefined"),
-            _ => format!("{}): {}, {} atoms",
-                         ligand_grp,
-                         ndx.groups[ligand_grp as usize].name,
-                         ndx.groups[ligand_grp as usize].indexes.len())
-        });
-        println!("  4 Set start time of analysis, current:      {} ns", bt / 1000.0);
-        println!("  5 Set end time of analysis, current:        {} ns", et / 1000.0);
-        println!("  6 Set time interval of analysis, current:   {} ps", dt);
-        println!("  7 Prepare PB parameters: polar");
-        println!("  8 Prepare SA parameters: non-polar");
-        let i = get_input_value();
-        match i {
-            -10 => return,
-            0 => {
-                let mut sys_name = String::from("_system");
-                println!("Input system name (default: {}):", sys_name);
-                let mut input = String::new();
-                stdin().read_line(&mut input).expect("Error input");
-                if input.trim().len() != 0 {
-                    sys_name = input.trim().to_string();
-                }
-                // 定义results形式, 其中应包含所需的全部数据
-                let results = mmpbsa::do_mmpbsa_calculations(&trj, mdp, &ndx, wd, &sys_name,
-                                                             use_dh, use_ts,
-                                                             complex_grp as usize,
-                                                             receptor_grp as usize,
-                                                             ligand_grp as usize,
-                                                             bt, et, dt,
-                                                             &settings);
-                analyzation::analyze_controller(&sys_name, results);
-            }
-            1 => {
-                println!("Current groups:");
-                ndx.list_groups();
-                println!("Input complex group num:");
-                complex_grp = get_input_value();
-            }
-            2 => {
-                println!("Current groups:");
-                ndx.list_groups();
-                println!("Input receptor group num:");
-                receptor_grp = get_input_value();
-            }
-            3 => {
-                println!("Current groups:");
-                ndx.list_groups();
-                println!("Input ligand group num:");
-                ligand_grp = get_input_value();
-            }
-            4 => {
-                println!("Input start time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_bt = get_input_value::<f64>() * 1000.0;
-                while (new_bt - bt) % dt != 0.0 || new_bt > frames[frames.len() - 1].time as f64 || new_bt < 0.0 {
-                    println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
-                    println!("Input start time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_bt = get_input_value::<f64>() * 1000.0;
-                }
-                bt = new_bt;
-            }
-            5 => {
-                println!("Input end time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_et = get_input_value::<f64>() * 1000.0;
-                while (new_et - et) % dt != 0.0 || new_et > frames[frames.len() - 1].time as f64 || new_et < 0.0 {
-                    println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
-                    println!("Input end time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_et = get_input_value::<f64>() * 1000.0;
-                }
-                et = new_et;
-            }
-            6 => {
-                println!("Input interval time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_dt = get_input_value::<f64>() * 1000.0;
-                while new_dt % dt != 0.0 {
-                    println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
-                    println!("Input interval time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_dt = get_input_value::<f64>() * 1000.0;
-                }
-                dt = new_dt;
-            }
-            _ => println!("Invalid input")
-        }
-    }
-}
-
-fn get_input_value<T: FromStr>() -> T {
+pub fn get_input_value<T: FromStr>() -> T {
     loop {
         let mut input = String::from("");
         stdin().read_line(&mut input).expect("Error input.");
@@ -300,7 +137,7 @@ fn get_input_value<T: FromStr>() -> T {
 }
 
 // 把ext_list改成enum
-fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Parameters) -> String {
+pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Parameters) -> String {
     let mut f_name = String::from(file_name);
     loop {
         f_name = convert_cur_dir(&f_name, &settings).trim().to_string();
@@ -491,7 +328,7 @@ fn parse_param<T: FromStr>(settings: &Value, key: &str, default: T) -> T {
     }
 }
 
-fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
+pub fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
     if p.starts_with('?') {
         let last_opened = &settings.last_opened;
         if last_opened.len() != 0 {
@@ -516,4 +353,12 @@ fn change_settings_last_opened(tpr_mdp: &String) {
         let mut settings_file = File::create(settings_file).unwrap();
         settings_file.write_all(settings.as_bytes()).unwrap();
     }
+}
+
+fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
+    let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
+    let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
+    let mut outfile = fs::File::create(dump_to).unwrap();
+    outfile.write(tpr_dump.as_bytes()).unwrap();
+    println!("Finished loading tpr file, md parameters dumped to {}", fs::canonicalize(dump_to).unwrap().display());
 }
