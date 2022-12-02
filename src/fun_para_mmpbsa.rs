@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::io::stdin;
 use std::path::Path;
 use crate::{get_input_value, index_parser, Parameters};
@@ -15,27 +14,22 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                                                              receptor_grp: usize,
                                                              ligand_grp: usize,
                                                              bt: f64, et: f64, dt: f64,
-                                                             settings: &Parameters) {
-    let mut use_dh = true;
-    let mut use_ts = true;
+                                                             settings: &mut Parameters) {
     let atom_rad_type = AtomRadius::MBondi;
-    let mut cfac = 3.0;
-    let mut fadd = 10.0;
-    let mut df = 0.5;
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
         println!("  0 Start MM/PB-SA calculation");
-        println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", use_dh);
-        println!("  2 Toggle whether to use entropy contribution, current: {}", use_ts);
+        println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
+        println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
         println!("  3 Select atom radius type, current: {}", match atom_rad_type {
             AtomRadius::ForceField => "from force field",
             AtomRadius::MBondi => "mBondi"
         });
         println!("  4 Input atom radius for LJ parameters, current: not support");
-        println!("  5 Input coarse grid expand factor, current: {}", cfac);
-        println!("  6 Input fine grid expand amount, current: {}", fadd);
-        println!("  7 Input fine mesh spacing, current: {}", df);
+        println!("  5 Input coarse grid expand factor, current: {}", settings.cfac);
+        println!("  6 Input fine grid expand amount, current: {} A", settings.fadd);
+        println!("  7 Input fine mesh spacing, current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
         let i = get_input_value();
@@ -52,24 +46,27 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                 // 定义results形式, 其中应包含所需的全部数据
                 let ndx = index_parser::Index::new(ndx);
                 let results = mmpbsa::do_mmpbsa_calculations(trj, mdp, &ndx, wd, &sys_name,
-                                                             use_dh, use_ts,
                                                              complex_grp as usize,
                                                              receptor_grp as usize,
                                                              ligand_grp as usize,
                                                              bt, et, dt,
                                                              &settings);
-                analyzation::analyze_controller(&sys_name, results);
+                analyzation::analyze_controller(wd, &sys_name, results);
             }
-            1 => { use_dh = !use_dh; }
-            2 => { use_ts = !use_ts; }
+            1 => {
+                settings.use_dh = !settings.use_dh;
+            }
+            2 => {
+                settings.use_ts = !settings.use_ts;
+            }
             5 => {
                 println!("Input coarse grid expand factor");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    cfac = 3.0;
+                    settings.cfac = 3.0;
                 } else {
-                    cfac = s.trim().parse().unwrap();
+                    settings.cfac = s.trim().parse().unwrap();
                 }
             }
             6 => {
@@ -77,9 +74,9 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    fadd = 10.0;
+                    settings.fadd = 10.0;
                 } else {
-                    fadd = s.trim().parse().unwrap();
+                    settings.fadd = s.trim().parse().unwrap();
                 }
             }
             7 => {
@@ -87,9 +84,9 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    df = 0.5;
+                    settings.df = 0.5;
                 } else {
-                    df = s.trim().parse().unwrap();
+                    settings.df = s.trim().parse().unwrap();
                 }
             }
             _ => println!("Invalid input")

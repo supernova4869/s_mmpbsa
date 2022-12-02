@@ -1,12 +1,11 @@
-use std::io::stdin;
 use std::path::Path;
 use std::rc::Rc;
 use xdrfile::{Frame, XTCTrajectory};
-use crate::{analyzation, get_input_value, index_parser, mmpbsa, Parameters};
+use crate::{get_input_value, Parameters};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 
-pub fn set_para_trj(trj: &String, mdp: &String, ndx: &String, wd: &Path, settings: &Parameters) {
+pub fn set_para_trj(trj: &String, mdp: &String, ndx: &String, wd: &Path, settings: &mut Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -35,7 +34,7 @@ pub fn set_para_trj(trj: &String, mdp: &String, ndx: &String, wd: &Path, setting
                                 receptor_grp as usize,
                                 ligand_grp as usize,
                                 bt, et, dt,
-                                &settings);
+                                settings);
             }
             1 => {
                 println!("Current groups:");

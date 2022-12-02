@@ -1,8 +1,9 @@
 use std::fs;
 use std::io::Write;
+use std::path::Path;
 use crate::get_input_value;
 
-pub fn analyze_controller(sys_name: &String, results: (f64, f64, f64, f64, f64, f64, f64, f64, f64)) {
+pub fn analyze_controller(wd:&Path, sys_name: &String, results: (f64, f64, f64, f64, f64, f64, f64, f64, f64)) {
     loop {
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!(" 0 Return");
@@ -21,7 +22,7 @@ pub fn analyze_controller(sys_name: &String, results: (f64, f64, f64, f64, f64, 
                 println!("Writing binding energy terms...");
                 let (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki) = results;
                 let f_name = format!("{}_MMPBSA.csv", sys_name);
-                let mut energy_sum = fs::File::create(f_name.as_str()).unwrap();
+                let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
                 energy_sum.write_all("Energy Term,kJ/mol,info\n".as_bytes()).unwrap();
                 energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA\n", dH).as_bytes()).unwrap();
                 energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelectrostatic+Δvan der Waals\n", MM).as_bytes()).unwrap();
@@ -33,8 +34,8 @@ pub fn analyze_controller(sys_name: &String, results: (f64, f64, f64, f64, f64, 
                 energy_sum.write_all(b"\n").unwrap();
                 energy_sum.write_all(format!("TΔS,{:.3}\n", TdS).as_bytes()).unwrap();
                 energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS\n", dG).as_bytes()).unwrap();
-                energy_sum.write_all(format!("Ki,{:.3}\n", Ki).as_bytes()).unwrap();
-                println!("Binding energy terms have been writen to {}", f_name);
+                energy_sum.write_all(format!("Ki,{:.3e}\n", Ki).as_bytes()).unwrap();
+                println!("Binding energy terms have been writen to {}", &f_name);
             },
             _ => println!("Coming")
         }

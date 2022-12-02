@@ -5,20 +5,20 @@ mod analyzation;
 mod fun_para_basic;
 mod fun_para_trj;
 mod fun_para_mmpbsa;
+mod atom_radius;
+mod apbs_param;
+mod gen_apbs_parameters;
 
 use std::fs;
 use std::env;
-use std::fmt::{Display, format};
 use std::fs::File;
 use std::io::{stdin, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus};
-use std::rc::Rc;
+use std::path::Path;
+use std::process::Command;
 use std::str::FromStr;
 use regex::Regex;
 use toml;
 use toml::Value;
-use xdrfile::{Frame, XTCTrajectory};
 use chrono::prelude::Local;
 
 pub struct Parameters {
@@ -26,6 +26,8 @@ pub struct Parameters {
     rad_lj0: f64,
     mesh_type: i32,
     grid_type: i32,
+    use_dh: bool,
+    use_ts: bool,
     cfac: f64,
     fadd: f64,
     df: f64,
@@ -252,6 +254,8 @@ fn init_settings() -> Parameters {
         rad_lj0: 1.2,
         mesh_type: 0,
         grid_type: 1,
+        use_dh: true,
+        use_ts: true,
         cfac: 3.0,
         fadd: 10.0,
         df: 0.5,

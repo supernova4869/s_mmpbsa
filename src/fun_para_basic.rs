@@ -1,7 +1,5 @@
-use std::fs;
-use std::io::{stdin, Write};
+use std::io::stdin;
 use std::path::Path;
-use std::process::Command;
 use crate::Parameters;
 use crate::{get_input_value, convert_cur_dir, confirm_file_validity};
 use crate::fun_para_trj::set_para_trj;
@@ -11,7 +9,7 @@ pub fn set_para_basic(trj: &String, mdp: &String, ndx: &String, wd: &Path, setti
     let mut ndx = String::from(ndx);
 
     loop {
-        println!("\n                 ************ Basic Parameters ************");
+        println!("\n                 ************ MM/PB-SA Files ************");
         println!(" 0 Go to next step");
         println!(" 1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
             0 => "undefined",
@@ -32,7 +30,7 @@ pub fn set_para_basic(trj: &String, mdp: &String, ndx: &String, wd: &Path, setti
                     println!("Index file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj(&trj, &mdp, &ndx, &wd, &settings);
+                    set_para_trj(&trj, &mdp, &ndx, &wd, settings);
                 }
             }
             1 => {

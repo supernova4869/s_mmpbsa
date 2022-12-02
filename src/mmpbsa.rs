@@ -2,17 +2,18 @@ use std::fs;
 use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
-use crate::{get_input_value, Parameters};
+use crate::Parameters;
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
-use std::io::{Read, stdin, Write};
+use std::io::{stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::ProgressBar;
 use crate::parse_tpr::gen_qrv;
+use crate::apbs_param::{PBASet, PBESet};
+use crate::gen_apbs_parameters::dim_apbs;
 
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, sys_name: &String,
-                              use_dh: bool, use_ts: bool,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, settings: &Parameters)
                               -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
@@ -44,7 +45,7 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, s
     let results = do_mmpbsa(trj, ndx, wd, sys_name.as_str(),
                             complex_grp, receptor_grp, ligand_grp,
                             bt, et, dt,
-                            settings, use_dh, use_ts);
+                            settings);
     return results;
 }
 
@@ -72,7 +73,7 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
 fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
              bt: f64, et: f64, dt: f64,
-             settings: &Parameters, use_dh: bool, use_ts: bool)
+             settings: &Parameters)
              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // Running settings
     let apbs = &settings.apbs;
@@ -81,75 +82,26 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     let cfac = settings.cfac;
     let fadd = settings.fadd;
     let df = settings.df;
+    let use_dh = settings.use_dh;
+    let use_ts = settings.use_ts;
 
-    // PB部分的参数从哪来?是否从前一菜单转移?
-    let PBEset0 = "  temp  298.15      # 温度\
-    \n  pdie  2           # 溶质介电常数\
-    \n  sdie  1           # 溶剂介电常数, 真空1, 水78.54\
-    \n  \
-    \n  npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)\
-    \n  bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\
-    \n  srfm  smol        # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)\
-    \n  chgm  spl4        # 电荷映射到格点的方法, spl0/2/4, 三线性插值, 立方/四次B样条离散\
-    \n  swin  0.3         # 立方样条的窗口值, 仅用于 srfm=spl2/4\
-    \n  \
-    \n  srad  1.4         # 溶剂探测半径\
-    \n  sdens 10          # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用\
-    \n  \
-    \n  ion charge  1 conc 0.15 radius 0.95  # 阳离子的电荷, 浓度, 半径\
-    \n  ion charge -1 conc 0.15 radius 1.81  # 阴离子\
-    \n  \
-    \n  calcforce  no\
-    \n  calcenergy comps";
-    let PBEset = "  temp  298.15      # 温度\
-    \n  pdie  2           # 溶质介电常数\
-    \n  sdie  78.54       # 溶剂介电常数, 真空1, 水78.54\
-    \n  \
-    \n  npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)\
-    \n  bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\
-    \n  srfm  smol        # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)\
-    \n  chgm  spl4        # 电荷映射到格点的方法, spl0/2/4, 三线性插值, 立方/四次B样条离散\
-    \n  swin  0.3         # 立方样条的窗口值, 仅用于 srfm=spl2/4\
-    \n  \
-    \n  srad  1.4         # 溶剂探测半径\
-    \n  sdens 10          # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用\
-    \n  \
-    \n  ion charge  1 conc 0.15 radius 0.95  # 阳离子的电荷, 浓度, 半径\
-    \n  ion charge -1 conc 0.15 radius 1.81  # 阴离子\
-    \n  \
-    \n  calcforce  no\
-    \n  calcenergy comps";
-    let PBAset = "  temp  298.15 # 温度\
-    \n  srfm  sacc   # 构建溶剂相关表面或体积的模型\
-    \n  swin  0.3    # 立方样条窗口(A), 用于定义样条表面\
-    \n  \
-    \n  # SASA\
-    \n  srad  1.4    # 探测半径(A)\
-    \n  gamma 1      # 表面张力(kJ/mol-A^2)\
-    \n  \
-    \n  #gamma const 0.0226778 3.84928\
-    \n  #gamma const 0.027     0\
-    \n  #gamma const 0.0301248 0         # AMBER-PB4 .0072*cal2J 表面张力, 常数\
-    \n  \
-    \n  press  0     # 压力(kJ/mol-A^3)\
-    \n  bconc  0     # 溶剂本体密度(A^3)\
-    \n  sdens 10\
-    \n  dpos  0.2\
-    \n  grid  0.1 0.1 0.1\
-    \n  \
-    \n  # SAV\
-    \n  #srad  1.29      # SAV探测半径(A)\
-    \n  #press 0.234304  # 压力(kJ/mol-A^3)\
-    \n  \
-    \n  # WCA\
-    \n  #srad   1.25           # 探测半径(A)\
-    \n  #sdens  200            # 表面的格点密度(1/A)\
-    \n  #dpos   0.05           # 表面积导数的计算步长\
-    \n  #bconc  0.033428       # 溶剂本体密度(A^3)\
-    \n  #grid   0.45 0.45 0.45 # 算体积分时的格点间距(A)\
-    \n  \
-    \n  calcforce no\
-    \n  calcenergy total";
+    // 默认设置
+    // temp  298.15      # 温度
+    // pdie  2           # 溶质介电常数
+    // sdie  78.54       # 溶剂介电常数, 真空1, 水78.54
+    // npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
+    // bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
+    // srfm  smol        # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
+    // chgm  spl4        # 电荷映射到格点的方法, spl0/2/4, 三线性插值, 立方/四次B样条离散
+    // swin  0.3         # 立方样条的窗口值, 仅用于 srfm=spl2/4
+    // srad  1.4         # 溶剂探测半径
+    // sdens 10          # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
+    // ion charge  1 conc 0.15 radius 0.95  # 阳离子的电荷, 浓度, 半径
+    // ion charge -1 conc 0.15 radius 1.81  # 阴离子
+    let pbe_set = PBESet::new();
+    let mut pbe_set0 = PBESet::new();
+    pbe_set0.sdie = 1.0;
+    let pba_set = PBASet::new();
 
     let qrv = wd.join(sys_name.to_string() + ".qrv");
     let temp_dir = wd.join(sys_name);
@@ -251,55 +203,20 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     let atom_num_com = atom_num_rec + atom_num_lig;
 
     // PBSA parameters
-    let mut temp = 0.0;
-    let mut pdie = 0.0;
-    let mut sdie = 0.0;
-    let mut Nion: usize = 0;
-    let mut Qion = Array1::<f64>::zeros(10);
-    let mut Cion = Array1::<f64>::zeros(10);
-
-    // polar parameters
-    for i in PBEset.split("\n") {
-        if i.trim().len() != 0 {
-            let paras: Vec<&str> = i
-                .split(" ")
-                .filter_map(|p| match p.len() {
-                    0 => None,
-                    _ => Some(p)
-                })
-                .collect();
-            match paras[0] {
-                "temp" => temp = paras[1].parse().unwrap(),
-                "pdie" => pdie = paras[1].parse().unwrap(),
-                "sdie" => sdie = paras[1].parse().unwrap(),
-                "ion" => {
-                    Nion += 1;
-                    Qion[Nion] = paras[2].parse().unwrap();
-                    Cion[Nion] = paras[4].parse().unwrap();
-                }
-                _ => ()
-            }
-        }
+    let temp = pbe_set.temp;
+    let pdie = pbe_set.pdie;
+    let sdie = pbe_set.sdie;
+    let Nion: usize = pbe_set.ions.len();
+    let mut Qion: Array1<f64> = Array1::zeros(Nion);
+    let mut Cion: Array1<f64> = Array1::zeros(Nion);
+    for i in 0..Nion {
+        Qion[i] = pbe_set.ions[i].charge;
+        Cion[i] = pbe_set.ions[i].conc;
     }
 
-    let mut gamma = 0.0;
-    let mut _const = 0.0;
-    // apolar parameters
-    for i in PBAset.split("\n") {
-        if i.trim().len() != 0 {
-            let paras: Vec<&str> = i
-                .split(" ")
-                .filter_map(|p| match p.len() {
-                    0 => None,
-                    _ => Some(p)
-                })
-                .collect();
-            if paras[0].ends_with("gamma") && paras[1] == "const" {
-                gamma = paras[2].parse().unwrap();
-                _const = paras[3].parse().unwrap();
-            }
-        }
-    }
+    // default gamma for apbs calculation is 1
+    let gamma = 0.0301248;      // Here is the surface extension constant from AMBER-PB4
+    let _const = 0.0;
 
     // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
     println!("Reading trajectory...");
@@ -549,40 +466,40 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
             input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
                                           min_x, max_x, min_y,
                                           max_y, min_z, max_z,
-                                          cfac, fadd, df, grid_type,
-                                          PBEset, PBEset0, PBAset).as_bytes()).
+                                          settings,
+                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
                 expect("Failed writing apbs file.");
             input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
                                           min_x, max_x, min_y,
                                           max_y, min_z, max_z,
-                                          cfac, fadd, df, grid_type,
-                                          PBEset, PBEset0, PBAset).as_bytes()).
+                                          settings,
+                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
                 expect("Failed writing apbs file.");
             input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
                                           min_x, max_x, min_y,
                                           max_y, min_z, max_z,
-                                          cfac, fadd, df, grid_type,
-                                          PBEset, PBEset0, PBAset).as_bytes()).
+                                          settings,
+                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
                 expect("Failed writing apbs file.");
         } else if mesh_type == 1 {
             // g_mmpbsa
             input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
                                           min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
                                           max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                          cfac, fadd, df, grid_type,
-                                          PBEset, PBEset0, PBAset).as_bytes()).
+                                          settings,
+                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
                 expect("Failed writing apbs file.");
             input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
                                           min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
                                           max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                          cfac, fadd, df, grid_type,
-                                          PBEset, PBEset0, PBAset).as_bytes()).
+                                          settings,
+                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
                 expect("Failed writing apbs file.");
             input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
                                           min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
                                           max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                          cfac, fadd, df, grid_type,
-                                          PBEset, PBEset0, PBAset).as_bytes()).
+                                          settings,
+                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
                 expect("Failed writing apbs file.");
         }
 
@@ -602,9 +519,9 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
 
         // parse output
         let apbs_info = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
-        let mut Esol = Array2::<f64>::zeros((3, atom_num_com));
-        let mut Evac = Array2::<f64>::zeros((3, atom_num_com));
-        let mut Esas = Array2::<f64>::zeros((3, atom_num_com));
+        let mut Esol: Array2<f64> = Array2::zeros((3, atom_num_com));
+        let mut Evac: Array2<f64> = Array2::zeros((3, atom_num_com));
+        let mut Esas: Array2<f64> = Array2::zeros((3, atom_num_com));
         let apbs_info = apbs_info
             .split("\n")
             .filter_map(|p|
@@ -739,87 +656,6 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
 
     println!("MM-PBSA calculation finished.");
     return (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki);
-}
-
-fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y: f64, min_z: f64, max_z: f64,
-            cfac: f64, fadd: f64, df: f64, grid_type: i32, pbe_set: &str, pbe_set0: &str, pba_set: &str) -> String {
-    // convert to A
-    let min_x = min_x * 10.0;
-    let min_y = min_y * 10.0;
-    let min_z = min_z * 10.0;
-    let max_x = max_x * 10.0;
-    let max_y = max_y * 10.0;
-    let max_z = max_z * 10.0;
-
-    let x_len = (max_x - min_x).max(0.1);
-    let x_center = (max_x + min_x) / 2.0;
-    let y_len = (max_y - min_y).max(0.1);
-    let y_center = (max_y + min_y) / 2.0;
-    let z_len = (max_z - min_z).max(0.1);
-    let z_center = (max_z + min_z) / 2.0;
-
-    let mut c_x = 0.0;
-    let mut c_y = 0.0;
-    let mut c_z = 0.0;
-    let mut f_x = 0.0;
-    let mut f_y = 0.0;
-    let mut f_z = 0.0;
-    let mut n_x = 0;
-    let mut n_y = 0;
-    let mut n_z = 0;
-
-    let split_level = 4;    // split level
-    let t: i32 = 2_i32.pow(split_level + 1);
-
-    match grid_type {
-        0 => {
-            let fpre = 1;
-            let cfac = 1.7;
-            f_x = x_len + 2.0 * fadd;
-            c_x = f_x * cfac;
-            n_x = t * ((f_x / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
-            f_y = y_len + 2.0 * fadd;
-            c_y = f_y * cfac;
-            n_y = t * ((f_y / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
-            f_z = z_len + 2.0 * fadd;
-            c_z = f_z * cfac;
-            n_z = t * ((f_z / (t as f64 * df)).round() as i32 + 1 + fpre) + 1;
-        }
-        _ => {
-            c_x = x_len * cfac;
-            f_x = c_x.min(x_len + fadd);
-            c_y = y_len * cfac;
-            f_y = c_y.min(y_len + fadd);
-            c_z = z_len * cfac;
-            f_z = c_z.min(z_len + fadd);
-            n_x = ((f_x / df) as i32).max(t + 1);
-            n_y = ((f_y / df) as i32).max(t + 1);
-            n_z = ((f_z / df) as i32).max(t + 1);
-        }
-    }
-    let mg_set = "mg-auto";
-    let mem = 200 * n_x * n_y * n_z / 1024 / 1024;       // MB
-
-    let xyz_set = format!("  {mg_set}\n  mol {mol_index}\
-        \n  dime   {n_x:.0}  {n_y:.0}  {n_z:.0}        # 格点数目, 所需内存: {mem} MB\
-        \n  cglen  {c_x:.3}  {c_y:.3}  {c_z:.3}        # 粗略格点长度\
-        \n  fglen  {f_x:.3}  {f_y:.3}  {f_z:.3}        # 细密格点长度\
-        \n  fgcent {x_center:.3}  {y_center:.3}  {z_center:.3}  # 细密格点中心\
-        \n  cgcent {x_center:.3}  {y_center:.3}  {z_center:.3}  # 粗略格点中心");
-
-    return format!("\nELEC name {file}\n\
-    {xyz_set} \n\
-    {pbe_set} \n\
-    end\n\n\
-    ELEC name {file}_VAC\n\
-    {xyz_set}\n\
-    {pbe_set0} \n\
-    end\n\n\
-    APOLAR name {file}_SAS\n  \
-    mol {mol_index}\n{pba_set}\n\
-    end\n\n\
-    print elecEnergy {file} - {file}_VAC end\n\
-    print apolEnergy {file}_SAS end\n\n");
 }
 
 pub fn gen_file_sha256<T: AsRef<Path> + ?Sized>(p: &T) -> String {
