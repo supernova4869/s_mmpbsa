@@ -27,7 +27,7 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
     let mdp_content = fs::read_to_string(mdp).unwrap();
-    if mdp_content.len() == 0 {
+    if mdp_content.is_empty() {
         println!("Error with {}: file empty", mdp);
     }
     let mdp_content: Vec<&str> = mdp_content.split("\n").collect();
@@ -49,7 +49,6 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
 
     println!("Generating qrv file...");
     println!("Writing atom L-J parameters..");
-    let pb = ProgressBar::new(atnr as u64);
     let re = Regex::new(r".*c6\s*=\s*(.*),.*c12\s*=\s*(.*)").unwrap();
     for i in 0..atnr {
         qrv_content.write_all(format!("{:6}", i).as_bytes()).expect("Writing qrv file failed");
@@ -69,7 +68,6 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
             }
         }
         qrv_content.write_all("\n".as_bytes()).expect("Writing qrv file failed");
-        pb.inc(1);
     }
 
     // number of molecule types
@@ -125,7 +123,6 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
 
         println!("Reading the {}/{} molecule's information.", mol_id + 1, mol_nums.len());
         println!("Reading atom property parameters...");
-        let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);   // progress bar
         let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
         for i in 0..sys_atom_nums[mol_id] {
             let c = re.captures(&mdp_content[locator + i]).unwrap();
@@ -141,22 +138,17 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
             let q = c.get(2).unwrap();
             let q: f64 = q.as_str().parse().unwrap();
             q_atoms[[mol_id, i]] = q;
-            pb.inc(1);
         }
-        pb.reset();
         let locator = locator + sys_atom_nums[mol_id] + 1;     // 不加1是"atom (3218):"行
 
         // get atom names
         println!("Reading atom names...");
-        let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);
         let re = Regex::new("name=\"(.*)\"").unwrap();
         for i in 0..sys_atom_nums[mol_id] {
             let name = re.captures(&mdp_content[locator + i]).unwrap();
             let name = name.get(1).unwrap().as_str();
             t_atoms[[mol_id, i]] = name.to_string();
-            pb.inc(1);
         }
-        pb.reset();
     }
 
     // get residues information
@@ -174,16 +166,13 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
     let re = Regex::new(".*name=\"(.+)\",.*nr=(\\d+).*").unwrap();
     for (idx, locator) in locators.into_iter().enumerate() {
         println!("Reading residues information...");
-        let pb = ProgressBar::new(resnums[idx] as u64);
         for i in 0..resnums[idx] {
             let m = re.captures(&mdp_content[locator + 1 + i]).unwrap();
             let name = m.get(1).unwrap().as_str();
             let nr = m.get(2).unwrap().as_str();
             let nr: i32 = nr.parse().unwrap();
             res_names[[idx, i]] = format!("{:05}{}", nr, name);
-            pb.inc(1);
         }
-        pb.reset();
     }
 
     // assign H types by connection atoms from angle information
@@ -196,7 +185,6 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
         let angles_num: usize = angles_num[1].parse().unwrap();
         let angles_num = angles_num / 4;
         if angles_num > 0 {
-            let pb = ProgressBar::new(angles_num as u64);
             for l_num in locator + 3..locator + 3 + angles_num {
                 if re.is_match(&mdp_content[l_num]) {
                     let paras = re.captures(&mdp_content[l_num]).unwrap();
@@ -213,9 +201,7 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
                         t_atoms[[mol_id, k]] = format!("H{}", t_atoms[[mol_id, j]]);
                     }
                 } else { break; }
-                pb.inc(1);
             }
-            pb.reset();
         }
     }
 
@@ -226,7 +212,6 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
     for i in 0..mol_types {
         for n in 0..mol_nums[i] {
             println!("Writing atoms...");
-            let pb = ProgressBar::new(sys_atom_nums[i] as u64);
             for j in 0..sys_atom_nums[i] {
                 if ndx_rec.contains(&atom_id_total) || ndx_lig.contains(&atom_id_total) {
                     atom_id_feature += 1;
@@ -255,9 +240,7 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
                     }
                 }
                 atom_id_total += 1;
-                pb.inc(1);
             }
-            pb.reset();
         }
     }
 
