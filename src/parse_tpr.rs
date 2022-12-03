@@ -50,11 +50,11 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
     println!("Generating qrv file...");
     println!("Writing atom L-J parameters..");
     let pb = ProgressBar::new(atnr as u64);
+    let re = Regex::new(r".*c6\s*=\s*(.*),.*c12\s*=\s*(.*)").unwrap();
     for i in 0..atnr {
         qrv_content.write_all(format!("{:6}", i).as_bytes()).expect("Writing qrv file failed");
         // get c6 and c12 parameters for each atom
         for j in 0..atnr {
-            let re = Regex::new(r".*c6\s*=\s*(.*),.*c12\s*=\s*(.*)").unwrap();
             let m = re.captures(&mdp_content[locator + i * atnr + j]).unwrap();
             let c6 = m.get(1).unwrap().as_str();
             let c12 = m.get(2).unwrap().as_str().trim();
@@ -149,8 +149,8 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
         // get atom names
         println!("Reading atom names...");
         let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);
+        let re = Regex::new("name=\"(.*)\"").unwrap();
         for i in 0..sys_atom_nums[mol_id] {
-            let re = Regex::new("name=\"(.*)\"").unwrap();
             let name = re.captures(&mdp_content[locator + i]).unwrap();
             let name = name.get(1).unwrap().as_str();
             t_atoms[[mol_id, i]] = name.to_string();
@@ -171,8 +171,8 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
     let max_res_num: usize = *resnums.iter().max().unwrap() as usize;
     let mut res_names = Array2::<String>::default((mol_nums.len(), max_res_num));
 
+    let re = Regex::new(".*name=\"(.+)\",.*nr=(\\d+).*").unwrap();
     for (idx, locator) in locators.into_iter().enumerate() {
-        let re = Regex::new(".*name=\"(.+)\",.*nr=(\\d+).*").unwrap();
         println!("Reading residues information...");
         let pb = ProgressBar::new(resnums[idx] as u64);
         for i in 0..resnums[idx] {
@@ -190,12 +190,12 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
     let re = Regex::new(r"^ +Angle:").unwrap();
     let locators = get_md_locators_all(&mdp_content, &re);
     println!("Reading angles...");
+    let re = Regex::new(r"\d+ type=\d+ \(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap();
     for (mol_id, locator) in locators.into_iter().enumerate() {
         let angles_num: Vec<&str> = (&mdp_content[locator + 1]).trim().split(" ").collect();
         let angles_num: usize = angles_num[1].parse().unwrap();
         let angles_num = angles_num / 4;
         if angles_num > 0 {
-            let re = Regex::new(r"\d+ type=\d+ \(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap();
             let pb = ProgressBar::new(angles_num as u64);
             for l_num in locator + 3..locator + 3 + angles_num {
                 if re.is_match(&mdp_content[l_num]) {
@@ -222,6 +222,7 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
     // output to qrv file
     let mut atom_id_total = 0;
     let mut atom_id_feature = 0;
+    let re = Regex::new(r"([a-zA-Z]+)\d*").unwrap();
     for i in 0..mol_types {
         for n in 0..mol_nums[i] {
             println!("Writing atoms...");
@@ -233,7 +234,6 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
                     match rad_type {
                         0 => radi = r_atoms[[n, j]],
                         1 => radi = {
-                            let re = Regex::new(r"([a-zA-Z]+)\d*").unwrap();
                             let res = re.captures(t_atoms[[i, j]].as_str()).unwrap();
                             let res = res.get(1).unwrap().as_str();
                             get_radi(res)
