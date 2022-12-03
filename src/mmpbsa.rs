@@ -11,11 +11,12 @@ use std::rc::Rc;
 use indicatif::ProgressBar;
 use crate::parse_tpr::gen_qrv;
 use crate::apbs_param::{PBASet, PBESet};
-use crate::gen_apbs_parameters::dim_apbs;
+use crate::prepare_apbs::write_apbs;
 
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, sys_name: &String,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
-                              bt: f64, et: f64, dt: f64, settings: &Parameters)
+                              bt: f64, et: f64, dt: f64, pbe_set: &PBESet, pba_set: &PBASet,
+                              settings: &Parameters)
                               -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     let qrv_path = String::from(sys_name.as_str()) + ".qrv";
     let qrv_path = wd.join(qrv_path);
@@ -34,7 +35,7 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, s
                 println!("Parameter file {} has been changed. Regenerating it.", qrv_path.to_str().unwrap());
             }
         } else {
-            println!("mdp and qrv sha file Not found. Will regenerate parameter file.")
+            println!("mdp and/or qrv sha file Not found. Will regenerate parameter file.")
         }
     }
     if re_gen_qrv {
@@ -44,7 +45,7 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, s
     // pdb>pqr, output apbs, calculate MM, calculate APBS
     let results = do_mmpbsa(trj, ndx, wd, sys_name.as_str(),
                             complex_grp, receptor_grp, ligand_grp,
-                            bt, et, dt,
+                            bt, et, dt, pbe_set, pba_set,
                             settings);
     return results;
 }
@@ -73,35 +74,14 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
 fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
              bt: f64, et: f64, dt: f64,
+             pbe_set: &PBESet, pba_set: &PBASet,
              settings: &Parameters)
              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // Running settings
     let apbs = &settings.apbs;
     let mesh_type = settings.mesh_type;
-    let grid_type = settings.grid_type;
-    let cfac = settings.cfac;
-    let fadd = settings.fadd;
-    let df = settings.df;
     let use_dh = settings.use_dh;
     let use_ts = settings.use_ts;
-
-    // 默认设置
-    // temp  298.15      # 温度
-    // pdie  2           # 溶质介电常数
-    // sdie  78.54       # 溶剂介电常数, 真空1, 水78.54
-    // npbe              # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
-    // bcfl  mdh         # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
-    // srfm  smol        # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
-    // chgm  spl4        # 电荷映射到格点的方法, spl0/2/4, 三线性插值, 立方/四次B样条离散
-    // swin  0.3         # 立方样条的窗口值, 仅用于 srfm=spl2/4
-    // srad  1.4         # 溶剂探测半径
-    // sdens 10          # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
-    // ion charge  1 conc 0.15 radius 0.95  # 阳离子的电荷, 浓度, 半径
-    // ion charge -1 conc 0.15 radius 1.81  # 阴离子
-    let pbe_set = PBESet::new();
-    let mut pbe_set0 = PBESet::new();
-    pbe_set0.sdie = 1.0;
-    let pba_set = PBASet::new();
 
     let qrv = wd.join(sys_name.to_string() + ".qrv");
     let temp_dir = wd.join(sys_name);
@@ -141,19 +121,19 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     let ndx_com = &ndx.groups[complex_grp].indexes;
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
-    let mut atm_charge = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_radius = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_typeindex = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_sigma = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_epsilon = Array1::<f64>::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_index = Array1::<i32>::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_name = Array1::<String>::default(qrv.len() - 3 - Atyp);
-    let mut atm_resname = Array1::<String>::default(qrv.len() - 3 - Atyp);
-    let mut atm_resnum = Array1::<usize>::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_charge: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_radius: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_typeindex: Array1<usize> = Array1::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_sigma: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_epsilon: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_index: Array1<i32> = Array1::zeros(qrv.len() - 3 - Atyp);
+    let mut atm_name: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
+    let mut atm_resname: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
+    let mut atm_resnum: Array1<usize> = Array1::zeros(qrv.len() - 3 - Atyp);
     // res_rec has blanks in the left part
-    let mut res_rec = Array1::<String>::default(qrv.len() - 3 - Atyp);
+    let mut res_rec: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
     // res_lig has blanks in the right part
-    let mut res_lig = Array1::<String>::default(qrv.len() - 3 - Atyp);
+    let mut res_lig: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
     let mut idx = 0;
     for line in &qrv[Atyp + 3..qrv.len() - 1] { // there's a blank line at the end
         let line: Vec<&str> = line
@@ -222,56 +202,19 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     println!("Reading trajectory...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
-    let total_frames = frames.len();
     // pbc whole 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
     let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
-    // border of the whole molecule
-    let min_x = coordinates.slice(s![.., .., 0]).iter().
-        fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    let max_x = coordinates.slice(s![.., .., 0]).iter().
-        fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    let min_y = coordinates.slice(s![.., .., 1]).iter().
-        fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    let max_y = coordinates.slice(s![.., .., 1]).iter().
-        fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    let min_z = coordinates.slice(s![.., .., 2]).iter().
-        fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    let max_z = coordinates.slice(s![.., .., 2]).iter().
-        fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-
-    let mut min_x_rec: Array1<f64> = Array1::zeros(total_frames);
-    let mut min_y_rec: Array1<f64> = Array1::zeros(total_frames);
-    let mut min_z_rec: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_x_rec: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_y_rec: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_z_rec: Array1<f64> = Array1::zeros(total_frames);
-
-    let mut min_x_lig: Array1<f64> = Array1::zeros(total_frames);
-    let mut min_y_lig: Array1<f64> = Array1::zeros(total_frames);
-    let mut min_z_lig: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_x_lig: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_y_lig: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_z_lig: Array1<f64> = Array1::zeros(total_frames);
-
-    let mut min_x_com: Array1<f64> = Array1::zeros(total_frames);
-    let mut min_y_com: Array1<f64> = Array1::zeros(total_frames);
-    let mut min_z_com: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_x_com: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_y_com: Array1<f64> = Array1::zeros(total_frames);
-    let mut max_z_com: Array1<f64> = Array1::zeros(total_frames);
-
-    let bf = (bt / frames[1].time as f64) as usize;
-    let ef = (et / frames[1].time as f64) as usize;
-    let dframe = (dt / frames[1].time as f64) as usize;
+    let time_step = (frames[1].time - frames[0].time) as f64;
+    let bf = (bt / time_step) as usize;
+    let ef = (et / time_step) as usize;
+    let dframe = (dt / time_step) as usize;
     let total_frames = (ef - bf) / dframe + 1;
-    let ef = ef + 1;        // range lefts the last frame
+    let ef = ef + 1;        // range includes the last frame
 
     println!("Preparing APBS inputs...");
     let pb = ProgressBar::new(total_frames as u64);
     for cur_frm in (bf..ef).step_by(dframe) {
-        // process each frame
-
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         let pqr_com = temp_dir.join(format!("{}_com.pqr", f_name));
         let mut pqr_com = File::create(pqr_com).unwrap();
@@ -280,65 +223,7 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
         let pqr_lig = temp_dir.join(format!("{}_lig.pqr", f_name));
         let mut pqr_lig = File::create(pqr_lig).unwrap();
 
-        // get min and max atom coordinates
         let coordinates = coordinates.slice(s![cur_frm, .., ..]);
-
-        let atoms_rec_x_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] - atm_radius
-            [p]).collect();
-        let atoms_rec_y_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] - atm_radius
-            [p]).collect();
-        let atoms_rec_z_lb: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] - atm_radius
-            [p]).collect();
-        let atoms_rec_x_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 0]] + atm_radius
-            [p]).collect();
-        let atoms_rec_y_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 1]] + atm_radius
-            [p]).collect();
-        let atoms_rec_z_ub: Vec<f64> = ndx_rec.iter().map(|&p| coordinates[[p, 2]] + atm_radius
-            [p]).collect();
-        min_x_rec[cur_frm] = atoms_rec_x_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        min_y_rec[cur_frm] = atoms_rec_y_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        min_z_rec[cur_frm] = atoms_rec_z_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        max_x_rec[cur_frm] = atoms_rec_x_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        max_y_rec[cur_frm] = atoms_rec_y_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        max_z_rec[cur_frm] = atoms_rec_z_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-
-        let atoms_lig_x_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] - atm_radius
-            [p]).collect();
-        let atoms_lig_y_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] - atm_radius
-            [p]).collect();
-        let atoms_lig_z_lb: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] - atm_radius
-            [p]).collect();
-        let atoms_lig_x_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 0]] + atm_radius
-            [p]).collect();
-        let atoms_lig_y_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 1]] + atm_radius
-            [p]).collect();
-        let atoms_lig_z_ub: Vec<f64> = ndx_lig.iter().map(|&p| coordinates[[p, 2]] + atm_radius
-            [p]).collect();
-        min_x_lig[cur_frm] = atoms_lig_x_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        min_y_lig[cur_frm] = atoms_lig_y_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        min_z_lig[cur_frm] = atoms_lig_z_lb.iter().
-            fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-        max_x_lig[cur_frm] = atoms_lig_x_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        max_y_lig[cur_frm] = atoms_lig_y_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-        max_z_lig[cur_frm] = atoms_lig_z_ub.iter().
-            fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-
-        min_x_com[cur_frm] = min_x_rec[cur_frm].min(min_x_rec[cur_frm]);
-        min_y_com[cur_frm] = min_y_rec[cur_frm].min(min_y_rec[cur_frm]);
-        min_z_com[cur_frm] = min_z_rec[cur_frm].min(min_z_rec[cur_frm]);
-        max_x_com[cur_frm] = max_x_rec[cur_frm].max(max_x_rec[cur_frm]);
-        max_y_com[cur_frm] = max_y_rec[cur_frm].max(max_y_rec[cur_frm]);
-        max_z_com[cur_frm] = max_z_rec[cur_frm].max(max_z_rec[cur_frm]);
 
         // loop atoms and write pqr information (from pqr)
         for &at_id in ndx_com {
@@ -353,7 +238,7 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
             let q = atm_charge[at_id];
             let r = atm_radius
                 [at_id];
-            let atom_line = format!("ATOM  {:5} {:-4} {:3} X{:4}    {:8.3} {:8.3} {:8.3} \
+            let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} \
             {:12.6} {:12.6}\n",
                                     index, at_name, resname, resnum, x, y, z, q, r);
 
@@ -374,34 +259,34 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     let Iion = Cion.dot(&(&Qion * &Qion));
     let eps0 = 8.854187812800001e-12;
     let kb = 1.380649e-23;
-    let Na = 6.02214076e+23;
+    let NA = 6.02214076e+23;
     let qe = 1.602176634e-19;
     let RT2kJ = 8.314462618 * temp / 1e3;
-    let kap = 1e-9 / f64::sqrt(eps0 * kb * temp * sdie / (Iion * qe * qe * Na * 1e3));
+    let kap = 1e-9 / f64::sqrt(eps0 * kb * temp * sdie / (Iion * qe * qe * NA * 1e3));
 
     let kJcou = 1389.35457520287;
     let Rcut = f64::INFINITY;
 
     let total_res_num = atm_resnum[atm_resnum.len() - 1] + 1;
 
-    let mut dE = Array1::<f64>::zeros(total_res_num);
-    let mut dGres = Array1::<f64>::zeros(total_res_num);
-    let mut dHres = Array1::<f64>::zeros(total_res_num);
-    let mut MMres = Array1::<f64>::zeros(total_res_num);
-    let mut COUres = Array1::<f64>::zeros(total_res_num);
-    let mut VDWres = Array1::<f64>::zeros(total_res_num);
-    let mut dPBres = Array1::<f64>::zeros(total_res_num);
-    let mut dSAres = Array1::<f64>::zeros(total_res_num);
+    let mut dE: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dGres: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dHres: Array1<f64> = Array1::zeros(total_res_num);
+    let mut MMres: Array1<f64> = Array1::zeros(total_res_num);
+    let mut COUres: Array1<f64> = Array1::zeros(total_res_num);
+    let mut VDWres: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dPBres: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dSAres: Array1<f64> = Array1::zeros(total_res_num);
 
-    let mut vdw = Array1::<f64>::zeros(total_frames);
-    let mut pb = Array1::<f64>::zeros(total_frames);
-    let mut sa = Array1::<f64>::zeros(total_frames);
-    let mut cou = Array1::<f64>::zeros(total_frames);
-    let mut mm = Array1::<f64>::zeros(total_frames);
-    let mut dh = Array1::<f64>::zeros(total_frames);
+    let mut vdw: Array1<f64> = Array1::zeros(total_frames);
+    let mut pb: Array1<f64> = Array1::zeros(total_frames);
+    let mut sa: Array1<f64> = Array1::zeros(total_frames);
+    let mut cou: Array1<f64> = Array1::zeros(total_frames);
+    let mut mm: Array1<f64> = Array1::zeros(total_frames);
+    let mut dh: Array1<f64> = Array1::zeros(total_frames);
 
-    let mut pb_res = Array1::<f64>::zeros(total_res_num);
-    let mut sa_res = Array1::<f64>::zeros(total_res_num);
+    let mut pb_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut sa_res: Array1<f64> = Array1::zeros(total_res_num);
 
     let rec_shift = ndx_rec[0];
     let lig_shift = ndx_lig[0];
@@ -413,8 +298,8 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     for cur_frm in (bf..ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
-        let mut de_cou = Array1::<f64>::zeros(total_res_num);
-        let mut de_vdw = Array1::<f64>::zeros(total_res_num);
+        let mut de_cou: Array1<f64> = Array1::zeros(total_res_num);
+        let mut de_vdw: Array1<f64> = Array1::zeros(total_res_num);
         // traverse receptor/ligand atoms to store parameters
         for i in 0..atom_num_rec {
             let ii = i + rec_shift;
@@ -453,56 +338,8 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
 
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        let mut input_apbs = File::create(temp_dir.join(format!("{}.apbs", f_name))).unwrap();
-        input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
-        input_apbs.write_all(format!("  mol pqr {0}_com.pqr\
-        \n  mol pqr {0}_rec.pqr\
-        \n  mol pqr {0}_lig.pqr\
-        \nend\n\n", f_name).as_bytes())
-            .expect("Failed to write apbs input file.");
-
-        if mesh_type == 0 {
-            // GMXPBSA
-            input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
-                                          min_x, max_x, min_y,
-                                          max_y, min_z, max_z,
-                                          settings,
-                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-                expect("Failed writing apbs file.");
-            input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
-                                          min_x, max_x, min_y,
-                                          max_y, min_z, max_z,
-                                          settings,
-                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-                expect("Failed writing apbs file.");
-            input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
-                                          min_x, max_x, min_y,
-                                          max_y, min_z, max_z,
-                                          settings,
-                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-                expect("Failed writing apbs file.");
-        } else if mesh_type == 1 {
-            // g_mmpbsa
-            input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
-                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
-                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                          settings,
-                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-                expect("Failed writing apbs file.");
-            input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
-                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
-                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                          settings,
-                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-                expect("Failed writing apbs file.");
-            input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
-                                          min_x_com[cur_frm], max_x_com[cur_frm], min_y_com[cur_frm],
-                                          max_y_com[cur_frm], min_z_com[cur_frm], max_z_com[cur_frm],
-                                          settings,
-                                          &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-                expect("Failed writing apbs file.");
-        }
-
+        write_apbs(ndx_rec, ndx_lig, &coord, &atm_radius,
+                  pbe_set, &pba_set, &temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         if !apbs.is_empty() {
             let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).

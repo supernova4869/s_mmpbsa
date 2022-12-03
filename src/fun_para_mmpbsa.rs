@@ -2,6 +2,7 @@ use std::io::stdin;
 use std::path::Path;
 use crate::{get_input_value, index_parser, Parameters};
 use crate::{mmpbsa, analyzation};
+use crate::apbs_param::{PBASet, PBESet};
 
 enum AtomRadius {
     ForceField,
@@ -16,6 +17,8 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                                                              bt: f64, et: f64, dt: f64,
                                                              settings: &mut Parameters) {
     let atom_rad_type = AtomRadius::MBondi;
+    let pbe_set = PBESet::new();
+    let pba_set = PBASet::new();
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
@@ -50,6 +53,7 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                                                              receptor_grp as usize,
                                                              ligand_grp as usize,
                                                              bt, et, dt,
+                                                             &pbe_set, &pba_set,
                                                              &settings);
                 analyzation::analyze_controller(wd, &sys_name, results);
             }
@@ -88,6 +92,14 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                 } else {
                     settings.df = s.trim().parse().unwrap();
                 }
+            }
+            8 => {
+                println!("Current PB settings:");
+                println!("{}", pbe_set);
+            }
+            9 => {
+                println!("Current SA settings:");
+                println!("{}", pba_set);
             }
             _ => println!("Invalid input")
         }

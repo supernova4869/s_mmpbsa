@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::fs;
@@ -124,11 +123,11 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
         sys_atom_nums.push(num);
         let locator = locator + 4;
 
-        println!("Reading the {}/{} system atoms information.", mol_id + 1, mol_nums.len());
+        println!("Reading the {}/{} molecule's information.", mol_id + 1, mol_nums.len());
         println!("Reading atom property parameters...");
         let pb = ProgressBar::new(sys_atom_nums[mol_id] as u64);   // progress bar
+        let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
         for i in 0..sys_atom_nums[mol_id] {
-            let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
             let c = re.captures(&mdp_content[locator + i]).unwrap();
             let at_type = c.get(1).unwrap();
             let at_type: usize = at_type.as_str().parse().unwrap();

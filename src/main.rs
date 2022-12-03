@@ -7,7 +7,7 @@ mod fun_para_trj;
 mod fun_para_mmpbsa;
 mod atom_radius;
 mod apbs_param;
-mod gen_apbs_parameters;
+mod prepare_apbs;
 
 use std::fs;
 use std::env;

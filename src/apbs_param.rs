@@ -1,20 +1,21 @@
 use std::fmt;
 use std::fmt::Formatter;
+use std::marker::Copy;
 
 pub struct PBESet {
     pub temp: f64,
     pub pdie: f64,
     pub sdie: f64,
-    pb_solver: String,
-    bcfl: String,
-    srfm: String,
-    chgm: String,
-    swin: f64,
-    srad: f64,
-    sdens: i32,
+    pub pb_solver: String,
+    pub bcfl: String,
+    pub srfm: String,
+    pub chgm: String,
+    pub swin: f64,
+    pub srad: f64,
+    pub sdens: i32,
     pub ions: Vec<Ion>,
-    calc_force: bool,
-    calc_energy: String,
+    pub calc_force: bool,
+    pub calc_energy: String,
 }
 
 impl PBESet {
@@ -37,6 +38,29 @@ impl PBESet {
             calc_force: false,
             calc_energy: "comps".to_string(),
         };
+    }
+
+    pub fn from(pbe_set: &PBESet) -> PBESet {
+        let mut ions: Vec<Ion> = vec![];
+        for ion in &pbe_set.ions {
+            ions.push(ion.clone());
+        }
+        let mut new_pbe_set = PBESet {
+            temp: pbe_set.temp,
+            pdie: pbe_set.pdie,
+            sdie: pbe_set.sdie,
+            pb_solver: pbe_set.pb_solver.clone(),
+            bcfl: pbe_set.bcfl.clone(),
+            srfm: pbe_set.srfm.clone(),
+            chgm: pbe_set.chgm.clone(),
+            swin: pbe_set.swin.clone(),
+            srad: pbe_set.srad.clone(),
+            sdens: pbe_set.sdens.clone(),
+            ions,
+            calc_force: pbe_set.calc_force.clone(),
+            calc_energy: pbe_set.calc_energy.clone(),
+        };
+        return new_pbe_set;
     }
 }
 
@@ -96,6 +120,14 @@ impl fmt::Display for Ion {
         write!(f, "charge  {} conc {} radius {}", self.charge, self.conc, self.radius)
     }
 }
+
+impl Clone for Ion {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl Copy for Ion {}
 
 impl PBASet {
     pub fn new() -> Self {
