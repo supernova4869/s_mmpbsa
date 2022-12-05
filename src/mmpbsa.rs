@@ -9,52 +9,53 @@ use std::io::{stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::ProgressBar;
-use crate::parse_tpr::gen_qrv;
+use crate::parse_tpr::{gen_qrv, TPR};
 use crate::apbs_param::{PBASet, PBESet};
 use crate::prepare_apbs::write_apbs;
 
 pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, sys_name: &String,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, pbe_set: &PBESet, pba_set: &PBASet,
-                              settings: &Parameters)
-                              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
-    let qrv_path = String::from(sys_name.as_str()) + ".qrv";
-    let qrv_path = wd.join(qrv_path);
-
-    let mut re_gen_qrv = true;
-    if qrv_path.is_file() {
-        let mdp_sha = gen_file_sha256(mdp);
-        let qrv_sha = gen_file_sha256(qrv_path.as_path().to_str().unwrap());
-        if wd.join(".mdp.sha").is_file() && wd.join(".qrv.sha").is_file() {
-            let old_mdp_sha = fs::read_to_string(wd.join(".mdp.sha")).unwrap();
-            let old_qrv_sha = fs::read_to_string(wd.join(".qrv.sha")).unwrap();
-            if mdp_sha.eq(&old_mdp_sha) && qrv_sha.eq(&old_qrv_sha) {
-                re_gen_qrv = false;
-                println!("Found checked {}. Will not regenerate it.", qrv_path.to_str().unwrap());
-            } else {
-                println!("Parameter file {} has been changed. Regenerating it.", qrv_path.to_str().unwrap());
-            }
-        } else {
-            println!("mdp and/or qrv sha file Not found. Will regenerate parameter file.")
-        }
-    }
-    if re_gen_qrv {
+                              settings: &Parameters) {
+                              // -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+    // let qrv_path = String::from(sys_name.as_str()) + ".qrv";
+    // let qrv_path = wd.join(qrv_path);
+    //
+    // let mut re_gen_qrv = true;
+    // if qrv_path.is_file() {
+    //     let mdp_sha = gen_file_sha256(mdp);
+    //     let qrv_sha = gen_file_sha256(qrv_path.as_path().to_str().unwrap());
+    //     if wd.join(".mdp.sha").is_file() && wd.join(".qrv.sha").is_file() {
+    //         let old_mdp_sha = fs::read_to_string(wd.join(".mdp.sha")).unwrap();
+    //         let old_qrv_sha = fs::read_to_string(wd.join(".qrv.sha")).unwrap();
+    //         if mdp_sha.eq(&old_mdp_sha) && qrv_sha.eq(&old_qrv_sha) {
+    //             re_gen_qrv = false;
+    //             println!("Found checked {}. Will not regenerate it.", qrv_path.to_str().unwrap());
+    //         } else {
+    //             println!("Parameter file {} has been changed. Regenerating it.", qrv_path.to_str().unwrap());
+    //         }
+    //     } else {
+    //         println!("mdp and/or qrv sha file Not found. Will regenerate parameter file.")
+    //     }
+    // }
+    // if re_gen_qrv {
         // get charge, radius, LJ parameters of each atoms and generate qrv files
-        gen_qrv(mdp, ndx, wd, receptor_grp, ligand_grp, qrv_path.as_path(), settings);
-    }
-    // pdb>pqr, output apbs, calculate MM, calculate APBS
-    let results = do_mmpbsa(trj, ndx, wd, sys_name.as_str(),
-                            complex_grp, receptor_grp, ligand_grp,
-                            bt, et, dt, pbe_set, pba_set,
-                            settings);
-    return results;
+    TPR::new(mdp);
+        // gen_qrv(mdp, ndx, wd, receptor_grp, ligand_grp, qrv_path.as_path(), settings);
+    // }
+    // // pdb>pqr, output apbs, calculate MM, calculate APBS
+    // let results = do_mmpbsa(trj, ndx, wd, sys_name.as_str(),
+    //                         complex_grp, receptor_grp, ligand_grp,
+    //                         bt, et, dt, pbe_set, pba_set,
+    //                         settings);
+    // return results;
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     let num_frames = frames.len();
     let num_atoms = frames[0].num_atoms();
-    let mut coord_matrix = Array3::<f64>::zeros((num_frames, num_atoms, 3));
-    let mut box_size = Array3::<f64>::zeros((num_frames, 3, 3));
+    let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
+    let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
     for (idx, frame) in frames.into_iter().enumerate() {
         let atoms = frame.coords.to_vec();
         for (i, a) in atoms.into_iter().enumerate() {

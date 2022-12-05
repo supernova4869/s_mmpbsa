@@ -55,7 +55,7 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                                                              bt, et, dt,
                                                              &pbe_set, &pba_set,
                                                              &settings);
-                analyzation::analyze_controller(wd, &sys_name, results);
+                // analyzation::analyze_controller(wd, &sys_name, results);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;

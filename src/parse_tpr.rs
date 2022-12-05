@@ -1,15 +1,104 @@
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::fs;
-use std::io::Write;
+use std::io::{BufReader, Write};
 use std::path::Path;
 use indicatif::ProgressBar;
 use ndarray::{Array1, Array2};
 use regex::Regex;
+use std::fs::File;
+use std::io::{self, BufRead};
 use crate::index_parser::Index;
 use crate::mmpbsa::gen_file_sha256;
 use crate::Parameters;
 use crate::atom_radius::get_radi;
+
+pub struct TPR {
+    name: String,
+    atoms_num: i64,
+    molecule_types_num: i32,
+    molecule_types: Vec<MolType>,
+    atom_type_num: i32,
+    lj_sr_params: Vec<FunType>,
+    molecules: Vec<Molecule>,
+}
+
+struct MolType {
+    id: usize,
+    name: String,
+    molecules_num: i32,
+}
+
+struct FunType {
+    functype: String,
+    c6: f64,
+    c12: f64,
+}
+
+struct Molecule {
+    molecule_type: MolType,
+    atom_num: i64,
+    atoms: Vec<Atom>,
+    residues: Vec<Residue>,
+    angles: Vec<Angle>,
+}
+
+struct Atom {
+    type_id: usize,
+    q: f64,
+    residue_index: usize,
+    name: String,
+    type_name: String,
+}
+
+struct Residue {
+    id: usize,
+    name: String,
+    nr: i32,
+}
+
+struct Angle {
+    id: usize,
+    atom1: usize,
+    atom2: usize,
+    atom3: usize,
+}
+
+impl TPR {
+    pub fn new(mdp: &str) {
+        let mut name = String::new();
+        let mut atoms_num = 0;
+
+        let file = File::open(mdp).unwrap();
+        let mut reader = BufReader::new(file);
+        let mut buf = String::from("");
+        loop {
+            let bytes = read_line(&mut reader, &mut buf);
+            if bytes == 0 {
+                break
+            }
+            if buf.starts_with("topology:") {
+                // name
+                read_line(&mut reader, &mut buf);       // name="Protein in water"
+                let re = Regex::new("name\\s*=\\s*\"(.*)\"").unwrap();
+                name = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().to_string();
+                name = name.replace(" ", "_");
+
+                // atom num
+                read_line(&mut reader, &mut buf);       // #atoms = 3218
+                let re = Regex::new(r"#atoms\s*=\s*(\d+)").unwrap();
+                atoms_num = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
+
+                // 读取 tpr 后半字段
+            }
+        }
+    }
+}
+
+fn read_line(reader: &mut BufReader<File>, buf: &mut String) -> usize {
+    buf.clear();
+    reader.read_line(buf).unwrap()
+}
 
 pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
                receptor_grp: usize, ligand_grp: usize,
@@ -83,7 +172,7 @@ pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
         match re.captures(s).unwrap().get(1) {
             Some(i) => {
                 mol_nums[i_mol] = i.as_str().parse().unwrap();
-            },
+            }
             _ => ()
         }
     }
