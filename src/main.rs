@@ -20,6 +20,7 @@ use regex::Regex;
 use toml;
 use toml::Value;
 use chrono::prelude::Local;
+use crate::parse_tpr::TPR;
 
 pub struct Parameters {
     rad_type: i32,
@@ -101,9 +102,11 @@ fn main() {
         mdp_path = tpr_mdp[..&tpr_mdp.len() - 4].to_string() + "_dumped.mdp";
         dump_tpr(&tpr_mdp, &mdp_path, settings.gmx.as_str());
     }
+    let tpr = TPR::new(mdp_path.as_str());
+    println!("\nFinished reading tpr file:\n{}.", tpr);
 
     // go to next step
-    fun_para_basic::set_para_basic(&mut trj, &mdp_path, &mut ndx, wd, &mut settings);
+    // fun_para_basic::set_para_basic(&mut trj, &mdp_path, &mut ndx, wd, &mut settings);
 }
 
 fn welcome() {
@@ -364,5 +367,5 @@ fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
     let mut outfile = fs::File::create(dump_to).unwrap();
     outfile.write(tpr_dump.as_bytes()).unwrap();
-    println!("Finished loading tpr file, md parameters dumped to {}", fs::canonicalize(dump_to).unwrap().display());
+    println!("Dumped tpr file to {}", fs::canonicalize(dump_to).unwrap().display());
 }

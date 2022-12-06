@@ -40,7 +40,7 @@ pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, s
     // }
     // if re_gen_qrv {
         // get charge, radius, LJ parameters of each atoms and generate qrv files
-    TPR::new(mdp);
+
         // gen_qrv(mdp, ndx, wd, receptor_grp, ligand_grp, qrv_path.as_path(), settings);
     // }
     // // pdb>pqr, output apbs, calculate MM, calculate APBS

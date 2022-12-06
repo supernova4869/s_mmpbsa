@@ -1,4 +1,4 @@
-//?/F:/Programming/Rust/Projects/super_mmpbsa/examples/Small_Molecules/md.tpr:
+md.tpr:
 inputrec:
    integrator                     = md
    tinit                          = 0

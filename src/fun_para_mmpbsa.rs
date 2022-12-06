@@ -63,6 +63,7 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
             2 => {
                 settings.use_ts = !settings.use_ts;
             }
+            // 在这里加半径选择, 之前生成qrv的半径逻辑删掉
             5 => {
                 println!("Input coarse grid expand factor");
                 let mut s = String::new();
