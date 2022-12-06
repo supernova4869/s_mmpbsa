@@ -1,17 +1,12 @@
-use std::fmt::{Debug, Formatter};
-use std::str::FromStr;
-use std::{fmt, fs};
+use std::fmt::Formatter;
+use std::fmt;
 use std::io::{BufReader, Write};
 use std::path::Path;
-use indicatif::ProgressBar;
-use ndarray::{Array1, Array2};
 use regex::Regex;
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::BufRead;
 use crate::index_parser::Index;
-use crate::mmpbsa::gen_file_sha256;
 use crate::Parameters;
-use crate::atom_radius::get_radi;
 
 pub struct TPR {
     name: String,
@@ -61,7 +56,7 @@ impl TPR {
         let mut residues: Vec<Residue> = vec![];
         let mut molecules: Vec<Molecule> = vec![];
 
-        println!("\nLoading dumped tpr file: {}", mdp);
+        println!("Loading dumped tpr file: {}\n", mdp);
         loop {
             let bytes = read_line(&mut reader, &mut buf);
             if bytes == 0 {
@@ -88,7 +83,7 @@ impl TPR {
                 let re = Regex::new(r"#molblock\s*=\s*(\d+)").unwrap();
                 molecule_types_num = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
 
-                println!("\nSystem molecular types:");
+                println!("System molecular types:");
                 for mt_id in 0..molecule_types_num {
                     loop {
                         read_line(&mut reader, &mut buf);
@@ -113,7 +108,7 @@ impl TPR {
                 read_line(&mut reader, &mut buf);
                 let re = Regex::new(r"atnr\s*=\s*(\d+)").unwrap();
                 atom_types_num = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                println!("\nTotal atom types: {}.", atom_types_num);
+                println!("Total atom types: {}.", atom_types_num);
 
                 read_line(&mut reader, &mut buf);
                 // functype[0]=LJ_SR, c6= 2.07413384e-03, c12= 1.51207360e-06
@@ -250,7 +245,7 @@ impl TPR {
                                              &atoms, &residues));
             }
         }
-        println!("\nSystem molecular composition:");
+        println!("System molecular composition:");
         for mol in &molecules {
             println!("Molecules {}: {}", mol.molecule_type_id, mol);
         }
