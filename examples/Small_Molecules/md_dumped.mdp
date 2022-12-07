@@ -1,4 +1,4 @@
-md.tpr:
+examples/Small_Molecules/md.tpr:
 inputrec:
    integrator                     = md
    tinit                          = 0

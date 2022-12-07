@@ -141,6 +141,7 @@ impl TPR {
             if buf.trim().starts_with("moltype (") {
                 let re = Regex::new(r"moltype \((\d+)\)").unwrap();
                 let molecule_type_id: usize = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
+                println!("Reading molecule {} information...", molecule_type_id);
                 read_line(&mut reader, &mut buf);
                 let re = Regex::new("name\\s*=\\s*\"(.*)\"").unwrap();
                 let molecule_name = re.captures(&buf).unwrap().get(1).unwrap().as_str().to_string();
@@ -247,7 +248,7 @@ impl TPR {
         }
         println!("System molecular composition:");
         for mol in &molecules {
-            println!("Molecules {}: {}", mol.molecule_type_id, mol);
+            println!("Molecule {}: {}", mol.molecule_type_id, mol);
         }
         TPR {
             name,
