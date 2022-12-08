@@ -1,7 +1,10 @@
 use std::collections::HashMap;
+use crate::parse_tpr::TPR;
+
+pub fn apply_radius(tpr: &TPR, atom_radius_type: usize) {}
 
 // get atom radius, returns 1.5 if not specified
-pub fn get_radi(at_type: &str) -> f64 { // mBondi from AMBER20/parmed/tools/changeradii.py
+pub fn get_mbondi(at_type: &str) -> f64 { // mBondi from AMBER20/parmed/tools/changeradii.py
     let rad_bondi: HashMap<&str, f64> = vec![("C", 1.7),
                                              ("H", 1.2),
                                              ("N", 1.55),
@@ -22,18 +25,18 @@ pub fn get_radi(at_type: &str) -> f64 { // mBondi from AMBER20/parmed/tools/chan
     let mut radius = 1.5;
     if at_type.len() >= 2 {
         let r = rad_bondi.get(&at_type[0..2]);
-        if let Some(m) = r {
-            radius = *m;
+        if let Some(&m) = r {
+            radius = m;
         } else {
             let r = rad_bondi.get(&at_type[0..1]);
-            if let Some(m) = r {
-                radius = *m;
+            if let Some(&m) = r {
+                radius = m;
             }
         }
     } else {
         let r = rad_bondi.get(&at_type[0..1]);
-        if let Some(m) = r {
-            radius = *m;
+        if let Some(&m) = r {
+            radius = m;
         }
     }
     return radius;

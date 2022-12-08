@@ -9,7 +9,7 @@ use std::io::{stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::ProgressBar;
-use crate::parse_tpr::{gen_qrv, TPR};
+use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::prepare_apbs::write_apbs;
 

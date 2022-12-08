@@ -342,7 +342,8 @@ struct Atom {
 
 impl fmt::Display for Atom {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Atom {}: {} with type {}, charge {}, in residue {}", self.id, self.name, self.type_id, self.charge, self.residue_index)
+        write!(f, "Atom {}: {} with type {}, charge {}, in residue {}",
+               self.id, self.name, self.type_id, self.charge, self.residue_index)
     }
 }
 
@@ -388,48 +389,4 @@ impl Residue {
 fn read_line(reader: &mut BufReader<File>, buf: &mut String) -> usize {
     buf.clear();
     reader.read_line(buf).unwrap()
-}
-
-pub fn gen_qrv(mdp: &str, ndx: &Index, wd: &Path,
-               receptor_grp: usize, ligand_grp: usize,
-               qrv: &Path, settings: &Parameters) {
-//
-//     // output to qrv file
-//     let mut atom_id_total = 0;
-//     let mut atom_id_feature = 0;
-//     let re = Regex::new(r"([a-zA-Z]+)\d*").unwrap();
-//     for i in 0..mol_types {
-//         for n in 0..mol_nums[i] {
-//             println!("Writing atoms...");
-//             for j in 0..sys_atom_nums[i] {
-//                 if ndx_rec.contains(&atom_id_total) || ndx_lig.contains(&atom_id_total) {
-//                     atom_id_feature += 1;
-//                     let mut radi: f64;
-//                     match rad_type {
-//                         0 => radi = r_atoms[[n, j]],
-//                         1 => radi = {
-//                             let res = re.captures(t_atoms[[i, j]].as_str()).unwrap();
-//                             let res = res.get(1).unwrap().as_str();
-//                             get_radi(res)
-//                         },
-//                         _ => {
-//                             println!("Error: radType should only be 0 or 1. Check settings.");
-//                             return;
-//                         }
-//                     }
-//                     qrv_content.write_all(format!("{:6} {:9.5} {:9.6} {:6} {:9.6} {:9.6} {:6} \"{}\"-1.{} {} {:-6}  ",
-//                                                   atom_id_feature, q_atoms[[i, j]], radi, c_atoms[[i, j]], s_atoms[[i, j]],
-//                                                   e_atoms[[i, j]], atom_id_total + 1, sys_names[i], j + 1,
-//                                                   res_names[[i, res_ids[[i, j]]]], t_atoms[[i, j]]).as_bytes())
-//                         .expect("Writing qrv file failed.");
-//                     if ndx_rec.contains(&atom_id_total) {
-//                         qrv_content.write_all("Rec\n".as_bytes()).expect("Writing qrv file failed.");
-//                     } else if ndx_lig.contains(&atom_id_total) {
-//                         qrv_content.write_all("Lig\n".as_bytes()).expect("Writing qrv file failed.");
-//                     }
-//                 }
-//                 atom_id_total += 1;
-//             }
-//         }
-//     }
 }

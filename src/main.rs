@@ -106,6 +106,7 @@ fn main() {
     println!("\nFinished reading tpr file:\n{}.", tpr);
 
     // go to next step
+    // 修改接口, 开始下面流程
     // fun_para_basic::set_para_basic(&mut trj, &mdp_path, &mut ndx, wd, &mut settings);
 }
 
