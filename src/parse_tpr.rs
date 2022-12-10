@@ -9,13 +9,13 @@ use crate::index_parser::Index;
 use crate::Parameters;
 
 pub struct TPR {
-    name: String,
-    atoms_num: i64,
-    molecule_types_num: usize,
-    molecule_types: Vec<MolType>,
-    atom_types_num: usize,
-    lj_sr_params: Vec<LJType>,
-    molecules: Vec<Molecule>,
+    pub name: String,
+    pub atoms_num: usize,
+    pub molecule_types_num: usize,
+    pub molecule_types: Vec<MolType>,
+    pub atom_types_num: usize,
+    pub lj_sr_params: Vec<LJType>,
+    pub molecules: Vec<Molecule>,
 }
 
 impl fmt::Display for TPR {
@@ -178,17 +178,6 @@ impl TPR {
                     atom_names.push(name.to_string());
                 }
 
-                for id in 0..atoms_num {
-                    atoms.push(Atom::new(id,
-                                         atom_types[id],
-                                         atom_charges[id],
-                                         atom_resids[id],
-                                         atom_names[id].to_string(),
-                                         atom_sigmas[id],
-                                         atom_epsilons[id],
-                                         atom_radii[id]));
-                }
-
                 loop {
                     read_line(&mut reader, &mut buf);
                     if buf.trim().starts_with("residue (") {
@@ -242,6 +231,18 @@ impl TPR {
                         }
                     }
                 }
+
+                for id in 0..atoms_num {
+                    atoms.push(Atom::new(id,
+                                         atom_types[id],
+                                         atom_charges[id],
+                                         atom_resids[id],
+                                         atom_names[id].to_string(),
+                                         atom_sigmas[id],
+                                         atom_epsilons[id],
+                                         atom_radii[id]));
+                }
+
                 molecules.push(Molecule::new(molecule_type_id, molecule_name, atoms_num,
                                              &atoms, &residues));
             }
@@ -262,10 +263,10 @@ impl TPR {
     }
 }
 
-struct MolType {
-    id: usize,
-    name: String,
-    molecules_num: i64,
+pub struct MolType {
+    pub id: usize,
+    pub name: String,
+    pub molecules_num: i64,
 }
 
 impl MolType {
@@ -284,10 +285,10 @@ impl fmt::Display for MolType {
     }
 }
 
-struct LJType {
-    func_id: usize,
-    c6: f64,
-    c12: f64,
+pub struct LJType {
+    pub func_id: usize,
+    pub c6: f64,
+    pub c12: f64,
 }
 
 impl LJType {
@@ -300,12 +301,12 @@ impl LJType {
     }
 }
 
-struct Molecule {
-    molecule_type_id: usize,
-    molecule_name: String,
-    atoms_num: usize,
-    atoms: Vec<Atom>,
-    residues: Vec<Residue>,
+pub struct Molecule {
+    pub molecule_type_id: usize,
+    pub molecule_name: String,
+    pub atoms_num: usize,
+    pub atoms: Vec<Atom>,
+    pub residues: Vec<Residue>,
 }
 
 impl Molecule {
@@ -329,15 +330,15 @@ impl fmt::Display for Molecule {
 }
 
 #[derive(Clone)]
-struct Atom {
-    id: usize,
-    type_id: usize,
-    charge: f64,
-    residue_index: usize,
-    name: String,
-    sigma: f64,
-    epsilon: f64,
-    radius: f64,
+pub struct Atom {
+    pub id: usize,
+    pub type_id: usize,
+    pub charge: f64,
+    pub residue_index: usize,
+    pub name: String,
+    pub sigma: f64,
+    pub epsilon: f64,
+    pub radius: f64,
 }
 
 impl fmt::Display for Atom {
@@ -364,10 +365,10 @@ impl Atom {
 }
 
 #[derive(Clone)]
-struct Residue {
-    id: usize,
-    name: String,
-    nr: i32,
+pub struct Residue {
+    pub id: usize,
+    pub name: String,
+    pub nr: i32,
 }
 
 impl fmt::Display for Residue {

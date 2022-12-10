@@ -1,0 +1,249 @@
+read
+  mol pqr _system_6ns_com.pqr
+  mol pqr _system_6ns_rec.pqr
+  mol pqr _system_6ns_lig.pqr
+end
+
+
+ELEC name _system_6ns_com
+  mg-auto
+  mol 1
+  dime   234  262  225
+  cglen  321.158  362.860  308.140
+  fglen  117.053  130.953  112.713
+  fgcent 58.290  63.540  28.680
+  cgcent 58.290  63.540  28.680
+ 
+  temp  298.15
+  pdie  2
+  sdie  78.54
+  
+  npbe
+  bcfl  mdh
+  srfm  smol
+  chgm  spl4
+  swin  0.3
+  
+  srad  1.4
+  sdens 10
+  
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+ELEC name _system_6ns_com_VAC
+  mg-auto
+  mol 1
+  dime   234  262  225
+  cglen  321.158  362.860  308.140
+  fglen  117.053  130.953  112.713
+  fgcent 58.290  63.540  28.680
+  cgcent 58.290  63.540  28.680
+
+  temp  298.15
+  pdie  2
+  sdie  1
+  
+  npbe
+  bcfl  mdh
+  srfm  smol
+  chgm  spl4
+  swin  0.3
+  
+  srad  1.4
+  sdens 10
+  
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+APOLAR name _system_6ns_com_SAS
+  mol 1
+  temp  298.15
+  srfm  sacc
+  swin  0.3
+  
+  srad  1.4
+  gamma  1
+  
+  press  0
+  bconc  0
+  sdens  10
+  dpos  0.2
+  grid  0.1 0.1 0.1
+  
+  calcforce  no
+  calcenergy total
+end
+
+print elecEnergy _system_6ns_com - _system_6ns_com_VAC end
+print apolEnergy _system_6ns_com_SAS end
+
+
+ELEC name _system_6ns_rec
+  mg-auto
+  mol 2
+  dime   234  262  225
+  cglen  321.158  362.860  308.140
+  fglen  117.053  130.953  112.713
+  fgcent 58.290  63.540  28.680
+  cgcent 58.290  63.540  28.680
+ 
+  temp  298.15
+  pdie  2
+  sdie  78.54
+  
+  npbe
+  bcfl  mdh
+  srfm  smol
+  chgm  spl4
+  swin  0.3
+  
+  srad  1.4
+  sdens 10
+  
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+ELEC name _system_6ns_rec_VAC
+  mg-auto
+  mol 2
+  dime   234  262  225
+  cglen  321.158  362.860  308.140
+  fglen  117.053  130.953  112.713
+  fgcent 58.290  63.540  28.680
+  cgcent 58.290  63.540  28.680
+
+  temp  298.15
+  pdie  2
+  sdie  1
+  
+  npbe
+  bcfl  mdh
+  srfm  smol
+  chgm  spl4
+  swin  0.3
+  
+  srad  1.4
+  sdens 10
+  
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+APOLAR name _system_6ns_rec_SAS
+  mol 2
+  temp  298.15
+  srfm  sacc
+  swin  0.3
+  
+  srad  1.4
+  gamma  1
+  
+  press  0
+  bconc  0
+  sdens  10
+  dpos  0.2
+  grid  0.1 0.1 0.1
+  
+  calcforce  no
+  calcenergy total
+end
+
+print elecEnergy _system_6ns_rec - _system_6ns_rec_VAC end
+print apolEnergy _system_6ns_rec_SAS end
+
+
+ELEC name _system_6ns_lig
+  mg-auto
+  mol 3
+  dime   171  175  182
+  cglen  226.600  232.180  243.160
+  fglen  85.533  87.393  91.053
+  fgcent 62.810  62.920  29.830
+  cgcent 62.810  62.920  29.830
+ 
+  temp  298.15
+  pdie  2
+  sdie  78.54
+  
+  npbe
+  bcfl  mdh
+  srfm  smol
+  chgm  spl4
+  swin  0.3
+  
+  srad  1.4
+  sdens 10
+  
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+ELEC name _system_6ns_lig_VAC
+  mg-auto
+  mol 3
+  dime   171  175  182
+  cglen  226.600  232.180  243.160
+  fglen  85.533  87.393  91.053
+  fgcent 62.810  62.920  29.830
+  cgcent 62.810  62.920  29.830
+
+  temp  298.15
+  pdie  2
+  sdie  1
+  
+  npbe
+  bcfl  mdh
+  srfm  smol
+  chgm  spl4
+  swin  0.3
+  
+  srad  1.4
+  sdens 10
+  
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+APOLAR name _system_6ns_lig_SAS
+  mol 3
+  temp  298.15
+  srfm  sacc
+  swin  0.3
+  
+  srad  1.4
+  gamma  1
+  
+  press  0
+  bconc  0
+  sdens  10
+  dpos  0.2
+  grid  0.1 0.1 0.1
+  
+  calcforce  no
+  calcenergy total
+end
+
+print elecEnergy _system_6ns_lig - _system_6ns_lig_VAC end
+print apolEnergy _system_6ns_lig_SAS end
+

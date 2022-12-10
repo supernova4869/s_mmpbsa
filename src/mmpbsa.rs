@@ -13,78 +13,19 @@ use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::prepare_apbs::write_apbs;
 
-pub fn do_mmpbsa_calculations(trj: &String, mdp: &str, ndx: &Index, wd: &Path, sys_name: &String,
+pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, sys_name: &String,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64, pbe_set: &PBESet, pba_set: &PBASet,
-                              settings: &Parameters) {
-                              // -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
-    // let qrv_path = String::from(sys_name.as_str()) + ".qrv";
-    // let qrv_path = wd.join(qrv_path);
-    //
-    // let mut re_gen_qrv = true;
-    // if qrv_path.is_file() {
-    //     let mdp_sha = gen_file_sha256(mdp);
-    //     let qrv_sha = gen_file_sha256(qrv_path.as_path().to_str().unwrap());
-    //     if wd.join(".mdp.sha").is_file() && wd.join(".qrv.sha").is_file() {
-    //         let old_mdp_sha = fs::read_to_string(wd.join(".mdp.sha")).unwrap();
-    //         let old_qrv_sha = fs::read_to_string(wd.join(".qrv.sha")).unwrap();
-    //         if mdp_sha.eq(&old_mdp_sha) && qrv_sha.eq(&old_qrv_sha) {
-    //             re_gen_qrv = false;
-    //             println!("Found checked {}. Will not regenerate it.", qrv_path.to_str().unwrap());
-    //         } else {
-    //             println!("Parameter file {} has been changed. Regenerating it.", qrv_path.to_str().unwrap());
-    //         }
-    //     } else {
-    //         println!("mdp and/or qrv sha file Not found. Will regenerate parameter file.")
-    //     }
-    // }
-    // if re_gen_qrv {
-        // get charge, radius, LJ parameters of each atoms and generate qrv files
+                              settings: &Parameters)
+                              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+    // pdb>pqr, output apbs, calculate MM, calculate APBS
 
-        // gen_qrv(mdp, ndx, wd, receptor_grp, ligand_grp, qrv_path.as_path(), settings);
-    // }
-    // // pdb>pqr, output apbs, calculate MM, calculate APBS
-    // let results = do_mmpbsa(trj, ndx, wd, sys_name.as_str(),
-    //                         complex_grp, receptor_grp, ligand_grp,
-    //                         bt, et, dt, pbe_set, pba_set,
-    //                         settings);
-    // return results;
-}
-
-fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
-    let num_frames = frames.len();
-    let num_atoms = frames[0].num_atoms();
-    let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
-    let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
-    for (idx, frame) in frames.into_iter().enumerate() {
-        let atoms = frame.coords.to_vec();
-        for (i, a) in atoms.into_iter().enumerate() {
-            for j in 0..3 {
-                coord_matrix[[idx, i, j]] = a[j] as f64;
-            }
-        }
-        for (i, b) in frame.box_vector.into_iter().enumerate() {
-            for j in 0..3 {
-                box_size[[idx, i, j]] = b[j] as f64;
-            }
-        }
-    }
-    return (coord_matrix, box_size);
-}
-
-fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
-             complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
-             bt: f64, et: f64, dt: f64,
-             pbe_set: &PBESet, pba_set: &PBASet,
-             settings: &Parameters)
-             -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // Running settings
     let apbs = &settings.apbs;
     let mesh_type = settings.mesh_type;
     let use_dh = settings.use_dh;
     let use_ts = settings.use_ts;
 
-    let qrv = wd.join(sys_name.to_string() + ".qrv");
     let temp_dir = wd.join(sys_name);
     println!("Temporary files will be placed at {}/", temp_dir.display());
     if !temp_dir.is_dir() {
@@ -101,80 +42,48 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
 
     // run MM-PBSA calculatons
     println!("Running MM-PBSA calculatons...");
-    println!("Parsing parameters...");
-    let qrv = fs::read_to_string(qrv).unwrap();
-    let qrv: Vec<&str> = qrv.split("\n").collect();
+    println!("Preparing parameters...");
+
     // c6 and c12
-    let Atyp = qrv[2];
-    let Atyp: usize = Atyp.trim().parse().unwrap();
-    let mut C6: Array2<f64> = Array2::zeros((Atyp, Atyp));
-    let mut C12: Array2<f64> = Array2::zeros((Atyp, Atyp));
-    for i in 0..Atyp {
-        for j in 0..Atyp {
-            let paralj: Vec<&str> = qrv[i + 3].trim().split(" ").collect();
-            let c6: f64 = paralj[2 * j + 1].parse().unwrap();
-            C6[[i, j]] = c6;
-            let c12: f64 = paralj[2 * j + 2].parse().unwrap();
-            C12[[i, j]] = c12;
+    let atom_types_num = tpr.atom_types_num;
+    let mut C6: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
+    let mut C12: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
+    for i in 0..atom_types_num {
+        for j in 0..atom_types_num {
+            C6[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c6;
+            C12[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c12;
         }
     }
 
     let ndx_com = &ndx.groups[complex_grp].indexes;
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
-    let mut atm_charge: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_radius: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_typeindex: Array1<usize> = Array1::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_sigma: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_epsilon: Array1::<f64> = Array1::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_index: Array1<i32> = Array1::zeros(qrv.len() - 3 - Atyp);
-    let mut atm_name: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
-    let mut atm_resname: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
-    let mut atm_resnum: Array1<usize> = Array1::zeros(qrv.len() - 3 - Atyp);
-    // res_rec has blanks in the left part
-    let mut res_rec: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
-    // res_lig has blanks in the right part
-    let mut res_lig: Array1<String> = Array1::default(qrv.len() - 3 - Atyp);
+    let total_atoms = tpr.atoms_num;
+    let mut atm_charge: Array1::<f64> = Array1::zeros(total_atoms);
+    let mut atm_radius: Array1::<f64> = Array1::zeros(total_atoms);
+    let mut atm_typeindex: Array1<usize> = Array1::zeros(total_atoms);
+    let mut atm_sigma: Array1::<f64> = Array1::zeros(total_atoms);
+    let mut atm_epsilon: Array1::<f64> = Array1::zeros(total_atoms);
+    let mut atm_index: Array1<usize> = Array1::zeros(total_atoms);
+    let mut atm_name: Array1<String> = Array1::default(total_atoms);
+    let mut atm_resname: Array1<String> = Array1::default(total_atoms);
+    let mut atm_resnum: Array1<usize> = Array1::zeros(total_atoms);
+
     let mut idx = 0;
-    for line in &qrv[Atyp + 3..qrv.len() - 1] { // there's a blank line at the end
-        let line: Vec<&str> = line
-            .split(" ")
-            .filter_map(|p| match p.len() {
-                0 => None,
-                _ => Some(p)
-            })
-            .collect();
-        atm_charge[idx] = line[1].parse().unwrap();
-        atm_radius[idx] = line[2].parse().unwrap();
-        atm_typeindex[idx] = line[3].parse().unwrap();
-        atm_sigma[idx] = line[4].parse().unwrap();
-        atm_epsilon[idx] = line[5].parse().unwrap();
-        atm_index[idx] = line[0].parse().unwrap();
-        atm_name[idx] = line[line.len() - 2].to_string();
-        let res = line[line.len() - 3];
-        atm_resnum[idx] = res[0..5].parse().unwrap();
-        atm_resname[idx] = res[5..].to_string();
-
-        if line[line.len() - 1] == "Rec" {
-            res_rec[idx] = "R~".to_string() + line[line.len() - 3];
-        } else {
-            res_lig[idx] = "L~".to_string() + line[line.len() - 3];
-        }
-        idx += 1;
-    }
-
-    // fix resnum as start at 0 and no leap
-    let diff = &atm_resnum.slice(s![1..atm_resnum.len() - 1]) - &atm_resnum.slice(s![0..atm_resnum.len() - 2]);
-    let mut boundaries: Vec<usize> = vec![0];
-    for (idx, res_num) in diff.into_iter().enumerate() {
-        if res_num > 0 {
-            boundaries.push(idx + 1);
-        }
-    }
-    boundaries.push(atm_resnum.len());
-    for b in 1..boundaries.len() {
-        for i in boundaries[b - 1]..boundaries[b] {
-            atm_resnum[i] = b - 1;
+    for mol in &tpr.molecules {
+        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+            for atom in &mol.atoms {
+                atm_charge[idx] = atom.charge;
+                atm_radius[idx] = atom.radius;
+                atm_typeindex[idx] = atom.type_id;
+                atm_sigma[idx] = atom.sigma;
+                atm_epsilon[idx] = atom.epsilon;
+                atm_index[idx] = atom.id;
+                atm_name[idx] = atom.name.to_string();
+                atm_resname[idx] = mol.residues[atom.residue_index].name.to_string();
+                atm_resnum[idx] = atom.residue_index;
+                idx += 1;
+            }
         }
     }
 
@@ -268,7 +177,8 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     let kJcou = 1389.35457520287;
     let Rcut = f64::INFINITY;
 
-    let total_res_num = atm_resnum[atm_resnum.len() - 1] + 1;
+    let last_mol = &tpr.molecules[tpr.molecules.len() - 1];
+    let total_res_num = last_mol.residues[last_mol.residues.len() - 1].id + 1;
 
     let mut dE: Array1<f64> = Array1::zeros(total_res_num);
     let mut dGres: Array1<f64> = Array1::zeros(total_res_num);
@@ -340,7 +250,7 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         write_apbs(ndx_rec, ndx_lig, &coord, &atm_radius,
-                  pbe_set, &pba_set, &temp_dir, &f_name, settings);
+                   pbe_set, &pba_set, &temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         if !apbs.is_empty() {
             let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
@@ -496,8 +406,23 @@ fn do_mmpbsa(trj: &String, ndx: &Index, wd: &Path, sys_name: &str,
     return (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki);
 }
 
-pub fn gen_file_sha256<T: AsRef<Path> + ?Sized>(p: &T) -> String {
-    let s = fs::read_to_string(p).unwrap();
-    let hash = sha256::digest(s);
-    return hash;
+fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
+    let num_frames = frames.len();
+    let num_atoms = frames[0].num_atoms();
+    let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
+    let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
+    for (idx, frame) in frames.into_iter().enumerate() {
+        let atoms = frame.coords.to_vec();
+        for (i, a) in atoms.into_iter().enumerate() {
+            for j in 0..3 {
+                coord_matrix[[idx, i, j]] = a[j] as f64;
+            }
+        }
+        for (i, b) in frame.box_vector.into_iter().enumerate() {
+            for j in 0..3 {
+                box_size[[idx, i, j]] = b[j] as f64;
+            }
+        }
+    }
+    return (coord_matrix, box_size);
 }

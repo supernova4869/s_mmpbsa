@@ -4,8 +4,9 @@ use xdrfile::{Frame, XTCTrajectory};
 use crate::{get_input_value, Parameters};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
+use crate::parse_tpr::TPR;
 
-pub fn set_para_trj(trj: &String, mdp: &String, ndx: &String, wd: &Path, settings: &mut Parameters) {
+pub fn set_para_trj(trj: &String, tpr: &TPR, ndx: &String, wd: &Path, settings: &mut Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -29,7 +30,7 @@ pub fn set_para_trj(trj: &String, mdp: &String, ndx: &String, wd: &Path, setting
         match i {
             -10 => return,
             0 => {
-                set_para_mmpbsa(trj, mdp, ndx, wd,
+                set_para_mmpbsa(trj, tpr, ndx, wd,
                                 complex_grp as usize,
                                 receptor_grp as usize,
                                 ligand_grp as usize,

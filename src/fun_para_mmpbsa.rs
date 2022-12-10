@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::{get_input_value, index_parser, Parameters};
 use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
+use crate::parse_tpr::TPR;
 
 enum AtomRadius {
     ForceField,
@@ -10,7 +11,7 @@ enum AtomRadius {
 }
 
 
-pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
+pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
                                                              complex_grp: usize,
                                                              receptor_grp: usize,
                                                              ligand_grp: usize,
@@ -48,7 +49,7 @@ pub fn set_para_mmpbsa(trj: &String, mdp: &String, ndx: &String, wd: &Path,
                 }
                 // 定义results形式, 其中应包含所需的全部数据
                 let ndx = index_parser::Index::new(ndx);
-                let results = mmpbsa::do_mmpbsa_calculations(trj, mdp, &ndx, wd, &sys_name,
+                let results = mmpbsa::do_mmpbsa_calculations(trj, tpr, &ndx, wd, &sys_name,
                                                              complex_grp as usize,
                                                              receptor_grp as usize,
                                                              ligand_grp as usize,
