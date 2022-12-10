@@ -1,12 +1,9 @@
 use std::fmt::Formatter;
 use std::fmt;
-use std::io::{BufReader, Write};
-use std::path::Path;
+use std::io::BufReader;
 use regex::Regex;
 use std::fs::File;
 use std::io::BufRead;
-use crate::index_parser::Index;
-use crate::Parameters;
 
 pub struct TPR {
     pub name: String,
@@ -139,6 +136,9 @@ impl TPR {
             }
 
             if buf.trim().starts_with("moltype (") {
+                atoms.clear();      // clear previous atoms
+                residues.clear();   // clear previous residues
+
                 let re = Regex::new(r"moltype \((\d+)\)").unwrap();
                 let molecule_type_id: usize = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
                 println!("Reading molecule {} information...", molecule_type_id);

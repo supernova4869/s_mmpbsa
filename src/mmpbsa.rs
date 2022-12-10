@@ -46,12 +46,12 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
     // c6 and c12
     let atom_types_num = tpr.atom_types_num;
-    let mut C6: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
-    let mut C12: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
+    let mut c6: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
+    let mut c12: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
     for i in 0..atom_types_num {
         for j in 0..atom_types_num {
-            C6[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c6;
-            C12[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c12;
+            c6[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c6;
+            c12[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c12;
         }
     }
 
@@ -59,6 +59,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
     let total_atoms = tpr.atoms_num;
+
     let mut atm_charge: Array1::<f64> = Array1::zeros(total_atoms);
     let mut atm_radius: Array1::<f64> = Array1::zeros(total_atoms);
     let mut atm_typeindex: Array1<usize> = Array1::zeros(total_atoms);
@@ -232,7 +233,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
                     if use_dh {
                         e_cou = e_cou * f64::exp(-kap * r);
                     }
-                    let e_vdw = C12[[ci, cj]] / r.powi(12) - C6[[ci, cj]] / r.powi(6);
+                    let e_vdw = c12[[ci, cj]] / r.powi(12) - c6[[ci, cj]] / r.powi(6);
                     de_cou[atm_resnum[ii]] += e_cou;
                     de_cou[atm_resnum[jj]] += e_cou;
                     de_vdw[atm_resnum[ii]] += e_vdw;

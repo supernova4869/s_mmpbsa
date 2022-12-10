@@ -31,9 +31,9 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
             AtomRadius::MBondi => "mBondi"
         });
         println!("  4 Input atom radius for LJ parameters, current: not support");
-        println!("  5 Input coarse grid expand factor, current: {}", settings.cfac);
-        println!("  6 Input fine grid expand amount, current: {} A", settings.fadd);
-        println!("  7 Input fine mesh spacing, current: {} A", settings.df);
+        println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
+        println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
+        println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
         let i = get_input_value();
@@ -56,7 +56,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
                                                              bt, et, dt,
                                                              &pbe_set, &pba_set,
                                                              &settings);
-                // analyzation::analyze_controller(wd, &sys_name, results);
+                analyzation::analyze_controller(wd, &sys_name, results);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;
