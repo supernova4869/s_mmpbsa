@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::rc::Rc;
 use xdrfile::{Frame, XTCTrajectory};
-use crate::{get_input_value, Parameters};
+use crate::{get_input_value, parameters::Parameters};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 use crate::parse_tpr::TPR;

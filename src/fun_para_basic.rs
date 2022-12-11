@@ -1,6 +1,6 @@
 use std::io::stdin;
 use std::path::Path;
-use crate::Parameters;
+use crate::parameters::Parameters;
 use crate::{get_input_value, convert_cur_dir, confirm_file_validity};
 use crate::fun_para_trj::set_para_trj;
 use crate::parse_tpr::TPR;

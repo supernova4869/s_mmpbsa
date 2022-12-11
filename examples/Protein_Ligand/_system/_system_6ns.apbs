@@ -8,11 +8,11 @@ end
 ELEC name _system_6ns_com
   mg-auto
   mol 1
-  dime   234  262  225
-  cglen  321.158  362.860  308.140
-  fglen  117.053  130.953  112.713
-  fgcent 58.290  63.540  28.680
-  cgcent 58.290  63.540  28.680
+  dime   164  194  158
+  cglen  216.709  260.870  206.425
+  fglen  82.236  96.957  78.808
+  fgcent 57.880  63.540  28.726
+  cgcent 57.880  63.540  28.726
  
   temp  298.15
   pdie  2
@@ -37,11 +37,11 @@ end
 ELEC name _system_6ns_com_VAC
   mg-auto
   mol 1
-  dime   234  262  225
-  cglen  321.158  362.860  308.140
-  fglen  117.053  130.953  112.713
-  fgcent 58.290  63.540  28.680
-  cgcent 58.290  63.540  28.680
+  dime   164  194  158
+  cglen  216.709  260.870  206.425
+  fglen  82.236  96.957  78.808
+  fgcent 57.880  63.540  28.726
+  cgcent 57.880  63.540  28.726
 
   temp  298.15
   pdie  2
@@ -89,11 +89,11 @@ print apolEnergy _system_6ns_com_SAS end
 ELEC name _system_6ns_rec
   mg-auto
   mol 2
-  dime   234  262  225
-  cglen  321.158  362.860  308.140
-  fglen  117.053  130.953  112.713
-  fgcent 58.290  63.540  28.680
-  cgcent 58.290  63.540  28.680
+  dime   164  194  158
+  cglen  216.709  260.870  206.425
+  fglen  82.236  96.957  78.808
+  fgcent 57.880  63.540  28.726
+  cgcent 57.880  63.540  28.726
  
   temp  298.15
   pdie  2
@@ -118,11 +118,11 @@ end
 ELEC name _system_6ns_rec_VAC
   mg-auto
   mol 2
-  dime   234  262  225
-  cglen  321.158  362.860  308.140
-  fglen  117.053  130.953  112.713
-  fgcent 58.290  63.540  28.680
-  cgcent 58.290  63.540  28.680
+  dime   164  194  158
+  cglen  216.709  260.870  206.425
+  fglen  82.236  96.957  78.808
+  fgcent 57.880  63.540  28.726
+  cgcent 57.880  63.540  28.726
 
   temp  298.15
   pdie  2
@@ -170,9 +170,9 @@ print apolEnergy _system_6ns_rec_SAS end
 ELEC name _system_6ns_lig
   mg-auto
   mol 3
-  dime   171  175  182
-  cglen  226.600  232.180  243.160
-  fglen  85.533  87.393  91.053
+  dime   103  107  114
+  cglen  124.610  130.190  141.170
+  fglen  51.537  53.397  57.057
   fgcent 62.810  62.920  29.830
   cgcent 62.810  62.920  29.830
  
@@ -199,9 +199,9 @@ end
 ELEC name _system_6ns_lig_VAC
   mg-auto
   mol 3
-  dime   171  175  182
-  cglen  226.600  232.180  243.160
-  fglen  85.533  87.393  91.053
+  dime   103  107  114
+  cglen  124.610  130.190  141.170
+  fglen  51.537  53.397  57.057
   fgcent 62.810  62.920  29.830
   cgcent 62.810  62.920  29.830
 

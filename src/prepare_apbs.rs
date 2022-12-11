@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use ndarray::{Array1, ArrayView2};
 use crate::apbs_param::*;
-use crate::Parameters;
+use crate::parameters::Parameters;
 
 pub fn write_apbs(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &ArrayView2<f64>,
                   atm_radius: &Array1<f64>, pbe_set: &PBESet, pba_set: &PBASet,

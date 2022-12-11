@@ -8,6 +8,7 @@ mod fun_para_mmpbsa;
 mod atom_radius;
 mod apbs_param;
 mod prepare_apbs;
+mod parameters;
 
 use std::fs;
 use std::env;
@@ -18,26 +19,10 @@ use std::process::Command;
 use std::str::FromStr;
 use regex::Regex;
 use toml;
-use toml::Value;
 use chrono::prelude::Local;
 use crate::parse_tpr::TPR;
-
-pub struct Parameters {
-    rad_type: i32,
-    rad_lj0: f64,
-    mesh_type: i32,
-    grid_type: i32,
-    use_dh: bool,
-    use_ts: bool,
-    cfac: f64,
-    fadd: f64,
-    df: f64,
-    nkernels: i32,
-    preserve: bool,
-    gmx: String,
-    apbs: String,
-    last_opened: String,
-}
+use parameters::Parameters;
+use crate::parameters::init_settings;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -248,90 +233,6 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
             }
         }
         Err(_) => Err(())
-    }
-}
-
-fn init_settings() -> Parameters {
-    let mut params = Parameters {
-        rad_type: 1,
-        rad_lj0: 1.2,
-        mesh_type: 0,
-        grid_type: 1,
-        use_dh: true,
-        use_ts: true,
-        cfac: 3.0,
-        fadd: 10.0,
-        df: 0.5,
-        nkernels: 4,
-        preserve: true,
-        gmx: String::from("gmx"),
-        apbs: String::from("apbs"),
-        last_opened: String::new(),
-    };
-    if Path::new("settings.ini").is_file() {
-        // Find settings locally
-        let settings = fs::read_to_string("settings.ini").unwrap();
-        let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
-        let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini grammar");
-        read_user_settings(&mut params, &settings);
-        println!("Note: found settings.ini in the current path. Will use {} kernels.", params.nkernels);
-    } else {
-        let super_mmpbsa_path = env::current_exe().unwrap()
-            .parent().unwrap().join("settings.ini");
-        if super_mmpbsa_path.is_file() {
-            let settings = fs::read_to_string(super_mmpbsa_path).unwrap();
-            let settings = Regex::new(r"\\").unwrap()
-                .replace_all(settings.as_str(), "/").to_string();
-            let settings: Value = toml::from_str(settings.as_str()).unwrap();
-            read_user_settings(&mut params, &settings);
-            println!("Note: found settings.ini in super_mmpbsa directory. Will use {} kernels.", params.nkernels);
-        } else {
-            println!("Note: settings.ini not found. Will use 1 kernel.");
-        }
-    }
-    println!("(Currently multi-threading not yet utilized)");
-    return params;
-}
-
-fn read_user_settings(params: &mut Parameters, settings: &Value) {
-    params.rad_type = parse_param(settings, "radType", params.rad_type);
-    params.rad_lj0 = parse_param(settings, "radLJ0", params.rad_lj0);
-    params.mesh_type = parse_param(settings, "meshType", params.mesh_type);
-    params.grid_type = parse_param(settings, "gridType", params.grid_type);
-    params.cfac = parse_param(settings, "cfac", params.cfac);
-    params.fadd = parse_param(settings, "fadd", params.fadd);
-    params.df = parse_param(settings, "df", params.df);
-    params.nkernels = parse_param(settings, "nkernels", params.nkernels);
-    // String type cannot move
-    params.preserve = match settings.get("preserve").unwrap().to_string().as_str() {
-        "y" => true,
-        "Y" => true,
-        _ => false
-    };
-    let mut gmx = settings.get("gmx").unwrap().to_string();
-    gmx = gmx[1..gmx.len() - 1].to_string();
-    if gmx.len() == 0 {
-        gmx = "gmx".to_string();
-    }
-    params.gmx = gmx;
-    let mut apbs = settings.get("apbs").unwrap().to_string();
-    apbs = apbs[1..apbs.len() - 1].to_string();
-    if apbs.len() == 0 {
-        apbs = "apbs".to_string();
-    }
-    params.apbs = apbs;
-    let mut last_opened = settings.get("last_opened").unwrap().to_string();
-    last_opened = last_opened[1..last_opened.len() - 1].to_string();
-    if last_opened.len() == 0 {
-        last_opened = String::new();
-    }
-    params.last_opened = last_opened;
-}
-
-fn parse_param<T: FromStr>(settings: &Value, key: &str, default: T) -> T {
-    match settings.get(key).unwrap().to_string().parse::<T>() {
-        Ok(v) => v,
-        Err(_) => default
     }
 }
 

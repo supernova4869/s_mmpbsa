@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use crate::index_parser::Index;
 use xdrfile::*;
-use crate::Parameters;
+use crate::parameters::Parameters;
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
 use std::io::{stdin, Write};
@@ -147,8 +147,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
             let y = coord[1] * 10.0;
             let z = coord[2] * 10.0;
             let q = atm_charge[at_id];
-            let r = atm_radius
-                [at_id];
+            let r = atm_radius[at_id];
             let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} \
             {:12.6} {:12.6}\n",
                                     index, at_name, resname, resnum, x, y, z, q, r);

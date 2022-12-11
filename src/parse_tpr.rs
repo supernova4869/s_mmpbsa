@@ -123,7 +123,7 @@ impl TPR {
                             if c6 != 0.0 && c12 != 0.0 {
                                 sigma.push(10.0 * (c12 / c6).powf(1.0 / 6.0)); // nm to A
                                 epsilon.push(c6.powi(2) / (4.0 * c12));
-                                radius.push(sigma[i]); // sigma is diameter
+                                radius.push(sigma[i] / 2.0); // sigma is diameter
                             } else {
                                 sigma.push(0.0); // nm to A
                                 epsilon.push(0.0);

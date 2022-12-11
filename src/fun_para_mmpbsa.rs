@@ -1,15 +1,9 @@
 use std::io::stdin;
 use std::path::Path;
-use crate::{get_input_value, index_parser, Parameters};
+use crate::{get_input_value, index_parser, parameters::Parameters};
 use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
 use crate::parse_tpr::TPR;
-
-enum AtomRadius {
-    ForceField,
-    MBondi,
-}
-
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
                                                              complex_grp: usize,
@@ -17,7 +11,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
                                                              ligand_grp: usize,
                                                              bt: f64, et: f64, dt: f64,
                                                              settings: &mut Parameters) {
-    let atom_rad_type = AtomRadius::MBondi;
+    let atom_rad_type = settings.rad_type;
     let pbe_set = PBESet::new();
     let pba_set = PBASet::new();
     loop {
@@ -26,10 +20,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
         println!("  0 Start MM/PB-SA calculation");
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
-        println!("  3 Select atom radius type, current: {}", match atom_rad_type {
-            AtomRadius::ForceField => "from force field",
-            AtomRadius::MBondi => "mBondi"
-        });
+        println!("  3 Select atom radius type, current: {}", atom_rad_type);
         println!("  4 Input atom radius for LJ parameters, current: not support");
         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
         println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
