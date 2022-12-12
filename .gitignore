@@ -1,4 +1,3 @@
 /target
 /.idea
-/examples/Protein_Ligand/_system
-/examples/Small_Molecules/_system
+/examples/*/*/

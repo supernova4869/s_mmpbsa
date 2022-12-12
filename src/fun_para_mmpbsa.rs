@@ -2,7 +2,7 @@ use std::io::stdin;
 use std::path::Path;
 use crate::{get_input_selection, index_parser, parameters::Parameters};
 use crate::{mmpbsa, analyzation};
-use crate::apbs_param::{PBASet, PBESet};
+use crate::apbs_param::{Ion, PBASet, PBESet};
 use crate::atom_radius::{Radius, RADIUS_TABLE};
 use crate::parse_tpr::TPR;
 
@@ -16,8 +16,8 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
     // save a copy of default force field atom type
     let atom_radius_ff = atom_radius.clone();
     tpr.apply_radius(settings.rad_type, &atom_radius.radii);
-    let pbe_set = PBESet::new();
-    let pba_set = PBASet::new();
+    let mut pbe_set = PBESet::new();
+    let mut pba_set = PBASet::new();
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
@@ -114,12 +114,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 }
             }
             8 => {
-                println!("Current PB settings:");
-                println!("{}", pbe_set);
+                pbe_set.save_params(wd.join("PBESet.txt"));
             }
             9 => {
-                println!("Current SA settings:");
-                println!("{}", pba_set);
+                pba_set.save_params(wd.join("PBASet.txt"));
             }
             _ => println!("Invalid input")
         }

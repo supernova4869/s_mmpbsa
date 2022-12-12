@@ -8,4 +8,4 @@ super_mmpbsa: Supernova's tool of calculating binding free energy using molecula
 - 实现并行
 
 ## 下个版本
-- 增加其他APBS依赖, 例如AFMPB, PAFMPB, 以及自身实现
+- 增加其他APBS依赖, 例如AFMPB等

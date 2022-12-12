@@ -1,6 +1,9 @@
-use std::fmt;
+use std::{fmt, fs};
 use std::fmt::Formatter;
+use std::fs::File;
+use std::io::Write;
 use std::marker::Copy;
+use std::path::Path;
 
 pub struct PBESet {
     pub temp: f64,
@@ -62,6 +65,15 @@ impl PBESet {
         };
         return new_pbe_set;
     }
+
+    pub fn load_params(self, file: &str) -> PBESet {
+        let file = fs::read_to_string(file).unwrap();
+        self
+    }
+
+    pub fn save_params<T: AsRef<Path>>(&self, file: T) {
+        File::create(file).unwrap().write_all(format!("{}", self).as_bytes()).unwrap();
+    }
 }
 
 impl fmt::Display for PBESet {
@@ -70,19 +82,20 @@ impl fmt::Display for PBESet {
         for ion in &self.ions {
             ions.push_str(format!("  ion {}\n", ion).as_str());
         }
-        write!(f, "  temp  {}\
-        \n  pdie  {}\
-        \n  sdie  {}\
+        write!(f, "  temp  {}    # 温度\
+        \n  pdie  {}    # 溶质介电常数\
+        \n  sdie  {}    # 溶剂介电常数, 真空1, 水78.54\
         \n  \
-        \n  {}\
-        \n  bcfl  {}\
-        \n  srfm  {}\
-        \n  chgm  {}\
-        \n  swin  {}\
+        \n  {}          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)\
+        \n  bcfl  {}    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\
+        \n  srfm  {}    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)\
+        \n  chgm  {}    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散\
+        \n  swin  {}    # 立方样条的窗口值, 仅用于 srfm=spl2/4\
         \n  \
-        \n  srad  {}\
-        \n  sdens {}\
+        \n  srad  {}    # 溶剂探测半径\
+        \n  sdens {}    # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用\
         \n  \
+        \n  # 离子电荷, 浓度, 半径\
         \n{}  \
         \n  calcforce  {}\
         \n  calcenergy {}", self.temp, self.pdie, self.sdie,
@@ -92,21 +105,6 @@ impl fmt::Display for PBESet {
                 false => "no"
             }, self.calc_energy)
     }
-}
-
-pub struct PBASet {
-    temp: f64,
-    srfm: String,
-    swin: f64,
-    srad: f64,
-    pub gamma: f64,
-    press: f64,
-    bconc: f64,
-    sdens: f64,
-    dpos: f64,
-    grid: (f64, f64, f64),
-    calc_force: bool,
-    calc_energy: String,
 }
 
 pub struct Ion {
@@ -129,6 +127,21 @@ impl Clone for Ion {
 
 impl Copy for Ion {}
 
+pub struct PBASet {
+    temp: f64,
+    srfm: String,
+    swin: f64,
+    srad: f64,
+    pub gamma: f64,
+    press: f64,
+    bconc: f64,
+    sdens: f64,
+    dpos: f64,
+    grid: (f64, f64, f64),
+    calc_force: bool,
+    calc_energy: String,
+}
+
 impl PBASet {
     pub fn new() -> Self {
         PBASet {
@@ -146,19 +159,28 @@ impl PBASet {
             calc_energy: "total".to_string(),
         }
     }
+
+    pub fn load_params(self, file: &str) -> PBASet {
+        let file = fs::read_to_string(file).unwrap();
+        self
+    }
+
+    pub fn save_params<T: AsRef<Path>>(&self, file: T) {
+        File::create(file).unwrap().write_all(format!("{}", self).as_bytes()).unwrap();
+    }
 }
 
 impl fmt::Display for PBASet {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "  temp  {}\
-        \n  srfm  {}\
-        \n  swin  {}\
+        write!(f, "  temp  {}    # 温度\
+        \n  srfm  {}    # 构建溶剂相关表面或体积的模型\
+        \n  swin  {}    # 立方样条窗口(A), 用于定义样条表面\
         \n  \
-        \n  srad  {}\
-        \n  gamma  {}\
+        \n  srad  {}    # 探测半径(A)\
+        \n  gamma  {}   # 表面张力(kJ/mol-A^2)\
         \n  \
-        \n  press  {}\
-        \n  bconc  {}\
+        \n  press  {}   # 压力(kJ/mol-A^3)\
+        \n  bconc  {}   # 溶剂本体密度(A^3)\
         \n  sdens  {}\
         \n  dpos  {}\
         \n  grid  {} {} {}\
