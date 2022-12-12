@@ -1,12 +1,13 @@
 use std::path::Path;
 use std::rc::Rc;
 use xdrfile::{Frame, XTCTrajectory};
-use crate::{get_input_value, parameters::Parameters};
+use crate::{get_input_selection, parameters::Parameters};
+use crate::atom_radius::Radius;
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_trj(trj: &String, tpr: &TPR, ndx: &String, wd: &Path, settings: &mut Parameters) {
+pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_radius: &Radius, settings: &mut Parameters) {
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
@@ -26,7 +27,7 @@ pub fn set_para_trj(trj: &String, tpr: &TPR, ndx: &String, wd: &Path, settings: 
         println!("  4 Set start time of analysis, current:      {} ns", bt / 1000.0);
         println!("  5 Set end time of analysis, current:        {} ns", et / 1000.0);
         println!("  6 Set time interval of analysis, current:   {} ns", dt / 1000.0);
-        let i = get_input_value();
+        let i = get_input_selection();
         match i {
             -10 => return,
             0 => {
@@ -34,54 +35,54 @@ pub fn set_para_trj(trj: &String, tpr: &TPR, ndx: &String, wd: &Path, settings: 
                                 complex_grp as usize,
                                 receptor_grp as usize,
                                 ligand_grp as usize,
-                                bt, et, dt,
+                                bt, et, dt, atom_radius,
                                 settings);
             }
             1 => {
                 println!("Current groups:");
                 index.list_groups();
                 println!("Input complex group num:");
-                complex_grp = get_input_value();
+                complex_grp = get_input_selection();
             }
             2 => {
                 println!("Current groups:");
                 index.list_groups();
                 println!("Input receptor group num:");
-                receptor_grp = get_input_value();
+                receptor_grp = get_input_selection();
             }
             3 => {
                 println!("Current groups:");
                 index.list_groups();
                 println!("Input ligand group num:");
-                ligand_grp = get_input_value();
+                ligand_grp = get_input_selection();
             }
             4 => {
                 println!("Input start time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_bt = get_input_value::<f64>() * 1000.0;
+                let mut new_bt = get_input_selection::<f64>() * 1000.0;
                 while (new_bt - bt) % dt != 0.0 || new_bt > frames[frames.len() - 1].time as f64 || new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
                     println!("Input start time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_bt = get_input_value::<f64>() * 1000.0;
+                    new_bt = get_input_selection::<f64>() * 1000.0;
                 }
                 bt = new_bt;
             }
             5 => {
                 println!("Input end time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_et = get_input_value::<f64>() * 1000.0;
+                let mut new_et = get_input_selection::<f64>() * 1000.0;
                 while (new_et - et) % dt != 0.0 || new_et > frames[frames.len() - 1].time as f64 || new_et < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
                     println!("Input end time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_et = get_input_value::<f64>() * 1000.0;
+                    new_et = get_input_selection::<f64>() * 1000.0;
                 }
                 et = new_et;
             }
             6 => {
                 println!("Input interval time (ns), should be divisible of {} ns:", dt / 1000.0);
-                let mut new_dt = get_input_value::<f64>() * 1000.0;
+                let mut new_dt = get_input_selection::<f64>() * 1000.0;
                 while new_dt % dt != 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
                     println!("Input interval time (ns) again, should be divisible of {} ns:", dt / 1000.0);
-                    new_dt = get_input_value::<f64>() * 1000.0;
+                    new_dt = get_input_selection::<f64>() * 1000.0;
                 }
                 dt = new_dt;
             }

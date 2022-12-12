@@ -1,11 +1,12 @@
 use std::io::stdin;
 use std::path::Path;
 use crate::parameters::Parameters;
-use crate::{get_input_value, convert_cur_dir, confirm_file_validity};
+use crate::{get_input_selection, convert_cur_dir, confirm_file_validity};
+use crate::atom_radius::Radius;
 use crate::fun_para_trj::set_para_trj;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_basic(trj: &String, tpr: &TPR, ndx: &String, wd: &Path, settings: &mut Parameters) {
+pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_radius: &Radius, settings: &mut Parameters) {
     let mut trj = String::from(trj);
     let mut ndx = String::from(ndx);
 
@@ -21,7 +22,7 @@ pub fn set_para_basic(trj: &String, tpr: &TPR, ndx: &String, wd: &Path, settings
             _ => ndx.as_str()
         });
         println!(" 3 Exit program");
-        let i = get_input_value();
+        let i = get_input_selection();
         match i {
             0 => {
                 if trj.len() == 0 {
@@ -31,7 +32,7 @@ pub fn set_para_basic(trj: &String, tpr: &TPR, ndx: &String, wd: &Path, settings
                     println!("Index file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj(&trj, &tpr, &ndx, &wd, settings);
+                    set_para_trj(&trj, tpr, &ndx, &wd, atom_radius, settings);
                 }
             }
             1 => {

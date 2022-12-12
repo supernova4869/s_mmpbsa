@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use crate::get_input_value;
+use crate::get_input_selection;
 
 pub fn analyze_controller(wd:&Path, sys_name: &String, results: (f64, f64, f64, f64, f64, f64, f64, f64, f64)) {
     loop {
@@ -15,7 +15,7 @@ pub fn analyze_controller(wd:&Path, sys_name: &String, results: (f64, f64, f64, 
         println!(" 6 Output residue-decomposed binding energy (term: SA) to csv file");
         // COU和VDW都要体现出来, 想想怎样列
         // 得为结果专门建一个数据结构
-        let sel_fun: i32 = get_input_value();
+        let sel_fun: i32 = get_input_selection();
         match sel_fun {
             0 => break,
             1 => {

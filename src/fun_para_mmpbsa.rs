@@ -1,17 +1,21 @@
 use std::io::stdin;
 use std::path::Path;
-use crate::{get_input_value, index_parser, parameters::Parameters};
+use crate::{get_input_selection, index_parser, parameters::Parameters};
 use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
+use crate::atom_radius::{Radius, RADIUS_TABLE};
 use crate::parse_tpr::TPR;
 
-pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
-                                                             complex_grp: usize,
-                                                             receptor_grp: usize,
-                                                             ligand_grp: usize,
-                                                             bt: f64, et: f64, dt: f64,
-                                                             settings: &mut Parameters) {
-    let atom_rad_type = settings.rad_type;
+pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
+                       complex_grp: usize,
+                       receptor_grp: usize,
+                       ligand_grp: usize,
+                       bt: f64, et: f64, dt: f64,
+                       atom_radius: &Radius,
+                       settings: &mut Parameters) {
+    // save a copy of default force field atom type
+    let atom_radius_ff = atom_radius.clone();
+    tpr.apply_radius(settings.rad_type, &atom_radius.radii);
     let pbe_set = PBESet::new();
     let pba_set = PBASet::new();
     loop {
@@ -20,14 +24,14 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
         println!("  0 Start MM/PB-SA calculation");
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
-        println!("  3 Select atom radius type, current: {}", atom_rad_type);
+        println!("  3 Select atom radius type, current: {}", RADIUS_TABLE[&settings.rad_type]);
         println!("  4 Input atom radius for LJ parameters, current: not support");
         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
         println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
         println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
-        let i = get_input_value();
+        let i = get_input_selection();
         match i {
             -10 => return,
             0 => {
@@ -45,8 +49,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
                                                              receptor_grp as usize,
                                                              ligand_grp as usize,
                                                              bt, et, dt,
-                                                             &pbe_set, &pba_set,
-                                                             &settings);
+                                                             &pbe_set, &pba_set, &settings);
                 analyzation::analyze_controller(wd, &sys_name, results);
             }
             1 => {
@@ -55,9 +58,33 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
             2 => {
                 settings.use_ts = !settings.use_ts;
             }
-            // 在这里加半径选择, 之前生成qrv的半径逻辑删掉
+            3 => {
+                println!("Input atom radius type, Supported:{}", {
+                    let mut s = String::new();
+                    for (k, v) in RADIUS_TABLE.clone().into_iter() {
+                        s.push_str(format!("\n{}):\t{}", k, v).as_str());
+                    }
+                    s
+                });
+                let mut s = String::new();
+                stdin().read_line(&mut s).expect("Input error");
+                if s.trim().is_empty() {
+                    settings.rad_type = 1;
+                } else {
+                    let s = s.trim().parse().unwrap();
+                    if s == 0 {
+                        settings.rad_type = 0;
+                    } else if RADIUS_TABLE.contains_key(&s) {
+                        settings.rad_type = s;
+                    } else {
+                        println!("Radius type {} not supported. Will use mBondi instead.", s);
+                        settings.rad_type = 1;
+                    }
+                }
+                tpr.apply_radius(settings.rad_type, &atom_radius_ff.radii);
+            }
             5 => {
-                println!("Input coarse grid expand factor");
+                println!("Input coarse grid expand factor:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
@@ -67,7 +94,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
                 }
             }
             6 => {
-                println!("Input fine grid expand amount (A)");
+                println!("Input fine grid expand amount (A):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
@@ -77,7 +104,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &TPR, ndx: &String, wd: &Path,
                 }
             }
             7 => {
-                println!("Input fine mesh spacing (A)");
+                println!("Input fine mesh spacing (A):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {

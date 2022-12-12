@@ -15,8 +15,8 @@ use crate::prepare_apbs::write_apbs;
 
 pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, sys_name: &String,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
-                              bt: f64, et: f64, dt: f64, pbe_set: &PBESet, pba_set: &PBASet,
-                              settings: &Parameters)
+                              bt: f64, et: f64, dt: f64,
+                              pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
                               -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
     // pdb>pqr, output apbs, calculate MM, calculate APBS
 

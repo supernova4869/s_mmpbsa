@@ -5,7 +5,7 @@ use regex::Regex;
 use toml::Value;
 
 pub struct Parameters {
-    pub rad_type: i32,
+    pub rad_type: usize,
     pub rad_lj0: f64,
     pub mesh_type: i32,
     pub grid_type: i32,

@@ -18,7 +18,6 @@ use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
 use regex::Regex;
-use toml;
 use chrono::prelude::Local;
 use crate::parse_tpr::TPR;
 use parameters::Parameters;
@@ -87,11 +86,21 @@ fn main() {
         mdp_path = tpr_mdp[..&tpr_mdp.len() - 4].to_string() + "_dumped.mdp";
         dump_tpr(&tpr_mdp, &mdp_path, settings.gmx.as_str());
     }
-    let tpr = TPR::new(mdp_path.as_str());
+    let mut tpr = TPR::new(mdp_path.as_str());
     println!("\nFinished reading tpr file:\n{}.", tpr);
 
+    let mut atm_radius: Vec<f64> = Vec::new();
+    for mol in &tpr.molecules {
+        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+            for atom in &mol.atoms {
+                atm_radius.push(atom.radius);
+            }
+        }
+    }
+    let atom_radius = atom_radius::Radius::new(0, atm_radius);
+
     // go to next step
-    fun_para_basic::set_para_basic(&trj, &tpr, &ndx, wd, &mut settings);
+    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, wd, &atom_radius, &mut settings);
 }
 
 fn welcome() {
@@ -112,7 +121,7 @@ fn welcome() {
              Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
 }
 
-pub fn get_input_value<T: FromStr>() -> T {
+pub fn get_input_selection<T: FromStr>() -> T {
     loop {
         let mut input = String::from("");
         stdin().read_line(&mut input).expect("Error input.");
@@ -123,6 +132,16 @@ pub fn get_input_value<T: FromStr>() -> T {
                 continue;
             }
         };
+    }
+}
+
+pub fn get_input_value(default: &String) -> String {
+    let mut input = String::from("");
+    stdin().read_line(&mut input).expect("Error input.");
+    if input.is_empty() {
+        default.to_string()
+    } else {
+        input.trim().to_string()
     }
 }
 
