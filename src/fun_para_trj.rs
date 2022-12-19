@@ -11,6 +11,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
+    println!("Reading trajectory...");
     let xtc = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = xtc.into_iter().map(|p| p.unwrap()).collect();
     let mut bt: f64 = frames[0].time as f64;

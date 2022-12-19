@@ -10,10 +10,10 @@ lazy_static! {
 }
 
 impl Atom {
-    pub fn apply_radius(&mut self, atom_radius_type: usize, ff: f64) {
+    pub fn apply_radius(&mut self, atom_radius_type: usize, ff_rad: f64) {
         match atom_radius_type {
             0 => {
-                self.radius = ff;
+                self.radius = ff_rad;
             }
             1 => {
                 self.radius = get_mbondi(self.name.as_str());
