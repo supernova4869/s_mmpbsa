@@ -11,12 +11,10 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
-    println!("Reading trajectory...");
-    let xtc = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
-    let frames: Vec<Rc<Frame>> = xtc.into_iter().map(|p| p.unwrap()).collect();
-    let mut bt: f64 = frames[0].time as f64;
-    let mut et: f64 = frames[frames.len() - 1].time as f64;
-    let mut dt: f64 = (frames[1].time - frames[0].time) as f64;
+    let mut bt: f64 = 0.0;
+    let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
+    let mut dt: f64 = 100.0;                                // ps
+    let default_dt: f64 = 100.0;                            // ps
     let index = Index::new(ndx);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
@@ -60,7 +58,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
             4 => {
                 println!("Input start time (ns), should be divisible of {} ns:", dt / 1000.0);
                 let mut new_bt = get_input_selection::<f64>() * 1000.0;
-                while (new_bt - bt) % dt != 0.0 || new_bt > frames[frames.len() - 1].time as f64 || new_bt < 0.0 {
+                while (new_bt - bt) % dt != 0.0 || new_bt > et as f64 || new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
                     println!("Input start time (ns) again, should be divisible of {} ns:", dt / 1000.0);
                     new_bt = get_input_selection::<f64>() * 1000.0;
@@ -70,7 +68,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
             5 => {
                 println!("Input end time (ns), should be divisible of {} ns:", dt / 1000.0);
                 let mut new_et = get_input_selection::<f64>() * 1000.0;
-                while (new_et - et) % dt != 0.0 || new_et > frames[frames.len() - 1].time as f64 || new_et < 0.0 {
+                while (new_et - bt) % dt != 0.0 || new_et > tpr.nsteps as f64 * tpr.dt as f64 || new_et < bt {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
                     println!("Input end time (ns) again, should be divisible of {} ns:", dt / 1000.0);
                     new_et = get_input_selection::<f64>() * 1000.0;
@@ -80,7 +78,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
             6 => {
                 println!("Input interval time (ns), should be divisible of {} ns:", dt / 1000.0);
                 let mut new_dt = get_input_selection::<f64>() * 1000.0;
-                while new_dt % dt != 0.0 {
+                while new_dt % default_dt != 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
                     println!("Input interval time (ns) again, should be divisible of {} ns:", dt / 1000.0);
                     new_dt = get_input_selection::<f64>() * 1000.0;

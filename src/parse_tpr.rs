@@ -13,6 +13,8 @@ pub struct TPR {
     pub atom_types_num: usize,
     pub lj_sr_params: Vec<LJType>,
     pub molecules: Vec<Molecule>,
+    pub dt: f64,
+    pub nsteps: u64,
 }
 
 impl fmt::Display for TPR {
@@ -53,11 +55,30 @@ impl TPR {
         let mut residues: Vec<Residue> = vec![];
         let mut molecules: Vec<Molecule> = vec![];
 
+        // simulation time parameters
+        let mut dt = 0.0;
+        let mut nsteps = 0;
+
         println!("Loading dumped tpr file: {}\n", mdp);
         loop {
             let bytes = read_line(&mut reader, &mut buf);
             if bytes == 0 {
                 break;
+            }
+
+            // MD steps
+            if buf.starts_with("inputrec:") {
+                loop {
+                    read_line(&mut reader, &mut buf);
+                    if buf.trim().starts_with("dt") {
+                        let re = Regex::new(r"dt\s+=\s*(.*)").unwrap();
+                        dt = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
+                        read_line(&mut reader, &mut buf);
+                        let re = Regex::new(r"nsteps\s+=\s*(.*)").unwrap();
+                        nsteps = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
+                        break;
+                    }
+                }
             }
 
             // molecules define
@@ -259,6 +280,8 @@ impl TPR {
             atom_types_num,
             lj_sr_params: fun_type,
             molecules,
+            dt,
+            nsteps,
         }
     }
 }
