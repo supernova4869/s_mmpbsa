@@ -48,7 +48,7 @@ impl PBESet {
         for ion in &pbe_set.ions {
             ions.push(ion.clone());
         }
-        let mut new_pbe_set = PBESet {
+        let new_pbe_set = PBESet {
             temp: pbe_set.temp,
             pdie: pbe_set.pdie,
             sdie: pbe_set.sdie,

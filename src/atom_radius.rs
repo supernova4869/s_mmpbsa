@@ -42,7 +42,7 @@ impl TPR {
         let mut idx = 0;
         for mol in &mut self.molecules {
             for _ in 0..self.molecule_types[mol.molecule_type_id].molecules_num {
-                for mut atom in &mut mol.atoms {
+                for atom in &mut mol.atoms {
                     atom.apply_radius(atom_radius_type, ff_radius[idx]);
                     idx += 1;
                 }

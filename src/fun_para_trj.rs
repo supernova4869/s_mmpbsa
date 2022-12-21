@@ -1,6 +1,4 @@
 use std::path::Path;
-use std::rc::Rc;
-use xdrfile::{Frame, XTCTrajectory};
 use crate::{get_input_selection, parameters::Parameters};
 use crate::atom_radius::Radius;
 use crate::fun_para_mmpbsa::set_para_mmpbsa;

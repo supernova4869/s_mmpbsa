@@ -249,7 +249,7 @@ impl TPR {
                                 }
                             }
                             break;
-                        }
+                        } else { break }
                     }
                 }
 

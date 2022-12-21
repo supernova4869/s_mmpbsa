@@ -295,8 +295,8 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
                 .split("\n")
                 .collect();
 
-            let mut sys_idx;    // com: 0, rec: 1, lig: 2
-            let mut n: f64;
+            let sys_idx;    // com: 0, rec: 1, lig: 2
+            let n: f64;
             if info[0].contains(format!("{}_com", f_name).as_str()) {
                 sys_idx = 0;
                 n = atom_num_com as f64;
