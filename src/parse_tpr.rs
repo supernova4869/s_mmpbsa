@@ -51,8 +51,6 @@ impl TPR {
         let mut atom_charges: Vec<f64> = vec![];    // atom charge
         let mut atom_names: Vec<String> = vec![];   // atom name
 
-        let mut atoms: Vec<Atom> = vec![];
-        let mut residues: Vec<Residue> = vec![];
         let mut molecules: Vec<Molecule> = vec![];
 
         // simulation time parameters
@@ -157,8 +155,10 @@ impl TPR {
             }
 
             if buf.trim().starts_with("moltype (") {
-                atoms.clear();      // clear previous atoms
-                residues.clear();   // clear previous residues
+                let mut atoms: Vec<Atom> = vec![];
+                let mut residues: Vec<Residue> = vec![];
+                // currently exist atoms, to avoid duplicate process
+                let offset: usize = molecules.iter().map(|p| p.atoms_num).sum();
 
                 let re = Regex::new(r"moltype \((\d+)\)").unwrap();
                 let molecule_type_id: usize = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
@@ -229,7 +229,7 @@ impl TPR {
                         let angles: i32 = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
                         if angles > 0 {
                             read_line(&mut reader, &mut buf);
-                            let re = Regex::new(r"\d+ type=\d+ \(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap();
+                            let re = Regex::new(r"\(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap();
                             // assign H types by connection atoms from angle information
                             for _ in 0..angles / 4 {
                                 read_line(&mut reader, &mut buf);
@@ -238,22 +238,23 @@ impl TPR {
                                     let i: usize = c.get(1).unwrap().as_str().parse().unwrap();
                                     let j: usize = c.get(2).unwrap().as_str().parse().unwrap();
                                     let k: usize = c.get(3).unwrap().as_str().trim().parse().unwrap();
-                                    if atom_names[i].starts_with(['H', 'h']) {
-                                        atom_names[i] = format!("H{}", atom_names[j]);
+                                    if atom_names[offset + i].starts_with(['H', 'h']) {
+                                        atom_names[offset + i] = format!("H{}", atom_names[offset + j]);
                                     }
-                                    if atom_names[k].starts_with(['H', 'h']) {
-                                        atom_names[k] = format!("H{}", atom_names[j]);
+                                    if atom_names[offset + k].starts_with(['H', 'h']) {
+                                        atom_names[offset + k] = format!("H{}", atom_names[offset + j]);
                                     }
                                 } else {
                                     break;
                                 }
                             }
                             break;
-                        } else { break }
+                        } else { break; }
                     }
                 }
 
                 for id in 0..atoms_num {
+                    let id = id + offset;
                     atoms.push(Atom::new(id,
                                          atom_types[id],
                                          atom_charges[id],
@@ -347,8 +348,8 @@ impl Molecule {
 
 impl fmt::Display for Molecule {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Molecule {} with {} atoms",
-               self.molecule_name, self.atoms_num)
+        write!(f, "Molecule {}, with {} atoms, {} residues",
+               self.molecule_name, self.atoms_num, self.residues.len())
     }
 }
 
@@ -366,8 +367,8 @@ pub struct Atom {
 
 impl fmt::Display for Atom {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Atom {}: {} with type {}, charge {}, in residue {}",
-               self.id, self.name, self.type_id, self.charge, self.residue_index)
+        write!(f, "Atom {}: {} with type {}, charge {}, radius {}, in residue {}",
+               self.id, self.name, self.type_id, self.charge, self.radius, self.residue_index)
     }
 }
 

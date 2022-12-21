@@ -1,6 +1,6 @@
-topol.tpr
+md.tpr
 1
-traj.xtc
+md.xtc
 2
 index.ndx
 0

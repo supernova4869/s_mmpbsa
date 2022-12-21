@@ -9,10 +9,10 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
     let mut complex_grp: i32 = -1;
     let mut receptor_grp: i32 = -1;
     let mut ligand_grp: i32 = -1;
-    let mut bt: f64 = 0.0;
+    let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
-    let mut dt: f64 = 100.0;                                // ps
-    let default_dt: f64 = 100.0;                            // ps
+    let mut dt: f64 = tpr.dt * 1000.0;                      // fs
+    let default_dt: f64 = dt;                               // fs
     let index = Index::new(ndx);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
@@ -54,31 +54,31 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
                 ligand_grp = get_input_selection();
             }
             4 => {
-                println!("Input start time (ns), should be divisible of {} ns:", dt / 1000.0);
+                println!("Input start time (ns), should be divisible of {} fs:", dt);
                 let mut new_bt = get_input_selection::<f64>() * 1000.0;
-                while (new_bt - bt) % dt != 0.0 || new_bt > et as f64 || new_bt < 0.0 {
+                while new_bt * 1000.0 % dt != 0.0 || new_bt > tpr.nsteps as f64 * tpr.dt as f64 || new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
-                    println!("Input start time (ns) again, should be divisible of {} ns:", dt / 1000.0);
+                    println!("Input start time (ns) again, should be divisible of {} fs:", dt);
                     new_bt = get_input_selection::<f64>() * 1000.0;
                 }
                 bt = new_bt;
             }
             5 => {
-                println!("Input end time (ns), should be divisible of {} ns:", dt / 1000.0);
+                println!("Input end time (ns), should be divisible of {} fs:", dt);
                 let mut new_et = get_input_selection::<f64>() * 1000.0;
-                while (new_et - bt) % dt != 0.0 || new_et > tpr.nsteps as f64 * tpr.dt as f64 || new_et < bt {
+                while new_et * 1000.0 % dt != 0.0 || new_et > tpr.nsteps as f64 * tpr.dt as f64 || new_et < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
-                    println!("Input end time (ns) again, should be divisible of {} ns:", dt / 1000.0);
+                    println!("Input end time (ns) again, should be divisible of {} fs:", dt);
                     new_et = get_input_selection::<f64>() * 1000.0;
                 }
                 et = new_et;
             }
             6 => {
-                println!("Input interval time (ns), should be divisible of {} ns:", dt / 1000.0);
+                println!("Input interval time (ns), should be divisible of {} fs:", dt);
                 let mut new_dt = get_input_selection::<f64>() * 1000.0;
-                while new_dt % default_dt != 0.0 {
+                while new_dt * 1000.0 % default_dt != 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
-                    println!("Input interval time (ns) again, should be divisible of {} ns:", dt / 1000.0);
+                    println!("Input interval time (ns) again, should be divisible of {} fs:", dt);
                     new_dt = get_input_selection::<f64>() * 1000.0;
                 }
                 dt = new_dt;

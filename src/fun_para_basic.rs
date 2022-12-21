@@ -40,8 +40,7 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom
                 trj.clear();
                 stdin().read_line(&mut trj).expect("Failed while reading trajectory file");
                 if trj == "\n" {
-                    trj.pop().unwrap();
-                    trj.push_str("?md.xtc");
+                    trj = "?md.xtc".to_string();
                 }
                 trj = convert_cur_dir(&trj, &settings);
                 trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"], &settings);
@@ -51,8 +50,7 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom
                 ndx.clear();
                 stdin().read_line(&mut ndx).expect("Failed while reading index file");
                 if ndx == "\n" {
-                    ndx.pop().unwrap();
-                    ndx.push_str("?index.ndx");
+                    ndx = "?index.ndx".to_string();
                 }
                 ndx = convert_cur_dir(&ndx, &settings);
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx"], &settings);

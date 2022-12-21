@@ -52,7 +52,8 @@ impl TPR {
 }
 
 // get atom radius, returns 1.5 if not specified
-pub fn get_mbondi(at_type: &str) -> f64 { // mBondi from AMBER20/parmed/tools/changeradii.py
+// mBondi from AMBER20/parmed/tools/changeradii.py
+pub fn get_mbondi(at_type: &str) -> f64 {
     let rad_bondi: HashMap<&str, f64> = HashMap::from([
         ("C", 1.7), ("H", 1.2), ("N", 1.55), ("HC", 1.3),
         ("O", 1.5), ("HN", 1.3), ("F", 1.5), ("HP", 1.3),

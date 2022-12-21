@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::prepare_apbs::write_apbs;
@@ -58,17 +58,16 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let ndx_com = &ndx.groups[complex_grp].indexes;
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
-    let total_atoms = tpr.atoms_num;
 
-    let mut atm_charge: Array1::<f64> = Array1::zeros(total_atoms);
-    let mut atm_radius: Array1::<f64> = Array1::zeros(total_atoms);
-    let mut atm_typeindex: Array1<usize> = Array1::zeros(total_atoms);
-    let mut atm_sigma: Array1::<f64> = Array1::zeros(total_atoms);
-    let mut atm_epsilon: Array1::<f64> = Array1::zeros(total_atoms);
-    let mut atm_index: Array1<usize> = Array1::zeros(total_atoms);
-    let mut atm_name: Array1<String> = Array1::default(total_atoms);
-    let mut atm_resname: Array1<String> = Array1::default(total_atoms);
-    let mut atm_resnum: Array1<usize> = Array1::zeros(total_atoms);
+    let mut atm_charge: Array1::<f64> = Array1::zeros(tpr.atoms_num);
+    let mut atm_radius: Array1::<f64> = Array1::zeros(tpr.atoms_num);
+    let mut atm_typeindex: Array1<usize> = Array1::zeros(tpr.atoms_num);
+    let mut atm_sigma: Array1::<f64> = Array1::zeros(tpr.atoms_num);
+    let mut atm_epsilon: Array1::<f64> = Array1::zeros(tpr.atoms_num);
+    let mut atm_index: Array1<usize> = Array1::zeros(tpr.atoms_num);
+    let mut atm_name: Array1<String> = Array1::default(tpr.atoms_num);
+    let mut atm_resname: Array1<String> = Array1::default(tpr.atoms_num);
+    let mut atm_resnum: Array1<usize> = Array1::zeros(tpr.atoms_num);
 
     let mut idx = 0;
     for mol in &tpr.molecules {
@@ -110,22 +109,25 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let _const = 0.0;
 
     // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
-    println!("Reading trajectory...");
+    println!("Reading trajectory file...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
     // pbc whole 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
+    println!("Extracting atoms coordination...");
     let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
     let time_step = (frames[1].time - frames[0].time) as f64;
-    let bf = (bt / time_step) as usize;
-    let ef = (et / time_step) as usize;
+    let bf = ((bt - frames[0].time as f64) / time_step) as usize;
+    let ef = ((et - frames[0].time as f64) / time_step) as usize;
     let dframe = (dt / time_step) as usize;
     let total_frames = (ef - bf) / dframe + 1;
-    let ef = ef + 1;        // range includes the last frame
 
     println!("Preparing APBS inputs...");
     let pb = ProgressBar::new(total_frames as u64);
-    for cur_frm in (bf..ef).step_by(dframe) {
+    pb.set_style(ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos:>7}/{len:7} {msg}").unwrap()
+        .progress_chars("##-"));
+    for cur_frm in (bf..ef + 1).step_by(dframe) {
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         let pqr_com = temp_dir.join(format!("{}_com.pqr", f_name));
         let mut pqr_com = File::create(pqr_com).unwrap();
@@ -164,6 +166,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
         pb.inc(1);
     }
+    pb.finish();
 
     // calculate MM and PBSA
     let Iion = Cion.dot(&(&Qion * &Qion));
@@ -177,8 +180,8 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let kJcou = 1389.35457520287;
     let Rcut = f64::INFINITY;
 
-    let last_mol = &tpr.molecules[tpr.molecules.len() - 1];
-    let total_res_num = last_mol.residues[last_mol.residues.len() - 1].id + 1;
+    let total_res_num = tpr.molecules.iter().map(|mol|
+        mol.residues.len() * tpr.molecule_types[mol.molecule_type_id].molecules_num as usize).sum();
 
     let mut dE: Array1<f64> = Array1::zeros(total_res_num);
     let mut dGres: Array1<f64> = Array1::zeros(total_res_num);
@@ -204,9 +207,12 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
     println!("Start MM/PB-SA calculations...");
     let pgb = ProgressBar::new(total_frames as u64);
+    pgb.set_style(ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos:>7}/{len:7} {msg}").unwrap()
+        .progress_chars("##-"));
     pgb.inc(0);
     let mut idx = 0;
-    for cur_frm in (bf..ef).step_by(dframe) {
+    for cur_frm in (bf..ef + 1).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         let mut de_cou: Array1<f64> = Array1::zeros(total_res_num);
@@ -411,6 +417,10 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     let num_atoms = frames[0].num_atoms();
     let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
     let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
+    let pb = ProgressBar::new(frames.len() as u64);
+    pb.set_style(ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos:>7}/{len:7} {msg}").unwrap()
+        .progress_chars("##-"));
     for (idx, frame) in frames.into_iter().enumerate() {
         let atoms = frame.coords.to_vec();
         for (i, a) in atoms.into_iter().enumerate() {
@@ -423,6 +433,8 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
                 box_size[[idx, i, j]] = b[j] as f64;
             }
         }
+        pb.inc(1);
     }
+    pb.finish();
     return (coord_matrix, box_size);
 }
