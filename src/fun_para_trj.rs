@@ -11,8 +11,8 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
     let mut ligand_grp: i32 = -1;
     let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
-    let mut dt: f64 = tpr.dt * 1000.0;                      // fs
-    let default_dt: f64 = dt;                               // fs
+    let mut dt: f64 = tpr.dt;                               // ps
+    let default_dt: f64 = tpr.dt * 1000.0;                  // fs
     let index = Index::new(ndx);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");

@@ -39,7 +39,7 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom
                 println!("Input trajectory file path, default: ?md.xtc (if in the same directory with tpr, then simply input (e.g.) `?md.xtc`):");
                 trj.clear();
                 stdin().read_line(&mut trj).expect("Failed while reading trajectory file");
-                if trj == "\n" {
+                if trj.trim().is_empty() {
                     trj = "?md.xtc".to_string();
                 }
                 trj = convert_cur_dir(&trj, &settings);
@@ -49,7 +49,7 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom
                 println!("Input index file path, default: ?index.ndx (if in the same directory with tpr, then simply input (e.g.) `?index.ndx`):");
                 ndx.clear();
                 stdin().read_line(&mut ndx).expect("Failed while reading index file");
-                if ndx == "\n" {
+                if ndx.trim().is_empty() {
                     ndx = "?index.ndx".to_string();
                 }
                 ndx = convert_cur_dir(&ndx, &settings);

@@ -124,9 +124,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
     println!("Preparing APBS inputs...");
     let pb = ProgressBar::new(total_frames as u64);
-    pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos:>7}/{len:7} {msg}").unwrap()
-        .progress_chars("##-"));
+    set_style(&pb);
     for cur_frm in (bf..ef + 1).step_by(dframe) {
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         let pqr_com = temp_dir.join(format!("{}_com.pqr", f_name));
@@ -207,9 +205,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
     println!("Start MM/PB-SA calculations...");
     let pgb = ProgressBar::new(total_frames as u64);
-    pgb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos:>7}/{len:7} {msg}").unwrap()
-        .progress_chars("##-"));
+    set_style(&pgb);
     pgb.inc(0);
     let mut idx = 0;
     for cur_frm in (bf..ef + 1).step_by(dframe) {
@@ -418,9 +414,7 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
     let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
     let pb = ProgressBar::new(frames.len() as u64);
-    pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos:>7}/{len:7} {msg}").unwrap()
-        .progress_chars("##-"));
+    set_style(&pb);
     for (idx, frame) in frames.into_iter().enumerate() {
         let atoms = frame.coords.to_vec();
         for (i, a) in atoms.into_iter().enumerate() {
@@ -437,4 +431,10 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     }
     pb.finish();
     return (coord_matrix, box_size);
+}
+
+fn set_style(pb: &ProgressBar) {
+    pb.set_style(ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos}/{len} {msg}").unwrap()
+        .progress_chars("##-"));
 }

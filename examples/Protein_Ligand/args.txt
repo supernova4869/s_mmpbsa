@@ -1,8 +1,8 @@
 md.tpr
 1
-md.xtc
+
 2
-index.ndx
+
 0
 1
 0
