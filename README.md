@@ -1,5 +1,6 @@
 # super_mmpbsa
-super_mmpbsa: Supernova's tool of calculating binding free energy using molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method.
+super_mmpbsa: Supernova's tool of calculating binding free energy using 
+molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method.
 
 ## TODO:
 - 增加结果输出

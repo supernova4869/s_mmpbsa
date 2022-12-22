@@ -66,8 +66,9 @@ impl PBESet {
         return new_pbe_set;
     }
 
-    pub fn load_params(self, file: &str) -> PBESet {
+    pub fn load_params<T: AsRef<Path>>(self, file: T) -> PBESet {
         let file = fs::read_to_string(file).unwrap();
+        println!("{}", file);
         self
     }
 

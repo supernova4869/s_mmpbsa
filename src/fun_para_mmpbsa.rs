@@ -16,8 +16,8 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
     // save a copy of default force field atom type
     let atom_radius_ff = atom_radius.clone();
     tpr.apply_radius(settings.rad_type, &atom_radius.radii);
-    let pbe_set = PBESet::new();
-    let pba_set = PBASet::new();
+    let mut pbe_set = &PBESet::new();
+    let mut pba_set = &PBASet::new();
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
@@ -25,12 +25,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
         println!("  3 Select atom radius type, current: {}", RADIUS_TABLE[&settings.rad_type]);
-        println!("  4 Input atom radius for LJ parameters, current: not support");
-        println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
-        println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
-        println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
-        println!("  8 Prepare PB parameters for APBS");
-        println!("  9 Prepare SA parameters for APBS");
+        println!("  4 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
+        println!("  5 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
+        println!("  6 Input fine mesh spacing (df), current: {} A", settings.df);
+        println!("  7 Prepare PB parameters for APBS");
+        println!("  8 Prepare SA parameters for APBS");
         let i = get_input_selection();
         match i {
             -10 => return,
@@ -83,7 +82,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 }
                 tpr.apply_radius(settings.rad_type, &atom_radius_ff.radii);
             }
-            5 => {
+            4 => {
                 println!("Input coarse grid expand factor:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -93,7 +92,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                     settings.cfac = s.trim().parse().unwrap();
                 }
             }
-            6 => {
+            5 => {
                 println!("Input fine grid expand amount (A):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -103,7 +102,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                     settings.fadd = s.trim().parse().unwrap();
                 }
             }
-            7 => {
+            6 => {
                 println!("Input fine mesh spacing (A):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -113,11 +112,18 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                     settings.df = s.trim().parse().unwrap();
                 }
             }
-            8 => {
-                pbe_set.save_params(wd.join("PBESet.txt"));
+            7 => {
+                pbe_set.save_params(wd.join("PB_settings.txt"));
+                println!("PB parameters have been wrote to PB_settings.txt. \
+                    Edit it and press return to reload it.");
+                stdin().read_line(&mut String::new()).unwrap();
+                // pbe_set = &pbe_set.load_params(wd.join("PBESet.txt"));
             }
-            9 => {
-                pba_set.save_params(wd.join("PBASet.txt"));
+            8 => {
+                pba_set.save_params(wd.join("SA_settings.txt"));
+                println!("SA parameters have been wrote to SA_settings.txt. \
+                    Edit it and press return to reload it.");
+                stdin().read_line(&mut String::new()).unwrap();
             }
             _ => println!("Invalid input")
         }
