@@ -15,6 +15,7 @@ pub struct TPR {
     pub molecules: Vec<Molecule>,
     pub dt: f64,
     pub nsteps: u64,
+    pub nstxout: u32,
 }
 
 impl fmt::Display for TPR {
@@ -56,6 +57,7 @@ impl TPR {
         // simulation time parameters
         let mut dt = 0.0;
         let mut nsteps = 0;
+        let mut nstxout = 0;
 
         println!("Loading dumped tpr file: {}\n", mdp);
         loop {
@@ -74,7 +76,10 @@ impl TPR {
                         read_line(&mut reader, &mut buf);
                         let re = Regex::new(r"nsteps\s+=\s*(.*)").unwrap();
                         nsteps = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
-                        break;
+                    } else if buf.trim().starts_with("nstxout-compressed") {
+                        let re = Regex::new(r"nstxout-compressed\s+=\s*(.*)").unwrap();
+                        nstxout = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
+                        break
                     }
                 }
             }
@@ -283,6 +288,7 @@ impl TPR {
             molecules,
             dt,
             nsteps,
+            nstxout,
         }
     }
 }
