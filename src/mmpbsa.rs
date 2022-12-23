@@ -436,5 +436,5 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
 fn set_style(pb: &ProgressBar) {
     pb.set_style(ProgressStyle::with_template(
         "[{elapsed_precise}] {bar:40.cyan/ctan} {pos}/{len} {msg}").unwrap()
-        .progress_chars("##-"));
+        .progress_chars("=>-"));
 }

@@ -205,7 +205,7 @@ impl TPR {
                         // residues
                         let re = Regex::new(r"\s*residue \((\d+)\)").unwrap();
                         let res_num: i32 = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                        let re = Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=(\\d+).*").unwrap();
+                        let re = Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=([\\d\\-]+).*").unwrap();
                         for _ in 0..res_num {
                             read_line(&mut reader, &mut buf);
                             let m = re.captures(&buf).unwrap();
