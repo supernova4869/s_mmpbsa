@@ -108,22 +108,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
         ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
     }
 
-    // PBSA parameters
-    let temp = pbe_set.temp;
-    let pdie = pbe_set.pdie;
-    let sdie = pbe_set.sdie;
-    let Nion: usize = pbe_set.ions.len();
-    let mut Qion: Array1<f64> = Array1::zeros(Nion);
-    let mut Cion: Array1<f64> = Array1::zeros(Nion);
-    for i in 0..Nion {
-        Qion[i] = pbe_set.ions[i].charge;
-        Cion[i] = pbe_set.ions[i].conc;
-    }
-
-    // default gamma for apbs calculation is 1
-    let gamma = 0.0301248;      // Here is the surface extension constant from AMBER-PB4
-    let _const = 0.0;
-
     // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
     println!("Reading trajectory file...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
@@ -186,16 +170,22 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     pb.finish();
 
     // calculate MM and PBSA
-    let Iion = Cion.dot(&(&Qion * &Qion));
+
     let eps0 = 8.854187812800001e-12;
     let kb = 1.380649e-23;
     let NA = 6.02214076e+23;
     let qe = 1.602176634e-19;
-    let RT2kJ = 8.314462618 * temp / 1e3;
-    let kap = 1e-9 / f64::sqrt(eps0 * kb * temp * sdie / (Iion * qe * qe * NA * 1e3));
+    let RT2kJ = 8.314462618 * pbe_set.temp / 1e3;
+    let ion_strength: f64 = pbe_set.ions.iter()
+        .map(|ion| ion.charge * ion.charge * ion.conc).sum();
+    let kap = 1e-9 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * NA * 1e3));
 
     let kJcou = 1389.35457520287;
     let Rcut = f64::INFINITY;
+
+    // default gamma for apbs calculation is 1
+    let gamma = 0.0301248;      // Here is the surface extension constant from AMBER-PB4
+    let _const = 0.0;
 
     let total_res_num = tpr.molecules.iter().map(|mol|
         mol.residues.len() * tpr.molecule_types[mol.molecule_type_id].molecules_num as usize).sum();
@@ -229,7 +219,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         let mut de_cou: Array1<f64> = Array1::zeros(total_res_num);
         let mut de_vdw: Array1<f64> = Array1::zeros(total_res_num);
-        // traverse receptor/ligand atoms to store parameters
         for &i in &ndx_rec {
             let qi = atm_charge[i];
             let ci = atm_typeindex[i];
@@ -257,7 +246,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
             }
         }
         for i in 0..total_res_num {
-            de_cou[i] *= kJcou / (2.0 * pdie);
+            de_cou[i] *= kJcou / (2.0 * pbe_set.pdie);
             de_vdw[i] /= 2.0;
         }
         let e_vdw = de_vdw.sum();
@@ -360,7 +349,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
             }
         }
 
-        let Esol = Esol - Evac;
+        Esol = Esol - Evac;
         let pb_com: f64 = Esol.slice(s![0, ..]).iter().sum::<f64>();
         let sa_com: f64 = Esas.slice(s![0, ..]).iter().sum::<f64>();
         let pb_rec: f64 = Esol.slice(s![1, ..]).iter().sum::<f64>();
