@@ -9,6 +9,7 @@ mod atom_radius;
 mod apbs_param;
 mod prepare_apbs;
 mod parameters;
+mod atom_property;
 
 use std::fs;
 use std::env;

@@ -12,7 +12,8 @@ use std::rc::Rc;
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
-use crate::prepare_apbs::write_apbs;
+use crate::atom_property::AtomProperty;
+use crate::prepare_apbs::{prepare_apbs_inputs, write_apbs};
 
 pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, sys_name: &String,
                               complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
@@ -67,37 +68,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let atom_num_com = atom_num_rec + atom_num_lig;
 
     // atom properties
-    let mut atm_charge: Array1::<f64> = Array1::zeros(atom_num_com);
-    let mut atm_radius: Array1::<f64> = Array1::zeros(atom_num_com);
-    let mut atm_typeindex: Array1<usize> = Array1::zeros(atom_num_com);
-    let mut atm_sigma: Array1::<f64> = Array1::zeros(atom_num_com);
-    let mut atm_epsilon: Array1::<f64> = Array1::zeros(atom_num_com);
-    let mut atm_index: Array1<usize> = Array1::zeros(atom_num_com);
-    let mut atm_name: Array1<String> = Array1::default(atom_num_com);
-    let mut atm_resname: Array1<String> = Array1::default(atom_num_com);
-    let mut atm_resnum: Array1<usize> = Array1::zeros(atom_num_com);
-
-    let mut idx = 0;
-    let mut idx_com = 0;
-    for mol in &tpr.molecules {
-        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
-            for atom in &mol.atoms {
-                if ndx_com.contains(&idx) {
-                    atm_charge[idx_com] = atom.charge;
-                    atm_radius[idx_com] = atom.radius;
-                    atm_typeindex[idx_com] = atom.type_id;
-                    atm_sigma[idx_com] = atom.sigma;
-                    atm_epsilon[idx_com] = atom.epsilon;
-                    atm_index[idx_com] = atom.id;
-                    atm_name[idx_com] = atom.name.to_string();
-                    atm_resname[idx_com] = mol.residues[atom.residue_index].name.to_string();
-                    atm_resnum[idx_com] = atom.residue_index;
-                    idx_com += 1;
-                }
-                idx += 1;
-            }
-        }
-    }
+    let aps = AtomProperty::new(tpr, ndx_com);
 
     // normalize residue indexes
     let mut ndx_lig: Vec<usize> = ndx_lig.iter().map(|p| p - ndx_com[0]).collect();
@@ -117,62 +88,12 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     println!("Extracting atoms coordination...");
     let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
-    // decide frame step according to time step
-    let time_step = (frames[1].time - frames[0].time) as f64;
-    let bf = ((bt - frames[0].time as f64) / time_step) as usize;
-    let ef = ((et - frames[0].time as f64) / time_step) as usize;
-    let dframe = match dt.partial_cmp(&time_step).unwrap() {
-        Ordering::Less => 1,            // converted trajectory with big time step (e.g., 1 ns)
-        _ => (dt / time_step) as usize  // time step partially less than target dt (e.g., initial trajectory)
-    };
-    let total_frames = (ef - bf) / dframe + 1;
+    let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
 
-    println!("Preparing APBS inputs...");
-    let pb = ProgressBar::new(total_frames as u64);
-    set_style(&pb);
-    for cur_frm in (bf..ef + 1).step_by(dframe) {
-        let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        let pqr_com = temp_dir.join(format!("{}_com.pqr", f_name));
-        let mut pqr_com = File::create(pqr_com).unwrap();
-        let pqr_rec = temp_dir.join(format!("{}_rec.pqr", f_name));
-        let mut pqr_rec = File::create(pqr_rec).unwrap();
-        let pqr_lig = temp_dir.join(format!("{}_lig.pqr", f_name));
-        let mut pqr_lig = File::create(pqr_lig).unwrap();
-
-        let coordinates = coordinates.slice(s![cur_frm, .., ..]);
-
-        // loop atoms and write pqr information (from pqr)
-        for &at_id in &ndx_com {
-            let index = atm_index[at_id];
-            let at_name = &atm_name[at_id];
-            let resname = &atm_resname[at_id];
-            let resnum = atm_resnum[at_id];
-            let coord = coordinates.slice(s![at_id, ..]);
-            let x = coord[0] * 10.0;
-            let y = coord[1] * 10.0;
-            let z = coord[2] * 10.0;
-            let q = atm_charge[at_id];
-            let r = atm_radius[at_id];
-            let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} \
-            {:12.6} {:12.6}\n",
-                                    index, at_name, resname, resnum, x, y, z, q, r);
-
-            // write qrv files
-            pqr_com.write_all(atom_line.as_bytes()).unwrap();
-            if ndx_rec.contains(&at_id) {
-                pqr_rec.write_all(atom_line.as_bytes()).unwrap();
-            }
-            if ndx_lig.contains(&at_id) {
-                pqr_lig.write_all(atom_line.as_bytes()).unwrap();
-            }
-        }
-
-        pb.inc(1);
-    }
-    pb.finish();
+    prepare_apbs_inputs(&frames, bf, ef, dframe, total_frames, &temp_dir,
+                        sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
 
     // calculate MM and PBSA
-
     let eps0 = 8.854187812800001e-12;
     let kb = 1.380649e-23;
     let NA = 6.02214076e+23;
@@ -222,14 +143,14 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
         let mut de_cou: Array1<f64> = Array1::zeros(total_res_num);
         let mut de_vdw: Array1<f64> = Array1::zeros(total_res_num);
         for &i in &ndx_rec {
-            let qi = atm_charge[i];
-            let ci = atm_typeindex[i];
+            let qi = aps.atm_charge[i];
+            let ci = aps.atm_typeindex[i];
             let xi = coord[[i, 0]];
             let yi = coord[[i, 1]];
             let zi = coord[[i, 2]];
             for &j in &ndx_lig {
-                let qj = atm_charge[j];
-                let cj = atm_typeindex[j];
+                let qj = aps.atm_charge[j];
+                let cj = aps.atm_typeindex[j];
                 let xj = coord[[j, 0]];
                 let yj = coord[[j, 1]];
                 let zj = coord[[j, 2]];
@@ -240,10 +161,10 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
                         e_cou = e_cou * f64::exp(-kap * r);
                     }
                     let e_vdw = c12[[ci, cj]] / r.powi(12) - c6[[ci, cj]] / r.powi(6);
-                    de_cou[atm_resnum[i]] += e_cou;
-                    de_cou[atm_resnum[j]] += e_cou;
-                    de_vdw[atm_resnum[i]] += e_vdw;
-                    de_vdw[atm_resnum[j]] += e_vdw;
+                    de_cou[aps.atm_resnum[i]] += e_cou;
+                    de_cou[aps.atm_resnum[j]] += e_cou;
+                    de_vdw[aps.atm_resnum[i]] += e_vdw;
+                    de_vdw[aps.atm_resnum[j]] += e_vdw;
                 }
             }
         }
@@ -256,7 +177,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        write_apbs(&ndx_rec, &ndx_lig, &coord, &atm_radius,
+        write_apbs(&ndx_rec, &ndx_lig, &coord, &aps.atm_radius,
                    pbe_set, &pba_set, &temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         if !apbs.is_empty() {
@@ -368,12 +289,12 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
         // residue decomposition
         for &i in &ndx_rec {
-            dPBres[atm_resnum[i]] += Esol[[0, i]] - Esol[[1, i]];
-            dSAres[atm_resnum[i]] += Esas[[0, i]] - Esas[[1, i]];
+            dPBres[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[1, i]];
+            dSAres[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[1, i]];
         }
         for &i in &ndx_lig {
-            dPBres[atm_resnum[i]] += Esol[[0, i]] - Esol[[2, i]];
-            dSAres[atm_resnum[i]] += Esas[[0, i]] - Esas[[2, i]];
+            dPBres[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[2, i]];
+            dSAres[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[2, i]];
         }
 
         COUres += &de_cou;
@@ -438,8 +359,21 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     return (coord_matrix, box_size);
 }
 
-fn set_style(pb: &ProgressBar) {
+pub fn set_style(pb: &ProgressBar) {
     pb.set_style(ProgressStyle::with_template(
         "[{elapsed_precise}] {bar:40.cyan/ctan} {pos}/{len} {msg}").unwrap()
         .progress_chars("=>-"));
+}
+
+fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usize, usize, usize, usize) {
+    // decide frame step according to time step
+    let time_step = (frames[1].time - frames[0].time) as f64;
+    let bf = ((bt - frames[0].time as f64) / time_step) as usize;
+    let ef = ((et - frames[0].time as f64) / time_step) as usize;
+    let dframe = match dt.partial_cmp(&time_step).unwrap() {
+        Ordering::Less => 1,            // converted trajectory with big time step (e.g., 1 ns)
+        _ => (dt / time_step) as usize  // time step partially less than target dt (e.g., initial trajectory)
+    };
+    let total_frames = (ef - bf) / dframe + 1;
+    (bf, ef, dframe, total_frames)
 }
