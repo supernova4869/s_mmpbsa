@@ -99,6 +99,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
         }
     }
 
+    // normalize residue indexes
     let mut ndx_lig: Vec<usize> = ndx_lig.iter().map(|p| p - ndx_com[0]).collect();
     let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
     let ndx_com: Vec<usize> = ndx_com.iter().map(|p| p - ndx_com[0]).collect();
@@ -108,7 +109,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
         ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
     }
 
-    // 1. 预处理轨迹: 复合物完整化, 团簇化, 居中叠合, 然后生成pdb文件
+    // 1. pre-treat trajectory: fix pbc
     println!("Reading trajectory file...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
@@ -116,6 +117,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     println!("Extracting atoms coordination...");
     let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
+    // decide frame step according to time step
     let time_step = (frames[1].time - frames[0].time) as f64;
     let bf = ((bt - frames[0].time as f64) / time_step) as usize;
     let ef = ((et - frames[0].time as f64) / time_step) as usize;
