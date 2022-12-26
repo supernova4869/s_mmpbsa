@@ -20,21 +20,22 @@ pub fn analyze_controller(wd:&Path, sys_name: &String, results: (f64, f64, f64, 
             0 => break,
             1 => {
                 println!("Writing binding energy terms...");
-                let (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki) = results;
+                let (dh_total, mm_total, pb_total, sa_total,
+                    cou_total, vdw_total, tds_total, dg_total, ki) = results;
                 let f_name = format!("{}_MMPBSA.csv", sys_name);
                 let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
                 energy_sum.write_all("Energy Term,kJ/mol,info\n".as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA\n", dH).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelectrostatic+Δvan der Waals\n", MM).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔPB,{:.3}\n", PB).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔSA,{:.3}\n", SA).as_bytes()).unwrap();
+                energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA\n", dh_total).as_bytes()).unwrap();
+                energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelectrostatic+Δvan der Waals\n", mm_total).as_bytes()).unwrap();
+                energy_sum.write_all(format!("ΔPB,{:.3}\n", pb_total).as_bytes()).unwrap();
+                energy_sum.write_all(format!("ΔSA,{:.3}\n", sa_total).as_bytes()).unwrap();
                 energy_sum.write_all(b"\n").unwrap();
-                energy_sum.write_all(format!("Δelectrostatic,{:.3}\n", COU).as_bytes()).unwrap();
-                energy_sum.write_all(format!("Δvan der Waals,{:.3}\n", VDW).as_bytes()).unwrap();
+                energy_sum.write_all(format!("Δelectrostatic,{:.3}\n", cou_total).as_bytes()).unwrap();
+                energy_sum.write_all(format!("Δvan der Waals,{:.3}\n", vdw_total).as_bytes()).unwrap();
                 energy_sum.write_all(b"\n").unwrap();
-                energy_sum.write_all(format!("TΔS,{:.3}\n", TdS).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS\n", dG).as_bytes()).unwrap();
-                energy_sum.write_all(format!("Ki,{:.3e}\n", Ki).as_bytes()).unwrap();
+                energy_sum.write_all(format!("TΔS,{:.3}\n", tds_total).as_bytes()).unwrap();
+                energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS\n", dg_total).as_bytes()).unwrap();
+                energy_sum.write_all(format!("Ki,{:.3e}\n", ki).as_bytes()).unwrap();
                 println!("Binding energy terms have been writen to {}", &f_name);
             },
             _ => println!("Coming")

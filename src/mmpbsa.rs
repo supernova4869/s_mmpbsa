@@ -20,8 +20,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
                               bt: f64, et: f64, dt: f64,
                               pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
                               -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
-    // pdb>pqr, output apbs, calculate MM, calculate APBS
-
     // Running settings
     let apbs = &settings.apbs;
     let mesh_type = settings.mesh_type;
@@ -45,17 +43,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     // run MM/PB-SA calculations
     println!("Running MM/PB-SA calculations...");
     println!("Preparing parameters...");
-
-    // c6 and c12
-    let atom_types_num = tpr.atom_types_num;
-    let mut c6: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
-    let mut c12: Array2<f64> = Array2::zeros((atom_types_num, atom_types_num));
-    for i in 0..atom_types_num {
-        for j in 0..atom_types_num {
-            c6[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c6;
-            c12[[i, j]] = tpr.lj_sr_params[i * atom_types_num + j].c12;
-        }
-    }
 
     // atom indexes
     let ndx_com = &ndx.groups[complex_grp].indexes;
@@ -90,21 +77,21 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
     let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
 
+    println!("Preparing APBS inputs...");
     prepare_apbs_inputs(&frames, bf, ef, dframe, total_frames, &temp_dir,
                         sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
 
     // calculate MM and PBSA
     let eps0 = 8.854187812800001e-12;
     let kb = 1.380649e-23;
-    let NA = 6.02214076e+23;
+    let na = 6.02214076e+23;
     let qe = 1.602176634e-19;
-    let RT2kJ = 8.314462618 * pbe_set.temp / 1e3;
+    let rt2kj = 8.314462618 * pbe_set.temp / 1e3;
     let ion_strength: f64 = pbe_set.ions.iter()
         .map(|ion| ion.charge * ion.charge * ion.conc).sum();
-    let kap = 1e-9 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * NA * 1e3));
+    let kap = 1e-9 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
 
-    let kJcou = 1389.35457520287;
-    let Rcut = f64::INFINITY;
+    let kjcou = 1389.35457520287;
 
     // default gamma for apbs calculation is 1
     let gamma = 0.0301248;      // Here is the surface extension constant from AMBER-PB4
@@ -113,14 +100,12 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let total_res_num = tpr.molecules.iter().map(|mol|
         mol.residues.len() * tpr.molecule_types[mol.molecule_type_id].molecules_num as usize).sum();
 
-    let mut dE: Array1<f64> = Array1::zeros(total_res_num);
-    let mut dGres: Array1<f64> = Array1::zeros(total_res_num);
-    let mut dHres: Array1<f64> = Array1::zeros(total_res_num);
-    let mut MMres: Array1<f64> = Array1::zeros(total_res_num);
-    let mut COUres: Array1<f64> = Array1::zeros(total_res_num);
-    let mut VDWres: Array1<f64> = Array1::zeros(total_res_num);
-    let mut dPBres: Array1<f64> = Array1::zeros(total_res_num);
-    let mut dSAres: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dh_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut mm_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut cou_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut vdw_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dpb_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dsa_res: Array1<f64> = Array1::zeros(total_res_num);
 
     let mut vdw: Array1<f64> = Array1::zeros(total_frames);
     let mut pb: Array1<f64> = Array1::zeros(total_frames);
@@ -155,12 +140,12 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
                 let yj = coord[[j, 1]];
                 let zj = coord[[j, 2]];
                 let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
-                if r < Rcut {
-                    let mut e_cou = qi * qj / r / 10.0;
-                    if use_dh {
-                        e_cou = e_cou * f64::exp(-kap * r);
-                    }
-                    let e_vdw = c12[[ci, cj]] / r.powi(12) - c6[[ci, cj]] / r.powi(6);
+                if r < settings.r_cutoff {
+                    let e_cou = match use_dh {
+                        false => qi * qj / r / 10.0,
+                        _ => qi * qj / r / 10.0 * f64::exp(-kap * r)
+                    };
+                    let e_vdw = aps.c12[[ci, cj]] / r.powi(12) - aps.c6[[ci, cj]] / r.powi(6);
                     de_cou[aps.atm_resnum[i]] += e_cou;
                     de_cou[aps.atm_resnum[j]] += e_cou;
                     de_vdw[aps.atm_resnum[i]] += e_vdw;
@@ -169,11 +154,11 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
             }
         }
         for i in 0..total_res_num {
-            de_cou[i] *= kJcou / (2.0 * pbe_set.pdie);
+            de_cou[i] *= kjcou / (2.0 * pbe_set.pdie);
             de_vdw[i] /= 2.0;
         }
-        let e_vdw = de_vdw.sum();
         let e_cou = de_cou.sum();
+        let e_vdw = de_vdw.sum();
 
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
@@ -289,18 +274,18 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
 
         // residue decomposition
         for &i in &ndx_rec {
-            dPBres[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[1, i]];
-            dSAres[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[1, i]];
+            dpb_res[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[1, i]];
+            dsa_res[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[1, i]];
         }
         for &i in &ndx_lig {
-            dPBres[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[2, i]];
-            dSAres[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[2, i]];
+            dpb_res[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[2, i]];
+            dsa_res[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[2, i]];
         }
 
-        COUres += &de_cou;
-        VDWres += &de_vdw;
-        pb_res += &dPBres;
-        sa_res += &dSAres;
+        cou_res += &de_cou;
+        vdw_res += &de_vdw;
+        pb_res += &dpb_res;
+        sa_res += &dsa_res;
 
         idx += 1;
         pgb.inc(1);
@@ -308,30 +293,30 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     pgb.finish();
 
     // residue time average
-    COUres /= total_frames as f64;
-    VDWres /= total_frames as f64;
+    cou_res /= total_frames as f64;
+    vdw_res /= total_frames as f64;
     pb_res /= total_frames as f64;
     sa_res /= total_frames as f64;
-    MMres = COUres + VDWres;
-    dHres = MMres + pb_res + sa_res;
+    mm_res = cou_res + vdw_res;
+    dh_res = mm_res + pb_res + sa_res;
 
     // totally time average and ts
-    let dH = dh.iter().sum::<f64>() / dh.len() as f64;
-    let MM = mm.iter().sum::<f64>() / mm.len() as f64;
-    let COU = cou.iter().sum::<f64>() / cou.len() as f64;
-    let VDW = vdw.iter().sum::<f64>() / vdw.len() as f64;
-    let PB = pb.iter().sum::<f64>() / pb.len() as f64;
-    let SA = sa.iter().sum::<f64>() / sa.len() as f64;
+    let dh_total = dh.iter().sum::<f64>() / dh.len() as f64;
+    let mm_total = mm.iter().sum::<f64>() / mm.len() as f64;
+    let cou_total = cou.iter().sum::<f64>() / cou.len() as f64;
+    let vdw_total = vdw.iter().sum::<f64>() / vdw.len() as f64;
+    let pb_total = pb.iter().sum::<f64>() / pb.len() as f64;
+    let sa_total = sa.iter().sum::<f64>() / sa.len() as f64;
 
-    let TdS = mm.iter()
-        .map(|&p| f64::exp((p - MM) / RT2kJ))
+    let tds_total = mm.iter()
+        .map(|&p| f64::exp((p - mm_total) / rt2kj))
         .sum::<f64>() / mm.len() as f64;
-    let TdS = -RT2kJ * TdS.ln();
-    let dG = dH - TdS;
-    let Ki = f64::exp(dG / RT2kJ);
+    let tds_total = -rt2kj * tds_total.ln();
+    let dg_total = dh_total - tds_total;
+    let ki = f64::exp(dg_total / rt2kj);
 
     println!("MM-PBSA calculation finished.");
-    return (dH, MM, PB, SA, COU, VDW, TdS, dG, Ki);
+    return (dh_total, mm_total, pb_total, sa_total, cou_total, vdw_total, tds_total, dg_total, ki);
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {

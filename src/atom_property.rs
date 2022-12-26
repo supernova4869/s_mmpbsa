@@ -1,7 +1,9 @@
-use ndarray::Array1;
+use ndarray::{Array1, Array2};
 use crate::parse_tpr::TPR;
 
 pub struct AtomProperty {
+    pub c6: Array2<f64>,
+    pub c12: Array2<f64>,
     pub atm_charge: Array1::<f64>,
     pub atm_radius: Array1::<f64>,
     pub atm_typeindex: Array1<usize>,
@@ -15,6 +17,16 @@ pub struct AtomProperty {
 
 impl AtomProperty {
     pub fn new(tpr: &TPR, ndx_com: &Vec<usize>) -> AtomProperty {
+        // c6 and c12
+        let mut c6: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
+        let mut c12: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
+        for i in 0..tpr.atom_types_num {
+            for j in 0..tpr.atom_types_num {
+                c6[[i, j]] = tpr.lj_sr_params[i * tpr.atom_types_num + j].c6;
+                c12[[i, j]] = tpr.lj_sr_params[i * tpr.atom_types_num + j].c12;
+            }
+        }
+
         let mut atm_charge: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_radius: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_typeindex: Array1<usize> = Array1::zeros(ndx_com.len());
@@ -47,6 +59,8 @@ impl AtomProperty {
             }
         }
         AtomProperty {
+            c6,
+            c12,
             atm_charge,
             atm_radius,
             atm_typeindex,

@@ -27,9 +27,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
         println!("  3 Select atom radius type, current: {}", RADIUS_TABLE[&settings.rad_type]);
         println!("  4 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
         println!("  5 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
-        println!("  6 Input fine mesh spacing (df), current: {} A", settings.df);
-        println!("  7 Prepare PB parameters for APBS");
-        println!("  8 Prepare SA parameters for APBS");
+        println!("  6 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
+        println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
+        println!("  8 Prepare PB parameters for APBS");
+        println!("  9 Prepare SA parameters for APBS");
         let i = get_input_selection();
         match i {
             -10 => return,
@@ -58,7 +59,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 settings.use_ts = !settings.use_ts;
             }
             3 => {
-                println!("Input atom radius type, Supported:{}", {
+                println!("Input atom radius type (default mBondi), Supported:{}", {
                     let mut s = String::new();
                     for (k, v) in RADIUS_TABLE.clone().into_iter() {
                         s.push_str(format!("\n{}):\t{}", k, v).as_str());
@@ -83,7 +84,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 tpr.apply_radius(settings.rad_type, &atom_radius_ff.radii);
             }
             4 => {
-                println!("Input coarse grid expand factor:");
+                println!("Input coarse grid expand factor, default 3:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
@@ -93,7 +94,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 }
             }
             5 => {
-                println!("Input fine grid expand amount (A):");
+                println!("Input fine grid expand amount (A), default 10:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
@@ -103,7 +104,20 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 }
             }
             6 => {
-                println!("Input fine mesh spacing (A):");
+                println!("Input cutoff value (A), default inf:");
+                let mut s = String::new();
+                stdin().read_line(&mut s).expect("Input error");
+                if s.trim().is_empty() {
+                    settings.r_cutoff = f64::INFINITY;
+                } else {
+                    settings.r_cutoff = s.trim().parse().unwrap();
+                    if settings.r_cutoff == 0.0 {
+                        settings.r_cutoff = f64::INFINITY;
+                    }
+                }
+            }
+            7 => {
+                println!("Input fine mesh spacing (A), default 0.5:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
@@ -112,14 +126,14 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                     settings.df = s.trim().parse().unwrap();
                 }
             }
-            7 => {
+            8 => {
                 pbe_set.save_params(wd.join("PB_settings.txt"));
                 println!("PB parameters have been wrote to PB_settings.txt. \
                     Edit it and press return to reload it.");
                 stdin().read_line(&mut String::new()).unwrap();
                 // pbe_set = &pbe_set.load_params(wd.join("PBESet.txt"));
             }
-            8 => {
+            9 => {
                 pba_set.save_params(wd.join("SA_settings.txt"));
                 println!("SA parameters have been wrote to SA_settings.txt. \
                     Edit it and press return to reload it.");

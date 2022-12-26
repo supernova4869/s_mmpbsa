@@ -14,7 +14,6 @@ pub fn prepare_apbs_inputs(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe
                        temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
                        ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        aps: &AtomProperty) {
-    println!("Preparing APBS inputs...");
     let pb = ProgressBar::new(total_frames as u64);
     set_style(&pb);
     for cur_frm in (bf..ef + 1).step_by(dframe) {

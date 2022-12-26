@@ -13,6 +13,7 @@ pub struct Parameters {
     pub use_ts: bool,
     pub cfac: f64,
     pub fadd: f64,
+    pub r_cutoff: f64,
     pub df: f64,
     pub nkernels: i32,
     pub preserve: bool,
@@ -31,6 +32,7 @@ pub fn init_settings() -> Parameters {
         use_ts: true,
         cfac: 3.0,
         fadd: 10.0,
+        r_cutoff: 0.0,
         df: 0.5,
         nkernels: 4,
         preserve: true,
@@ -70,6 +72,10 @@ fn read_user_settings(params: &mut Parameters, settings: &Value) {
     params.grid_type = parse_param(settings, "gridType", params.grid_type);
     params.cfac = parse_param(settings, "cfac", params.cfac);
     params.fadd = parse_param(settings, "fadd", params.fadd);
+    params.r_cutoff = parse_param(settings, "r_cutoff", params.r_cutoff);
+    if params.r_cutoff == 0.0 {
+        params.r_cutoff = f64::INFINITY;
+    }
     params.df = parse_param(settings, "df", params.df);
     params.nkernels = parse_param(settings, "nkernels", params.nkernels);
     // String type cannot move
@@ -99,8 +105,11 @@ fn read_user_settings(params: &mut Parameters, settings: &Value) {
 }
 
 fn parse_param<T: FromStr>(settings: &Value, key: &str, default: T) -> T {
-    match settings.get(key).unwrap().to_string().parse::<T>() {
-        Ok(v) => v,
-        Err(_) => default
+    match settings.get(key) {
+        Some(v) => match v.to_string().parse::<T>() {
+            Ok(v) => v,
+            Err(_) => default
+        }
+        None => default
     }
 }
