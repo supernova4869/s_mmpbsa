@@ -1,0 +1,255 @@
+read
+  mol pqr _system_4ns_com.pqr
+  mol pqr _system_4ns_rec.pqr
+  mol pqr _system_4ns_lig.pqr
+end
+
+
+ELEC name _system_4ns_com
+  mg-auto
+  mol 1
+  dime   160  209  169
+  cglen  210.600  283.860  224.040
+  fglen  80.200  104.620  84.680
+  fgcent 62.640  63.130  25.340
+  cgcent 62.640  63.130  25.340
+ 
+  temp  298.15    # 温度
+  pdie  2    # 溶质介电常数
+  sdie  78.54    # 溶剂介电常数, 真空1, 水78.54
+  
+  npbe          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
+  bcfl  mdh    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
+  srfm  smol    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
+  chgm  spl4    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散
+  swin  0.3    # 立方样条的窗口值, 仅用于 srfm=spl2/4
+  
+  srad  1.4    # 溶剂探测半径
+  sdens 10    # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
+  
+  # 离子电荷, 浓度, 半径
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+ELEC name _system_4ns_com_VAC
+  mg-auto
+  mol 1
+  dime   160  209  169
+  cglen  210.600  283.860  224.040
+  fglen  80.200  104.620  84.680
+  fgcent 62.640  63.130  25.340
+  cgcent 62.640  63.130  25.340
+
+  temp  298.15    # 温度
+  pdie  2    # 溶质介电常数
+  sdie  1    # 溶剂介电常数, 真空1, 水78.54
+  
+  npbe          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
+  bcfl  mdh    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
+  srfm  smol    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
+  chgm  spl4    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散
+  swin  0.3    # 立方样条的窗口值, 仅用于 srfm=spl2/4
+  
+  srad  1.4    # 溶剂探测半径
+  sdens 10    # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
+  
+  # 离子电荷, 浓度, 半径
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+APOLAR name _system_4ns_com_SAS
+  mol 1
+  temp  298.15    # 温度
+  srfm  sacc    # 构建溶剂相关表面或体积的模型
+  swin  0.3    # 立方样条窗口(A), 用于定义样条表面
+  
+  srad  1.4    # 探测半径(A)
+  gamma  1   # 表面张力(kJ/mol-A^2)
+  
+  press  0   # 压力(kJ/mol-A^3)
+  bconc  0   # 溶剂本体密度(A^3)
+  sdens  10
+  dpos  0.2
+  grid  0.1 0.1 0.1
+  
+  calcforce  no
+  calcenergy total
+end
+
+print elecEnergy _system_4ns_com - _system_4ns_com_VAC end
+print apolEnergy _system_4ns_com_SAS end
+
+
+ELEC name _system_4ns_rec
+  mg-auto
+  mol 2
+  dime   160  209  169
+  cglen  210.600  283.860  224.040
+  fglen  80.200  104.620  84.680
+  fgcent 62.640  63.130  25.340
+  cgcent 62.640  63.130  25.340
+ 
+  temp  298.15    # 温度
+  pdie  2    # 溶质介电常数
+  sdie  78.54    # 溶剂介电常数, 真空1, 水78.54
+  
+  npbe          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
+  bcfl  mdh    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
+  srfm  smol    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
+  chgm  spl4    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散
+  swin  0.3    # 立方样条的窗口值, 仅用于 srfm=spl2/4
+  
+  srad  1.4    # 溶剂探测半径
+  sdens 10    # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
+  
+  # 离子电荷, 浓度, 半径
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+ELEC name _system_4ns_rec_VAC
+  mg-auto
+  mol 2
+  dime   160  209  169
+  cglen  210.600  283.860  224.040
+  fglen  80.200  104.620  84.680
+  fgcent 62.640  63.130  25.340
+  cgcent 62.640  63.130  25.340
+
+  temp  298.15    # 温度
+  pdie  2    # 溶质介电常数
+  sdie  1    # 溶剂介电常数, 真空1, 水78.54
+  
+  npbe          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
+  bcfl  mdh    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
+  srfm  smol    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
+  chgm  spl4    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散
+  swin  0.3    # 立方样条的窗口值, 仅用于 srfm=spl2/4
+  
+  srad  1.4    # 溶剂探测半径
+  sdens 10    # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
+  
+  # 离子电荷, 浓度, 半径
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+APOLAR name _system_4ns_rec_SAS
+  mol 2
+  temp  298.15    # 温度
+  srfm  sacc    # 构建溶剂相关表面或体积的模型
+  swin  0.3    # 立方样条窗口(A), 用于定义样条表面
+  
+  srad  1.4    # 探测半径(A)
+  gamma  1   # 表面张力(kJ/mol-A^2)
+  
+  press  0   # 压力(kJ/mol-A^3)
+  bconc  0   # 溶剂本体密度(A^3)
+  sdens  10
+  dpos  0.2
+  grid  0.1 0.1 0.1
+  
+  calcforce  no
+  calcenergy total
+end
+
+print elecEnergy _system_4ns_rec - _system_4ns_rec_VAC end
+print apolEnergy _system_4ns_rec_SAS end
+
+
+ELEC name _system_4ns_lig
+  mg-auto
+  mol 3
+  dime   116  113  98
+  cglen  143.340  139.740  116.640
+  fglen  57.780  56.580  48.880
+  fgcent 62.750  62.830  29.720
+  cgcent 62.750  62.830  29.720
+ 
+  temp  298.15    # 温度
+  pdie  2    # 溶质介电常数
+  sdie  78.54    # 溶剂介电常数, 真空1, 水78.54
+  
+  npbe          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
+  bcfl  mdh    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
+  srfm  smol    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
+  chgm  spl4    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散
+  swin  0.3    # 立方样条的窗口值, 仅用于 srfm=spl2/4
+  
+  srad  1.4    # 溶剂探测半径
+  sdens 10    # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
+  
+  # 离子电荷, 浓度, 半径
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+ELEC name _system_4ns_lig_VAC
+  mg-auto
+  mol 3
+  dime   116  113  98
+  cglen  143.340  139.740  116.640
+  fglen  57.780  56.580  48.880
+  fgcent 62.750  62.830  29.720
+  cgcent 62.750  62.830  29.720
+
+  temp  298.15    # 温度
+  pdie  2    # 溶质介电常数
+  sdie  1    # 溶剂介电常数, 真空1, 水78.54
+  
+  npbe          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)
+  bcfl  mdh    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map
+  srfm  smol    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)
+  chgm  spl4    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散
+  swin  0.3    # 立方样条的窗口值, 仅用于 srfm=spl2/4
+  
+  srad  1.4    # 溶剂探测半径
+  sdens 10    # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用
+  
+  # 离子电荷, 浓度, 半径
+  ion charge  1 conc 0.15 radius 0.95
+  ion charge  -1 conc 0.15 radius 1.81
+  
+  calcforce  no
+  calcenergy comps 
+end
+
+APOLAR name _system_4ns_lig_SAS
+  mol 3
+  temp  298.15    # 温度
+  srfm  sacc    # 构建溶剂相关表面或体积的模型
+  swin  0.3    # 立方样条窗口(A), 用于定义样条表面
+  
+  srad  1.4    # 探测半径(A)
+  gamma  1   # 表面张力(kJ/mol-A^2)
+  
+  press  0   # 压力(kJ/mol-A^3)
+  bconc  0   # 溶剂本体密度(A^3)
+  sdens  10
+  dpos  0.2
+  grid  0.1 0.1 0.1
+  
+  calcforce  no
+  calcenergy total
+end
+
+print elecEnergy _system_4ns_lig - _system_4ns_lig_VAC end
+print apolEnergy _system_4ns_lig_SAS end
+

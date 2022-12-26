@@ -104,7 +104,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 }
             }
             6 => {
-                println!("Input cutoff value (A), default inf:");
+                println!("Input cutoff value (A), default 0 (inf):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
