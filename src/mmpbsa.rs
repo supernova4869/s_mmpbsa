@@ -10,16 +10,17 @@ use std::io::{stdin, Write};
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::{ProgressBar, ProgressStyle};
+use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_apbs_inputs, write_apbs};
 
-pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, sys_name: &String,
-                              complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
+pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
+                              sys_name: &String, complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
                               bt: f64, et: f64, dt: f64,
                               pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
-                              -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+                              -> Results {
     // Running settings
     let apbs = &settings.apbs;
     let mesh_type = settings.mesh_type;
@@ -86,7 +87,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let kb = 1.380649e-23;
     let na = 6.02214076e+23;
     let qe = 1.602176634e-19;
-    let rt2kj = 8.314462618 * pbe_set.temp / 1e3;
     let ion_strength: f64 = pbe_set.ions.iter()
         .map(|ion| ion.charge * ion.charge * ion.conc).sum();
     let kap = 1e-9 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
@@ -100,20 +100,17 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     let total_res_num = tpr.molecules.iter().map(|mol|
         mol.residues.len() * tpr.molecule_types[mol.molecule_type_id].molecules_num as usize).sum();
 
-    let mut dh_res: Array1<f64> = Array1::zeros(total_res_num);
-    let mut mm_res: Array1<f64> = Array1::zeros(total_res_num);
-    let mut cou_res: Array1<f64> = Array1::zeros(total_res_num);
-    let mut vdw_res: Array1<f64> = Array1::zeros(total_res_num);
-    let mut dpb_res: Array1<f64> = Array1::zeros(total_res_num);
-    let mut dsa_res: Array1<f64> = Array1::zeros(total_res_num);
-
+    // let mut results = Results::new(total_frames, total_res_num);
+    let mut cou: Array1<f64> = Array1::zeros(total_frames);
     let mut vdw: Array1<f64> = Array1::zeros(total_frames);
+    let mut mm: Array1<f64> = Array1::zeros(total_frames);
     let mut pb: Array1<f64> = Array1::zeros(total_frames);
     let mut sa: Array1<f64> = Array1::zeros(total_frames);
-    let mut cou: Array1<f64> = Array1::zeros(total_frames);
-    let mut mm: Array1<f64> = Array1::zeros(total_frames);
     let mut dh: Array1<f64> = Array1::zeros(total_frames);
-
+    let mut dpb_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut dsa_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut cou_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut vdw_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut pb_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut sa_res: Array1<f64> = Array1::zeros(total_res_num);
 
@@ -165,25 +162,27 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
         write_apbs(&ndx_rec, &ndx_lig, &coord, &aps.atm_radius,
                    pbe_set, &pba_set, &temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
-        if !apbs.is_empty() {
-            let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
-                expect("Failed to create apbs out file");
-            let apbs_result = Command::new(apbs).
-                arg(format!("{}.apbs", f_name)).
-                current_dir(&temp_dir).output().expect("running apbs failed.");
-            let apbs_output = String::from_utf8(apbs_result.stdout).
-                expect("Failed to get apbs output.");
-            apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
-        } else {
-            println!("Warning: APBS not found. Will not calculate solvation energy.");
-        }
+        // if !apbs.is_empty() {
+        //     let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
+        //         expect("Failed to create apbs out file");
+        //     let apbs_result = Command::new(apbs).
+        //         arg(format!("{}.apbs", f_name)).
+        //         current_dir(&temp_dir).output().expect("running apbs failed.");
+        //     let apbs_output = String::from_utf8(apbs_result.stdout).
+        //         expect("Failed to get apbs output.");
+        //     apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
+        // } else {
+        //     println!("Warning: APBS not found. Will not calculate solvation energy.");
+        // }
 
         // parse output
-        let apbs_info = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
-        let mut Esol: Array2<f64> = Array2::zeros((3, atom_num_com));
-        let mut Evac: Array2<f64> = Array2::zeros((3, atom_num_com));
-        let mut Esas: Array2<f64> = Array2::zeros((3, atom_num_com));
-        let apbs_info = apbs_info
+        let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
+        let mut e_com: Array2<f64> = Array2::zeros((3, atom_num_com));
+        let mut e_rec: Array2<f64> = Array2::zeros((3, atom_num_rec));
+        let mut e_lig: Array2<f64> = Array2::zeros((3, atom_num_lig));
+
+        // preserve CALCULATION, Atom and SASA lines
+        let apbs_results = apbs_results
             .split("\n")
             .filter_map(|p|
                 if p.trim().starts_with("CALCULATION ") ||
@@ -192,94 +191,94 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
                     Some(p.trim())
                 } else { None }
             )
-            .collect::<Vec<&str>>()
-            .join("\n");
+            .collect::<Vec<&str>>();
 
         // extract apbs results
-        let apbs_info: Vec<&str> = apbs_info        // list of apbs calculation results
-            .split("CALCULATION ")
-            .filter_map(|p| match p.trim().len() {
-                0 => None,
-                _ => Some(p.trim())
-            })
-            .collect();
-        for info in apbs_info {
-            let info: Vec<&str> = info
-                .split("\n")
-                .collect();
-
-            let sys_idx;    // com: 0, rec: 1, lig: 2
-            let n: f64;
-            if info[0].contains(format!("{}_com", f_name).as_str()) {
-                sys_idx = 0;
-                n = atom_num_com as f64;
-            } else if info[0].contains(format!("{}_rec", f_name).as_str()) {
-                sys_idx = 1;
-                n = atom_num_rec as f64;
+        let mut cur_sys = 0;    // com=0, rec=1, lig=2
+        let mut cur_item = 0;   // total=0, vac=1, sas=2
+        let mut cur_atom = 0;   // current atom index
+        for line in apbs_results {
+            if line.starts_with("CALCULATION") {
+                if line.contains(format!("{}_com", f_name).as_str()) {
+                    cur_sys = 0;
+                } else if line.contains(format!("{}_rec", f_name).as_str()) {
+                    cur_sys = 1;
+                } else if line.contains(format!("{}_lig", f_name).as_str()) {
+                    cur_sys = 2;
+                }
+                if line.contains("_VAC") {
+                    cur_item = 1;
+                } else if line.contains("_SAS") {
+                    cur_item = 2;
+                } else {
+                    cur_item = 0;
+                }
+                cur_atom = 0;
             } else {
-                sys_idx = 2;
-                n = atom_num_lig as f64;
-            }
-
-            if info[0].contains("_VAC") {
-                for (idx, v) in info[1..].into_iter().enumerate() {
-                    let v: Vec<&str> = v
-                        .split(" ")
-                        .filter_map(|p| match p.trim().len() {
-                            0 => None,
-                            _ => Some(p)
-                        }).collect();
-                    let v: f64 = v[v.len() - 2].parse().unwrap();
-                    Evac[[sys_idx, idx]] = v;
+                let v: Vec<&str> = line
+                    .split(":")
+                    .collect();
+                let v: Vec<&str> = v[1]
+                    .split(" ")
+                    .filter_map(|p| match p.trim().len() {
+                        0 => None,
+                        _ => Some(p)
+                    }).collect();
+                match cur_sys {
+                    0 => e_com[[cur_item, cur_atom]] = v[0].parse().unwrap(),
+                    1 => e_rec[[cur_item, cur_atom]] = v[0].parse().unwrap(),
+                    2 => e_lig[[cur_item, cur_atom]] = v[0].parse().unwrap(),
+                    _ => ()
                 }
-            } else if info[0].contains("_SAS") {
-                for (idx, v) in info[1..].into_iter().enumerate() {
-                    let v: Vec<&str> = v
-                        .split(" ")
-                        .filter_map(|p| match p.trim().len() {
-                            0 => None,
-                            _ => Some(p)
-                        }).collect();
-                    let v: f64 = v[v.len() - 1].parse().unwrap();
-                    Esas[[sys_idx, idx]] = gamma * v + _const / n;
-                }
-            } else {
-                for (idx, v) in info[1..].into_iter().enumerate() {
-                    let v: Vec<&str> = v
-                        .split(" ")
-                        .filter_map(|p| match p.trim().len() {
-                            0 => None,
-                            _ => Some(p)
-                        }).collect();
-                    let v: f64 = v[v.len() - 2].parse().unwrap();
-                    Esol[[sys_idx, idx]] = v;
-                }
+                cur_atom += 1;
             }
         }
+        for mut col in e_com.columns_mut() {
+            col[0] -= col[1];
+            col[2] = gamma * col[2] + _const / atom_num_com as f64;
+        }
+        for mut col in e_rec.columns_mut() {
+            col[0] -= col[1];
+            col[2] = gamma * col[2] + _const / atom_num_rec as f64;
+        }
+        for mut col in e_lig.columns_mut() {
+            col[0] -= col[1];
+            col[2] = gamma * col[2] + _const / atom_num_lig as f64;
+        }
 
-        Esol = Esol - Evac;
-        let pb_com: f64 = Esol.slice(s![0, ..]).iter().sum::<f64>();
-        let sa_com: f64 = Esas.slice(s![0, ..]).iter().sum::<f64>();
-        let pb_rec: f64 = Esol.slice(s![1, ..]).iter().sum::<f64>();
-        let sa_rec: f64 = Esas.slice(s![1, ..]).iter().sum::<f64>();
-        let pb_lig: f64 = Esol.slice(s![2, ..]).iter().sum::<f64>();
-        let sa_lig: f64 = Esas.slice(s![2, ..]).iter().sum::<f64>();
+        let pb_com: f64 = e_com.slice(s![0, ..]).iter().sum::<f64>();
+        let sa_com: f64 = e_com.slice(s![2, ..]).iter().sum::<f64>();
+        let pb_rec: f64 = e_rec.slice(s![0, ..]).iter().sum::<f64>();
+        let sa_rec: f64 = e_rec.slice(s![2, ..]).iter().sum::<f64>();
+        let pb_lig: f64 = e_lig.slice(s![0, ..]).iter().sum::<f64>();
+        let sa_lig: f64 = e_lig.slice(s![2, ..]).iter().sum::<f64>();
 
-        vdw[idx] = e_vdw;
         cou[idx] = e_cou;
+        vdw[idx] = e_vdw;
         mm[idx] = e_cou + e_vdw;
         pb[idx] = pb_com - pb_rec - pb_lig;
         sa[idx] = sa_com - sa_rec - sa_lig;
         dh[idx] = mm[idx] + pb[idx] + sa[idx];
 
         // residue decomposition
-        for &i in &ndx_rec {
-            dpb_res[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[1, i]];
-            dsa_res[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[1, i]];
-        }
-        for &i in &ndx_lig {
-            dpb_res[aps.atm_resnum[i]] += Esol[[0, i]] - Esol[[2, i]];
-            dsa_res[aps.atm_resnum[i]] += Esas[[0, i]] - Esas[[2, i]];
+        for &i in &ndx_com {
+            if ndx_rec.contains(&i) {
+                if ndx_rec[0] < ndx_lig[0] {
+                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i]];
+                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i]];
+                } else {
+                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i - ndx_lig.len()]];
+                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i - ndx_lig.len()]];
+                }
+            } else {
+                if ndx_lig[0] < ndx_rec[0] {
+                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i]];
+                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i]];
+                } else {
+                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i - ndx_rec.len()]];
+                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i - ndx_rec.len()]];
+                }
+            }
         }
 
         cou_res += &de_cou;
@@ -297,26 +296,26 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path, s
     vdw_res /= total_frames as f64;
     pb_res /= total_frames as f64;
     sa_res /= total_frames as f64;
-    mm_res = cou_res + vdw_res;
-    dh_res = mm_res + pb_res + sa_res;
-
-    // totally time average and ts
-    let dh_total = dh.iter().sum::<f64>() / dh.len() as f64;
-    let mm_total = mm.iter().sum::<f64>() / mm.len() as f64;
-    let cou_total = cou.iter().sum::<f64>() / cou.len() as f64;
-    let vdw_total = vdw.iter().sum::<f64>() / vdw.len() as f64;
-    let pb_total = pb.iter().sum::<f64>() / pb.len() as f64;
-    let sa_total = sa.iter().sum::<f64>() / sa.len() as f64;
-
-    let tds_total = mm.iter()
-        .map(|&p| f64::exp((p - mm_total) / rt2kj))
-        .sum::<f64>() / mm.len() as f64;
-    let tds_total = -rt2kj * tds_total.ln();
-    let dg_total = dh_total - tds_total;
-    let ki = f64::exp(dg_total / rt2kj);
+    let mm_res = &cou_res + &vdw_res;
+    let dh_res = &mm_res + &pb_res + &sa_res;
 
     println!("MM-PBSA calculation finished.");
-    return (dh_total, mm_total, pb_total, sa_total, cou_total, vdw_total, tds_total, dg_total, ki);
+    Results {
+        mm,
+        pb,
+        sa,
+        cou,
+        vdw,
+        dh,
+        dh_res,
+        mm_res,
+        cou_res,
+        vdw_res,
+        dpb_res,
+        dsa_res,
+        pb_res,
+        sa_res
+    }
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {

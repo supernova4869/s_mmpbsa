@@ -50,7 +50,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                                                              ligand_grp as usize,
                                                              bt, et, dt,
                                                              &pbe_set, &pba_set, &settings);
-                analyzation::analyze_controller(wd, &sys_name, results);
+                analyzation::analyze_controller(wd, &sys_name, &results, pbe_set);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;
