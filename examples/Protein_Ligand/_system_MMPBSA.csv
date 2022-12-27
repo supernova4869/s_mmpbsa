@@ -9,4 +9,4 @@ Energy Term,kJ/mol,info
 
 TΔS,-29.810
 ΔG,-172.523,ΔG=ΔH-TΔS
-Ki,5.960e-31
+Ki,5.960e-31,Ki=exp(ΔG/RT)

@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::Write;
+use std::io::{stdin, Write};
 use std::path::Path;
 use ndarray::Array1;
 use crate::apbs_param::PBESet;
@@ -24,27 +24,27 @@ pub struct Results {
 
 impl Results {
     // totally time average and ts
-    fn summary(&self, pbe_set: &PBESet) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
-        let rt2kj = 8.314462618 * pbe_set.temp / 1e3;
+    fn summary(&self, temperature: f64) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+        let rt2kj = 8.314462618 * temperature / 1e3;
 
-        let dh_total = self.dh.iter().sum::<f64>() / self.dh.len() as f64;
-        let mm_total = self.mm.iter().sum::<f64>() / self.mm.len() as f64;
-        let cou_total = self.cou.iter().sum::<f64>() / self.cou.len() as f64;
-        let vdw_total = self.vdw.iter().sum::<f64>() / self.vdw.len() as f64;
-        let pb_total = self.pb.iter().sum::<f64>() / self.pb.len() as f64;
-        let sa_total = self.sa.iter().sum::<f64>() / self.sa.len() as f64;
+        let dh_avg = self.dh.iter().sum::<f64>() / self.dh.len() as f64;
+        let mm_avg = self.mm.iter().sum::<f64>() / self.mm.len() as f64;
+        let cou_avg = self.cou.iter().sum::<f64>() / self.cou.len() as f64;
+        let vdw_avg = self.vdw.iter().sum::<f64>() / self.vdw.len() as f64;
+        let pb_avg = self.pb.iter().sum::<f64>() / self.pb.len() as f64;
+        let sa_avg = self.sa.iter().sum::<f64>() / self.sa.len() as f64;
 
-        let tds_total = self.mm.iter()
-            .map(|&p| f64::exp((p - mm_total) / rt2kj))
+        let tds = self.mm.iter()
+            .map(|&p| f64::exp((p - mm_avg) / rt2kj))
             .sum::<f64>() / self.mm.len() as f64;
-        let tds_total = -rt2kj * tds_total.ln();
-        let dg_total = dh_total - tds_total;
-        let ki = f64::exp(dg_total / rt2kj);
-        return (dh_total, mm_total, pb_total, sa_total, cou_total, vdw_total, tds_total, dg_total, ki);
+        let tds = -rt2kj * tds.ln();
+        let dg = dh_avg - tds;
+        let ki = f64::exp(dg / rt2kj);
+        return (dh_avg, mm_avg, pb_avg, sa_avg, cou_avg, vdw_avg, tds, dg, ki);
     }
 }
 
-pub fn analyze_controller(wd: &Path, sys_name: &String, results: &Results, pbe_set: &PBESet) {
+pub fn analyze_controller(wd: &Path, sys_name: &String, results: &Results, temperature: f64) {
     loop {
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!(" 0 Return");
@@ -58,24 +58,42 @@ pub fn analyze_controller(wd: &Path, sys_name: &String, results: &Results, pbe_s
         match sel_fun {
             0 => break,
             1 => {
-                println!("Writing binding energy terms...");
-                let (dh_total, mm_total, pb_total, sa_total,
-                    cou_total, vdw_total, tds_total, dg_total, ki) = results.summary(pbe_set);
+                let (dh_avg, mm_avg, pb_avg, sa_avg, cou_avg,
+                    vdw_avg, tds, dg, ki) = results.summary(temperature);
+                println!("Energy terms:");
+                println!("ΔH: {:.3} kJ/mol", dh_avg);
+                println!("ΔMM: {:.3} kJ/mol", mm_avg);
+                println!("ΔPB: {:.3} kJ/mol", pb_avg);
+                println!("ΔSA: {:.3} kJ/mol", sa_avg);
+                println!();
+                println!("Δele: {:.3} kJ/mol", cou_avg);
+                println!("Δvdw: {:.3} kJ/mol", vdw_avg);
+                println!();
+                println!("TΔS: {:.3} kJ/mol", tds);
+                println!("ΔG: {:.3} kJ/mol", dg);
+                println!("Ki: {:.3}", ki);
+
                 let f_name = format!("{}_MMPBSA.csv", sys_name);
-                let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
-                energy_sum.write_all("Energy Term,kJ/mol,info\n".as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA\n", dh_total).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelectrostatic+Δvan der Waals\n", mm_total).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔPB,{:.3}\n", pb_total).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔSA,{:.3}\n", sa_total).as_bytes()).unwrap();
-                energy_sum.write_all(b"\n").unwrap();
-                energy_sum.write_all(format!("Δelectrostatic,{:.3}\n", cou_total).as_bytes()).unwrap();
-                energy_sum.write_all(format!("Δvan der Waals,{:.3}\n", vdw_total).as_bytes()).unwrap();
-                energy_sum.write_all(b"\n").unwrap();
-                energy_sum.write_all(format!("TΔS,{:.3}\n", tds_total).as_bytes()).unwrap();
-                energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS\n", dg_total).as_bytes()).unwrap();
-                energy_sum.write_all(format!("Ki,{:.3e}\n", ki).as_bytes()).unwrap();
-                println!("Binding energy terms have been writen to {}", &f_name);
+                println!("Write to {}? [Y/n]", f_name);
+                let mut temp = String::new();
+                stdin().read_line(&mut temp).unwrap();
+                if temp.trim().is_empty() || temp.trim() == "Y" || temp.trim() == "y" {
+                    println!("Writing binding energy terms...");
+                    let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
+                    energy_sum.write_all("Energy Term,kJ/mol,info\n".as_bytes()).unwrap();
+                    energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA\n", dh_avg).as_bytes()).unwrap();
+                    energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelectrostatic+Δvan der Waals\n", mm_avg).as_bytes()).unwrap();
+                    energy_sum.write_all(format!("ΔPB,{:.3}\n", pb_avg).as_bytes()).unwrap();
+                    energy_sum.write_all(format!("ΔSA,{:.3}\n", sa_avg).as_bytes()).unwrap();
+                    energy_sum.write_all(b"\n").unwrap();
+                    energy_sum.write_all(format!("Δelectrostatic,{:.3}\n", cou_avg).as_bytes()).unwrap();
+                    energy_sum.write_all(format!("Δvan der Waals,{:.3}\n", vdw_avg).as_bytes()).unwrap();
+                    energy_sum.write_all(b"\n").unwrap();
+                    energy_sum.write_all(format!("TΔS,{:.3}\n", tds).as_bytes()).unwrap();
+                    energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS\n", dg).as_bytes()).unwrap();
+                    energy_sum.write_all(format!("Ki,{:.3e},Ki=exp(ΔG/RT)\n", ki).as_bytes()).unwrap();
+                    println!("Binding energy terms have been writen to {}", &f_name);
+                }
             }
             _ => println!("Coming")
         }
