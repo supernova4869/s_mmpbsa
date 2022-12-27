@@ -100,7 +100,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     let total_res_num = tpr.molecules.iter().map(|mol|
         mol.residues.len() * tpr.molecule_types[mol.molecule_type_id].molecules_num as usize).sum();
 
-    // let mut results = Results::new(total_frames, total_res_num);
     let mut cou: Array1<f64> = Array1::zeros(total_frames);
     let mut vdw: Array1<f64> = Array1::zeros(total_frames);
     let mut mm: Array1<f64> = Array1::zeros(total_frames);
@@ -261,23 +260,21 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
         dh[idx] = mm[idx] + pb[idx] + sa[idx];
 
         // residue decomposition
+        let offset_rec = match ndx_lig[0] < ndx_rec[0] {
+            true => 0,
+            _ => ndx_rec.len()
+        };
+        let offset_lig = match ndx_rec[0] < ndx_lig[0] {
+            true => 0,
+            _ => ndx_lig.len()
+        };
         for &i in &ndx_com {
             if ndx_rec.contains(&i) {
-                if ndx_rec[0] < ndx_lig[0] {
-                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i]];
-                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i]];
-                } else {
-                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i - ndx_lig.len()]];
-                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i - ndx_lig.len()]];
-                }
+                dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i - offset_lig]];
+                dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i - offset_lig]];
             } else {
-                if ndx_lig[0] < ndx_rec[0] {
-                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i]];
-                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i]];
-                } else {
-                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i - ndx_rec.len()]];
-                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i - ndx_rec.len()]];
-                }
+                dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i - offset_rec]];
+                dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i - offset_rec]];
             }
         }
 
@@ -299,7 +296,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     let mm_res = &cou_res + &vdw_res;
     let dh_res = &mm_res + &pb_res + &sa_res;
 
-    println!("MM-PBSA calculation finished.");
+    println!("MM/PB-SA calculation finished.");
     Results {
         mm,
         pb,
@@ -314,7 +311,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
         dpb_res,
         dsa_res,
         pb_res,
-        sa_res
+        sa_res,
     }
 }
 

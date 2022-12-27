@@ -23,42 +23,6 @@ pub struct Results {
 }
 
 impl Results {
-    pub fn new(total_frames: usize, total_res_num: usize) -> Results {
-        let mm: Array1<f64> = Array1::zeros(total_frames);
-        let pb: Array1<f64> = Array1::zeros(total_frames);
-        let sa: Array1<f64> = Array1::zeros(total_frames);
-        let cou: Array1<f64> = Array1::zeros(total_frames);
-        let vdw: Array1<f64> = Array1::zeros(total_frames);
-        let dh: Array1<f64> = Array1::zeros(total_frames);
-
-        let dh_res: Array1<f64> = Array1::zeros(total_res_num);
-        let mm_res: Array1<f64> = Array1::zeros(total_res_num);
-        let cou_res: Array1<f64> = Array1::zeros(total_res_num);
-        let vdw_res: Array1<f64> = Array1::zeros(total_res_num);
-        let dpb_res: Array1<f64> = Array1::zeros(total_res_num);
-        let dsa_res: Array1<f64> = Array1::zeros(total_res_num);
-
-        let pb_res: Array1<f64> = Array1::zeros(total_res_num);
-        let sa_res: Array1<f64> = Array1::zeros(total_res_num);
-
-        Results {
-            mm,
-            pb,
-            sa,
-            cou,
-            vdw,
-            dh,
-            dh_res,
-            mm_res,
-            cou_res,
-            vdw_res,
-            dpb_res,
-            dsa_res,
-            pb_res,
-            sa_res,
-        }
-    }
-
     // totally time average and ts
     fn summary(&self, pbe_set: &PBESet) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
         let rt2kj = 8.314462618 * pbe_set.temp / 1e3;
@@ -85,7 +49,7 @@ pub fn analyze_controller(wd: &Path, sys_name: &String, results: &Results, pbe_s
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!(" 0 Return");
         println!(" 1 Output binding energy terms summary to csv file");
-        println!(" 2 Output binding energy terms of each time point to csv file");
+        println!(" 2 Output binding energy terms during trajectory to csv file");
         println!(" 3 Output residue-decomposed binding energy terms summary to csv file");
         println!(" 4 Output residue-decomposed binding energy (term: MM) to csv file");
         println!(" 5 Output residue-decomposed binding energy (term: PB) to csv file");
