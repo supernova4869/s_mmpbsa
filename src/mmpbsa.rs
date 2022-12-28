@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use crate::index_parser::Index;
 use xdrfile::*;
 use crate::parameters::Parameters;
@@ -21,12 +21,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
                               bt: f64, et: f64, dt: f64,
                               pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
                               -> Results {
-    // Running settings
-    let apbs = &settings.apbs;
-    let mesh_type = settings.mesh_type;
-    let use_dh = settings.use_dh;
-    let use_ts = settings.use_ts;
-
+    // Running directory
     let temp_dir = wd.join(sys_name);
     println!("Temporary files will be placed at {}/", temp_dir.display());
     if !temp_dir.is_dir() {
@@ -50,11 +45,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
 
-    // atom number of receptor and ligand
-    let atom_num_rec = ndx_rec.len();
-    let atom_num_lig = ndx_lig.len();
-    let atom_num_com = atom_num_rec + atom_num_lig;
-
     // atom properties
     let aps = AtomProperty::new(tpr, ndx_com);
 
@@ -68,7 +58,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
         ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
     }
 
-    // 1. pre-treat trajectory: fix pbc
+    // pre-treat trajectory: fix pbc
     println!("Reading trajectory file...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
@@ -83,6 +73,61 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
                         sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
 
     // calculate MM and PBSA
+    println!("Start MM/PB-SA calculations...");
+    let results = calculate_mmpbsa(tpr, &frames, &coordinates, bf, ef, dframe, total_frames, &aps,
+                                   &temp_dir, &ndx_com, &ndx_rec, &ndx_lig, sys_name, pbe_set, pba_set, settings);
+    println!("MM/PB-SA calculation finished.");
+    results
+}
+
+fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
+    let num_frames = frames.len();
+    let num_atoms = frames[0].num_atoms();
+    let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
+    let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
+    let pb = ProgressBar::new(frames.len() as u64);
+    set_style(&pb);
+    for (idx, frame) in frames.into_iter().enumerate() {
+        let atoms = frame.coords.to_vec();
+        for (i, a) in atoms.into_iter().enumerate() {
+            for j in 0..3 {
+                coord_matrix[[idx, i, j]] = a[j] as f64;
+            }
+        }
+        for (i, b) in frame.box_vector.into_iter().enumerate() {
+            for j in 0..3 {
+                box_size[[idx, i, j]] = b[j] as f64;
+            }
+        }
+        pb.inc(1);
+    }
+    pb.finish();
+    return (coord_matrix, box_size);
+}
+
+pub fn set_style(pb: &ProgressBar) {
+    pb.set_style(ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos}/{len} {msg}").unwrap()
+        .progress_chars("=>-"));
+}
+
+fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usize, usize, usize, usize) {
+    // decide frame step according to time step
+    let time_step = (frames[1].time - frames[0].time) as f64;
+    let bf = ((bt - frames[0].time as f64) / time_step) as usize;
+    let ef = ((et - frames[0].time as f64) / time_step) as usize;
+    let dframe = match dt.partial_cmp(&time_step).unwrap() {
+        Ordering::Less => 1,            // converted trajectory with big time step (e.g., 1 ns)
+        _ => (dt / time_step) as usize  // time step partially less than target dt (e.g., initial trajectory)
+    };
+    let total_frames = (ef - bf) / dframe + 1;
+    (bf, ef, dframe, total_frames)
+}
+
+fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usize, ef: usize, dframe: usize,
+                    total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
+                    ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
+                    sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters) -> Results {
     let eps0 = 8.854187812800001e-12;
     let kb = 1.380649e-23;
     let na = 6.02214076e+23;
@@ -113,7 +158,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     let mut pb_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut sa_res: Array1<f64> = Array1::zeros(total_res_num);
 
-    println!("Start MM/PB-SA calculations...");
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
     pgb.inc(0);
@@ -123,13 +167,13 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         let mut de_cou: Array1<f64> = Array1::zeros(total_res_num);
         let mut de_vdw: Array1<f64> = Array1::zeros(total_res_num);
-        for &i in &ndx_rec {
+        for &i in ndx_rec {
             let qi = aps.atm_charge[i];
             let ci = aps.atm_typeindex[i];
             let xi = coord[[i, 0]];
             let yi = coord[[i, 1]];
             let zi = coord[[i, 2]];
-            for &j in &ndx_lig {
+            for &j in ndx_lig {
                 let qj = aps.atm_charge[j];
                 let cj = aps.atm_typeindex[j];
                 let xj = coord[[j, 0]];
@@ -137,7 +181,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
                 let zj = coord[[j, 2]];
                 let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
                 if r < settings.r_cutoff {
-                    let e_cou = match use_dh {
+                    let e_cou = match settings.use_dh {
                         false => qi * qj / r / 10.0,
                         _ => qi * qj / r / 10.0 * f64::exp(-kap * r)
                     };
@@ -158,13 +202,13 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
 
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        write_apbs(&ndx_rec, &ndx_lig, &coord, &aps.atm_radius,
-                   pbe_set, &pba_set, &temp_dir, &f_name, settings);
+        write_apbs(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
+                   pbe_set, &pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
-        // if !apbs.is_empty() {
+        // if !settings.apbs.is_empty() {
         //     let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
         //         expect("Failed to create apbs out file");
-        //     let apbs_result = Command::new(apbs).
+        //     let apbs_result = Command::new(&settings.apbs).
         //         arg(format!("{}.apbs", f_name)).
         //         current_dir(&temp_dir).output().expect("running apbs failed.");
         //     let apbs_output = String::from_utf8(apbs_result.stdout).
@@ -176,9 +220,10 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
 
         // parse output
         let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
-        let mut e_com: Array2<f64> = Array2::zeros((3, atom_num_com));
-        let mut e_rec: Array2<f64> = Array2::zeros((3, atom_num_rec));
-        let mut e_lig: Array2<f64> = Array2::zeros((3, atom_num_lig));
+
+        let mut e_com: Array2<f64> = Array2::zeros((3, ndx_rec.len() + ndx_lig.len()));
+        let mut e_rec: Array2<f64> = Array2::zeros((3, ndx_rec.len()));
+        let mut e_lig: Array2<f64> = Array2::zeros((3, ndx_lig.len()));
 
         // preserve CALCULATION, Atom and SASA lines
         let apbs_results = apbs_results
@@ -232,18 +277,14 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
                 cur_atom += 1;
             }
         }
-        for mut col in e_com.columns_mut() {
-            col[0] -= col[1];
-            col[2] = gamma * col[2] + _const / atom_num_com as f64;
-        }
-        for mut col in e_rec.columns_mut() {
-            col[0] -= col[1];
-            col[2] = gamma * col[2] + _const / atom_num_rec as f64;
-        }
-        for mut col in e_lig.columns_mut() {
-            col[0] -= col[1];
-            col[2] = gamma * col[2] + _const / atom_num_lig as f64;
-        }
+        let f = |e_arr: &mut Array2<f64>, n_cols: usize|
+            for mut col in e_arr.columns_mut() {
+                col[0] -= col[1];
+                col[2] = gamma * col[2] + _const / n_cols as f64;
+            };
+        f(&mut e_com, ndx_com.len());
+        f(&mut e_rec, ndx_rec.len());
+        f(&mut e_lig, ndx_lig.len());
 
         let pb_com: f64 = e_com.slice(s![0, ..]).iter().sum::<f64>();
         let sa_com: f64 = e_com.slice(s![2, ..]).iter().sum::<f64>();
@@ -268,7 +309,7 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
             true => 0,
             _ => ndx_lig.len()
         };
-        for &i in &ndx_com {
+        for &i in ndx_com {
             if ndx_rec.contains(&i) {
                 dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i - offset_lig]];
                 dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i - offset_lig]];
@@ -295,8 +336,6 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     sa_res /= total_frames as f64;
     let mm_res = &cou_res + &vdw_res;
     let dh_res = &mm_res + &pb_res + &sa_res;
-
-    println!("MM/PB-SA calculation finished.");
     Results {
         mm,
         pb,
@@ -313,48 +352,4 @@ pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
         pb_res,
         sa_res,
     }
-}
-
-fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
-    let num_frames = frames.len();
-    let num_atoms = frames[0].num_atoms();
-    let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
-    let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
-    let pb = ProgressBar::new(frames.len() as u64);
-    set_style(&pb);
-    for (idx, frame) in frames.into_iter().enumerate() {
-        let atoms = frame.coords.to_vec();
-        for (i, a) in atoms.into_iter().enumerate() {
-            for j in 0..3 {
-                coord_matrix[[idx, i, j]] = a[j] as f64;
-            }
-        }
-        for (i, b) in frame.box_vector.into_iter().enumerate() {
-            for j in 0..3 {
-                box_size[[idx, i, j]] = b[j] as f64;
-            }
-        }
-        pb.inc(1);
-    }
-    pb.finish();
-    return (coord_matrix, box_size);
-}
-
-pub fn set_style(pb: &ProgressBar) {
-    pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos}/{len} {msg}").unwrap()
-        .progress_chars("=>-"));
-}
-
-fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usize, usize, usize, usize) {
-    // decide frame step according to time step
-    let time_step = (frames[1].time - frames[0].time) as f64;
-    let bf = ((bt - frames[0].time as f64) / time_step) as usize;
-    let ef = ((et - frames[0].time as f64) / time_step) as usize;
-    let dframe = match dt.partial_cmp(&time_step).unwrap() {
-        Ordering::Less => 1,            // converted trajectory with big time step (e.g., 1 ns)
-        _ => (dt / time_step) as usize  // time step partially less than target dt (e.g., initial trajectory)
-    };
-    let total_frames = (ef - bf) / dframe + 1;
-    (bf, ef, dframe, total_frames)
 }

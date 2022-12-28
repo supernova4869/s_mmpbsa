@@ -2,7 +2,6 @@ use std::fs;
 use std::io::{stdin, Write};
 use std::path::Path;
 use ndarray::Array1;
-use crate::apbs_param::PBESet;
 use crate::get_input_selection;
 
 pub struct Results {
