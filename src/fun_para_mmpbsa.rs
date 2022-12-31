@@ -44,13 +44,13 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 }
                 // 定义results形式, 其中应包含所需的全部数据
                 let ndx = index_parser::Index::new(ndx);
-                let results = mmpbsa::do_mmpbsa_calculations(trj, tpr, &ndx, wd, &sys_name,
-                                                             complex_grp as usize,
-                                                             receptor_grp as usize,
-                                                             ligand_grp as usize,
-                                                             bt, et, dt,
-                                                             &pbe_set, &pba_set, &settings);
-                analyzation::analyze_controller(wd, &sys_name, &results, pbe_set.temp);
+                let results = mmpbsa::fun_mmpbsa_calculations(trj, tpr, &ndx, wd, &sys_name,
+                                                              complex_grp as usize,
+                                                              receptor_grp as usize,
+                                                              ligand_grp as usize,
+                                                              bt, et, dt,
+                                                              pbe_set, pba_set, settings);
+                analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;

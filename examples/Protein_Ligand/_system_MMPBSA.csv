@@ -1,11 +1,11 @@
 Energy Term,kJ/mol,info
 ΔH,-202.333,ΔH=ΔMM+ΔPB+ΔSA
-ΔMM,-484.964,ΔMM=Δelectrostatic+Δvan der Waals
+ΔMM,-484.964,ΔMM=Δelec+ΔvdW
 ΔPB,322.951
 ΔSA,-40.320
 
-Δelectrostatic,-151.923
-Δvan der Waals,-333.041
+Δelec,-151.923
+ΔvdW,-333.041
 
 TΔS,-29.810
 ΔG,-172.523,ΔG=ΔH-TΔS

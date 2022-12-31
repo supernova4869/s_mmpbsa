@@ -16,11 +16,11 @@ use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_apbs_inputs, write_apbs};
 
-pub fn do_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
-                              sys_name: &String, complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
-                              bt: f64, et: f64, dt: f64,
-                              pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
-                              -> Results {
+pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
+                               sys_name: &String, complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
+                               bt: f64, et: f64, dt: f64,
+                               pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
+                               -> Results {
     // Running directory
     let temp_dir = wd.join(sys_name);
     println!("Temporary files will be placed at {}/", temp_dir.display());
@@ -336,7 +336,11 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     sa_res /= total_frames as f64;
     let mm_res = &cou_res + &vdw_res;
     let dh_res = &mm_res + &pb_res + &sa_res;
+
+    // Time list of trajectory
+    let times: Array1<f64> = frames[bf..ef + 1].iter().map(|p| p.time as f64).collect();
     Results {
+        times,
         mm,
         pb,
         sa,
