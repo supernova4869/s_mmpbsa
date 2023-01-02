@@ -99,13 +99,13 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
         energy_sum.write_all("Energy Term,value,info\n".as_bytes()).unwrap();
         energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)\n", dh_avg).as_bytes()).unwrap();
         energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelec+ΔvdW (kJ/mol)\n", mm_avg).as_bytes()).unwrap();
-        energy_sum.write_all(format!("ΔPB,{:.3} (kJ/mol)\n", pb_avg).as_bytes()).unwrap();
-        energy_sum.write_all(format!("ΔSA,{:.3} (kJ/mol)\n", sa_avg).as_bytes()).unwrap();
+        energy_sum.write_all(format!("ΔPB,{:.3},(kJ/mol)\n", pb_avg).as_bytes()).unwrap();
+        energy_sum.write_all(format!("ΔSA,{:.3},(kJ/mol)\n", sa_avg).as_bytes()).unwrap();
         energy_sum.write_all(b"\n").unwrap();
-        energy_sum.write_all(format!("Δelec,{:.3} (kJ/mol)\n", cou_avg).as_bytes()).unwrap();
-        energy_sum.write_all(format!("ΔvdW,{:.3} (kJ/mol)\n", vdw_avg).as_bytes()).unwrap();
+        energy_sum.write_all(format!("Δelec,{:.3},(kJ/mol)\n", cou_avg).as_bytes()).unwrap();
+        energy_sum.write_all(format!("ΔvdW,{:.3},(kJ/mol)\n", vdw_avg).as_bytes()).unwrap();
         energy_sum.write_all(b"\n").unwrap();
-        energy_sum.write_all(format!("TΔS,{:.3} (kJ/mol)\n", tds).as_bytes()).unwrap();
+        energy_sum.write_all(format!("TΔS,{:.3},(kJ/mol)\n", tds).as_bytes()).unwrap();
         energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).as_bytes()).unwrap();
         energy_sum.write_all(format!("Ki,{:.3e},Ki=exp(ΔG/RT)\n", ki).as_bytes()).unwrap();
         println!("Binding energy terms have been writen to {}", &f_name);

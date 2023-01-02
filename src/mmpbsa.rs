@@ -7,6 +7,7 @@ use crate::parameters::Parameters;
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
 use std::io::{stdin, Write};
+use std::ops::Range;
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -338,7 +339,10 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     let dh_res = &mm_res + &pb_res + &sa_res;
 
     // Time list of trajectory
-    let times: Array1<f64> = frames[bf..ef + 1].iter().map(|p| p.time as f64).collect();
+    let mut times: Array1<f64> = Array1::zeros((bf..ef + 1).step_by(dframe).len());
+    for (idx, frame_index) in (bf..ef + 1).step_by(dframe).enumerate() {
+        times[idx] = frames[frame_index].time as f64
+    }
     Results {
         times,
         mm,
