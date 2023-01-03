@@ -125,7 +125,8 @@ fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usiz
     (bf, ef, dframe, total_frames)
 }
 
-fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usize, ef: usize, dframe: usize,
+fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
+                    bf: usize, ef: usize, dframe: usize,
                     total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
                     ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                     sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters) -> Results {
@@ -152,8 +153,6 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     let mut pb: Array1<f64> = Array1::zeros(total_frames);
     let mut sa: Array1<f64> = Array1::zeros(total_frames);
     let mut dh: Array1<f64> = Array1::zeros(total_frames);
-    let mut dpb_res: Array1<f64> = Array1::zeros(total_res_num);
-    let mut dsa_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut cou_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut vdw_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut pb_res: Array1<f64> = Array1::zeros(total_res_num);
@@ -221,6 +220,9 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
 
         // parse output
         let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
+
+        let mut dpb_res: Array1<f64> = Array1::zeros(total_res_num);
+        let mut dsa_res: Array1<f64> = Array1::zeros(total_res_num);
 
         let mut e_com: Array2<f64> = Array2::zeros((3, ndx_rec.len() + ndx_lig.len()));
         let mut e_rec: Array2<f64> = Array2::zeros((3, ndx_rec.len()));
@@ -343,8 +345,22 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     for (idx, frame_index) in (bf..ef + 1).step_by(dframe).enumerate() {
         times[idx] = frames[frame_index].time as f64
     }
+
+    // residues number and name
+    let mut residues: Array1<(i32, String)> = Array1::default(total_res_num);
+    let mut idx = 0;
+    for mol in &tpr.molecules {
+        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+            for res in &mol.residues {
+                residues[idx] = (res.nr, res.name.to_string());
+                idx += 1;
+            }
+        }
+    }
+
     Results {
         times,
+        residues,
         mm,
         pb,
         sa,
@@ -355,8 +371,6 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         mm_res,
         cou_res,
         vdw_res,
-        dpb_res,
-        dsa_res,
         pb_res,
         sa_res,
     }
