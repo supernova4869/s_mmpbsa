@@ -67,7 +67,7 @@ end
 
 APOLAR name _system_9ns_com_SAS
   mol 1
-  temp  298.15    # 温度
+  temp  300    # 温度
   srfm  sacc    # 构建溶剂相关表面或体积的模型
   swin  0.3    # 立方样条窗口(A), 用于定义样条表面
   
@@ -150,7 +150,7 @@ end
 
 APOLAR name _system_9ns_rec_SAS
   mol 2
-  temp  298.15    # 温度
+  temp  300    # 温度
   srfm  sacc    # 构建溶剂相关表面或体积的模型
   swin  0.3    # 立方样条窗口(A), 用于定义样条表面
   
@@ -233,7 +233,7 @@ end
 
 APOLAR name _system_9ns_lig_SAS
   mol 3
-  temp  298.15    # 温度
+  temp  300    # 温度
   srfm  sacc    # 构建溶剂相关表面或体积的模型
   swin  0.3    # 立方样条窗口(A), 用于定义样条表面
   

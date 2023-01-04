@@ -4,7 +4,9 @@ use std::fs::File;
 use std::io::Write;
 use std::marker::Copy;
 use std::path::Path;
+use serde::{Serialize, Deserialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct PBESet {
     pub temp: f64,
     pub pdie: f64,
@@ -66,14 +68,15 @@ impl PBESet {
         return new_pbe_set;
     }
 
-    pub fn load_params<T: AsRef<Path>>(self, file: T) -> PBESet {
-        let file = fs::read_to_string(file).unwrap();
-        println!("{}", file);
-        self
+    pub fn load_params<T: AsRef<Path>>(file: T) -> PBESet {
+        let pbe_set = fs::read_to_string(&file).unwrap();
+        let pbe_set: PBESet = serde_json::from_str(pbe_set.as_str()).unwrap();
+        pbe_set
     }
 
     pub fn save_params<T: AsRef<Path>>(&self, file: T) {
-        File::create(file).unwrap().write_all(format!("{}", self).as_bytes()).unwrap();
+        let mut f = File::create(&file).unwrap();
+        f.write_all(serde_json::to_string_pretty(self).unwrap().as_bytes()).unwrap();
     }
 }
 
@@ -108,6 +111,13 @@ impl fmt::Display for PBESet {
     }
 }
 
+impl Clone for PBESet {
+    fn clone(&self) -> PBESet {
+        PBESet::from(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Ion {
     pub charge: f64,
     pub conc: f64,
@@ -120,14 +130,15 @@ impl fmt::Display for Ion {
     }
 }
 
+impl Copy for Ion {}
+
 impl Clone for Ion {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl Copy for Ion {}
-
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PBASet {
     temp: f64,
     srfm: String,
@@ -144,9 +155,9 @@ pub struct PBASet {
 }
 
 impl PBASet {
-    pub fn new() -> Self {
+    pub fn new(temp: f64) -> Self {
         PBASet {
-            temp: 298.15,
+            temp,
             srfm: "sacc".to_string(),
             swin: 0.3,
             srad: 1.4,
@@ -161,13 +172,32 @@ impl PBASet {
         }
     }
 
-    pub fn load_params(self, file: &str) -> PBASet {
-        let file = fs::read_to_string(file).unwrap();
-        self
+    pub fn from(pba_set: &PBASet) -> PBASet {
+        PBASet {
+            temp: pba_set.temp,
+            srfm: pba_set.srfm.to_string(),
+            swin: pba_set.swin,
+            srad: pba_set.srad,
+            gamma: pba_set.gamma,
+            press: pba_set.press,
+            bconc: pba_set.bconc,
+            sdens: pba_set.sdens,
+            dpos: pba_set.dpos,
+            grid: pba_set.grid,
+            calc_force: pba_set.calc_force,
+            calc_energy: pba_set.calc_energy.to_string(),
+        }
+    }
+
+    pub fn load_params<T: AsRef<Path>>(file: T) -> PBASet {
+        let pba_set = fs::read_to_string(&file).unwrap();
+        let pba_set: PBASet = serde_json::from_str(pba_set.as_str()).unwrap();
+        pba_set
     }
 
     pub fn save_params<T: AsRef<Path>>(&self, file: T) {
-        File::create(file).unwrap().write_all(format!("{}", self).as_bytes()).unwrap();
+        let mut f = File::create(&file).unwrap();
+        f.write_all(serde_json::to_string_pretty(self).unwrap().as_bytes()).unwrap();
     }
 }
 
@@ -194,5 +224,11 @@ impl fmt::Display for PBASet {
                    true => "yes",
                    false => "no"
                }, self.calc_energy)
+    }
+}
+
+impl Clone for PBASet {
+    fn clone(&self) -> PBASet {
+        PBASet::from(self)
     }
 }

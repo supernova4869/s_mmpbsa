@@ -1,9 +1,8 @@
 use std::fs;
 use std::io::{stdin, Write};
 use std::path::Path;
-use ndarray::{Array1, ArrayBase, Ix1, OwnedRepr};
+use ndarray::Array1;
 use crate::get_input_selection;
-use crate::parameters::Parameters;
 use crate::parse_tpr::TPR;
 
 pub struct Results {
@@ -126,7 +125,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
             // 9 => {
             //     analyze_vdw_res_traj(results, wd, sys_name);
             // }
-            _ => println!("Error input")
+            _ => println!("Invalid input")
         }
     }
 }
@@ -192,6 +191,7 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
 
 fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
     let f_name = format!("{}_MMPBSA_res.csv", sys_name);
+    println!("Write to file? [Y/n]");
     let mut temp = String::new();
     stdin().read_line(&mut temp).unwrap();
     if temp.trim().is_empty() || temp.trim() == "Y" || temp.trim() == "y" {

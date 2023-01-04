@@ -39,7 +39,7 @@ fn main() {
 
     match args.len() {
         1 => {
-            println!("Input path of .tpr or dumped .mdp file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang_dump.mdp");
+            println!("Input path of .tpr or dumped .mdp file, e.g. D:/Study/ZhangYang.tpr or D:/Study/.ZhangYang.dump");
             println!("Hint: input \"o\" to simply load last-opened .tpr or dumped .mdp file");
             loop {
                 stdin().read_line(&mut tpr_mdp).expect("Failed to read tpr or dumped file.");
@@ -84,7 +84,7 @@ fn main() {
     // get mdp or dump tpr to mdp
     let mut mdp_path = String::from(&tpr_mdp).clone();
     if tpr_mdp.ends_with(".tpr") {
-        mdp_path = tpr_mdp[..&tpr_mdp.len() - 4].to_string() + "_dumped.mdp";
+        mdp_path = ".".to_owned() + &tpr_mdp[..&tpr_mdp.len() - 4] + ".dump";
         dump_tpr(&tpr_mdp, &mdp_path, settings.gmx.as_str());
     }
     let mut tpr = TPR::new(mdp_path.as_str());
@@ -116,9 +116,9 @@ fn welcome() {
         Current time: {}\n\n\
         Usage 1: run `super_mmpbsa` and follow the prompts.\n\
         Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
-        Usage 3: run `super_mmpbsa WangBingBing_dumped.mdp` to directly load dump file.\n\
-        Usage 4: run `super_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all needed files.\n\
-        Usage 5: run `super_mmpbsa -f md.xtc -s md_dumped.mdp -n index.ndx` to assign all needed files.\n",
+        Usage 3: run `super_mmpbsa .WangBingBing.dump` to directly load dumped tpr file.\n\
+        Usage 4: run `super_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
+        Usage 5: run `super_mmpbsa -f md.xtc -s .md.dump -n index.ndx` to assign all files.\n",
              Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
 }
 

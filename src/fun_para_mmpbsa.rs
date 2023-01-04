@@ -16,8 +16,8 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
     // save a copy of default force field atom type
     let atom_radius_ff = atom_radius.clone();
     tpr.apply_radius(settings.rad_type, &atom_radius.radii);
-    let mut pbe_set = &PBESet::new(tpr.temp);
-    let mut pba_set = &PBASet::new();
+    let mut pbe_set = PBESet::new(tpr.temp);
+    let mut pba_set = PBASet::new(tpr.temp);
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
@@ -49,7 +49,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                                                               receptor_grp as usize,
                                                               ligand_grp as usize,
                                                               bt, et, dt,
-                                                              pbe_set, pba_set, settings);
+                                                              &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd);
             }
             1 => {
@@ -128,16 +128,17 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
             }
             8 => {
                 pbe_set.save_params(wd.join("PB_settings.txt"));
-                println!("PB parameters have been wrote to PB_settings.txt. \
+                println!("PB parameters have been wrote to PB_settings.txt.\n\
                     Edit it and press return to reload it.");
                 stdin().read_line(&mut String::new()).unwrap();
-                // pbe_set = &pbe_set.load_params(wd.join("PBESet.txt"));
+                pbe_set = PBESet::load_params(wd.join("PB_settings.txt"));
             }
             9 => {
                 pba_set.save_params(wd.join("SA_settings.txt"));
-                println!("SA parameters have been wrote to SA_settings.txt. \
+                println!("SA parameters have been wrote to SA_settings.txt.\n\
                     Edit it and press return to reload it.");
                 stdin().read_line(&mut String::new()).unwrap();
+                pba_set = PBASet::load_params(wd.join("SA_settings.txt"));
             }
             _ => println!("Invalid input")
         }

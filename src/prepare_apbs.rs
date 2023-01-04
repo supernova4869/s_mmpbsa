@@ -10,13 +10,13 @@ use crate::atom_property::AtomProperty;
 use crate::mmpbsa::set_style;
 use crate::parameters::Parameters;
 
-pub fn prepare_apbs_inputs(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
-                       temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
-                       ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
-                       aps: &AtomProperty) {
+pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
+                   temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
+                   ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
+                   aps: &AtomProperty) {
     let pb = ProgressBar::new(total_frames as u64);
     set_style(&pb);
-    for cur_frm in (bf..ef + 1).step_by(dframe) {
+    for cur_frm in (bf..=ef).step_by(dframe) {
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         let pqr_com = temp_dir.join(format!("{}_com.pqr", f_name));
         let mut pqr_com = File::create(pqr_com).unwrap();

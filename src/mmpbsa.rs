@@ -7,7 +7,6 @@ use crate::parameters::Parameters;
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
 use std::io::{stdin, Write};
-use std::ops::Range;
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -15,7 +14,7 @@ use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
-use crate::prepare_apbs::{prepare_apbs_inputs, write_apbs};
+use crate::prepare_apbs::{prepare_pqr, write_apbs};
 
 pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
                                sys_name: &String, complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
@@ -65,13 +64,13 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
     // pbc whole 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
     println!("Extracting atoms coordination...");
-    let (coordinates, boxes) = get_atoms_trj(&frames);   // frames x atoms(3x1)
+    let (coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
     let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
 
     println!("Preparing APBS inputs...");
-    prepare_apbs_inputs(&frames, bf, ef, dframe, total_frames, &temp_dir,
-                        sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
+    prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
+                sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
 
     // calculate MM and PBSA
     println!("Start MM/PB-SA calculations...");
@@ -108,7 +107,7 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
 
 pub fn set_style(pb: &ProgressBar) {
     pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:40.cyan/ctan} {pos}/{len} {msg}").unwrap()
+        "[{elapsed_precise}] {bar:50.cyan/cyan} {pos}/{len} {msg}").unwrap()
         .progress_chars("=>-"));
 }
 
@@ -162,7 +161,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     set_style(&pgb);
     pgb.inc(0);
     let mut idx = 0;
-    for cur_frm in (bf..ef + 1).step_by(dframe) {
+    for cur_frm in (bf..=ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         let mut de_cou: Array1<f64> = Array1::zeros(total_res_num);
@@ -205,18 +204,18 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         write_apbs(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
                    pbe_set, &pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
-        // if !settings.apbs.is_empty() {
-        //     let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
-        //         expect("Failed to create apbs out file");
-        //     let apbs_result = Command::new(&settings.apbs).
-        //         arg(format!("{}.apbs", f_name)).
-        //         current_dir(&temp_dir).output().expect("running apbs failed.");
-        //     let apbs_output = String::from_utf8(apbs_result.stdout).
-        //         expect("Failed to get apbs output.");
-        //     apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
-        // } else {
-        //     println!("Warning: APBS not found. Will not calculate solvation energy.");
-        // }
+        if !settings.apbs.is_empty() {
+            let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
+                expect("Failed to create apbs out file");
+            let apbs_result = Command::new(&settings.apbs).
+                arg(format!("{}.apbs", f_name)).
+                current_dir(&temp_dir).output().expect("running apbs failed.");
+            let apbs_output = String::from_utf8(apbs_result.stdout).
+                expect("Failed to get apbs output.");
+            apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
+        } else {
+            println!("Warning: APBS not found. Will not calculate solvation energy.");
+        }
 
         // parse output
         let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
@@ -341,10 +340,8 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     let dh_res = &mm_res + &pb_res + &sa_res;
 
     // Time list of trajectory
-    let mut times: Array1<f64> = Array1::zeros((bf..ef + 1).step_by(dframe).len());
-    for (idx, frame_index) in (bf..ef + 1).step_by(dframe).enumerate() {
-        times[idx] = frames[frame_index].time as f64
-    }
+    let times: Array1<f64> = (bf..=ef).step_by(dframe)
+        .map(|p| frames[p].time as f64).collect();
 
     Results::new(
         tpr,
