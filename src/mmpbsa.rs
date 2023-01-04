@@ -346,21 +346,9 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         times[idx] = frames[frame_index].time as f64
     }
 
-    // residues number and name
-    let mut residues: Array1<(i32, String)> = Array1::default(total_res_num);
-    let mut idx = 0;
-    for mol in &tpr.molecules {
-        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
-            for res in &mol.residues {
-                residues[idx] = (res.nr, res.name.to_string());
-                idx += 1;
-            }
-        }
-    }
-
-    Results {
+    Results::new(
+        tpr,
         times,
-        residues,
         mm,
         pb,
         sa,
@@ -373,5 +361,5 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         vdw_res,
         pb_res,
         sa_res,
-    }
+    )
 }

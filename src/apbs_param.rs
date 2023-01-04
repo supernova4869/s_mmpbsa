@@ -22,9 +22,9 @@ pub struct PBESet {
 }
 
 impl PBESet {
-    pub fn new() -> PBESet {
+    pub fn new(temp: f64) -> PBESet {
         return PBESet {
-            temp: 298.15,
+            temp,
             pdie: 2.0,
             sdie: 78.54,
             pb_solver: "npbe".to_string(),

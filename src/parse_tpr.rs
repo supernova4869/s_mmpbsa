@@ -16,6 +16,7 @@ pub struct TPR {
     pub dt: f64,
     pub nsteps: u64,
     pub nstxout: u32,
+    pub temp: f64
 }
 
 impl fmt::Display for TPR {
@@ -58,6 +59,7 @@ impl TPR {
         let mut dt = 0.0;
         let mut nsteps = 0;
         let mut nstxout = 0;
+        let mut temp = 0.0;
 
         println!("Loading dumped tpr file: {}\n", mdp);
         loop {
@@ -82,6 +84,14 @@ impl TPR {
                         break
                     }
                 }
+            }
+
+            if buf.trim().starts_with("ref-t:") {
+                let ref_t: Vec<&str> = buf.split(" ").filter_map(|p| match p.trim().len() {
+                    0 => None,
+                    _ => Some(p)
+                }).collect();
+                temp = ref_t[1].parse::<f64>().unwrap();
             }
 
             // molecules define
@@ -289,6 +299,7 @@ impl TPR {
             dt,
             nsteps,
             nstxout,
+            temp
         }
     }
 }

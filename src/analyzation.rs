@@ -4,6 +4,7 @@ use std::path::Path;
 use ndarray::{Array1, ArrayBase, Ix1, OwnedRepr};
 use crate::get_input_selection;
 use crate::parameters::Parameters;
+use crate::parse_tpr::TPR;
 
 pub struct Results {
     pub times: Array1<f64>,
@@ -23,6 +24,44 @@ pub struct Results {
 }
 
 impl Results {
+    pub fn new(tpr: &TPR, times: Array1<f64>,
+               mm: Array1<f64>, pb: Array1<f64>, sa: Array1<f64>,
+               cou: Array1<f64>, vdw: Array1<f64>, dh: Array1<f64>,
+               dh_res: Array1<f64>, mm_res: Array1<f64>, cou_res: Array1<f64>,
+               vdw_res: Array1<f64>, pb_res: Array1<f64>, sa_res: Array1<f64>) -> Results {
+
+        // residues number and name
+        let total_res_num: usize = tpr.molecules.iter().map(|mol|
+            mol.residues.len() * tpr.molecule_types[mol.molecule_type_id].molecules_num as usize).sum();
+        let mut residues: Array1<(i32, String)> = Array1::default(total_res_num);
+        let mut idx = 0;
+        for mol in &tpr.molecules {
+            for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+                for res in &mol.residues {
+                    residues[idx] = (res.nr, res.name.to_string());
+                    idx += 1;
+                }
+            }
+        }
+
+        Results {
+            times,
+            residues,
+            mm,
+            pb,
+            sa,
+            cou,
+            vdw,
+            dh,
+            dh_res,
+            mm_res,
+            cou_res,
+            vdw_res,
+            pb_res,
+            sa_res,
+        }
+    }
+
     // totally time average and ts
     fn summary(&self, temperature: f64) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
         let rt2kj = 8.314462618 * temperature / 1e3;

@@ -14,7 +14,7 @@ ELEC name _system_8ns_com
   fgcent 60.040  60.420  31.110
   cgcent 60.040  60.420  31.110
  
-  temp  298.15    # 温度
+  temp  300    # 温度
   pdie  2    # 溶质介电常数
   sdie  78.54    # 溶剂介电常数, 真空1, 水78.54
   
@@ -44,7 +44,7 @@ ELEC name _system_8ns_com_VAC
   fgcent 60.040  60.420  31.110
   cgcent 60.040  60.420  31.110
 
-  temp  298.15    # 温度
+  temp  300    # 温度
   pdie  2    # 溶质介电常数
   sdie  1    # 溶剂介电常数, 真空1, 水78.54
   
@@ -97,7 +97,7 @@ ELEC name _system_8ns_rec
   fgcent 60.040  60.420  31.110
   cgcent 60.040  60.420  31.110
  
-  temp  298.15    # 温度
+  temp  300    # 温度
   pdie  2    # 溶质介电常数
   sdie  78.54    # 溶剂介电常数, 真空1, 水78.54
   
@@ -127,7 +127,7 @@ ELEC name _system_8ns_rec_VAC
   fgcent 60.040  60.420  31.110
   cgcent 60.040  60.420  31.110
 
-  temp  298.15    # 温度
+  temp  300    # 温度
   pdie  2    # 溶质介电常数
   sdie  1    # 溶剂介电常数, 真空1, 水78.54
   
@@ -180,7 +180,7 @@ ELEC name _system_8ns_lig
   fgcent 63.110  62.970  29.730
   cgcent 63.110  62.970  29.730
  
-  temp  298.15    # 温度
+  temp  300    # 温度
   pdie  2    # 溶质介电常数
   sdie  78.54    # 溶剂介电常数, 真空1, 水78.54
   
@@ -210,7 +210,7 @@ ELEC name _system_8ns_lig_VAC
   fgcent 63.110  62.970  29.730
   cgcent 63.110  62.970  29.730
 
-  temp  298.15    # 温度
+  temp  300    # 温度
   pdie  2    # 溶质介电常数
   sdie  1    # 溶剂介电常数, 真空1, 水78.54
   

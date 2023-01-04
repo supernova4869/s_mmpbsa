@@ -16,7 +16,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
     // save a copy of default force field atom type
     let atom_radius_ff = atom_radius.clone();
     tpr.apply_radius(settings.rad_type, &atom_radius.radii);
-    let mut pbe_set = &PBESet::new();
+    let mut pbe_set = &PBESet::new(tpr.temp);
     let mut pba_set = &PBASet::new();
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
