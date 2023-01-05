@@ -118,7 +118,7 @@ fn welcome() {
         Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
         Usage 3: run `super_mmpbsa WangBingBing.dump.mdp` to directly load dumped tpr file.\n\
         Usage 4: run `super_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
-        Usage 5: run `super_mmpbsa -f md.xtc -s .md.dump -n index.ndx` to assign all files.\n",
+        Usage 5: run `super_mmpbsa -f md.xtc -s md.dump.mdp -n index.ndx` to assign all files.\n",
              Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
 }
 

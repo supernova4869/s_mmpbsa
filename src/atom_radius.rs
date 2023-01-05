@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use lazy_static::lazy_static;
+use crate::parameters::Parameters;
 use crate::parse_tpr::{Atom, TPR};
 
 lazy_static! {
@@ -10,13 +11,13 @@ lazy_static! {
 }
 
 impl Atom {
-    pub fn apply_radius(&mut self, atom_radius_type: usize, ff_rad: f64) {
+    pub fn apply_radius(&mut self, atom_radius_type: usize, ff_rad: f64, settings: &Parameters) {
         match atom_radius_type {
             0 => {
                 self.radius = ff_rad;
             }
             1 => {
-                self.radius = get_mbondi(self.name.as_str());
+                self.radius = get_mbondi(self.name.as_str(), settings);
             }
             _ => {}
         }
@@ -38,12 +39,12 @@ impl Radius {
 
 impl TPR {
     // ff_radius would not be used if atom_radius_type not 0
-    pub fn apply_radius(&mut self, atom_radius_type: usize, ff_radius: &Vec<f64>) {
+    pub fn apply_radius(&mut self, atom_radius_type: usize, ff_radius: &Vec<f64>, settings: &Parameters) {
         let mut idx = 0;
         for mol in &mut self.molecules {
             for _ in 0..self.molecule_types[mol.molecule_type_id].molecules_num {
                 for atom in &mut mol.atoms {
-                    atom.apply_radius(atom_radius_type, ff_radius[idx]);
+                    atom.apply_radius(atom_radius_type, ff_radius[idx], settings);
                     idx += 1;
                 }
             }
@@ -53,7 +54,7 @@ impl TPR {
 
 // get atom radius, returns 1.5 if not specified
 // mBondi from AMBER20/parmed/tools/changeradii.py
-pub fn get_mbondi(at_type: &str) -> f64 {
+pub fn get_mbondi(at_type: &str, settings: &Parameters) -> f64 {
     let rad_bondi: HashMap<&str, f64> = HashMap::from([
         ("C", 1.7), ("H", 1.2), ("N", 1.55), ("HC", 1.3),
         ("O", 1.5), ("HN", 1.3), ("F", 1.5), ("HP", 1.3),
@@ -61,7 +62,7 @@ pub fn get_mbondi(at_type: &str) -> f64 {
         ("S", 1.8), ("CL", 1.7), ("BR", 1.85), ("I", 1.98),
     ]);
     let at_type = at_type.to_uppercase();
-    let mut radius = 1.5;
+    let mut radius = settings.rad_lj0;
     if at_type.len() >= 2 {
         let r = rad_bondi.get(&at_type[0..2]);
         if let Some(&m) = r {

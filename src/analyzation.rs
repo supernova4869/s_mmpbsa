@@ -133,7 +133,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
 fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String) {
     let (dh_avg, mm_avg, pb_avg, sa_avg, cou_avg,
         vdw_avg, tds, dg, ki) = results.summary(temperature);
-    println!("Energy terms:");
+    println!("Energy terms summary:");
     println!("ΔH: {:.3} kJ/mol", dh_avg);
     println!("ΔMM: {:.3} kJ/mol", mm_avg);
     println!("ΔPB: {:.3} kJ/mol", pb_avg);
@@ -147,7 +147,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!("Ki: {:.3}", ki);
 
     let f_name = format!("{}_MMPBSA.csv", sys_name);
-    println!("Write to file? [Y/n]");
+    println!("\nWrite to file? [Y/n]");
     let mut temp = String::new();
     stdin().read_line(&mut temp).unwrap();
     if temp.trim().is_empty() || temp.trim() == "Y" || temp.trim() == "y" {
@@ -171,63 +171,53 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
 
 fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
     let f_name = format!("{}_MMPBSA_traj.csv", sys_name);
-    println!("Write to file? [Y/n]");
-    let mut temp = String::new();
-    stdin().read_line(&mut temp).unwrap();
-    if temp.trim().is_empty() || temp.trim() == "Y" || temp.trim() == "y" {
-        println!("Writing binding energy terms...");
-        let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
-        energy_sum.write_all("Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW,(kJ/mol)\n"
-            .as_bytes()).unwrap();
-        for i in 0..results.times.len() {
-            energy_sum.write_all(format!("{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n",
-                                         results.times[i] / 1000.0, results.dh[i],
-                                         results.mm[i], results.pb[i], results.sa[i],
-                                         results.cou[i], results.vdw[i]).as_bytes()).unwrap();
-        }
-        println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Writing binding energy terms...");
+    let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
+    energy_sum.write_all("Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW,(kJ/mol)\n"
+        .as_bytes()).unwrap();
+    for i in 0..results.times.len() {
+        energy_sum.write_all(format!("{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n",
+                                     results.times[i] / 1000.0, results.dh[i],
+                                     results.mm[i], results.pb[i], results.sa[i],
+                                     results.cou[i], results.vdw[i]).as_bytes()).unwrap();
     }
+    println!("Binding energy terms have been writen to {}", &f_name);
 }
 
 fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
     let f_name = format!("{}_MMPBSA_res.csv", sys_name);
-    println!("Write to file? [Y/n]");
-    let mut temp = String::new();
-    stdin().read_line(&mut temp).unwrap();
-    if temp.trim().is_empty() || temp.trim() == "Y" || temp.trim() == "y" {
-        println!("Writing binding energy terms...");
-        let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
-        energy_res.write_all("Energy term (kJ/mol)".as_bytes()).unwrap();
-        for (i, res) in &results.residues {
-            energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
-        }
-        energy_res.write_all("\nΔH".as_bytes()).unwrap();
-        for dh in &results.dh_res {
-            energy_res.write_all(format!(",{:.3}", dh).as_bytes()).unwrap();
-        }
-        energy_res.write_all("\nΔMM".as_bytes()).unwrap();
-        for mm in &results.mm_res {
-            energy_res.write_all(format!(",{:.3}", mm).as_bytes()).unwrap();
-        }
-        energy_res.write_all("\nΔPB".as_bytes()).unwrap();
-        for pb in &results.pb_res {
-            energy_res.write_all(format!(",{:.3}", pb).as_bytes()).unwrap();
-        }
-        energy_res.write_all("\nΔSA".as_bytes()).unwrap();
-        for sa in &results.sa_res {
-            energy_res.write_all(format!(",{:.3}", sa).as_bytes()).unwrap();
-        }
-        energy_res.write_all("\nΔelec".as_bytes()).unwrap();
-        for cou in &results.cou_res {
-            energy_res.write_all(format!(",{:.3}", cou).as_bytes()).unwrap();
-        }
-        energy_res.write_all("\nΔvdW".as_bytes()).unwrap();
-        for vdw in &results.vdw_res {
-            energy_res.write_all(format!(",{:.3}", vdw).as_bytes()).unwrap();
-        }
-        energy_res.write_all("\n".as_bytes()).unwrap();
-        println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Writing binding energy terms...");
+    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    energy_res.write_all("Energy term (kJ/mol)".as_bytes()).unwrap();
+    for (i, res) in &results.residues {
+        energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
     }
+    energy_res.write_all("\nΔH".as_bytes()).unwrap();
+    for dh in &results.dh_res {
+        energy_res.write_all(format!(",{:.3}", dh).as_bytes()).unwrap();
+    }
+    energy_res.write_all("\nΔMM".as_bytes()).unwrap();
+    for mm in &results.mm_res {
+        energy_res.write_all(format!(",{:.3}", mm).as_bytes()).unwrap();
+    }
+    energy_res.write_all("\nΔPB".as_bytes()).unwrap();
+    for pb in &results.pb_res {
+        energy_res.write_all(format!(",{:.3}", pb).as_bytes()).unwrap();
+    }
+    energy_res.write_all("\nΔSA".as_bytes()).unwrap();
+    for sa in &results.sa_res {
+        energy_res.write_all(format!(",{:.3}", sa).as_bytes()).unwrap();
+    }
+    energy_res.write_all("\nΔelec".as_bytes()).unwrap();
+    for cou in &results.cou_res {
+        energy_res.write_all(format!(",{:.3}", cou).as_bytes()).unwrap();
+    }
+    energy_res.write_all("\nΔvdW".as_bytes()).unwrap();
+    for vdw in &results.vdw_res {
+        energy_res.write_all(format!(",{:.3}", vdw).as_bytes()).unwrap();
+    }
+    energy_res.write_all("\n".as_bytes()).unwrap();
+    println!("Binding energy terms have been writen to {}", &f_name);
 }
 
 // 考虑将de_cou等传入, 提供每帧输出

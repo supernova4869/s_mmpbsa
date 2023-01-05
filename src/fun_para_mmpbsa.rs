@@ -15,7 +15,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                        settings: &mut Parameters) {
     // save a copy of default force field atom type
     let atom_radius_ff = atom_radius.clone();
-    tpr.apply_radius(settings.rad_type, &atom_radius.radii);
+    tpr.apply_radius(settings.rad_type, &atom_radius.radii, settings);
     let mut pbe_set = PBESet::new(tpr.temp);
     let mut pba_set = PBASet::new(tpr.temp);
     loop {
@@ -81,7 +81,9 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                         settings.rad_type = 1;
                     }
                 }
-                tpr.apply_radius(settings.rad_type, &atom_radius_ff.radii);
+                tpr.apply_radius(settings.rad_type,
+                                 &atom_radius_ff.radii,
+                                 settings);
             }
             4 => {
                 println!("Input coarse grid expand factor, default 3:");

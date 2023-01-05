@@ -91,7 +91,7 @@ impl TPR {
                     0 => None,
                     _ => Some(p)
                 }).collect();
-                temp = ref_t[1].parse::<f64>().unwrap();
+                temp = ref_t[1].trim().parse().expect("Failed to get temperature.");
             }
 
             // molecules define
