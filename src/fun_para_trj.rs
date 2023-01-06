@@ -74,11 +74,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
                 et = new_et;
             }
             6 => {
-                println!("Input interval time (ns), should be divisible of {} ps:", dt);
+                println!("Input interval time (ns), should be divisible of {} ps:", unit_dt);
                 let mut new_dt = get_input_selection::<f64>() * 1000.0;
                 while new_dt * 1000.0 % unit_dt != 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
-                    println!("Input interval time (ns) again, should be divisible of {} fs:", dt);
+                    println!("Input interval time (ns) again, should be divisible of {} ps:", unit_dt);
                     new_dt = get_input_selection::<f64>() * 1000.0;
                 }
                 dt = new_dt;
