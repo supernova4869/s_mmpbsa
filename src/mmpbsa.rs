@@ -51,12 +51,24 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     // normalize residue indexes
     let mut ndx_lig: Vec<usize> = ndx_lig.iter().map(|p| p - ndx_com[0]).collect();
     let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
-    let ndx_com: Vec<usize> = ndx_com.iter().map(|p| p - ndx_com[0]).collect();
     if ndx_lig[0] > ndx_rec[0] {
         ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
     } else {
         ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
     }
+    let ndx_com = match ndx_lig[0] > ndx_rec[0] {
+        true => {
+            let mut ndx_com = ndx_rec.to_vec();
+            ndx_com.append(&mut ndx_lig);
+            ndx_com
+        }
+        false => {
+            let mut ndx_com = ndx_lig.to_vec();
+            ndx_com.append(&mut ndx_rec);
+            ndx_com
+        }
+    };
+    
 
     // pre-treat trajectory: fix pbc
     println!("Reading trajectory file...");
@@ -91,12 +103,12 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
         let atoms = frame.coords.to_vec();
         for (i, a) in atoms.into_iter().enumerate() {
             for j in 0..3 {
-                coord_matrix[[idx, i, j]] = a[j] as f64;
+                coord_matrix[[idx, i, j]] = a[j] as f64 * 10.0;
             }
         }
         for (i, b) in frame.box_vector.into_iter().enumerate() {
             for j in 0..3 {
-                box_size[[idx, i, j]] = b[j] as f64;
+                box_size[[idx, i, j]] = b[j] as f64 * 10.0;
             }
         }
         pb.inc(1);
@@ -135,7 +147,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     let qe = 1.602176634e-19;
     let ion_strength: f64 = pbe_set.ions.iter()
         .map(|ion| ion.charge * ion.charge * ion.conc).sum();
-    let kap = 1e-9 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
+    let kap = 1e-10 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
 
     let kjcou = 1389.35457520287;
 
@@ -181,8 +193,8 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
                 let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
                 if r < settings.r_cutoff {
                     let e_cou = match settings.use_dh {
-                        false => qi * qj / r / 10.0,
-                        _ => qi * qj / r / 10.0 * f64::exp(-kap * r)
+                        false => qi * qj / r,
+                        _ => qi * qj / r * f64::exp(-kap * r)
                     };
                     let e_vdw = aps.c12[[ci, cj]] / r.powi(12) - aps.c6[[ci, cj]] / r.powi(6);
                     de_cou[aps.atm_resnum[i]] += e_cou;
@@ -196,13 +208,11 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
             de_cou[i] *= kjcou / (2.0 * pbe_set.pdie);
             de_vdw[i] /= 2.0;
         }
-        let e_cou = de_cou.sum();
-        let e_vdw = de_vdw.sum();
 
         // APBS
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         write_apbs(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
-                   pbe_set, &pba_set, temp_dir, &f_name, settings);
+                   pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         if !settings.apbs.is_empty() {
             let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
@@ -288,16 +298,16 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         f(&mut e_rec, ndx_rec.len());
         f(&mut e_lig, ndx_lig.len());
 
-        let pb_com: f64 = e_com.slice(s![0, ..]).iter().sum::<f64>();
-        let sa_com: f64 = e_com.slice(s![2, ..]).iter().sum::<f64>();
-        let pb_rec: f64 = e_rec.slice(s![0, ..]).iter().sum::<f64>();
-        let sa_rec: f64 = e_rec.slice(s![2, ..]).iter().sum::<f64>();
-        let pb_lig: f64 = e_lig.slice(s![0, ..]).iter().sum::<f64>();
-        let sa_lig: f64 = e_lig.slice(s![2, ..]).iter().sum::<f64>();
+        let pb_com: f64 = e_com.slice(s![0, ..]).iter().sum();
+        let sa_com: f64 = e_com.slice(s![2, ..]).iter().sum();
+        let pb_rec: f64 = e_rec.slice(s![0, ..]).iter().sum();
+        let sa_rec: f64 = e_rec.slice(s![2, ..]).iter().sum();
+        let pb_lig: f64 = e_lig.slice(s![0, ..]).iter().sum();
+        let sa_lig: f64 = e_lig.slice(s![2, ..]).iter().sum();
 
-        cou[idx] = e_cou;
-        vdw[idx] = e_vdw;
-        mm[idx] = e_cou + e_vdw;
+        cou[idx] = de_cou.sum();
+        vdw[idx] = de_vdw.sum();
+        mm[idx] = cou[idx] + vdw[idx];
         pb[idx] = pb_com - pb_rec - pb_lig;
         sa[idx] = sa_com - sa_rec - sa_lig;
         dh[idx] = mm[idx] + pb[idx] + sa[idx];

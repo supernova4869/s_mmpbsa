@@ -25,9 +25,9 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
         println!("  3 Select atom radius type, current: {}", RADIUS_TABLE[&settings.rad_type]);
-        println!("  4 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
-        println!("  5 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
-        println!("  6 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
+        println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
+        println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
+        println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
         println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
@@ -86,26 +86,6 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                                  settings);
             }
             4 => {
-                println!("Input coarse grid expand factor, default 3:");
-                let mut s = String::new();
-                stdin().read_line(&mut s).expect("Input error");
-                if s.trim().is_empty() {
-                    settings.cfac = 3.0;
-                } else {
-                    settings.cfac = s.trim().parse().unwrap();
-                }
-            }
-            5 => {
-                println!("Input fine grid expand amount (A), default 10:");
-                let mut s = String::new();
-                stdin().read_line(&mut s).expect("Input error");
-                if s.trim().is_empty() {
-                    settings.fadd = 10.0;
-                } else {
-                    settings.fadd = s.trim().parse().unwrap();
-                }
-            }
-            6 => {
                 println!("Input cutoff value (A), default 0 (inf):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -116,6 +96,26 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                     if settings.r_cutoff == 0.0 {
                         settings.r_cutoff = f64::INFINITY;
                     }
+                }
+            }
+            5 => {
+                println!("Input coarse grid expand factor, default 3:");
+                let mut s = String::new();
+                stdin().read_line(&mut s).expect("Input error");
+                if s.trim().is_empty() {
+                    settings.cfac = 3.0;
+                } else {
+                    settings.cfac = s.trim().parse().unwrap();
+                }
+            }
+            6 => {
+                println!("Input fine grid expand amount (A), default 10:");
+                let mut s = String::new();
+                stdin().read_line(&mut s).expect("Input error");
+                if s.trim().is_empty() {
+                    settings.fadd = 10.0;
+                } else {
+                    settings.fadd = s.trim().parse().unwrap();
                 }
             }
             7 => {

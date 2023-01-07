@@ -26,7 +26,7 @@ use crate::parameters::init_settings;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut tpr_mdp = String::new();
+    let mut tpr = String::new();        // may also be dump file
     let mut trj = String::from("");
     let mut ndx = String::from("");
 
@@ -39,55 +39,61 @@ fn main() {
 
     match args.len() {
         1 => {
-            println!("Input path of .tpr or dumped .mdp file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang.dump.mdp");
-            println!("Hint: input \"o\" to simply load last-opened .tpr or dumped .mdp file");
+            println!("Input path of .tpr or .dump file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang.dump");
+            println!("Hint: input \"o\" to simply load last-opened .tpr or .dump file");
             loop {
-                stdin().read_line(&mut tpr_mdp).expect("Failed to read tpr or dumped file.");
-                if tpr_mdp.trim() == "o" {
-                    tpr_mdp = settings.last_opened.to_string();
-                    if tpr_mdp.len() == 0 {
+                stdin().read_line(&mut tpr).expect("Failed to read tpr or dumped file.");
+                if tpr.trim() == "o" {
+                    tpr = settings.last_opened.to_string();
+                    if tpr.len() == 0 {
                         println!("Last-opened tpr or mdp not found.");
                     }
                 }
-                if !Path::new(tpr_mdp.trim()).is_file() {
-                    println!("Not file: {}, input again:", tpr_mdp.trim());
-                    tpr_mdp.clear();
+                if !Path::new(tpr.trim()).is_file() {
+                    println!("Not file: {}, input again:", tpr.trim());
+                    tpr.clear();
                 } else {
                     break;
                 }
             }
         }
-        2 => tpr_mdp = args[1].to_string(),
+        2 => tpr = args[1].to_string(),
         _ => {
-            for i in 1..args.len() {
+            for i in (1..args.len()).step_by(2) {
                 match args[i].as_str() {
                     "-f" => { trj = args[i + 1].to_string() }
-                    "-s" => { tpr_mdp = args[i + 1].to_string() }
+                    "-s" => { tpr = args[i + 1].to_string() }
                     "-n" => { ndx = args[i + 1].to_string() }
                     _ => {
-                        if i % 2 == 1 {
-                            println!("Omitted invalid option: {}", args[i])
-                        }
+                        println!("Omitted invalid option: {}", args[i])
                     }
                 }
             }
         }
     }
-    tpr_mdp = confirm_file_validity(&mut tpr_mdp, vec!["tpr", "mdp"], &settings);
+    tpr = confirm_file_validity(&mut tpr, vec!["tpr", "dump"], &settings);
 
-    change_settings_last_opened(&tpr_mdp);
-    settings.last_opened = tpr_mdp.to_string();
+    change_settings_last_opened(&tpr);
+    settings.last_opened = tpr.to_string();
 
     // working directory (path of tpr location)
-    let wd = Path::new(&tpr_mdp).parent().unwrap();
-    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr_mdp)).unwrap().as_path().parent().unwrap().display());
-    // get mdp or dump tpr to mdp
-    let mut mdp_path = String::from(&tpr_mdp).clone();
-    if tpr_mdp.ends_with(".tpr") {
-        mdp_path = tpr_mdp[..&tpr_mdp.len() - 4].to_string() + ".dump.mdp";
-        dump_tpr(&tpr_mdp, &mdp_path, settings.gmx.as_str());
-    }
-    let mut tpr = TPR::new(mdp_path.as_str());
+    let wd = Path::new(&tpr).parent().unwrap();
+    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr)).unwrap().as_path().parent().unwrap().display());
+    // get mdp or dump tpr
+    let tpr = match tpr.ends_with(".tpr") {
+        true => {
+            println!("Found tpr file {}.", tpr);
+            let p = tpr[..tpr.len() - 4].to_string() + ".dump";
+            dump_tpr(&tpr, &p, settings.gmx.as_str());
+            p
+        }
+        false => {
+            println!("Found dump file {}.", tpr);
+            tpr.to_string()
+        }
+    };
+
+    let mut tpr = TPR::new(tpr.as_str());
     println!("\nFinished reading tpr file:\n{}.", tpr);
 
     let mut atm_radius: Vec<f64> = Vec::new();
@@ -116,9 +122,9 @@ fn welcome() {
         Current time: {}\n\n\
         Usage 1: run `super_mmpbsa` and follow the prompts.\n\
         Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
-        Usage 3: run `super_mmpbsa WangBingBing.dump.mdp` to directly load dumped tpr file.\n\
+        Usage 3: run `super_mmpbsa WangBingBing.dump` to directly load dumped tpr file.\n\
         Usage 4: run `super_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
-        Usage 5: run `super_mmpbsa -f md.xtc -s md.dump.mdp -n index.ndx` to assign all files.\n",
+        Usage 5: run `super_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n",
              Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
 }
 

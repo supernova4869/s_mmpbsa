@@ -34,9 +34,9 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
             let resname = &aps.atm_resname[at_id];
             let resnum = aps.atm_resnum[at_id];
             let coord = coordinates.slice(s![at_id, ..]);
-            let x = coord[0] * 10.0;
-            let y = coord[1] * 10.0;
-            let z = coord[2] * 10.0;
+            let x = coord[0];
+            let y = coord[1];
+            let z = coord[2];
             let q = aps.atm_charge[at_id];
             let r = aps.atm_radius[at_id];
             let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} \
