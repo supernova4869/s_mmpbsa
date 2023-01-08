@@ -189,10 +189,14 @@ fn get_built_in_gmx() -> String {
 }
 
 fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
-    let mut gmx = gmx.to_string();
-    if gmx == "built-in" {
-        gmx = get_built_in_gmx();
-    }
+    let gmx = match gmx {
+        "built-in" => {
+            get_built_in_gmx()
+        }
+        _ => {
+            gmx.to_string()
+        }
+    };
     // gromacs
     let gmx_path = match check_program_validity(gmx.as_str()) {
         Ok(p) => {
@@ -200,8 +204,22 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
             p
         }
         Err(_) => {
-            println!("Warning: no valid Gromacs program in use.");
-            String::new()
+            if cfg!(windows) {
+                println!("Note: {} not valid. Will try built-in gmx.", gmx);
+                match check_program_validity(get_built_in_gmx().as_str()) {
+                    Ok(p) => {
+                        println!("Using Gromacs: {}", gmx);
+                        p
+                    }
+                    Err(_) => {
+                        println!("Warning: no valid Gromacs program in use.");
+                        String::new()
+                    }
+                }
+            } else {
+                println!("Warning: no valid Gromacs program in use.");
+                        String::new()
+            }
         }
     };
     // apbs
