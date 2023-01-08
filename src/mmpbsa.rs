@@ -14,7 +14,7 @@ use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
-use crate::prepare_apbs::{prepare_pqr, write_apbs};
+use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
 pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
                                sys_name: &String, receptor_grp: usize, ligand_grp: usize,
@@ -81,7 +81,6 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
 
     // must appear here because the tpr and xtc need origin indexes
     let (ndx_com, ndx_rec, ndx_lig) = normalize_index(&ndx_com, ndx_rec, ndx_lig);
-    assert!(coordinates.shape()[1] == ndx_com.len());
 
     // calculate MM and PBSA
     println!("Start MM/PB-SA calculations...");
@@ -240,7 +239,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         // PBSA
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
         if !settings.apbs.is_empty() {
-            write_apbs(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
+            write_apbs_input(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
                     pbe_set, pba_set, temp_dir, &f_name, settings);
             // invoke apbs program to do apbs calculations
             let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).

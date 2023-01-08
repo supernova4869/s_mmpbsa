@@ -58,12 +58,12 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
     pb.finish();
 }
 
-pub fn write_apbs(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &ArrayView2<f64>,
+pub fn write_apbs_input(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &ArrayView2<f64>,
                   atm_radius: &Array1<f64>, pbe_set: &PBESet, pba_set: &PBASet,
                   temp_dir: &PathBuf, f_name: &String, settings: &Parameters) {
     let mut input_apbs = File::create(temp_dir.join(format!("{}.apbs", f_name))).unwrap();
-    input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
-    input_apbs.write_all(format!("  mol pqr {0}_com.pqr\
+    input_apbs.write_all(format!("read\
+    \n  mol pqr {0}_com.pqr\
     \n  mol pqr {0}_rec.pqr\
     \n  mol pqr {0}_lig.pqr\
     \nend\n\n", f_name).as_bytes())
@@ -181,13 +181,12 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
     let fadd = settings.fadd;
     let df = settings.df;
 
-    // convert to A
-    let min_x = min_x * 10.0;
-    let min_y = min_y * 10.0;
-    let min_z = min_z * 10.0;
-    let max_x = max_x * 10.0;
-    let max_y = max_y * 10.0;
-    let max_z = max_z * 10.0;
+    let min_x = min_x;
+    let min_y = min_y;
+    let min_z = min_z;
+    let max_x = max_x;
+    let max_y = max_y;
+    let max_z = max_z;
 
     let x_len = (max_x - min_x).max(0.1);
     let x_center = (max_x + min_x) / 2.0;
@@ -202,9 +201,15 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
     let f_x = (x_len + fadd).min(c_x);
     let f_y = (y_len + fadd).min(c_y);
     let f_z = (z_len + fadd).min(c_z);
-    let n_x = (f_x / df).round() as i32;
-    let n_y = (f_y / df).round() as i32;
-    let n_z = (f_z / df).round() as i32;
+
+    let n_lev = 4;
+    let t = 2_f64.powi(n_lev+1);
+    let n_x = (f_x / df).round() as i32 - 1;
+    let n_x = (t * (n_x as f64 / t).round()) as i32 + 1;
+    let n_y = (f_y / df).round() as i32 - 1;
+    let n_y = (t * (n_y as f64 / t).round()) as i32 + 1;
+    let n_z = (f_z / df).round() as i32 - 1;
+    let n_z = (t * (n_z as f64 / t).round()) as i32 + 1;
 
     let mg_set = "mg-auto";
 
