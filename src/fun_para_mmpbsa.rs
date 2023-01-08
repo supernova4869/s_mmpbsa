@@ -7,7 +7,6 @@ use crate::atom_radius::{Radius, RADIUS_TABLE};
 use crate::parse_tpr::TPR;
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
-                       complex_grp: usize,
                        receptor_grp: usize,
                        ligand_grp: usize,
                        bt: f64, et: f64, dt: f64,
@@ -45,7 +44,6 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 // 定义results形式, 其中应包含所需的全部数据
                 let ndx = index_parser::Index::new(ndx);
                 let results = mmpbsa::fun_mmpbsa_calculations(trj, tpr, &ndx, wd, &sys_name,
-                                                              complex_grp as usize,
                                                               receptor_grp as usize,
                                                               ligand_grp as usize,
                                                               bt, et, dt,
@@ -71,7 +69,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 if s.trim().is_empty() {
                     settings.rad_type = 1;
                 } else {
-                    let s = s.trim().parse().unwrap();
+                    let s = s.trim().parse().expect("Input not valid number.");
                     if s == 0 {
                         settings.rad_type = 0;
                     } else if RADIUS_TABLE.contains_key(&s) {
@@ -92,7 +90,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 if s.trim().is_empty() {
                     settings.r_cutoff = f64::INFINITY;
                 } else {
-                    settings.r_cutoff = s.trim().parse().unwrap();
+                    settings.r_cutoff = s.trim().parse().expect("Input not valid number.");
                     if settings.r_cutoff == 0.0 {
                         settings.r_cutoff = f64::INFINITY;
                     }
@@ -105,7 +103,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 if s.trim().is_empty() {
                     settings.cfac = 3.0;
                 } else {
-                    settings.cfac = s.trim().parse().unwrap();
+                    settings.cfac = s.trim().parse().expect("Input not valid number.");
                 }
             }
             6 => {
@@ -115,7 +113,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 if s.trim().is_empty() {
                     settings.fadd = 10.0;
                 } else {
-                    settings.fadd = s.trim().parse().unwrap();
+                    settings.fadd = s.trim().parse().expect("Input not valid number.");
                 }
             }
             7 => {
@@ -125,7 +123,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 if s.trim().is_empty() {
                     settings.df = 0.5;
                 } else {
-                    settings.df = s.trim().parse().unwrap();
+                    settings.df = s.trim().parse().expect("Input not valid number.");
                 }
             }
             8 => {

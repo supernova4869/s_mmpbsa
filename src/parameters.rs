@@ -6,7 +6,7 @@ use toml::Value;
 
 pub struct Parameters {
     pub rad_type: usize,
-    pub rad_lj0: f64,
+    pub rad_default: f64,
     // pub mesh_type: i32,
     // pub grid_type: i32,
     pub use_dh: bool,
@@ -25,7 +25,7 @@ pub struct Parameters {
 pub fn init_settings() -> Parameters {
     let mut params = Parameters {
         rad_type: 1,
-        rad_lj0: 1.2,
+        rad_default: 1.2,
         // mesh_type: 0,
         // grid_type: 1,
         use_dh: true,
@@ -67,7 +67,7 @@ pub fn init_settings() -> Parameters {
 
 fn read_user_settings(params: &mut Parameters, settings: &Value) {
     params.rad_type = parse_param(settings, "radType", params.rad_type);
-    params.rad_lj0 = parse_param(settings, "radDef", params.rad_lj0);
+    params.rad_default = parse_param(settings, "radDef", params.rad_default);
     // params.mesh_type = parse_param(settings, "meshType", params.mesh_type);
     // params.grid_type = parse_param(settings, "gridType", params.grid_type);
     params.cfac = parse_param(settings, "cfac", params.cfac);

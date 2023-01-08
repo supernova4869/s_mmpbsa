@@ -17,58 +17,51 @@ use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_pqr, write_apbs};
 
 pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
-                               sys_name: &String, complex_grp: usize, receptor_grp: usize, ligand_grp: usize,
+                               sys_name: &String, receptor_grp: usize, ligand_grp: usize,
                                bt: f64, et: f64, dt: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
                                -> Results {
-    // Running directory
+    // Temp directory for PBSA
     let temp_dir = wd.join(sys_name);
-    println!("Temporary files will be placed at {}/", temp_dir.display());
-    if !temp_dir.is_dir() {
-        fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
-    } else {
-        println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
-        let mut input = String::from("");
-        stdin().read_line(&mut input).expect("Get input error");
-        if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
-            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+    if !settings.apbs.is_empty() {
+        println!("Temporary files will be placed at {}/", temp_dir.display());
+        if !temp_dir.is_dir() {
             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+        } else {
+            println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
+            let mut input = String::from("");
+            stdin().read_line(&mut input).expect("Get input error");
+            if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
+                fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+                fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
+            }
         }
-    }
+    } else {
+        println!("Warning: APBS not found. Will not calculate solvation energy.");
+    };
 
     // run MM/PB-SA calculations
     println!("Running MM/PB-SA calculations...");
     println!("Preparing parameters...");
 
     // atom indexes
-    let ndx_com = &ndx.groups[complex_grp].indexes;
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = &ndx.groups[ligand_grp].indexes;
-
-    // atom properties
-    let aps = AtomProperty::new(tpr, ndx_com);
-
-    // normalize residue indexes
-    let mut ndx_lig: Vec<usize> = ndx_lig.iter().map(|p| p - ndx_com[0]).collect();
-    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
-    if ndx_lig[0] > ndx_rec[0] {
-        ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
-    } else {
-        ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
-    }
     let ndx_com = match ndx_lig[0] > ndx_rec[0] {
         true => {
             let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.append(&mut ndx_lig);
+            ndx_com.append(&mut ndx_lig.to_vec());
             ndx_com
         }
         false => {
             let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.append(&mut ndx_rec);
+            ndx_com.append(&mut ndx_rec.to_vec());
             ndx_com
         }
     };
-    
+
+    // atom properties
+    let aps = AtomProperty::new(tpr, &ndx_com);
 
     // pre-treat trajectory: fix pbc
     println!("Reading trajectory file...");
@@ -80,9 +73,15 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
 
     let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
 
-    println!("Preparing APBS inputs...");
-    prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
-                sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
+    if !settings.apbs.is_empty() {
+        println!("Preparing APBS inputs...");
+        prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
+                    sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
+    }
+
+    // must appear here because the tpr and xtc need origin indexes
+    let (ndx_com, ndx_rec, ndx_lig) = normalize_index(&ndx_com, ndx_rec, ndx_lig);
+    assert!(coordinates.shape()[1] == ndx_com.len());
 
     // calculate MM and PBSA
     println!("Start MM/PB-SA calculations...");
@@ -90,6 +89,30 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
                                    &temp_dir, &ndx_com, &ndx_rec, &ndx_lig, sys_name, pbe_set, pba_set, settings);
     println!("MM/PB-SA calculation finished.");
     results
+}
+
+// convert rec and lig to begin at 0 and continous
+fn normalize_index(ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+    let mut ndx_lig: Vec<usize> = ndx_lig.iter().map(|p| p - ndx_com[0]).collect();
+    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
+    if ndx_lig[0] > ndx_rec[0] {
+        ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
+    } else {
+        ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
+    }
+    let ndx_com = match ndx_lig[0] > ndx_rec[0] {
+        true => {
+            let mut ndx_com = ndx_rec.to_vec();
+            ndx_com.append(&mut ndx_lig.to_vec());
+            ndx_com
+        }
+        false => {
+            let mut ndx_com = ndx_lig.to_vec();
+            ndx_com.append(&mut ndx_rec.to_vec());
+            ndx_com
+        }
+    };
+    (ndx_com, ndx_rec, ndx_lig)
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
@@ -100,13 +123,12 @@ fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
     let pb = ProgressBar::new(frames.len() as u64);
     set_style(&pb);
     for (idx, frame) in frames.into_iter().enumerate() {
-        let atoms = frame.coords.to_vec();
-        for (i, a) in atoms.into_iter().enumerate() {
+        for (i, a) in (&frame.coords).into_iter().enumerate() {
             for j in 0..3 {
                 coord_matrix[[idx, i, j]] = a[j] as f64 * 10.0;
             }
         }
-        for (i, b) in frame.box_vector.into_iter().enumerate() {
+        for (i, b) in (&frame.box_vector).into_iter().enumerate() {
             for j in 0..3 {
                 box_size[[idx, i, j]] = b[j] as f64 * 10.0;
             }
@@ -149,7 +171,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         .map(|ion| ion.charge * ion.charge * ion.conc).sum();
     let kap = 1e-10 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
 
-    let kjcou = 1389.35457520287;
+    let kj_elec = 1389.35457520287;
 
     // default gamma for apbs calculation is 1
     let gamma = 0.0301248;      // Here is the surface extension constant from AMBER-PB4
@@ -158,13 +180,13 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     let total_res_num = tpr.molecules.iter().map(|mol|
         mol.residues.len() * tpr.molecule_types[mol.molecule_type_id].molecules_num as usize).sum();
 
-    let mut cou: Array1<f64> = Array1::zeros(total_frames);
+    let mut elec: Array1<f64> = Array1::zeros(total_frames);
     let mut vdw: Array1<f64> = Array1::zeros(total_frames);
     let mut mm: Array1<f64> = Array1::zeros(total_frames);
     let mut pb: Array1<f64> = Array1::zeros(total_frames);
     let mut sa: Array1<f64> = Array1::zeros(total_frames);
     let mut dh: Array1<f64> = Array1::zeros(total_frames);
-    let mut cou_res: Array1<f64> = Array1::zeros(total_res_num);
+    let mut elec_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut vdw_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut pb_res: Array1<f64> = Array1::zeros(total_res_num);
     let mut sa_res: Array1<f64> = Array1::zeros(total_res_num);
@@ -176,7 +198,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     for cur_frm in (bf..=ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
-        let mut de_cou: Array1<f64> = Array1::zeros(total_res_num);
+        let mut de_elec: Array1<f64> = Array1::zeros(total_res_num);
         let mut de_vdw: Array1<f64> = Array1::zeros(total_res_num);
         for &i in ndx_rec {
             let qi = aps.atm_charge[i];
@@ -192,29 +214,35 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
                 let zj = coord[[j, 2]];
                 let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
                 if r < settings.r_cutoff {
-                    let e_cou = match settings.use_dh {
+                    let e_elec = match settings.use_dh {
                         false => qi * qj / r,
                         _ => qi * qj / r * f64::exp(-kap * r)
                     };
-                    let e_vdw = aps.c12[[ci, cj]] / r.powi(12) - aps.c6[[ci, cj]] / r.powi(6);
-                    de_cou[aps.atm_resnum[i]] += e_cou;
-                    de_cou[aps.atm_resnum[j]] += e_cou;
+                    let e_vdw = aps.c12[[ci, cj]] / (r / 10.0).powi(12) - aps.c6[[ci, cj]] / (r / 10.0).powi(6);
+                    de_elec[aps.atm_resnum[i]] += e_elec;
+                    de_elec[aps.atm_resnum[j]] += e_elec;
                     de_vdw[aps.atm_resnum[i]] += e_vdw;
                     de_vdw[aps.atm_resnum[j]] += e_vdw;
                 }
             }
         }
         for i in 0..total_res_num {
-            de_cou[i] *= kjcou / (2.0 * pbe_set.pdie);
+            de_elec[i] *= kj_elec / (2.0 * pbe_set.pdie);
             de_vdw[i] /= 2.0;
         }
+        elec[idx] = de_elec.sum();
+        vdw[idx] = de_vdw.sum();
+        mm[idx] = elec[idx] + vdw[idx];
 
-        // APBS
+        elec_res += &de_elec;
+        vdw_res += &de_vdw;
+
+        // PBSA
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        write_apbs(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
-                   pbe_set, pba_set, temp_dir, &f_name, settings);
-        // invoke apbs program to do apbs calculations
         if !settings.apbs.is_empty() {
+            write_apbs(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
+                    pbe_set, pba_set, temp_dir, &f_name, settings);
+            // invoke apbs program to do apbs calculations
             let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
                 expect("Failed to create apbs out file");
             let apbs_result = Command::new(&settings.apbs).
@@ -223,118 +251,111 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
             let apbs_output = String::from_utf8(apbs_result.stdout).
                 expect("Failed to get apbs output.");
             apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
-        } else {
-            println!("Warning: APBS not found. Will not calculate solvation energy.");
-        }
 
-        // parse output
-        let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
+            // parse output
+            let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
 
-        let mut dpb_res: Array1<f64> = Array1::zeros(total_res_num);
-        let mut dsa_res: Array1<f64> = Array1::zeros(total_res_num);
+            let mut dpb_res: Array1<f64> = Array1::zeros(total_res_num);
+            let mut dsa_res: Array1<f64> = Array1::zeros(total_res_num);
 
-        let mut e_com: Array2<f64> = Array2::zeros((3, ndx_rec.len() + ndx_lig.len()));
-        let mut e_rec: Array2<f64> = Array2::zeros((3, ndx_rec.len()));
-        let mut e_lig: Array2<f64> = Array2::zeros((3, ndx_lig.len()));
+            let mut e_com: Array2<f64> = Array2::zeros((3, ndx_rec.len() + ndx_lig.len()));
+            let mut e_rec: Array2<f64> = Array2::zeros((3, ndx_rec.len()));
+            let mut e_lig: Array2<f64> = Array2::zeros((3, ndx_lig.len()));
 
-        // preserve CALCULATION, Atom and SASA lines
-        let apbs_results = apbs_results
-            .split("\n")
-            .filter_map(|p|
-                if p.trim().starts_with("CALCULATION ") ||
-                    p.trim().starts_with("Atom") ||
-                    p.trim().starts_with("SASA") {
-                    Some(p.trim())
-                } else { None }
-            )
-            .collect::<Vec<&str>>();
+            // preserve CALCULATION, Atom and SASA lines
+            let apbs_results = apbs_results
+                .split("\n")
+                .filter_map(|p|
+                    if p.trim().starts_with("CALCULATION ") ||
+                        p.trim().starts_with("Atom") ||
+                        p.trim().starts_with("SASA") {
+                        Some(p.trim())
+                    } else { None }
+                )
+                .collect::<Vec<&str>>();
 
-        // extract apbs results
-        let mut cur_sys = 0;    // com=0, rec=1, lig=2
-        let mut cur_item = 0;   // total=0, vac=1, sas=2
-        let mut cur_atom = 0;   // current atom index
-        for line in apbs_results {
-            if line.starts_with("CALCULATION") {
-                if line.contains(format!("{}_com", f_name).as_str()) {
-                    cur_sys = 0;
-                } else if line.contains(format!("{}_rec", f_name).as_str()) {
-                    cur_sys = 1;
-                } else if line.contains(format!("{}_lig", f_name).as_str()) {
-                    cur_sys = 2;
-                }
-                if line.contains("_VAC") {
-                    cur_item = 1;
-                } else if line.contains("_SAS") {
-                    cur_item = 2;
+            // extract apbs results
+            let mut cur_sys = 0;    // com=0, rec=1, lig=2
+            let mut cur_item = 0;   // total=0, vac=1, sas=2
+            let mut cur_atom = 0;   // current atom index
+            for line in apbs_results {
+                if line.starts_with("CALCULATION") {
+                    if line.contains(format!("{}_com", f_name).as_str()) {
+                        cur_sys = 0;
+                    } else if line.contains(format!("{}_rec", f_name).as_str()) {
+                        cur_sys = 1;
+                    } else if line.contains(format!("{}_lig", f_name).as_str()) {
+                        cur_sys = 2;
+                    }
+                    if line.contains("_VAC") {
+                        cur_item = 1;
+                    } else if line.contains("_SAS") {
+                        cur_item = 2;
+                    } else {
+                        cur_item = 0;
+                    }
+                    cur_atom = 0;
                 } else {
-                    cur_item = 0;
+                    let v: Vec<&str> = line
+                        .split(":")
+                        .collect();
+                    let v: Vec<&str> = v[1]
+                        .split(" ")
+                        .filter_map(|p| match p.trim().len() {
+                            0 => None,
+                            _ => Some(p)
+                        }).collect();
+                    match cur_sys {
+                        0 => e_com[[cur_item, cur_atom]] = v[0].parse().unwrap(),
+                        1 => e_rec[[cur_item, cur_atom]] = v[0].parse().unwrap(),
+                        2 => e_lig[[cur_item, cur_atom]] = v[0].parse().unwrap(),
+                        _ => ()
+                    }
+                    cur_atom += 1;
                 }
-                cur_atom = 0;
-            } else {
-                let v: Vec<&str> = line
-                    .split(":")
-                    .collect();
-                let v: Vec<&str> = v[1]
-                    .split(" ")
-                    .filter_map(|p| match p.trim().len() {
-                        0 => None,
-                        _ => Some(p)
-                    }).collect();
-                match cur_sys {
-                    0 => e_com[[cur_item, cur_atom]] = v[0].parse().unwrap(),
-                    1 => e_rec[[cur_item, cur_atom]] = v[0].parse().unwrap(),
-                    2 => e_lig[[cur_item, cur_atom]] = v[0].parse().unwrap(),
-                    _ => ()
-                }
-                cur_atom += 1;
             }
-        }
-        let f = |e_arr: &mut Array2<f64>, n_cols: usize|
-            for mut col in e_arr.columns_mut() {
-                col[0] -= col[1];
-                col[2] = gamma * col[2] + _const / n_cols as f64;
+            let f = |e_arr: &mut Array2<f64>, n_cols: usize|
+                for mut col in e_arr.columns_mut() {
+                    col[0] -= col[1];
+                    col[2] = gamma * col[2] + _const / n_cols as f64;
+                };
+            f(&mut e_com, ndx_com.len());
+            f(&mut e_rec, ndx_rec.len());
+            f(&mut e_lig, ndx_lig.len());
+
+            let pb_com: f64 = e_com.slice(s![0, ..]).iter().sum();
+            let sa_com: f64 = e_com.slice(s![2, ..]).iter().sum();
+            let pb_rec: f64 = e_rec.slice(s![0, ..]).iter().sum();
+            let sa_rec: f64 = e_rec.slice(s![2, ..]).iter().sum();
+            let pb_lig: f64 = e_lig.slice(s![0, ..]).iter().sum();
+            let sa_lig: f64 = e_lig.slice(s![2, ..]).iter().sum();
+
+            // residue decomposition
+            let offset_rec = match ndx_lig[0] < ndx_rec[0] {
+                true => 0,
+                _ => ndx_rec.len()
             };
-        f(&mut e_com, ndx_com.len());
-        f(&mut e_rec, ndx_rec.len());
-        f(&mut e_lig, ndx_lig.len());
-
-        let pb_com: f64 = e_com.slice(s![0, ..]).iter().sum();
-        let sa_com: f64 = e_com.slice(s![2, ..]).iter().sum();
-        let pb_rec: f64 = e_rec.slice(s![0, ..]).iter().sum();
-        let sa_rec: f64 = e_rec.slice(s![2, ..]).iter().sum();
-        let pb_lig: f64 = e_lig.slice(s![0, ..]).iter().sum();
-        let sa_lig: f64 = e_lig.slice(s![2, ..]).iter().sum();
-
-        cou[idx] = de_cou.sum();
-        vdw[idx] = de_vdw.sum();
-        mm[idx] = cou[idx] + vdw[idx];
-        pb[idx] = pb_com - pb_rec - pb_lig;
-        sa[idx] = sa_com - sa_rec - sa_lig;
-        dh[idx] = mm[idx] + pb[idx] + sa[idx];
-
-        // residue decomposition
-        let offset_rec = match ndx_lig[0] < ndx_rec[0] {
-            true => 0,
-            _ => ndx_rec.len()
-        };
-        let offset_lig = match ndx_rec[0] < ndx_lig[0] {
-            true => 0,
-            _ => ndx_lig.len()
-        };
-        for &i in ndx_com {
-            if ndx_rec.contains(&i) {
-                dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i - offset_lig]];
-                dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i - offset_lig]];
-            } else {
-                dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i - offset_rec]];
-                dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i - offset_rec]];
+            let offset_lig = match ndx_rec[0] < ndx_lig[0] {
+                true => 0,
+                _ => ndx_lig.len()
+            };
+            for &i in ndx_com {
+                if ndx_rec.contains(&i) {
+                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i - offset_lig]];
+                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i - offset_lig]];
+                } else {
+                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i - offset_rec]];
+                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i - offset_rec]];
+                }
             }
+
+            pb[idx] = pb_com - pb_rec - pb_lig;
+            sa[idx] = sa_com - sa_rec - sa_lig;
+            pb_res += &dpb_res;
+            sa_res += &dsa_res;
         }
 
-        cou_res += &de_cou;
-        vdw_res += &de_vdw;
-        pb_res += &dpb_res;
-        sa_res += &dsa_res;
+        dh[idx] = mm[idx] + pb[idx] + sa[idx];
 
         idx += 1;
         pgb.inc(1);
@@ -342,11 +363,11 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     pgb.finish();
 
     // residue time average
-    cou_res /= total_frames as f64;
+    elec_res /= total_frames as f64;
     vdw_res /= total_frames as f64;
     pb_res /= total_frames as f64;
     sa_res /= total_frames as f64;
-    let mm_res = &cou_res + &vdw_res;
+    let mm_res = &elec_res + &vdw_res;
     let dh_res = &mm_res + &pb_res + &sa_res;
 
     // Time list of trajectory
@@ -359,12 +380,12 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         mm,
         pb,
         sa,
-        cou,
+        elec,
         vdw,
         dh,
         dh_res,
         mm_res,
-        cou_res,
+        elec_res,
         vdw_res,
         pb_res,
         sa_res,

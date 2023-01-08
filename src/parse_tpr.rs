@@ -5,6 +5,8 @@ use regex::Regex;
 use std::fs::File;
 use std::io::BufRead;
 
+use crate::parameters::Parameters;
+
 pub struct TPR {
     pub name: String,
     pub atoms_num: usize,
@@ -29,7 +31,7 @@ impl fmt::Display for TPR {
 }
 
 impl TPR {
-    pub fn new(mdp: &str) -> TPR {
+    pub fn new(mdp: &str, settings: &Parameters) -> TPR {
         let mut name = String::new();
         let mut atoms_num = 0;
         let mut molecule_types_num = 0;
@@ -134,7 +136,7 @@ impl TPR {
                 }
             }
 
-            // force field parameters
+            // force field parameters (atom radius here)
             if buf.trim().starts_with("ffparams:") {
                 read_line(&mut reader, &mut buf);
                 let re = Regex::new(r"atnr\s*=\s*(\d+)").unwrap();
@@ -159,9 +161,9 @@ impl TPR {
                                 epsilon.push(c6.powi(2) / (4.0 * c12));
                                 radius.push(sigma[i] / 2.0); // sigma is diameter
                             } else {
-                                sigma.push(0.0); // nm to A
+                                sigma.push(0.0);
                                 epsilon.push(0.0);
-                                radius.push(0.0); // sigma is diameter
+                                radius.push(settings.rad_default);
                             }
                         }
                     }

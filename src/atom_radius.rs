@@ -52,7 +52,7 @@ impl TPR {
     }
 }
 
-// get atom radius, returns 1.5 if not specified
+// get atom radius, returns default radius if not found
 // mBondi from AMBER20/parmed/tools/changeradii.py
 pub fn get_mbondi(at_type: &str, settings: &Parameters) -> f64 {
     let rad_bondi: HashMap<&str, f64> = HashMap::from([
@@ -62,7 +62,7 @@ pub fn get_mbondi(at_type: &str, settings: &Parameters) -> f64 {
         ("S", 1.8), ("CL", 1.7), ("BR", 1.85), ("I", 1.98),
     ]);
     let at_type = at_type.to_uppercase();
-    let mut radius = settings.rad_lj0;
+    let mut radius = settings.rad_default;
     if at_type.len() >= 2 {
         let r = rad_bondi.get(&at_type[0..2]);
         if let Some(&m) = r {

@@ -82,19 +82,19 @@ fn main() {
     // get mdp or dump tpr
     let tpr = match tpr.ends_with(".tpr") {
         true => {
-            println!("Found tpr file {}.", tpr);
+            println!("Found tpr file: {}", tpr);
             let p = tpr[..tpr.len() - 4].to_string() + ".dump";
             dump_tpr(&tpr, &p, settings.gmx.as_str());
             p
         }
         false => {
-            println!("Found dump file {}.", tpr);
+            println!("Found dump file: {}", tpr);
             tpr.to_string()
         }
     };
 
-    let mut tpr = TPR::new(tpr.as_str());
-    println!("\nFinished reading tpr file:\n{}.", tpr);
+    let mut tpr = TPR::new(tpr.as_str(), &settings);
+    println!("\nFinished reading tpr.");
 
     let mut atm_radius: Vec<f64> = Vec::new();
     for mol in &tpr.molecules {

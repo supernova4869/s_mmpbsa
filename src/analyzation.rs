@@ -11,12 +11,12 @@ pub struct Results {
     pub mm: Array1<f64>,
     pub pb: Array1<f64>,
     pub sa: Array1<f64>,
-    pub cou: Array1<f64>,
+    pub elec: Array1<f64>,
     pub vdw: Array1<f64>,
     pub dh: Array1<f64>,
     pub dh_res: Array1<f64>,
     pub mm_res: Array1<f64>,
-    pub cou_res: Array1<f64>,
+    pub elec_res: Array1<f64>,
     pub vdw_res: Array1<f64>,
     pub pb_res: Array1<f64>,
     pub sa_res: Array1<f64>,
@@ -25,8 +25,8 @@ pub struct Results {
 impl Results {
     pub fn new(tpr: &TPR, times: Array1<f64>,
                mm: Array1<f64>, pb: Array1<f64>, sa: Array1<f64>,
-               cou: Array1<f64>, vdw: Array1<f64>, dh: Array1<f64>,
-               dh_res: Array1<f64>, mm_res: Array1<f64>, cou_res: Array1<f64>,
+               elec: Array1<f64>, vdw: Array1<f64>, dh: Array1<f64>,
+               dh_res: Array1<f64>, mm_res: Array1<f64>, elec_res: Array1<f64>,
                vdw_res: Array1<f64>, pb_res: Array1<f64>, sa_res: Array1<f64>) -> Results {
 
         // residues number and name
@@ -49,12 +49,12 @@ impl Results {
             mm,
             pb,
             sa,
-            cou,
+            elec,
             vdw,
             dh,
             dh_res,
             mm_res,
-            cou_res,
+            elec_res,
             vdw_res,
             pb_res,
             sa_res,
@@ -67,7 +67,7 @@ impl Results {
 
         let dh_avg = self.dh.iter().sum::<f64>() / self.dh.len() as f64;
         let mm_avg = self.mm.iter().sum::<f64>() / self.mm.len() as f64;
-        let cou_avg = self.cou.iter().sum::<f64>() / self.cou.len() as f64;
+        let elec_avg = self.elec.iter().sum::<f64>() / self.elec.len() as f64;
         let vdw_avg = self.vdw.iter().sum::<f64>() / self.vdw.len() as f64;
         let pb_avg = self.pb.iter().sum::<f64>() / self.pb.len() as f64;
         let sa_avg = self.sa.iter().sum::<f64>() / self.sa.len() as f64;
@@ -78,7 +78,7 @@ impl Results {
         let tds = -rt2kj * tds.ln();
         let dg = dh_avg - tds;
         let ki = f64::exp(dg / rt2kj);
-        return (dh_avg, mm_avg, pb_avg, sa_avg, cou_avg, vdw_avg, tds, dg, ki);
+        return (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg, vdw_avg, tds, dg, ki);
     }
 }
 
@@ -120,7 +120,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
             //     analyze_sa_res_traj(results, wd, sys_name);
             // }
             // 8 => {
-            //     analyze_cou_res_traj(results, wd, sys_name);
+            //     analyze_elec_res_traj(results, wd, sys_name);
             // }
             // 9 => {
             //     analyze_vdw_res_traj(results, wd, sys_name);
@@ -131,7 +131,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
 }
 
 fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String) {
-    let (dh_avg, mm_avg, pb_avg, sa_avg, cou_avg,
+    let (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg,
         vdw_avg, tds, dg, ki) = results.summary(temperature);
     println!("Energy terms summary:");
     println!("ΔH: {:.3} kJ/mol", dh_avg);
@@ -139,7 +139,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!("ΔPB: {:.3} kJ/mol", pb_avg);
     println!("ΔSA: {:.3} kJ/mol", sa_avg);
     println!();
-    println!("Δelec: {:.3} kJ/mol", cou_avg);
+    println!("Δelec: {:.3} kJ/mol", elec_avg);
     println!("Δvdw: {:.3} kJ/mol", vdw_avg);
     println!();
     println!("TΔS: {:.3} kJ/mol", tds);
@@ -159,7 +159,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
         energy_sum.write_all(format!("ΔPB,{:.3},(kJ/mol)\n", pb_avg).as_bytes()).unwrap();
         energy_sum.write_all(format!("ΔSA,{:.3},(kJ/mol)\n", sa_avg).as_bytes()).unwrap();
         energy_sum.write_all(b"\n").unwrap();
-        energy_sum.write_all(format!("Δelec,{:.3},(kJ/mol)\n", cou_avg).as_bytes()).unwrap();
+        energy_sum.write_all(format!("Δelec,{:.3},(kJ/mol)\n", elec_avg).as_bytes()).unwrap();
         energy_sum.write_all(format!("ΔvdW,{:.3},(kJ/mol)\n", vdw_avg).as_bytes()).unwrap();
         energy_sum.write_all(b"\n").unwrap();
         energy_sum.write_all(format!("TΔS,{:.3},(kJ/mol)\n", tds).as_bytes()).unwrap();
@@ -179,7 +179,7 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
         energy_sum.write_all(format!("{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n",
                                      results.times[i] / 1000.0, results.dh[i],
                                      results.mm[i], results.pb[i], results.sa[i],
-                                     results.cou[i], results.vdw[i]).as_bytes()).unwrap();
+                                     results.elec[i], results.vdw[i]).as_bytes()).unwrap();
     }
     println!("Binding energy terms have been writen to {}", &f_name);
 }
@@ -209,8 +209,8 @@ fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
         energy_res.write_all(format!(",{:.3}", sa).as_bytes()).unwrap();
     }
     energy_res.write_all("\nΔelec".as_bytes()).unwrap();
-    for cou in &results.cou_res {
-        energy_res.write_all(format!(",{:.3}", cou).as_bytes()).unwrap();
+    for elec in &results.elec_res {
+        energy_res.write_all(format!(",{:.3}", elec).as_bytes()).unwrap();
     }
     energy_res.write_all("\nΔvdW".as_bytes()).unwrap();
     for vdw in &results.vdw_res {
@@ -220,7 +220,7 @@ fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
     println!("Binding energy terms have been writen to {}", &f_name);
 }
 
-// 考虑将de_cou等传入, 提供每帧输出
+// 考虑将de_elec等传入, 提供每帧输出
 
 // fn analyze_dh_res_traj(results: &Results, wd: &Path, sys_name: &String) {
 //     let f_name = format!("{}_res_dH.csv", sys_name);
@@ -310,7 +310,7 @@ fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
 //     }
 // }
 //
-// fn analyze_cou_res_traj(results: &Results, wd: &Path, sys_name: &String) {
+// fn analyze_elec_res_traj(results: &Results, wd: &Path, sys_name: &String) {
 //     let f_name = format!("{}_res_elec.csv", sys_name);
 //     let mut temp = String::new();
 //     stdin().read_line(&mut temp).unwrap();
@@ -323,8 +323,8 @@ fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
 //         }
 //         for i in 0..results.times.len() {
 //             energy_res.write_all(format!("\n{}", results.times[i] / 1000.0).as_bytes()).unwrap();
-//             for cou in &results.cou_res {
-//                 energy_res.write_all(format!(",{:.3}", cou).as_bytes()).unwrap();
+//             for elec in &results.elec_res {
+//                 energy_res.write_all(format!(",{:.3}", elec).as_bytes()).unwrap();
 //             }
 //         }
 //         energy_res.write_all("\n".as_bytes()).unwrap();
