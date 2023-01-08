@@ -183,69 +183,40 @@ fn get_built_in_gmx() -> String {
         env::current_exe().unwrap().parent().unwrap().join("programs").join("gmx")
             .join("win").join("gmx.exe").to_str().unwrap().to_string()
     } else {
-        println!("Currently not supported.");
+        println!("Built-in gromacs not supported on Linux.");
         String::new()
     }
 }
 
 fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
-    let mut gmx_path: String = String::new();
-    let mut apbs_path: String = String::new();
     let mut gmx = gmx.to_string();
     if gmx == "built-in" {
         gmx = get_built_in_gmx();
     }
-    match check_program_validity(gmx.as_str()) {
+    // gromacs
+    let gmx_path = match check_program_validity(gmx.as_str()) {
         Ok(p) => {
-            gmx_path = p;
             println!("Using Gromacs: {}", gmx);
+            p
         }
         Err(_) => {
-            println!("Note: Gromacs not configured correctly: {}. Now trying default gmx.", gmx);
-            match check_program_validity("gmx") {
-                Ok(p) => {
-                    gmx_path = p;
-                    println!("Using Gromacs: gmx");
-                }
-                Err(_) => {
-                    println!("Note: default gmx invalid. Now trying built-in gmx of super_mmpbsa.");
-                    match check_program_validity(get_built_in_gmx().as_str()) {
-                        Ok(p) => {
-                            gmx_path = p;
-                            println!("Using Gromacs: {}", get_built_in_gmx().as_str());
-                        }
-                        Err(_) => {
-                            println!("Warning: no valid Gromacs program in use.");
-                        }
-                    }
-                }
-            }
+            println!("Warning: no valid Gromacs program in use.");
+            String::new()
         }
-    }
-
+    };
     // apbs
-    match check_program_validity(apbs) {
+    let apbs_path = match check_program_validity(apbs) {
         Ok(p) => {
-            apbs_path = p;
             println!("Using APBS: {}", apbs);
             fs::remove_file(Path::new("io.mc")).unwrap();
+            p
         }
         Err(_) => {
-            println!("Note: APBS not configured correctly. Now trying default apbs.");
-            match check_program_validity("apbs") {
-                Ok(p) => {
-                    apbs_path = p;
-                    println!("Using APBS: apbs");
-                    fs::remove_file(Path::new("io.mc")).unwrap();
-                }
-                Err(_) => {
-                    println!("Warning: no valid APBS program in use.");
-                }
-            }
+            println!("Warning: no valid APBS program in use.");
+            String::new()
         }
-    }
-
-    return (gmx_path, apbs_path);
+    };
+    (gmx_path, apbs_path)
 }
 
 fn check_program_validity(program: &str) -> Result<String, ()> {
