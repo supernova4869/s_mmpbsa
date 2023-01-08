@@ -74,7 +74,7 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
 
     if !settings.apbs.is_empty() {
-        println!("Preparing APBS inputs...");
+        println!("Preparing pqr files...");
         prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
                     sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
     }
@@ -356,8 +356,9 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
 
         dh[idx] = mm[idx] + pb[idx] + sa[idx];
 
-        idx += 1;
         pgb.inc(1);
+        pgb.set_message(format!("mm={:.3}, pb={:.3}, sa={:.3}", mm[idx], pb[idx], sa[idx]));
+        idx += 1;
     }
     pgb.finish();
 
