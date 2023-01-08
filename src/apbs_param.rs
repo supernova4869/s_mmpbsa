@@ -94,7 +94,7 @@ impl fmt::Display for PBESet {
         \n  {}          # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)\
         \n  bcfl  {}    # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\
         \n  srfm  {}    # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)\
-        \n  chgm  {}    # 电荷映射到格点的方法, spl0/2 / 4, 三线性插值, 立方/四次B样条离散\
+        \n  chgm  {}    # 电荷映射到格点的方法, spl0/2/4, 三线性插值, 立方/四次B样条离散\
         \n  swin  {}    # 立方样条的窗口值, 仅用于 srfm=spl2/4\
         \n  \
         \n  srad  {}    # 溶剂探测半径\
@@ -127,7 +127,7 @@ pub struct Ion {
 
 impl fmt::Display for Ion {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "charge  {} conc {} radius {}", self.charge, self.conc, self.radius)
+        write!(f, "charge {:2} conc {} radius {}", self.charge, self.conc, self.radius)
     }
 }
 
