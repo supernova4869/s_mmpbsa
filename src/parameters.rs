@@ -36,8 +36,8 @@ pub fn init_settings() -> Parameters {
         df: 0.5,
         nkernels: 4,
         preserve: true,
-        gmx: String::from("gmx"),
-        apbs: String::from("apbs"),
+        gmx: String::new(),
+        apbs: String::new(),
         last_opened: String::new(),
     };
     if Path::new("settings.ini").is_file() {
