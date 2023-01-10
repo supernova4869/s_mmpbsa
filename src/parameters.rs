@@ -84,24 +84,12 @@ fn read_user_settings(params: &mut Parameters, settings: &Value) {
         "Y" => true,
         _ => false
     };
-    let mut gmx = settings.get("gmx").unwrap().to_string();
-    gmx = gmx[1..gmx.len() - 1].to_string();
-    if gmx.len() == 0 {
-        gmx = "gmx".to_string();
-    }
-    params.gmx = gmx;
-    let mut apbs = settings.get("apbs").unwrap().to_string();
-    apbs = apbs[1..apbs.len() - 1].to_string();
-    if apbs.len() == 0 {
-        apbs = "apbs".to_string();
-    }
-    params.apbs = apbs;
-    let mut last_opened = settings.get("last_opened").unwrap().to_string();
-    last_opened = last_opened[1..last_opened.len() - 1].to_string();
-    if last_opened.len() == 0 {
-        last_opened = String::new();
-    }
-    params.last_opened = last_opened;
+    let gmx = settings.get("gmx").unwrap().to_string();
+    params.gmx = gmx[1..gmx.len() - 1].to_string();
+    let apbs = settings.get("apbs").unwrap().to_string();
+    params.apbs = apbs[1..apbs.len() - 1].to_string();
+    let last_opened = settings.get("last_opened").unwrap().to_string();
+    params.last_opened = last_opened[1..last_opened.len() - 1].to_string();
 }
 
 fn parse_param<T: FromStr>(settings: &Value, key: &str, default: T) -> T {

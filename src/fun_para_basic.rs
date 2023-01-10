@@ -12,16 +12,16 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom
 
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
-        println!(" 0 Go to next step");
-        println!(" 1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
+        println!("-10 Exit program");
+        println!("  0 Go to next step");
+        println!("  1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
             0 => "undefined",
             _ => trj.as_str()
         });
-        println!(" 2 Assign index file (ndx), current: {}", match ndx.len() {
+        println!("  2 Assign index file (ndx), current: {}", match ndx.len() {
             0 => "undefined",
             _ => ndx.as_str()
         });
-        println!(" 3 Exit program");
         let i = get_input_selection();
         match i {
             0 => {
@@ -55,7 +55,7 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom
                 ndx = convert_cur_dir(&ndx, &settings);
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx"], &settings);
             }
-            3 => break,
+            -10 => break,
             _ => println!("Error input.")
         };
     }

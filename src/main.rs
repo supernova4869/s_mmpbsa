@@ -26,7 +26,7 @@ use crate::parameters::init_settings;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut tpr = String::new();        // may also be dump file
+    let mut tpr = String::new();        // may be dump file
     let mut trj = String::from("");
     let mut ndx = String::from("");
 
