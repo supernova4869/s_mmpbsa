@@ -213,12 +213,12 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
 
     let mg_set = "mg-auto";
 
-    let xyz_set = format!("  {mg_set}\n  mol {mol_index}\
-        \n  dime   {n_x}  {n_y}  {n_z}\
-        \n  cglen  {c_x:.3}  {c_y:.3}  {c_z:.3}\
-        \n  fglen  {f_x:.3}  {f_y:.3}  {f_z:.3}\
-        \n  fgcent {x_center:.3}  {y_center:.3}  {z_center:.3}\
-        \n  cgcent {x_center:.3}  {y_center:.3}  {z_center:.3}\n");
+    let xyz_set = format!("  {mg_set}\n  mol    {mol_index:7}\
+        \n  dime   {n_x:7}  {n_y:7}  {n_z:7}\
+        \n  cglen  {c_x:7.3}  {c_y:7.3}  {c_z:7.3}\
+        \n  fglen  {f_x:7.3}  {f_y:7.3}  {f_z:7.3}\
+        \n  fgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\
+        \n  cgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\n");
 
     return format!("\nELEC name {}\n\
     {} \n\
@@ -229,10 +229,10 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
     {} \n\
     end\n\n\
     APOLAR name {}_SAS\n  \
-    mol {}\n{}\n\
+    mol    {:7}\n{}\n\
     end\n\n\
     print elecEnergy {} - {}_VAC end\n\
     print apolEnergy {}_SAS end\n\n", file, xyz_set, pbe_set.to_string(), file,
-                   xyz_set, pbe_set0.to_string(), file, mol_index, pba_set.to_string(),
-                   file, file, file);
+                   xyz_set, pbe_set0.to_string(), file, mol_index,
+                   pba_set.to_string(), file, file, file);
 }
