@@ -50,12 +50,12 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     let ndx_com = match ndx_lig[0] > ndx_rec[0] {
         true => {
             let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.append(&mut ndx_lig.to_vec());
+            ndx_com.extend(ndx_lig);
             ndx_com
         }
         false => {
             let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.append(&mut ndx_rec.to_vec());
+            ndx_com.extend(ndx_rec);
             ndx_com
         }
     };
@@ -102,12 +102,12 @@ fn normalize_index(ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usi
     let ndx_com = match ndx_lig[0] > ndx_rec[0] {
         true => {
             let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.append(&mut ndx_lig.to_vec());
+            ndx_com.extend(&ndx_lig);
             ndx_com
         }
         false => {
             let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.append(&mut ndx_rec.to_vec());
+            ndx_com.extend(&ndx_rec);
             ndx_com
         }
     };
