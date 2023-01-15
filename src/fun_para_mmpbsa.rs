@@ -1,17 +1,38 @@
 use std::io::stdin;
 use std::path::Path;
-use crate::{get_input_selection, index_parser, parameters::Parameters};
+use crate::index_parser::Index;
+use crate::{get_input_selection, parameters::Parameters};
 use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_radius::{Radius, RADIUS_TABLE};
+use std::io::Write;
+use std::fs::{File, self};
+use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
-                       receptor_grp: usize,
-                       ligand_grp: usize,
+pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
+                       receptor_grp: usize, ligand_grp: usize,
                        bt: f64, et: f64, dt: f64,
-                       atom_radius: &Radius,
-                       settings: &mut Parameters) {
+                       atom_radius: &Radius, settings: &mut Parameters) {
+    // atom indexes
+    let ndx_rec = &ndx.groups[receptor_grp].indexes;
+    let ndx_lig = &ndx.groups[ligand_grp].indexes;
+    let ndx_com = match ndx_lig[0] > ndx_rec[0] {
+        true => {
+            let mut ndx_com = ndx_rec.to_vec();
+            ndx_com.extend(ndx_lig);
+            ndx_com
+        }
+        false => {
+            let mut ndx_com = ndx_lig.to_vec();
+            ndx_com.extend(ndx_rec);
+            ndx_com
+        }
+    };
+    
+    // atom properties
+    let aps = AtomProperty::new(tpr, &ndx_com);
+
     // save a copy of default force field atom type
     let atom_radius_ff = atom_radius.clone();
     tpr.apply_radius(settings.rad_type, &atom_radius.radii, settings);
@@ -20,6 +41,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
+        println!(" -1 Output parameters");
         println!("  0 Start MM/PB-SA calculation");
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
@@ -33,7 +55,38 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
         let i = get_input_selection();
         match i {
             -10 => return,
+            -1 => {
+                let mut paras = File::create(wd.join("paras.txt")).unwrap();
+                paras.write_all(format!("Receptor group: {}\n", 
+                    ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
+                paras.write_all(format!("Ligand group: {}\n", 
+                    ndx.groups[ligand_grp as usize].name).as_bytes()).unwrap();
+                paras.write_all(format!("Atom types num: {}\n", tpr.atom_types_num).as_bytes()).unwrap();
+                paras.write_all("c6:\n".as_bytes()).unwrap();
+                for i in 0..aps.c6.shape()[0] {
+                    for j in 0..aps.c6.shape()[1] {
+                        paras.write_all(format!("{:13.6E} ", aps.c6[[i, j]]).as_bytes()).unwrap();
+                    }
+                    paras.write_all("\n".as_bytes()).unwrap();
+                }
+                paras.write_all("c12:\n".as_bytes()).unwrap();
+                for i in 0..aps.c12.shape()[0] {
+                    for j in 0..aps.c12.shape()[1] {
+                        paras.write_all(format!("{:13.6E} ", aps.c12[[i, j]]).as_bytes()).unwrap();
+                    }
+                    paras.write_all("\n".as_bytes()).unwrap();
+                }
+                paras.write_all(format!("\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
+                for &atom in &ndx_com {
+                    paras.write_all(format!("{:7}{:>7}{:7}{:13.6E}{:13.6E}{:9.2}{:9.2}{:9}{:>9}\n", 
+                    aps.atm_index[atom] + 1, aps.atm_name[atom], aps.atm_typeindex[atom], aps.atm_sigma[atom], 
+                    aps.atm_epsilon[atom], aps.atm_charge[atom], aps.atm_radius[atom], aps.atm_resnum[atom] + 1, 
+                    aps.atm_resname[atom]).as_bytes()).unwrap();
+                }
+                println!("Parameters have been written to paras.txt");
+            }
             0 => {
+                // Temp directory for PBSA
                 let mut sys_name = String::from("_system");
                 println!("Input system name (default: {}):", sys_name);
                 let mut input = String::new();
@@ -41,11 +94,25 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path,
                 if input.trim().len() != 0 {
                     sys_name = input.trim().to_string();
                 }
-                // 定义results形式, 其中应包含所需的全部数据
-                let ndx = index_parser::Index::new(ndx);
-                let results = mmpbsa::fun_mmpbsa_calculations(trj, tpr, &ndx, wd, &sys_name,
-                                                              receptor_grp as usize,
-                                                              ligand_grp as usize,
+                let temp_dir = wd.join(&sys_name);
+                if !settings.apbs.is_empty() {
+                    println!("Temporary files will be placed at {}/", temp_dir.display());
+                    if !temp_dir.is_dir() {
+                        fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
+                    } else {
+                        println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
+                        let mut input = String::from("");
+                        stdin().read_line(&mut input).expect("Get input error");
+                        if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
+                            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+                            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
+                        }
+                    }
+                } else {
+                    println!("Warning: APBS not found. Will not calculate solvation energy.");
+                };
+                let results = mmpbsa::fun_mmpbsa_calculations(trj, tpr, &temp_dir, &sys_name,
+                                                              &aps, &ndx_com, &ndx_rec, &ndx_lig,
                                                               bt, et, dt,
                                                               &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd);

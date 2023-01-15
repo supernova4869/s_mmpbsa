@@ -119,13 +119,12 @@ fn welcome() {
         Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
         Version 0.1, first release: 2022-Oct-17\n\
-        Current time: {}\n\n\
-        Usage 1: run `super_mmpbsa` and follow the prompts.\n\
+        Current time: {}\n", Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
+    println!("Usage 1: run `super_mmpbsa` and follow the prompts.\n\
         Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
         Usage 3: run `super_mmpbsa WangBingBing.dump` to directly load dumped tpr file.\n\
         Usage 4: run `super_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
-        Usage 5: run `super_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n",
-             Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
+        Usage 5: run `super_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n");
 }
 
 pub fn get_input_selection<T: FromStr>() -> T {

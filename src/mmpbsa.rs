@@ -1,12 +1,11 @@
 use std::cmp::Ordering;
 use std::fs;
-use std::path::{Path, PathBuf};
-use crate::index_parser::Index;
+use std::path::PathBuf;
 use xdrfile::*;
 use crate::parameters::Parameters;
 use ndarray::{Array1, Array2, Array3, s};
 use std::fs::File;
-use std::io::{stdin, Write};
+use std::io::Write;
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -16,52 +15,15 @@ use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
-                               sys_name: &String, receptor_grp: usize, ligand_grp: usize,
+pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
+                               sys_name: &String, aps: &AtomProperty,
+                               ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                                bt: f64, et: f64, dt: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
                                -> Results {
-    // Temp directory for PBSA
-    let temp_dir = wd.join(sys_name);
-    if !settings.apbs.is_empty() {
-        println!("Temporary files will be placed at {}/", temp_dir.display());
-        if !temp_dir.is_dir() {
-            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
-        } else {
-            println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
-            let mut input = String::from("");
-            stdin().read_line(&mut input).expect("Get input error");
-            if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
-                fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-                fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
-            }
-        }
-    } else {
-        println!("Warning: APBS not found. Will not calculate solvation energy.");
-    };
-
     // run MM/PB-SA calculations
     println!("Running MM/PB-SA calculations...");
     println!("Preparing parameters...");
-
-    // atom indexes
-    let ndx_rec = &ndx.groups[receptor_grp].indexes;
-    let ndx_lig = &ndx.groups[ligand_grp].indexes;
-    let ndx_com = match ndx_lig[0] > ndx_rec[0] {
-        true => {
-            let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.extend(ndx_lig);
-            ndx_com
-        }
-        false => {
-            let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.extend(ndx_rec);
-            ndx_com
-        }
-    };
-
-    // atom properties
-    let aps = AtomProperty::new(tpr, &ndx_com);
 
     // pre-treat trajectory: fix pbc
     println!("Reading trajectory file...");
@@ -76,15 +38,15 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, ndx: &Index, wd: &Path,
     if !settings.apbs.is_empty() {
         println!("Preparing pqr files...");
         prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
-                    sys_name, &coordinates, &ndx_com, &ndx_rec, &ndx_lig, &aps);
+                    sys_name, &coordinates, ndx_com, ndx_rec, ndx_lig, aps);
     }
 
     // must appear here because the tpr and xtc need origin indexes
-    let (ndx_com, ndx_rec, ndx_lig) = normalize_index(&ndx_com, ndx_rec, ndx_lig);
+    let (ndx_com, ndx_rec, ndx_lig) = normalize_index(ndx_com, ndx_rec, ndx_lig);
 
     // calculate MM and PBSA
     println!("Start MM/PB-SA calculations...");
-    let results = calculate_mmpbsa(tpr, &frames, &coordinates, bf, ef, dframe, total_frames, &aps,
+    let results = calculate_mmpbsa(tpr, &frames, &coordinates, bf, ef, dframe, total_frames, aps,
                                    &temp_dir, &ndx_com, &ndx_rec, &ndx_lig, sys_name, pbe_set, pba_set, settings);
     println!("MM/PB-SA calculation finished.");
     results

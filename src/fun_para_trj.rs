@@ -12,13 +12,13 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
     let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
     let mut dt: f64 = tpr.dt * tpr.nstxout as f64;          // ps
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
-    let index = Index::new(ndx);
+    let ndx = Index::new(ndx);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
         println!("-10 Return");
         println!("  0 Go to next step");
-        println!("  1 Select receptor groups, current:          {}", show_grp(receptor_grp, &index));
-        println!("  2 Select ligand groups, current:            {}", show_grp(ligand_grp, &index));
+        println!("  1 Select receptor groups, current:          {}", show_grp(receptor_grp, &ndx));
+        println!("  2 Select ligand groups, current:            {}", show_grp(ligand_grp, &ndx));
         println!("  3 Set start time of analysis, current:      {} ns", bt / 1000.0);
         println!("  4 Set end time of analysis, current:        {} ns", et / 1000.0);
         println!("  5 Set time interval of analysis, current:   {} ns", dt / 1000.0);
@@ -26,7 +26,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
         match i {
             -10 => return,
             0 => {
-                set_para_mmpbsa(trj, tpr, ndx, wd,
+                set_para_mmpbsa(trj, tpr, &ndx, wd,
                                 receptor_grp as usize,
                                 ligand_grp as usize,
                                 bt, et, dt, atom_radius,
@@ -34,13 +34,13 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
             }
             1 => {
                 println!("Current groups:");
-                index.list_groups();
+                ndx.list_groups();
                 println!("Input receptor group num:");
                 receptor_grp = get_input_selection();
             }
             2 => {
                 println!("Current groups:");
-                index.list_groups();
+                ndx.list_groups();
                 println!("Input ligand group num:");
                 ligand_grp = get_input_selection();
             }
