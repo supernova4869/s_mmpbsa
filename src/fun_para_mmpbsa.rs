@@ -76,7 +76,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     }
                     paras.write_all("\n".as_bytes()).unwrap();
                 }
-                paras.write_all(format!("\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
+                paras.write_all(format!("Atoms:\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
                 for &atom in &ndx_com {
                     paras.write_all(format!("{:7}{:>7}{:7}{:13.6E}{:13.6E}{:9.2}{:9.2}{:9}{:>9}\n", 
                     aps.atm_index[atom] + 1, aps.atm_name[atom], aps.atm_typeindex[atom], aps.atm_sigma[atom], 
