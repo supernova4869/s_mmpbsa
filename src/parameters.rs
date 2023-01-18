@@ -54,7 +54,7 @@ pub fn init_settings() -> Parameters {
             let settings = fs::read_to_string(super_mmpbsa_path).unwrap();
             let settings = Regex::new(r"\\").unwrap()
                 .replace_all(settings.as_str(), "/").to_string();
-            let settings: Value = toml::from_str(settings.as_str()).unwrap();
+            let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini format.");
             read_user_settings(&mut params, &settings);
             println!("Note: found settings.ini in super_mmpbsa directory. Will use {} kernels.", params.nkernels);
         } else {

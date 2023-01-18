@@ -77,8 +77,10 @@ fn main() {
     settings.last_opened = tpr.to_string();
 
     // working directory (path of tpr location)
-    let wd = Path::new(&tpr).parent().unwrap();
-    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr)).unwrap().as_path().parent().unwrap().display());
+    let wd = Path::new(&tpr).parent().expect("Cannot get tpr path.");
+    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr))
+        .expect("Cannot convert to absolute path.").as_path().parent()
+        .expect("Cannot get absolute tpr path.").display());
     // get mdp or dump tpr
     let tpr = match tpr.ends_with(".tpr") {
         true => {
@@ -163,7 +165,9 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
             continue;
         }
         // check extension
-        let file_ext = Path::new(&f_name).extension().unwrap().to_str().unwrap();
+        let file_ext = Path::new(&f_name).extension()
+            .expect("No extension.")
+            .to_str().expect("Extension not valid Unicode.");
         for i in 0..ext_list.len() {
             if file_ext != ext_list[i] {
                 continue;
@@ -179,8 +183,12 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
 
 fn get_built_in_gmx() -> String {
     if cfg!(windows) {
-        env::current_exe().unwrap().parent().unwrap().join("programs").join("gmx")
-            .join("win").join("gmx.exe").to_str().unwrap().to_string()
+        env::current_exe().expect("Cannot get current super_mmpbsa program path.")
+            .parent()
+            .expect("Cannot get current super_mmpbsa program directory.")
+            .join("programs").join("gmx")
+            .join("win").join("gmx.exe").to_str()
+            .expect("The built-in gromacs not found.").to_string()
     } else {
         println!("Built-in gromacs not supported on Linux.");
         String::new()
@@ -217,7 +225,7 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
                 }
             } else {
                 println!("Warning: no valid Gromacs program in use.");
-                        String::new()
+                String::new()
             }
         }
     };
@@ -225,8 +233,13 @@ fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
     let apbs_path = match check_program_validity(apbs) {
         Ok(p) => {
             println!("Using APBS: {}", apbs);
-            fs::remove_file(Path::new("io.mc")).unwrap();
-            p
+            match fs::remove_file(Path::new("io.mc")) {
+                Ok(_) => p,
+                Err(_) => {
+                    println!("io.mc not exist.");
+                    p
+                }
+            }
         }
         Err(_) => {
             println!("Warning: no valid APBS program in use.");
@@ -254,7 +267,10 @@ pub fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
     if p.starts_with('?') {
         let last_opened = &settings.last_opened;
         if last_opened.len() != 0 {
-            Path::new(last_opened).parent().unwrap().join(p[1..].to_string()).to_str().unwrap().to_string()
+            Path::new(last_opened).parent()
+                .expect("Cannot get path of last-opened file.")
+                .join(p[1..].to_string()).to_str()
+                .expect("Path of last-opened file not valid unicode.").to_string()
         } else {
             p.to_string()
         }
@@ -265,22 +281,28 @@ pub fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
 
 fn change_settings_last_opened(tpr_mdp: &String) {
     // change settings.ini last opened file
-    let settings_file = env::current_exe().unwrap().parent().unwrap().join("settings.ini");
+    let settings_file = env::current_exe()
+        .expect("Cannot get current super_mmpbsa program path.")
+        .parent().expect("Cannot get current super_mmpbsa program directory.")
+        .join("settings.ini");
     if settings_file.is_file() {
-        let settings = fs::read_to_string(&settings_file).unwrap();
+        let settings = fs::read_to_string(&settings_file)
+            .expect("Cannot read settings.ini.");
         let re = Regex::new("last_opened.*\".*\"").unwrap();
-        let last_opened = fs::canonicalize(Path::new(&tpr_mdp)).unwrap().display().to_string();
-        let settings = re.replace(settings.as_str(), format!("last_opened = \"{}\"",
-                                                             &last_opened));
-        let mut settings_file = File::create(settings_file).unwrap();
-        settings_file.write_all(settings.as_bytes()).unwrap();
+        let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
+            .expect("Cannot convert to absolute path.").display().to_string();
+        let settings = re.replace(settings.as_str(),
+            format!("last_opened = \"{}\"", &last_opened));
+        let mut settings_file = File::create(settings_file)
+            .expect("Cannot edit settings.ini.");
+        settings_file.write_all(settings.as_bytes()).expect("Cannot edit settings.ini.");
     }
 }
 
 fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
     let tpr_dump = Command::new(gmx).arg("dump").arg("-s").arg(tpr).output().expect("gmx dump failed.");
     let tpr_dump = String::from_utf8(tpr_dump.stdout).expect("Getting dump output failed.");
-    let mut outfile = fs::File::create(dump_to).unwrap();
-    outfile.write(tpr_dump.as_bytes()).unwrap();
-    println!("Dumped tpr file to {}", fs::canonicalize(dump_to).unwrap().display());
+    let mut outfile = fs::File::create(dump_to).expect("Cannot create md.dump.");
+    outfile.write(tpr_dump.as_bytes()).expect("Cannot write md.dump.");
+    println!("Dumped tpr file to {}", dump_to);
 }
