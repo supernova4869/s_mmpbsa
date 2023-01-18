@@ -33,7 +33,7 @@ fn main() {
     welcome();
     // initialize parameters
     let mut settings = init_settings();
-    let programs = check_basic_programs(settings.gmx.as_str(), settings.apbs.as_str());
+    let programs = check_basic_programs(settings.gmx, settings.apbs);
     settings.gmx = programs.0;
     settings.apbs = programs.1;
 
@@ -86,7 +86,9 @@ fn main() {
         true => {
             println!("Found tpr file: {}", tpr);
             let p = tpr[..tpr.len() - 4].to_string() + ".dump";
-            dump_tpr(&tpr, &p, settings.gmx.as_str());
+            let gmx = settings.gmx.as_ref()
+                .expect("Gromacs not configured correctly.").as_str();
+            dump_tpr(&tpr, &p, gmx);
             p
         }
         false => {
@@ -181,70 +183,90 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
     }
 }
 
-fn get_built_in_gmx() -> String {
+fn get_built_in_gmx() -> Option<String> {
     if cfg!(windows) {
-        env::current_exe().expect("Cannot get current super_mmpbsa program path.")
+        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
             .parent()
             .expect("Cannot get current super_mmpbsa program directory.")
             .join("programs").join("gmx")
             .join("win").join("gmx.exe").to_str()
-            .expect("The built-in gromacs not found.").to_string()
+            .expect("The built-in gromacs not found.").to_string())
     } else {
         println!("Built-in gromacs not supported on Linux.");
-        String::new()
+        None
     }
 }
 
-fn check_basic_programs(gmx: &str, apbs: &str) -> (String, String) {
-    let gmx = match gmx {
-        "built-in" => {
-            get_built_in_gmx()
+fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<String>, Option<String>) {
+    // gromacs
+    let gmx_path = match gmx {
+        Some(gmx) => {
+            let gmx = match gmx.as_str() {
+                "built-in" => {
+                    get_built_in_gmx()
+                }
+                _ => Some(gmx)
+            };
+            match gmx {
+                Some(gmx) => {
+                    match check_program_validity(gmx.as_str()) {
+                        Ok(p) => {
+                            println!("Using Gromacs: {}", gmx);
+                            Some(p)
+                        }
+                        Err(_) => {
+                            println!("Note: {} not valid. Will try built-in gmx.", gmx);
+                            match get_built_in_gmx() {
+                                Some(gmx) => {
+                                    match check_program_validity(gmx.as_str()) {
+                                        Ok(p) => {
+                                            println!("Using Gromacs: {}", gmx);
+                                            Some(p)
+                                        }
+                                        Err(_) => {
+                                            println!("Warning: no valid Gromacs program in use.");
+                                            None
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    println!("Warning: no valid Gromacs program in use.");
+                                    None
+                                }
+                            }
+                        }
+                    }
+                }
+                None => None
+            }
         }
         _ => {
-            gmx.to_string()
+            println!("Warning: no valid Gromacs program in use.");
+            None
         }
     };
-    // gromacs
-    let gmx_path = match check_program_validity(gmx.as_str()) {
-        Ok(p) => {
-            println!("Using Gromacs: {}", gmx);
-            p
-        }
-        Err(_) => {
-            if cfg!(windows) {
-                println!("Note: {} not valid. Will try built-in gmx.", gmx);
-                match check_program_validity(get_built_in_gmx().as_str()) {
-                    Ok(p) => {
-                        println!("Using Gromacs: {}", gmx);
-                        p
-                    }
-                    Err(_) => {
-                        println!("Warning: no valid Gromacs program in use.");
-                        String::new()
-                    }
-                }
-            } else {
-                println!("Warning: no valid Gromacs program in use.");
-                String::new()
-            }
-        }
-    };
+    
     // apbs
-    let apbs_path = match check_program_validity(apbs) {
-        Ok(p) => {
-            println!("Using APBS: {}", apbs);
-            match fs::remove_file(Path::new("io.mc")) {
-                Ok(_) => p,
+    let apbs_path = match apbs {
+        Some(apbs) => {
+            match check_program_validity(apbs.as_str()) {
+                Ok(p) => {
+                    println!("Using APBS: {}", apbs);
+                    match fs::remove_file(Path::new("io.mc")) {
+                        Ok(_) => Some(p),
+                        Err(_) => {
+                            println!("io.mc not exist.");
+                            Some(p)
+                        }
+                    }
+                }
                 Err(_) => {
-                    println!("io.mc not exist.");
-                    p
+                    println!("Warning: no valid APBS program in use.");
+                    None
                 }
             }
         }
-        Err(_) => {
-            println!("Warning: no valid APBS program in use.");
-            String::new()
-        }
+        None => None
     };
     (gmx_path, apbs_path)
 }

@@ -35,7 +35,7 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
 
     let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
 
-    if !settings.apbs.is_empty() {
+    if let Some(_) = settings.apbs.as_ref() {
         println!("Preparing pqr files...");
         prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
                     sys_name, &coordinates, ndx_com, ndx_rec, ndx_lig, aps);
@@ -200,13 +200,13 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
 
         // PBSA
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        if !settings.apbs.is_empty() {
+        if let Some(apbs) = &settings.apbs {
             write_apbs_input(ndx_rec, ndx_lig, &coord, &aps.atm_radius,
                     pbe_set, pba_set, temp_dir, &f_name, settings);
             // invoke apbs program to do apbs calculations
             let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
                 expect("Failed to create apbs out file");
-            let apbs_result = Command::new(&settings.apbs).
+            let apbs_result = Command::new(apbs).
                 arg(format!("{}.apbs", f_name)).
                 current_dir(&temp_dir).output().expect("running apbs failed.");
             let apbs_output = String::from_utf8(apbs_result.stdout).

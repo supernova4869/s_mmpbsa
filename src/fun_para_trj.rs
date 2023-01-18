@@ -6,8 +6,8 @@ use crate::index_parser::Index;
 use crate::parse_tpr::TPR;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_radius: &Radius, settings: &mut Parameters) {
-    let mut receptor_grp: i32 = -1;
-    let mut ligand_grp: i32 = -1;
+    let mut receptor_grp: Option<usize> = None;
+    let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
     let mut dt: f64 = tpr.dt * tpr.nstxout as f64;          // ps
@@ -26,23 +26,33 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
         match i {
             -10 => return,
             0 => {
-                set_para_mmpbsa(trj, tpr, &ndx, wd,
-                                receptor_grp as usize,
-                                ligand_grp as usize,
-                                bt, et, dt, atom_radius,
-                                settings);
+                match receptor_grp {
+                    Some(receptor_grp) => {
+                        match ligand_grp {
+                            Some(ligand_grp) => {
+                                set_para_mmpbsa(trj, tpr, &ndx, wd,
+                                    receptor_grp,
+                                    ligand_grp,
+                                    bt, et, dt, atom_radius,
+                                    settings);
+                            }
+                            _ => println!("Please select receptor and ligand groups.")
+                        }
+                    }
+                    _ => println!("Please select receptor and ligand groups.")
+                }
             }
             1 => {
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input receptor group num:");
-                receptor_grp = get_input_selection();
+                receptor_grp = Some(get_input_selection());
             }
             2 => {
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input ligand group num:");
-                ligand_grp = get_input_selection();
+                ligand_grp = Some(get_input_selection());
             }
             3 => {
                 println!("Input start time (ns), should be divisible of {} ps:", dt);
@@ -79,12 +89,12 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
     }
 }
 
-fn show_grp(grp: i32, ndx: &Index) -> String {
+fn show_grp(grp: Option<usize>, ndx: &Index) -> String {
     match grp {
-        -1 => String::from("undefined"),
-        _ => format!("{}): {}, {} atoms",
-                     grp,
-                     ndx.groups[grp as usize].name,
-                     ndx.groups[grp as usize].indexes.len())
+        None => String::from("undefined"),
+        Some(grp) => format!("{}): {}, {} atoms",
+                    grp,
+                    ndx.groups[grp as usize].name,
+                    ndx.groups[grp as usize].indexes.len())
     }
 }

@@ -17,8 +17,8 @@ pub struct Parameters {
     pub df: f64,
     pub nkernels: i32,
     pub preserve: bool,
-    pub gmx: String,
-    pub apbs: String,
+    pub gmx: Option<String>,
+    pub apbs: Option<String>,
     pub last_opened: String,
 }
 
@@ -36,8 +36,8 @@ pub fn init_settings() -> Parameters {
         df: 0.5,
         nkernels: 4,
         preserve: true,
-        gmx: String::new(),
-        apbs: String::new(),
+        gmx: None,
+        apbs: None,
         last_opened: String::new(),
     };
     if Path::new("settings.ini").is_file() {
@@ -85,9 +85,9 @@ fn read_user_settings(params: &mut Parameters, settings: &Value) {
         _ => false
     };
     let gmx = settings.get("gmx").unwrap().to_string();
-    params.gmx = gmx[1..gmx.len() - 1].to_string();
+    params.gmx = Some(gmx[1..gmx.len() - 1].to_string());
     let apbs = settings.get("apbs").unwrap().to_string();
-    params.apbs = apbs[1..apbs.len() - 1].to_string();
+    params.apbs = Some(apbs[1..apbs.len() - 1].to_string());
     let last_opened = settings.get("last_opened").unwrap().to_string();
     params.last_opened = last_opened[1..last_opened.len() - 1].to_string();
 }

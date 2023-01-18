@@ -95,7 +95,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     sys_name = input.trim().to_string();
                 }
                 let temp_dir = wd.join(&sys_name);
-                if !settings.apbs.is_empty() {
+                if let Some(_) = settings.apbs.as_ref() {
                     println!("Temporary files will be placed at {}/", temp_dir.display());
                     if !temp_dir.is_dir() {
                         fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
