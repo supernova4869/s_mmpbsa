@@ -39,6 +39,7 @@ impl AtomProperty {
 
         let mut idx = 0;
         let mut idx_com = 0;
+        let mut resind_offset = 0;      // previous residues
         for mol in &tpr.molecules {
             for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                 for atom in &mol.atoms {
@@ -51,11 +52,12 @@ impl AtomProperty {
                         atm_index[idx_com] = atom.id;
                         atm_name[idx_com] = atom.name.to_string();
                         atm_resname[idx_com] = mol.residues[atom.residue_index].name.to_string();
-                        atm_resnum[idx_com] = atom.residue_index;
+                        atm_resnum[idx_com] = atom.residue_index + resind_offset;
                         idx_com += 1;
                     }
                     idx += 1;
                 }
+                resind_offset += mol.residues.len();
             }
         }
         AtomProperty {

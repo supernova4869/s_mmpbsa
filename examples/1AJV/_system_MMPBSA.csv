@@ -1,0 +1,12 @@
+Energy Term,value,info
+ΔH,-406.052,ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)
+ΔMM,-406.052,ΔMM=Δelec+ΔvdW (kJ/mol)
+ΔPB,0.000,(kJ/mol)
+ΔSA,0.000,(kJ/mol)
+
+Δelec,-102.485,(kJ/mol)
+ΔvdW,-303.567,(kJ/mol)
+
+TΔS,-8.163,(kJ/mol)
+ΔG,-397.889,ΔG=ΔH-TΔS (kJ/mol)
+Ki,1.963e-70,Ki=exp(ΔG/RT)

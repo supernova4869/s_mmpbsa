@@ -1,18 +1,17 @@
-md_protein_lig.tpr
+md.tpr
 1
-md_dt200.xtc
+
 2
 
 0
 1
-23
+1
 2
-4
+2
 5
 1
 0
 0
-
 
 1
 
