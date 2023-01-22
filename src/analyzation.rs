@@ -2,7 +2,6 @@ use std::fs;
 use std::io::{stdin, Write};
 use std::path::Path;
 use ndarray::Array1;
-use crate::atom_property::AtomProperty;
 use crate::get_input_selection;
 use crate::mmpbsa::get_residues;
 use crate::parse_tpr::TPR;
