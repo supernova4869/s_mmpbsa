@@ -321,7 +321,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         dh[idx] = mm[idx] + pb[idx] + sa[idx];
 
         pgb.inc(1);
-        pgb.set_message(format!("mm={:.3}, pb={:.3}, sa={:.3}", mm[idx], pb[idx], sa[idx]));
+        pgb.set_message(format!("mm={:.3}, pb={:.3}, sa={:.3} (kJ/mol)", mm[idx], pb[idx], sa[idx]));
         idx += 1;
     }
     pgb.finish();
