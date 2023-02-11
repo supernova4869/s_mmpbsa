@@ -143,16 +143,10 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
 
     let residues = get_residues(tpr, ndx_com);
 
-    let mut elec: Array1<f64> = Array1::zeros(total_frames);
-    let mut vdw: Array1<f64> = Array1::zeros(total_frames);
-    let mut mm: Array1<f64> = Array1::zeros(total_frames);
-    let mut pb: Array1<f64> = Array1::zeros(total_frames);
-    let mut sa: Array1<f64> = Array1::zeros(total_frames);
-    let mut dh: Array1<f64> = Array1::zeros(total_frames);
-    let mut elec_res: Array1<f64> = Array1::zeros(residues.len());
-    let mut vdw_res: Array1<f64> = Array1::zeros(residues.len());
-    let mut pb_res: Array1<f64> = Array1::zeros(residues.len());
-    let mut sa_res: Array1<f64> = Array1::zeros(residues.len());
+    let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
+    let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
+    let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
+    let mut sa_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
 
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
@@ -192,13 +186,9 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         for i in 0..residues.len() {
             de_elec[i] *= kj_elec / (2.0 * pbe_set.pdie);
             de_vdw[i] /= 2.0;
+            elec_res[[idx, i]] += de_elec[i];
+            vdw_res[[idx, i]] += de_vdw[i];
         }
-        elec[idx] = de_elec.sum();
-        vdw[idx] = de_vdw.sum();
-        mm[idx] = elec[idx] + vdw[idx];
-
-        elec_res += &de_elec;
-        vdw_res += &de_vdw;
 
         // PBSA
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
@@ -217,9 +207,6 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
 
             // parse output
             let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
-
-            let mut dpb_res: Array1<f64> = Array1::zeros(residues.len());
-            let mut dsa_res: Array1<f64> = Array1::zeros(residues.len());
 
             let mut e_com: Array2<f64> = Array2::zeros((3, ndx_rec_norm.len() + ndx_lig_norm.len()));
             let mut e_rec: Array2<f64> = Array2::zeros((3, ndx_rec_norm.len()));
@@ -286,13 +273,6 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
             f(&mut e_rec, ndx_rec_norm.len());
             f(&mut e_lig, ndx_lig_norm.len());
 
-            let pb_com: f64 = e_com.slice(s![0, ..]).iter().sum();
-            let sa_com: f64 = e_com.slice(s![2, ..]).iter().sum();
-            let pb_rec: f64 = e_rec.slice(s![0, ..]).iter().sum();
-            let sa_rec: f64 = e_rec.slice(s![2, ..]).iter().sum();
-            let pb_lig: f64 = e_lig.slice(s![0, ..]).iter().sum();
-            let sa_lig: f64 = e_lig.slice(s![2, ..]).iter().sum();
-
             // residue decomposition
             let offset_rec = match ndx_lig_norm[0] < ndx_rec_norm[0] {
                 true => 0,
@@ -304,35 +284,20 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
             };
             for &i in ndx_com_norm {
                 if ndx_rec_norm.contains(&i) {
-                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_rec[[0, i - offset_lig]];
-                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_rec[[2, i - offset_lig]];
+                    pb_res[[idx, aps.atm_resnum[i]]] += e_com[[0, i]] - e_rec[[0, i - offset_lig]];
+                    sa_res[[idx, aps.atm_resnum[i]]] += e_com[[2, i]] - e_rec[[2, i - offset_lig]];
                 } else {
-                    dpb_res[aps.atm_resnum[i]] += e_com[[0, i]] - e_lig[[0, i - offset_rec]];
-                    dsa_res[aps.atm_resnum[i]] += e_com[[2, i]] - e_lig[[2, i - offset_rec]];
+                    pb_res[[idx, aps.atm_resnum[i]]] += e_com[[0, i]] - e_lig[[0, i - offset_rec]];
+                    sa_res[[idx, aps.atm_resnum[i]]] += e_com[[2, i]] - e_lig[[2, i - offset_rec]];
                 }
             }
-
-            pb[idx] = pb_com - pb_rec - pb_lig;
-            sa[idx] = sa_com - sa_rec - sa_lig;
-            pb_res += &dpb_res;
-            sa_res += &dsa_res;
         }
 
-        dh[idx] = mm[idx] + pb[idx] + sa[idx];
-
         pgb.inc(1);
-        pgb.set_message(format!("mm={:.3}, pb={:.3}, sa={:.3}", mm[idx], pb[idx], sa[idx]));
+        pgb.set_message(format!("Left time: {}s", pgb.eta().as_secs()));
         idx += 1;
     }
     pgb.finish();
-
-    // residue time average
-    elec_res /= total_frames as f64;
-    vdw_res /= total_frames as f64;
-    pb_res /= total_frames as f64;
-    sa_res /= total_frames as f64;
-    let mm_res = &elec_res + &vdw_res;
-    let dh_res = &mm_res + &pb_res + &sa_res;
 
     // Time list of trajectory
     let times: Array1<f64> = (bf..=ef).step_by(dframe)
@@ -342,18 +307,10 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         tpr,
         times,
         ndx_com,
-        mm,
-        pb,
-        sa,
-        elec,
-        vdw,
-        dh,
-        dh_res,
-        mm_res,
         elec_res,
         vdw_res,
         pb_res,
-        sa_res,
+        sa_res
     )
 }
 
