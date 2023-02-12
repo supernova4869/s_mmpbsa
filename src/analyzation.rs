@@ -111,7 +111,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
                 analyze_traj(results, wd, sys_name);
             }
             3 => {
-                analyze_summary_res(results, wd, sys_name);
+                analyze_res_avg(results, wd, sys_name);
             }
             4 => {
                 analyze_dh_res_traj(results, wd, sys_name);
@@ -190,8 +190,8 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
     println!("Binding energy terms have been writen to {}", &f_name);
 }
 
-fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = format!("{}_MMPBSA_res_summary.csv", sys_name);
+fn analyze_res_avg(results: &Results, wd: &Path, sys_name: &String) {
+    let f_name = format!("{}_MMPBSA_res_average.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
     energy_res.write_all("Energy term (kJ/mol)".as_bytes()).unwrap();
