@@ -233,7 +233,7 @@ fn analyze_summary_res(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn analyze_dh_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = format!("{}_res_dH.csv", sys_name);
+    let f_name = format!("{}_res_ΔH.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
@@ -251,7 +251,7 @@ fn analyze_dh_res_traj(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn analyze_mm_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = format!("{}_res_MM.csv", sys_name);
+    let f_name = format!("{}_res_ΔMM.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
@@ -269,7 +269,7 @@ fn analyze_mm_res_traj(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn analyze_pb_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = format!("{}_res_PB.csv", sys_name);
+    let f_name = format!("{}_res_ΔPB.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
@@ -287,7 +287,7 @@ fn analyze_pb_res_traj(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn analyze_sa_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = format!("{}_res_SA.csv", sys_name);
+    let f_name = format!("{}_res_ΔSA.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
@@ -305,7 +305,7 @@ fn analyze_sa_res_traj(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn analyze_elec_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = format!("{}_res_elec.csv", sys_name);
+    let f_name = format!("{}_res_Δelec.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
@@ -323,7 +323,7 @@ fn analyze_elec_res_traj(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn analyze_vdw_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = format!("{}_res_vdW.csv", sys_name);
+    let f_name = format!("{}_res_ΔvdW.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
