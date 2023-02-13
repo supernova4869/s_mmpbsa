@@ -9,6 +9,7 @@ use std::io::Write;
 use std::process::Command;
 use std::rc::Rc;
 use indicatif::{ProgressBar, ProgressStyle};
+use chrono::{Local, Duration};
 use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
@@ -294,7 +295,9 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         }
 
         pgb.inc(1);
-        pgb.set_message(format!("Left time: {}s", pgb.eta().as_secs()));
+        pgb.set_message(format!("Will finish at {}", 
+            Local::now().checked_add_signed(Duration::seconds(pgb.eta().as_secs() as i64))
+            .expect("Failed to get finifh time").format("%Y-%m-%d %H:%M:%S").to_string()));
         idx += 1;
     }
     pgb.finish();

@@ -19,7 +19,7 @@ use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
 use regex::Regex;
-use chrono::prelude::Local;
+use chrono::Local;
 use crate::parse_tpr::TPR;
 use parameters::Parameters;
 use crate::parameters::init_settings;
