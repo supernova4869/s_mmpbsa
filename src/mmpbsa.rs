@@ -59,7 +59,7 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
 fn normalize_index(ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     let mut ndx_lig = match ndx_lig {
         Some(ndx_lig) => ndx_lig.iter().map(|p| p - ndx_com[0]).collect(),
-        None => ndx_rec.to_vec()
+        None => Vec::from_iter(0..ndx_rec.len())
     };
     let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
     let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
@@ -75,7 +75,7 @@ fn normalize_index(ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&
             ndx_com.extend(&ndx_rec);
             ndx_com
         }
-        Ordering::Equal => ndx_rec.to_vec()
+        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
     };
     (ndx_com, ndx_rec, ndx_lig)
 }
@@ -328,6 +328,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
                 cur_atom += 1;
             }
         }
+
         let f = |e_arr: &mut Array2<f64>, n_cols: usize|
             for mut col in e_arr.columns_mut() {
                 col[0] -= col[1];
@@ -360,7 +361,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
 
         // if no ligand, pb_com = pb_lig = 0, so pb_rec should be inversed to be real energy
         if ndx_lig_norm[0] == ndx_rec_norm[0] {
-            for j in 0..aps.atm_resnum[aps.atm_resnum.len() - 1] {
+            for j in 0..pb_res.shape()[1] {
                 pb_res[[idx, j]] = pb_res[[idx, j]] * -1 as f64;
                 sa_res[[idx, j]] = sa_res[[idx, j]] * -1 as f64;
             }

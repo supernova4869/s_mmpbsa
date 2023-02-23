@@ -14,6 +14,11 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
                    temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
                    ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>,
                    aps: &AtomProperty) {
+
+    // 调整com和rec索引防止溢出, 可能和后面的normalize重复
+    let ndx_rec: &Vec<usize> = &ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
+    let ndx_com: &Vec<usize> = &ndx_com.iter().map(|p| p - ndx_com[0]).collect();
+
     let pb = ProgressBar::new(total_frames as u64);
     set_style(&pb);
     for cur_frm in (bf..=ef).step_by(dframe) {
@@ -39,8 +44,7 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
             let z = coord[2];
             let q = aps.atm_charge[at_id];
             let r = aps.atm_radius[at_id];
-            let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} \
-            {:12.6} {:12.6}\n",
+            let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} {:12.6} {:12.6}\n",
                                     index, at_name, resname, resnum, x, y, z, q, r);
 
             // write qrv files
