@@ -28,16 +28,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
             0 => {
                 match receptor_grp {
                     Some(receptor_grp) => {
-                        match ligand_grp {
-                            Some(ligand_grp) => {
-                                set_para_mmpbsa(trj, tpr, &ndx, wd,
-                                    receptor_grp,
-                                    ligand_grp,
-                                    bt, et, dt, atom_radius,
-                                    settings);
-                            }
-                            _ => println!("Please select receptor and ligand groups.")
-                        }
+                        set_para_mmpbsa(trj, tpr, &ndx, wd,
+                            receptor_grp,
+                            ligand_grp,
+                            bt, et, dt, atom_radius,
+                            settings);
                     }
                     _ => println!("Please select receptor and ligand groups.")
                 }
@@ -51,8 +46,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
             2 => {
                 println!("Current groups:");
                 ndx.list_groups();
-                println!("Input ligand group num:");
-                ligand_grp = Some(get_input_selection());
+                println!("Input ligand group num (-1 for nothing):");
+                ligand_grp = match get_input_selection() {
+                    -1 => None,
+                    i => Some(i as usize)
+                };
             }
             3 => {
                 println!("Input start time (ns), should be divisible of {} ps:", dt);

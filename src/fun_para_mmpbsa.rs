@@ -11,25 +11,33 @@ use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
-                       receptor_grp: usize, ligand_grp: usize,
+                       receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64,
                        atom_radius: &Radius, settings: &mut Parameters) {
     // atom indexes
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
-    let ndx_lig = &ndx.groups[ligand_grp].indexes;
-    let ndx_com = match ndx_lig[0] > ndx_rec[0] {
-        true => {
-            let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.extend(ndx_lig);
-            ndx_com
-        }
-        false => {
-            let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.extend(ndx_rec);
-            ndx_com
-        }
+    let ndx_lig = match ligand_grp {
+        Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
+        None => None
     };
-    
+    let ndx_com = match ndx_lig {
+        Some(ndx_lig) => {
+            match ndx_lig[0] > ndx_rec[0] {
+                true => {
+                    let mut ndx_com = ndx_rec.to_vec();
+                    ndx_com.extend(ndx_lig);
+                    ndx_com
+                }
+                false => {
+                    let mut ndx_com = ndx_lig.to_vec();
+                    ndx_com.extend(ndx_rec);
+                    ndx_com
+                }
+            }
+        }
+        None => ndx_rec.to_vec()
+    };
+
     // atom properties
     let aps = AtomProperty::new(tpr, &ndx_com);
 
@@ -59,8 +67,13 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 let mut paras = File::create(wd.join("paras.txt")).unwrap();
                 paras.write_all(format!("Receptor group: {}\n", 
                     ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
-                paras.write_all(format!("Ligand group: {}\n", 
-                    ndx.groups[ligand_grp as usize].name).as_bytes()).unwrap();
+                match ligand_grp {
+                    Some(ligand_grp) => {
+                        paras.write_all(format!("Ligand group: {}\n", 
+                            ndx.groups[ligand_grp as usize].name).as_bytes()).unwrap();
+                    }
+                    None => {}
+                }
                 paras.write_all(format!("Atom types num: {}\n", tpr.atom_types_num).as_bytes()).unwrap();
                 paras.write_all("c6:\n".as_bytes()).unwrap();
                 for i in 0..aps.c6.shape()[0] {
@@ -112,7 +125,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     println!("Warning: APBS not found. Will not calculate solvation energy.");
                 };
                 let results = mmpbsa::fun_mmpbsa_calculations(trj, tpr, &temp_dir, &sys_name,
-                                                              &aps, &ndx_com, &ndx_rec, &ndx_lig,
+                                                              &aps, &ndx_com, &ndx_rec, ndx_lig,
                                                               bt, et, dt,
                                                               &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd);

@@ -24,8 +24,8 @@ pub struct Results {
 }
 
 impl Results {
-    pub fn new(tpr: &TPR, times: Array1<f64>, ndx_com: &Vec<usize>,
-               elec_res: Array2<f64>, vdw_res: Array2<f64>,
+    pub fn new(tpr: &TPR, times: Array1<f64>, 
+               ndx_com: &Vec<usize>, elec_res: Array2<f64>, vdw_res: Array2<f64>,
                pb_res: Array2<f64>, sa_res: Array2<f64>) -> Results {
 
         // residues number and name
@@ -47,7 +47,7 @@ impl Results {
         }
 
         let mm_res = &elec_res + &vdw_res;
-        let dh_res = &mm_res + &pb_res + &sa_res; 
+        let dh_res = &mm_res + &pb_res + &sa_res;
 
         Results {
             times,

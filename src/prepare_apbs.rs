@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{File, self};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -12,18 +12,18 @@ use crate::parameters::Parameters;
 
 pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
                    temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
-                   ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
+                   ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>,
                    aps: &AtomProperty) {
     let pb = ProgressBar::new(total_frames as u64);
     set_style(&pb);
     for cur_frm in (bf..=ef).step_by(dframe) {
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        let pqr_com = temp_dir.join(format!("{}_com.pqr", f_name));
-        let mut pqr_com = File::create(pqr_com).unwrap();
-        let pqr_rec = temp_dir.join(format!("{}_rec.pqr", f_name));
-        let mut pqr_rec = File::create(pqr_rec).unwrap();
-        let pqr_lig = temp_dir.join(format!("{}_lig.pqr", f_name));
-        let mut pqr_lig = File::create(pqr_lig).unwrap();
+        let pqr_com_name = temp_dir.join(format!("{}_com.pqr", f_name));
+        let mut pqr_com = File::create(&pqr_com_name).unwrap();
+        let pqr_rec_name = temp_dir.join(format!("{}_rec.pqr", f_name));
+        let mut pqr_rec = File::create(&pqr_rec_name).unwrap();
+        let pqr_lig_name = temp_dir.join(format!("{}_lig.pqr", f_name));
+        let mut pqr_lig = File::create(&pqr_lig_name).unwrap();
 
         let coordinates = coordinates.slice(s![cur_frm, .., ..]);
 
@@ -44,16 +44,33 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
                                     index, at_name, resname, resnum, x, y, z, q, r);
 
             // write qrv files
-            pqr_com.write_all(atom_line.as_bytes()).unwrap();
+            match ndx_lig {
+                Some(_) => {
+                    pqr_com.write_all(atom_line.as_bytes()).unwrap();
+                }
+                None => {}
+            }
             if ndx_rec.contains(&at_id) {
                 pqr_rec.write_all(atom_line.as_bytes()).unwrap();
             }
-            if ndx_lig.contains(&at_id) {
-                pqr_lig.write_all(atom_line.as_bytes()).unwrap();
-            }
+            match ndx_lig {
+                Some(ndx_lig) => {
+                    if ndx_lig.contains(&at_id) {
+                        pqr_lig.write_all(atom_line.as_bytes()).unwrap();
+                    }
+                }
+                None => {}
+            };
         }
 
         pb.inc(1);
+        match ndx_lig {
+            None => {
+                fs::remove_file(Path::new(&pqr_com_name)).unwrap();
+                fs::remove_file(Path::new(&pqr_lig_name)).unwrap();
+            }
+            _ => {}
+        }
     }
     pb.finish();
 }
@@ -62,12 +79,15 @@ pub fn write_apbs_input(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &Arra
                   atm_radius: &Array1<f64>, pbe_set: &PBESet, pba_set: &PBASet,
                   temp_dir: &PathBuf, f_name: &String, settings: &Parameters) {
     let mut input_apbs = File::create(temp_dir.join(format!("{}.apbs", f_name))).unwrap();
-    input_apbs.write_all(format!("read\
-    \n  mol pqr {0}_com.pqr\
-    \n  mol pqr {0}_rec.pqr\
-    \n  mol pqr {0}_lig.pqr\
-    \nend\n\n", f_name).as_bytes())
-        .expect("Failed to write apbs input file.");
+    input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
+    if ndx_lig[0] != ndx_rec[0] {
+        input_apbs.write_all(format!("  mol pqr {}_com.pqr\n", f_name).as_bytes()).expect("Failed to write apbs input file.");
+    }
+    input_apbs.write_all(format!("  mol pqr {}_rec.pqr\n", f_name).as_bytes()).expect("Failed to write apbs input file.");
+    if ndx_lig[0] != ndx_rec[0] {
+        input_apbs.write_all(format!("  mol pqr {}_lig.pqr\n", f_name).as_bytes()).expect("Failed to write apbs input file.");
+    }
+    input_apbs.write_all("end\n\n".as_bytes()).expect("Failed to write apbs input file.");
 
     let (rec_box, lig_box, com_box) =
         gen_mesh_params(ndx_rec, ndx_lig, coord, atm_radius);
@@ -75,24 +95,37 @@ pub fn write_apbs_input(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &Arra
     let mut pbe_set0 = PBESet::from(pbe_set);
     pbe_set0.sdie = 1.0;
 
-    input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
-                                  com_box[0], com_box[3], com_box[1],
-                                  com_box[4], com_box[2], com_box[5],
-                                  settings,
-                                  pbe_set, &pbe_set0, pba_set).as_bytes()).
-        expect("Failed writing apbs file.");
-    input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
-                                  rec_box[0], rec_box[3], rec_box[1],
-                                  rec_box[4], rec_box[2], rec_box[5],
-                                  settings,
-                                  pbe_set, &pbe_set0, pba_set).as_bytes()).
-        expect("Failed writing apbs file.");
-    input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
-                                  lig_box[0], lig_box[3], lig_box[1],
-                                  lig_box[4], lig_box[2], lig_box[5],
-                                  settings,
-                                  pbe_set, &pbe_set0, pba_set).as_bytes()).
-        expect("Failed writing apbs file.");
+    if ndx_lig[0] != ndx_rec[0] {
+        input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
+                                    com_box[0], com_box[3], com_box[1],
+                                    com_box[4], com_box[2], com_box[5],
+                                    settings,
+                                    pbe_set, &pbe_set0, pba_set).as_bytes()).
+            expect("Failed writing apbs file.");
+    }
+    if ndx_lig[0] != ndx_rec[0] {
+        input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
+                                    rec_box[0], rec_box[3], rec_box[1],
+                                    rec_box[4], rec_box[2], rec_box[5],
+                                    settings,
+                                    pbe_set, &pbe_set0, pba_set).as_bytes()).
+            expect("Failed writing apbs file.");
+    } else {
+        input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 1,
+                                    rec_box[0], rec_box[3], rec_box[1],
+                                    rec_box[4], rec_box[2], rec_box[5],
+                                    settings,
+                                    pbe_set, &pbe_set0, pba_set).as_bytes()).
+            expect("Failed writing apbs file.");
+    }
+    if ndx_lig[0] != ndx_rec[0] {
+        input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
+                                    lig_box[0], lig_box[3], lig_box[1],
+                                    lig_box[4], lig_box[2], lig_box[5],
+                                    settings,
+                                    pbe_set, &pbe_set0, pba_set).as_bytes()).
+            expect("Failed writing apbs file.");
+    }
 }
 
 fn get_lb(ndx: &Vec<usize>, axis: usize, coord: &ArrayView2<f64>, atm_radius: &Array1<f64>) -> f64 {
