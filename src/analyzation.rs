@@ -93,14 +93,14 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!(" 0 Return");
         println!(" 1 View binding energy terms summary");
-        println!(" 2 View binding energy terms by time");
+        println!(" 2 View binding energy terms by trajectory");
         println!(" 3 View residue-wised binding energy summary");
-        println!(" 4 View residue-wised binding energy by time: dH");
-        println!(" 5 View residue-wised binding energy by time: MM");
-        println!(" 6 View residue-wised binding energy by time: PB");
-        println!(" 7 View residue-wised binding energy by time: SA");
-        println!(" 8 View residue-wised binding energy by time: elec");
-        println!(" 9 View residue-wised binding energy by time: vdW");
+        println!(" 4 View residue-wised binding energy by time: ΔH");
+        println!(" 5 View residue-wised binding energy by time: ΔMM");
+        println!(" 6 View residue-wised binding energy by time: ΔPB");
+        println!(" 7 View residue-wised binding energy by time: ΔSA");
+        println!(" 8 View residue-wised binding energy by time: Δelec");
+        println!(" 9 View residue-wised binding energy by time: ΔvdW");
         let sel_fun: i32 = get_input_selection();
         match sel_fun {
             0 => break,
