@@ -1,0 +1,263 @@
+Vparam_readFlatFile: Got unexpected EOF reading parameter file!
+
+
+----------------------------------------------------------------------
+    APBS -- Adaptive Poisson-Boltzmann Solver
+    Version APBS 3.4.1
+    
+    Nathan A. Baker (nathan.baker@pnnl.gov)
+    Pacific Northwest National Laboratory
+    
+    Additional contributing authors listed in the code documentation.
+    
+    Copyright (c) 2010-2020 Battelle Memorial Institute. Developed at the Pacific
+    Northwest National Laboratory, operated by Battelle Memorial Institute, Pacific
+    Northwest Division for the U.S. Department of Energy.
+    
+    Portions Copyright (c) 2002-2010, Washington University in St. Louis.
+    Portions Copyright (c) 2002-2020, Nathan A. Baker.
+    Portions Copyright (c) 1999-2002, The Regents of the University of California.
+    Portions Copyright (c) 1995, Michael Holst.
+    All rights reserved.
+    
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+    
+    * Redistributions of source code must retain the above copyright notice, this
+      list of conditions and the following disclaimer.
+    
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    
+    * Neither the name of the developer nor the names of its contributors may be
+      used to endorse or promote products derived from this software without
+      specific prior written permission.
+    
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+    ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+    ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+----------------------------------------------------------------------
+    APBS uses FETK (the Finite Element ToolKit) to solve the
+    Poisson-Boltzmann equation numerically.  FETK is a portable collection
+    of finite element modeling class libraries developed by the Michael Holst
+    research group and written in an object-oriented form of C.  FEtk is
+    designed to solve general coupled systems of nonlinear partial differential
+    equations using adaptive finite element methods, inexact Newton methods,
+    and algebraic multilevel methods.  More information about FEtk may be found
+    at <http://www.FEtk.ORG>.
+----------------------------------------------------------------------
+    APBS also uses Aqua to solve the Poisson-Boltzmann equation numerically.  
+    Aqua is a modified form of the Holst group PMG library <http://www.FEtk.ORG>
+    which has been modified by Patrice Koehl
+    <http://koehllab.genomecenter.ucdavis.edu/> for improved efficiency and
+    memory usage when solving the Poisson-Boltzmann equation.
+----------------------------------------------------------------------
+    Please cite your use of APBS as:
+
+    Baker NA, Sept D, Joseph S, Holst MJ, McCammon JA. Electrostatics of
+    nanosystems: application to microtubules and the ribosome. Proc.
+    Natl. Acad. Sci. USA 98, 10037-10041 2001.
+    
+
+This executable compiled on Apr 29 2022 at 19:48:35
+
+Parsing input file ion-pmf.in...
+rank 0 size 1...
+Parsed input file.
+Reading parameter data from parm.dat.
+Got paths for 1 molecules
+Reading PDB-format atom data from ion-pmf.pdb.
+Vpmg_ibForce:  No force for zero ionic strength!
+Vpmg_ibForce:  No force for zero ionic strength!
+  2 atoms
+  Centered at (-1.000e+00, 0.000e+00, 0.000e+00)
+  Net charge 2.00e+00 e
+Preparing to run 3 PBE calculations.
+----------------------------------------
+CALCULATION #1 (solv): MULTIGRID
+  Setting up problem...
+  Vpbe_ctor:  Using max ion radius (0 A) for exclusion function
+  Debye length:  0 A
+  Current memory usage:  61.094 MB total, 61.094 MB high water
+  Using cubic spline charge discretization.
+  Grid dimensions: 65 x 65 x 65
+  Grid spacings: 0.210 x 0.210 x 0.210
+  Grid lengths: 13.440 x 13.440 x 13.440
+  Grid center: (0.000, 0.000, 0.000)
+  Multigrid levels: 5
+  Molecule ID: 1
+  Linearized traditional PBE
+  Multiple Debye-Huckel sphere boundary conditions
+  0 ion species (0.000 M ionic strength):
+  Solute dielectric: 1.000
+  Solvent dielectric: 78.540
+  Using spline-based surface definition;window = 0.300
+  Temperature:  298.150 K
+  Electrostatic energies will be calculated
+  All-atom solvent forces will be calculated
+  Total electrostatic energy = 7.839535983197E+03 kJ/mol
+  Calculating forces...
+  Printing per-atom forces for molecule 1 (kJ/mol/A)
+  Legend:
+    tot n -- total force for atom n
+    qf  n -- fixed charge force for atom n
+    db  n -- dielectric boundary force for atom n
+    ib  n -- ionic boundary force for atom n
+mgF  tot 0  -3.760e+03  -4.398e-05  -7.763e-05
+mgF  qf  0  -3.767e+03  -1.730e-05  -2.384e-05
+mgF  ib  0  0.000e+00  0.000e+00  0.000e+00
+mgF  db  0  6.148e+00  -2.668e-05  -5.379e-05
+mgF  tot 1  -3.596e+03  -5.403e-05  -1.012e-04
+mgF  qf  1  -3.598e+03  -2.253e-05  -3.831e-05
+mgF  ib  1  0.000e+00  0.000e+00  0.000e+00
+mgF  db  1  2.883e+00  -3.150e-05  -6.291e-05
+Vpmg_ibForce:  No force for zero ionic strength!
+Vpmg_ibForce:  No force for zero ionic strength!
+----------------------------------------
+CALCULATION #2 (ref): MULTIGRID
+  Setting up problem...
+  Vpbe_ctor:  Using max ion radius (0 A) for exclusion function
+  Debye length:  0 A
+  Current memory usage:  61.095 MB total, 61.134 MB high water
+  Using cubic spline charge discretization.
+  Grid dimensions: 65 x 65 x 65
+  Grid spacings: 0.210 x 0.210 x 0.210
+  Grid lengths: 13.440 x 13.440 x 13.440
+  Grid center: (0.000, 0.000, 0.000)
+  Multigrid levels: 5
+  Molecule ID: 1
+  Linearized traditional PBE
+  Multiple Debye-Huckel sphere boundary conditions
+  0 ion species (0.000 M ionic strength):
+  Solute dielectric: 1.000
+  Solvent dielectric: 1.000
+  Using spline-based surface definition;window = 0.300
+  Temperature:  298.150 K
+  Electrostatic energies will be calculated
+  All-atom solvent forces will be calculated
+  Total electrostatic energy = 8.964727588811E+03 kJ/mol
+  Calculating forces...
+  Printing per-atom forces for molecule 1 (kJ/mol/A)
+  Legend:
+    tot n -- total force for atom n
+    qf  n -- fixed charge force for atom n
+    db  n -- dielectric boundary force for atom n
+    ib  n -- ionic boundary force for atom n
+mgF  tot 0  -3.850e+03  -4.055e-06  -7.703e-06
+mgF  qf  0  -3.850e+03  -4.055e-06  -7.703e-06
+mgF  ib  0  0.000e+00  0.000e+00  0.000e+00
+mgF  db  0  0.000e+00  0.000e+00  0.000e+00
+mgF  tot 1  -3.514e+03  -4.163e-06  -7.690e-06
+mgF  qf  1  -3.514e+03  -4.163e-06  -7.690e-06
+mgF  ib  1  0.000e+00  0.000e+00  0.000e+00
+mgF  db  1  0.000e+00  0.000e+00  0.000e+00
+----------------------------------------
+CALCULATION #3 (asolv): APOLAR
+  Printing per atom forces (kJ/mol/A)
+  Legend:
+    tot  n -- Total force for atom n
+    sasa n -- SASA force for atom n
+    sav  n -- SAV force for atom n
+    wca  n -- WCA force for atom n
+
+    gamma    0.000720
+    pressure 0.000000
+    bconc    0.033000 
+
+  tot  0 2.715e-02 9.130e-07 9.130e-07
+  sasa 0 -1.100e+01 0.000e+00 0.000e+00
+  sav  0 0.000e+00 0.000e+00 0.000e+00
+  wca  0 -5.827e-01 -2.767e-05 -2.767e-05
+  tot  1 -2.723e-02 9.133e-07 9.133e-07
+  sasa 1 1.112e+01 0.000e+00 0.000e+00
+  sav  1 0.000e+00 0.000e+00 0.000e+00
+  wca  1 5.827e-01 -2.767e-05 -2.767e-05
+
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 1.153275282828E+02
+  SASA for atom 1: 1.153114143344E+02
+
+Total solvent accessible surface area: 230.639 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 8.303582036361E-02
+  Surface tension*area energy for atom 1: 8.302421832080E-02
+
+Total surface tension energy: 0.16606 kJ/mol
+
+Total solvent accessible volume: 0 A^3
+
+Total pressure*volume energy: 0 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.909718359932E+00
+  WCA energy for atom 1: -6.909422551724E+00
+
+Total WCA energy: -13.8191 kJ/mol
+
+Total non-polar energy = -1.365308087297E+01 kJ/mol
+----------------------------------------
+PRINT STATEMENTS
+
+print energy 1 (solv) - 2 (ref) end
+  Local net energy (PE 0) = -1.125191605614E+03 kJ/mol
+  Global net ELEC energy = -1.125191605614E+03 kJ/mol
+print force 1 (solv) - 2 (ref) end
+  Printing per-atom forces (kJ/mol/A).
+  Legend:
+    tot n -- Total force for atom n
+    qf  n -- Fixed charge force for atom n
+    db  n -- Dielectric boundary force for atom n
+    ib  n -- Ionic boundary force for atom n
+    tot all -- Total force for system
+  qf  0  8.398642197666E+01  -1.324564548552E-05  -1.613435632529E-05
+  ib  0  0.000000000000E+00  0.000000000000E+00  0.000000000000E+00
+  db  0  6.148357059184E+00  -2.667517425897E-05  -5.378919678211E-05
+  tot 0  9.013477903584E+01  -3.992081974449E-05  -6.992355310740E-05
+  qf  1  -8.466423642736E+01  -1.836748045969E-05  -3.062224428458E-05
+  ib  1  0.000000000000E+00  0.000000000000E+00  0.000000000000E+00
+  db  1  2.882739230548E+00  -3.149946357588E-05  -6.291495506459E-05
+  tot 1  -8.178149719681E+01  -4.986694403557E-05  -9.353719934917E-05
+  tot all 8.353281839029E+00  -8.978776378007E-05  -1.634607524566E-04
+
+print APOL energy 1 (asolv) end
+  Global net APOL energy = -1.365308087297E+01 kJ/mol
+
+print APOL force 1 (asolv) end
+  Printing per atom forces (kJ/mol/A)
+  Legend:
+    tot   n -- Total force for atom n
+    sasa  n -- SASA force for atom n
+    sav   n -- SAV force for atom n
+    wca   n -- WCA force for atom n
+    tot all -- Total force for system
+  sasa  0  -1.099776974333E+01  0.000000000000E+00  0.000000000000E+00
+  sav   0  0.000000000000E+00  0.000000000000E+00  0.000000000000E+00
+  wca   0  -5.826577086437E-01  -2.766670515801E-05  -2.766670515838E-05
+  tot   0  -1.158042745197E+01  -2.766670515801E-05  -2.766670515838E-05
+  sasa  1  1.111862435589E+01  0.000000000000E+00  0.000000000000E+00
+  sav   1  0.000000000000E+00  0.000000000000E+00  0.000000000000E+00
+  wca   1  5.826560767576E-01  -2.767485007142E-05  -2.767485007183E-05
+  tot   1  1.170128043265E+01  -2.767485007142E-05  -2.767485007183E-05
+  tot all  1.208529806779E-01  -5.534155522943E-05  -5.534155523021E-05
+----------------------------------------
+CLEANING UP AND SHUTTING DOWN...
+Destroying force arrays.
+No energy arrays to destroy.
+Destroying multigrid structures.
+Destroying finite element structures.
+Destroying 1 molecules
+Final memory usage:  60.711 MB total, 62.228 MB high water
+
+
+Thanks for using APBS!
+

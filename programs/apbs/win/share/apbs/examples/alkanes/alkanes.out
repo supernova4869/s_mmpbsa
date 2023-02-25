@@ -1,0 +1,850 @@
+Vparam_readFlatFile: Got unexpected EOF reading parameter file!
+
+
+----------------------------------------------------------------------
+    APBS -- Adaptive Poisson-Boltzmann Solver
+    Version APBS 3.4.1
+    
+    Nathan A. Baker (nathan.baker@pnnl.gov)
+    Pacific Northwest National Laboratory
+    
+    Additional contributing authors listed in the code documentation.
+    
+    Copyright (c) 2010-2020 Battelle Memorial Institute. Developed at the Pacific
+    Northwest National Laboratory, operated by Battelle Memorial Institute, Pacific
+    Northwest Division for the U.S. Department of Energy.
+    
+    Portions Copyright (c) 2002-2010, Washington University in St. Louis.
+    Portions Copyright (c) 2002-2020, Nathan A. Baker.
+    Portions Copyright (c) 1999-2002, The Regents of the University of California.
+    Portions Copyright (c) 1995, Michael Holst.
+    All rights reserved.
+    
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+    
+    * Redistributions of source code must retain the above copyright notice, this
+      list of conditions and the following disclaimer.
+    
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    
+    * Neither the name of the developer nor the names of its contributors may be
+      used to endorse or promote products derived from this software without
+      specific prior written permission.
+    
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+    ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+    ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+----------------------------------------------------------------------
+    APBS uses FETK (the Finite Element ToolKit) to solve the
+    Poisson-Boltzmann equation numerically.  FETK is a portable collection
+    of finite element modeling class libraries developed by the Michael Holst
+    research group and written in an object-oriented form of C.  FEtk is
+    designed to solve general coupled systems of nonlinear partial differential
+    equations using adaptive finite element methods, inexact Newton methods,
+    and algebraic multilevel methods.  More information about FEtk may be found
+    at <http://www.FEtk.ORG>.
+----------------------------------------------------------------------
+    APBS also uses Aqua to solve the Poisson-Boltzmann equation numerically.  
+    Aqua is a modified form of the Holst group PMG library <http://www.FEtk.ORG>
+    which has been modified by Patrice Koehl
+    <http://koehllab.genomecenter.ucdavis.edu/> for improved efficiency and
+    memory usage when solving the Poisson-Boltzmann equation.
+----------------------------------------------------------------------
+    Please cite your use of APBS as:
+
+    Baker NA, Sept D, Joseph S, Holst MJ, McCammon JA. Electrostatics of
+    nanosystems: application to microtubules and the ribosome. Proc.
+    Natl. Acad. Sci. USA 98, 10037-10041 2001.
+    
+
+This executable compiled on Apr 29 2022 at 19:48:35
+
+Parsing input file alkanes.in...
+rank 0 size 1...
+Parsed input file.
+Reading parameter data from parm.dat.
+Got paths for 11 molecules
+Reading PDB-format atom data from 2-methylbutane.pdb.
+  17 atoms
+  Centered at (0.000e+00, 0.000e+00, 0.000e+00)
+  Net charge 4.33e+00 e
+Reading PDB-format atom data from butane.pdb.
+  14 atoms
+  Centered at (3.917e+00, 7.025e-01, -8.575e+00)
+  Net charge 3.51e+00 e
+Reading PDB-format atom data from cyclohexane.pdb.
+  18 atoms
+  Centered at (1.123e+00, 5.880e-01, 7.680e-01)
+  Net charge 4.93e+00 e
+Reading PDB-format atom data from cyclopentane.pdb.
+  13 atoms
+  Centered at (1.320e+00, 5.255e-01, 1.289e+00)
+  Net charge 3.88e+00 e
+Reading PDB-format atom data from ethane.pdb.
+  8 atoms
+  Centered at (2.210e-01, -2.100e-02, 7.650e-01)
+  Net charge 1.87e+00 e
+Reading PDB-format atom data from hexane.pdb.
+  20 atoms
+  Centered at (4.951e+00, -9.500e-03, -8.406e+00)
+  Net charge 5.16e+00 e
+Reading PDB-format atom data from isobutane.pdb.
+  14 atoms
+  Centered at (1.859e+01, 1.864e+01, 1.921e+01)
+  Net charge 3.51e+00 e
+Reading PDB-format atom data from methane.pdb.
+  5 atoms
+  Centered at (1.803e+01, 1.779e+01, 1.782e+01)
+  Net charge 1.05e+00 e
+Reading PDB-format atom data from neopentane.pdb.
+  17 atoms
+  Centered at (1.867e+01, 1.894e+01, 1.920e+01)
+  Net charge 4.33e+00 e
+Reading PDB-format atom data from pentane.pdb.
+  17 atoms
+  Centered at (4.460e+00, 1.615e-01, -8.566e+00)
+  Net charge 4.33e+00 e
+Reading PDB-format atom data from propane.pdb.
+  11 atoms
+  Centered at (1.836e+01, 1.896e+01, 1.861e+01)
+  Net charge 2.69e+00 e
+Preparing to run 11 PBE calculations.
+----------------------------------------
+CALCULATION #1 (solvated-2-methylbutane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 3.815624614267E+00
+  SASA for atom 1: 0.000000000000E+00
+  SASA for atom 2: 6.122920124655E-01
+  SASA for atom 3: 3.957497153740E+00
+  SASA for atom 4: 4.308445014544E+00
+  SASA for atom 5: 1.843264951960E+01
+  SASA for atom 6: 1.837011296483E+01
+  SASA for atom 7: 1.666599184724E+01
+  SASA for atom 8: 1.480031796315E+01
+  SASA for atom 9: 1.603020354037E+01
+  SASA for atom 10: 1.473778140838E+01
+  SASA for atom 11: 1.611879699297E+01
+  SASA for atom 12: 1.810954398660E+01
+  SASA for atom 13: 1.420100931324E+01
+  SASA for atom 14: 1.437298483886E+01
+  SASA for atom 15: 1.814081226399E+01
+  SASA for atom 16: 2.152820898091E+01
+
+Total solvent accessible surface area: 214.202 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 3.243280922127E-02
+  Surface tension*area energy for atom 1: 0.000000000000E+00
+  Surface tension*area energy for atom 2: 5.204482105957E-03
+  Surface tension*area energy for atom 3: 3.363872580679E-02
+  Surface tension*area energy for atom 4: 3.662178262362E-02
+  Surface tension*area energy for atom 5: 1.566775209166E-01
+  Surface tension*area energy for atom 6: 1.561459602010E-01
+  Surface tension*area energy for atom 7: 1.416609307015E-01
+  Surface tension*area energy for atom 8: 1.258027026868E-01
+  Surface tension*area energy for atom 9: 1.362567300932E-01
+  Surface tension*area energy for atom 10: 1.252711419712E-01
+  Surface tension*area energy for atom 11: 1.370097744402E-01
+  Surface tension*area energy for atom 12: 1.539311238861E-01
+  Surface tension*area energy for atom 13: 1.207085791625E-01
+  Surface tension*area energy for atom 14: 1.221703711303E-01
+  Surface tension*area energy for atom 15: 1.541969042439E-01
+  Surface tension*area energy for atom 16: 1.829897763377E-01
+
+Total surface tension energy: 1.82072 kJ/mol
+
+Total solvent accessible volume: 253.665 A^3
+
+Total pressure*volume energy: 60.7274 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.271287875274E+00
+  WCA energy for atom 1: -5.600872869478E+00
+  WCA energy for atom 2: -5.773775123943E+00
+  WCA energy for atom 3: -6.072801488986E+00
+  WCA energy for atom 4: -6.378470721845E+00
+  WCA energy for atom 5: -1.573474558351E+00
+  WCA energy for atom 6: -1.582338715648E+00
+  WCA energy for atom 7: -1.504044838266E+00
+  WCA energy for atom 8: -1.351002262819E+00
+  WCA energy for atom 9: -1.437367175239E+00
+  WCA energy for atom 10: -1.384626257493E+00
+  WCA energy for atom 11: -1.468867560891E+00
+  WCA energy for atom 12: -1.557005662832E+00
+  WCA energy for atom 13: -1.473759654043E+00
+  WCA energy for atom 14: -1.502261431335E+00
+  WCA energy for atom 15: -1.550940901474E+00
+  WCA energy for atom 16: -1.667828659696E+00
+
+Total WCA energy: -48.1507 kJ/mol
+
+Total non-polar energy = 1.439739455792E+01 kJ/mol
+----------------------------------------
+CALCULATION #2 (solvated-butane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 4.405515699447E+00
+  SASA for atom 1: 8.213673337951E-01
+  SASA for atom 2: 8.064333822716E-01
+  SASA for atom 3: 4.375647796400E+00
+  SASA for atom 4: 1.855251124959E+01
+  SASA for atom 5: 2.147609518526E+01
+  SASA for atom 6: 1.852645435176E+01
+  SASA for atom 7: 1.660345529247E+01
+  SASA for atom 8: 1.658782115377E+01
+  SASA for atom 9: 1.658260977421E+01
+  SASA for atom 10: 1.658260977421E+01
+  SASA for atom 11: 2.145003828744E+01
+  SASA for atom 12: 1.852124297220E+01
+  SASA for atom 13: 1.856293400871E+01
+
+Total solvent accessible surface area: 193.855 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 3.744688344530E-02
+  Surface tension*area energy for atom 1: 6.981622337259E-03
+  Surface tension*area energy for atom 2: 6.854683749309E-03
+  Surface tension*area energy for atom 3: 3.719300626940E-02
+  Surface tension*area energy for atom 4: 1.576963456215E-01
+  Surface tension*area energy for atom 5: 1.825468090747E-01
+  Surface tension*area energy for atom 6: 1.574748619900E-01
+  Surface tension*area energy for atom 7: 1.411293699860E-01
+  Surface tension*area energy for atom 8: 1.409964798071E-01
+  Surface tension*area energy for atom 9: 1.409521830808E-01
+  Surface tension*area energy for atom 10: 1.409521830808E-01
+  Surface tension*area energy for atom 11: 1.823253254433E-01
+  Surface tension*area energy for atom 12: 1.574305652637E-01
+  Surface tension*area energy for atom 13: 1.577849390741E-01
+
+Total surface tension energy: 1.64777 kJ/mol
+
+Total solvent accessible volume: 217.863 A^3
+
+Total pressure*volume energy: 52.1564 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.728858147814E+00
+  WCA energy for atom 1: -6.204037472587E+00
+  WCA energy for atom 2: -6.202937735018E+00
+  WCA energy for atom 3: -6.728762249931E+00
+  WCA energy for atom 4: -1.623549989062E+00
+  WCA energy for atom 5: -1.709092300778E+00
+  WCA energy for atom 6: -1.625196457114E+00
+  WCA energy for atom 7: -1.484289341167E+00
+  WCA energy for atom 8: -1.485410538626E+00
+  WCA energy for atom 9: -1.485593139015E+00
+  WCA energy for atom 10: -1.484878734279E+00
+  WCA energy for atom 11: -1.708585062695E+00
+  WCA energy for atom 12: -1.625094916482E+00
+  WCA energy for atom 13: -1.624416805392E+00
+
+Total WCA energy: -41.7207 kJ/mol
+
+Total non-polar energy = 1.208346456826E+01 kJ/mol
+----------------------------------------
+CALCULATION #3 (solvated-cyclohexane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 7.840324549863E-01
+  SASA for atom 1: 8.064333822716E-01
+  SASA for atom 2: 8.288343095569E-01
+  SASA for atom 3: 7.840324549863E-01
+  SASA for atom 4: 7.989664065098E-01
+  SASA for atom 5: 8.363012853187E-01
+  SASA for atom 6: 2.001169752764E+01
+  SASA for atom 7: 1.616048802948E+01
+  SASA for atom 8: 2.001169752764E+01
+  SASA for atom 9: 1.619175630687E+01
+  SASA for atom 10: 1.616048802948E+01
+  SASA for atom 11: 1.993352683418E+01
+  SASA for atom 12: 2.001169752764E+01
+  SASA for atom 13: 1.618133354774E+01
+  SASA for atom 14: 1.617091078861E+01
+  SASA for atom 15: 2.001690890721E+01
+  SASA for atom 16: 1.993873821374E+01
+  SASA for atom 17: 1.617091078861E+01
+
+Total solvent accessible surface area: 221.799 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 6.664275867383E-03
+  Surface tension*area energy for atom 1: 6.854683749309E-03
+  Surface tension*area energy for atom 2: 7.045091631234E-03
+  Surface tension*area energy for atom 3: 6.664275867383E-03
+  Surface tension*area energy for atom 4: 6.791214455333E-03
+  Surface tension*area energy for atom 5: 7.108560925209E-03
+  Surface tension*area energy for atom 6: 1.700994289850E-01
+  Surface tension*area energy for atom 7: 1.373641482506E-01
+  Surface tension*area energy for atom 8: 1.700994289850E-01
+  Surface tension*area energy for atom 9: 1.376299286084E-01
+  Surface tension*area energy for atom 10: 1.373641482506E-01
+  Surface tension*area energy for atom 11: 1.694349780905E-01
+  Surface tension*area energy for atom 12: 1.700994289850E-01
+  Surface tension*area energy for atom 13: 1.375413351558E-01
+  Surface tension*area energy for atom 14: 1.374527417032E-01
+  Surface tension*area energy for atom 15: 1.701437257113E-01
+  Surface tension*area energy for atom 16: 1.694792748168E-01
+  Surface tension*area energy for atom 17: 1.374527417032E-01
+
+Total surface tension energy: 1.88529 kJ/mol
+
+Total solvent accessible volume: 267.435 A^3
+
+Total pressure*volume energy: 64.0239 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -5.793234697241E+00
+  WCA energy for atom 1: -5.784370526583E+00
+  WCA energy for atom 2: -5.791799130412E+00
+  WCA energy for atom 3: -5.788504399087E+00
+  WCA energy for atom 4: -5.797319672490E+00
+  WCA energy for atom 5: -5.787358035342E+00
+  WCA energy for atom 6: -1.523887929614E+00
+  WCA energy for atom 7: -1.413678912317E+00
+  WCA energy for atom 8: -1.521751604392E+00
+  WCA energy for atom 9: -1.414741802525E+00
+  WCA energy for atom 10: -1.413367854344E+00
+  WCA energy for atom 11: -1.523407238081E+00
+  WCA energy for atom 12: -1.523000623583E+00
+  WCA energy for atom 13: -1.413922068538E+00
+  WCA energy for atom 14: -1.416316744211E+00
+  WCA energy for atom 15: -1.524577474659E+00
+  WCA energy for atom 16: -1.523300410052E+00
+  WCA energy for atom 17: -1.414522566061E+00
+
+Total WCA energy: -52.3691 kJ/mol
+
+Total non-polar energy = 1.354016672221E+01 kJ/mol
+----------------------------------------
+CALCULATION #4 (solvated-cyclopentane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 9.490526193215E+00
+  SASA for atom 1: 9.512927120500E+00
+  SASA for atom 2: 2.299828534626E+00
+  SASA for atom 3: 1.919012770776E+00
+  SASA for atom 4: 2.307295510388E+00
+  SASA for atom 5: 2.325838699632E+01
+  SASA for atom 6: 2.325838699632E+01
+  SASA for atom 7: 2.045987617019E+01
+  SASA for atom 8: 2.067875411190E+01
+  SASA for atom 9: 2.028790064456E+01
+  SASA for atom 10: 1.897463299431E+01
+  SASA for atom 11: 2.048593306801E+01
+  SASA for atom 12: 2.070481100972E+01
+
+Total solvent accessible surface area: 193.638 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 8.066947264233E-02
+  Surface tension*area energy for atom 1: 8.085988052425E-02
+  Surface tension*area energy for atom 2: 1.954854254432E-02
+  Surface tension*area energy for atom 3: 1.631160855160E-02
+  Surface tension*area energy for atom 4: 1.961201183830E-02
+  Surface tension*area energy for atom 5: 1.976962894687E-01
+  Surface tension*area energy for atom 6: 1.976962894687E-01
+  Surface tension*area energy for atom 7: 1.739089474466E-01
+  Surface tension*area energy for atom 8: 1.757694099511E-01
+  Surface tension*area energy for atom 9: 1.724471554788E-01
+  Surface tension*area energy for atom 10: 1.612843804516E-01
+  Surface tension*area energy for atom 11: 1.741304310781E-01
+  Surface tension*area energy for atom 12: 1.759908935826E-01
+
+Total surface tension energy: 1.64593 kJ/mol
+
+Total solvent accessible volume: 217.998 A^3
+
+Total pressure*volume energy: 52.1887 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.343496616804E+00
+  WCA energy for atom 1: -6.327869601807E+00
+  WCA energy for atom 2: -6.334858040579E+00
+  WCA energy for atom 3: -6.296075406417E+00
+  WCA energy for atom 4: -6.345600816761E+00
+  WCA energy for atom 5: -1.663697465126E+00
+  WCA energy for atom 6: -1.662444032853E+00
+  WCA energy for atom 7: -1.572325104493E+00
+  WCA energy for atom 8: -1.604626551065E+00
+  WCA energy for atom 9: -1.586431484963E+00
+  WCA energy for atom 10: -1.554291291374E+00
+  WCA energy for atom 11: -1.574315220751E+00
+  WCA energy for atom 12: -1.604941679892E+00
+
+Total WCA energy: -44.471 kJ/mol
+
+Total non-polar energy = 9.363673200142E+00 kJ/mol
+----------------------------------------
+CALCULATION #5 (solvated-ethane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 5.995981536705E+00
+  SASA for atom 1: 5.966113633657E+00
+  SASA for atom 2: 2.121552620704E+01
+  SASA for atom 3: 2.124158310486E+01
+  SASA for atom 4: 2.125200586399E+01
+  SASA for atom 5: 2.123116034573E+01
+  SASA for atom 6: 2.125200586399E+01
+  SASA for atom 7: 2.127285138225E+01
+
+Total solvent accessible surface area: 139.427 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 5.096584306199E-02
+  Surface tension*area energy for atom 1: 5.071196588609E-02
+  Surface tension*area energy for atom 2: 1.803319727598E-01
+  Surface tension*area energy for atom 3: 1.805534563913E-01
+  Surface tension*area energy for atom 4: 1.806420498439E-01
+  Surface tension*area energy for atom 5: 1.804648629387E-01
+  Surface tension*area energy for atom 6: 1.806420498439E-01
+  Surface tension*area energy for atom 7: 1.808192367491E-01
+
+Total surface tension energy: 1.18513 kJ/mol
+
+Total solvent accessible volume: 140.346 A^3
+
+Total pressure*volume energy: 33.5988 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -7.360066353115E+00
+  WCA energy for atom 1: -7.355483516201E+00
+  WCA energy for atom 2: -1.776106201066E+00
+  WCA energy for atom 3: -1.773973940651E+00
+  WCA energy for atom 4: -1.775401936843E+00
+  WCA energy for atom 5: -1.773464835521E+00
+  WCA energy for atom 6: -1.774382856097E+00
+  WCA energy for atom 7: -1.772366599434E+00
+
+Total WCA energy: -25.3612 kJ/mol
+
+Total non-polar energy = 9.422717598546E+00 kJ/mol
+----------------------------------------
+CALCULATION #6 (solvated-hexane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 4.405515699447E+00
+  SASA for atom 1: 8.213673337951E-01
+  SASA for atom 2: 3.285469335181E-01
+  SASA for atom 3: 2.986790304710E-01
+  SASA for atom 4: 1.855251124959E+01
+  SASA for atom 5: 2.147609518526E+01
+  SASA for atom 6: 1.852645435176E+01
+  SASA for atom 7: 1.655655287639E+01
+  SASA for atom 8: 1.655134149682E+01
+  SASA for atom 9: 1.360170066332E+01
+  SASA for atom 10: 1.357043238593E+01
+  SASA for atom 11: 1.381536722546E+01
+  SASA for atom 12: 1.384142412329E+01
+  SASA for atom 13: 7.765654792245E-01
+  SASA for atom 14: 1.684839013200E+01
+  SASA for atom 15: 1.682233323417E+01
+  SASA for atom 16: 4.166572475070E+00
+  SASA for atom 17: 2.179398933870E+01
+  SASA for atom 18: 1.877660057086E+01
+  SASA for atom 19: 1.876096643216E+01
+
+Total solvent accessible surface area: 250.291 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 3.744688344530E-02
+  Surface tension*area energy for atom 1: 6.981622337259E-03
+  Surface tension*area energy for atom 2: 2.792648934903E-03
+  Surface tension*area energy for atom 3: 2.538771759003E-03
+  Surface tension*area energy for atom 4: 1.576963456215E-01
+  Surface tension*area energy for atom 5: 1.825468090747E-01
+  Surface tension*area energy for atom 6: 1.574748619900E-01
+  Surface tension*area energy for atom 7: 1.407306994493E-01
+  Surface tension*area energy for atom 8: 1.406864027230E-01
+  Surface tension*area energy for atom 9: 1.156144556382E-01
+  Surface tension*area energy for atom 10: 1.153486752804E-01
+  Surface tension*area energy for atom 11: 1.174306214164E-01
+  Surface tension*area energy for atom 12: 1.176521050479E-01
+  Surface tension*area energy for atom 13: 6.600806573408E-03
+  Surface tension*area energy for atom 14: 1.432113161220E-01
+  Surface tension*area energy for atom 15: 1.429898324905E-01
+  Surface tension*area energy for atom 16: 3.541586603809E-02
+  Surface tension*area energy for atom 17: 1.852489093789E-01
+  Surface tension*area energy for atom 18: 1.596011048523E-01
+  Surface tension*area energy for atom 19: 1.594682146734E-01
+
+Total surface tension energy: 2.12748 kJ/mol
+
+Total solvent accessible volume: 298.053 A^3
+
+Total pressure*volume energy: 71.3539 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.635406071935E+00
+  WCA energy for atom 1: -5.957247427848E+00
+  WCA energy for atom 2: -5.524801144538E+00
+  WCA energy for atom 3: -5.522294168859E+00
+  WCA energy for atom 4: -1.605314409440E+00
+  WCA energy for atom 5: -1.701051761776E+00
+  WCA energy for atom 6: -1.606669162773E+00
+  WCA energy for atom 7: -1.442505934938E+00
+  WCA energy for atom 8: -1.443059002759E+00
+  WCA energy for atom 9: -1.328947132810E+00
+  WCA energy for atom 10: -1.328906972440E+00
+  WCA energy for atom 11: -1.331566344214E+00
+  WCA energy for atom 12: -1.328041776815E+00
+  WCA energy for atom 13: -5.937562025661E+00
+  WCA energy for atom 14: -1.442277774427E+00
+  WCA energy for atom 15: -1.442777091510E+00
+  WCA energy for atom 16: -6.602262542378E+00
+  WCA energy for atom 17: -1.698172146664E+00
+  WCA energy for atom 18: -1.600970858835E+00
+  WCA energy for atom 19: -1.600841970217E+00
+
+Total WCA energy: -57.0807 kJ/mol
+
+Total non-polar energy = 1.640068943201E+01 kJ/mol
+----------------------------------------
+CALCULATION #7 (solvated-isobutane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 3.464676753463E+00
+  SASA for atom 1: 1.984493338158E+01
+  SASA for atom 2: 1.778643845361E+01
+  SASA for atom 3: 1.671289426332E+01
+  SASA for atom 4: 0.000000000000E+00
+  SASA for atom 5: 3.531879535319E+00
+  SASA for atom 6: 1.673895116114E+01
+  SASA for atom 7: 1.793756846098E+01
+  SASA for atom 8: 1.973549441072E+01
+  SASA for atom 9: 1.710895911022E+01
+  SASA for atom 10: 4.599657069253E+00
+  SASA for atom 11: 1.937069784121E+01
+  SASA for atom 12: 1.654613011726E+01
+  SASA for atom 13: 1.936548646165E+01
+
+Total solvent accessible surface area: 192.744 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 2.944975240444E-02
+  Surface tension*area energy for atom 1: 1.686819337434E-01
+  Surface tension*area energy for atom 2: 1.511847268556E-01
+  Surface tension*area energy for atom 3: 1.420596012382E-01
+  Surface tension*area energy for atom 4: 0.000000000000E+00
+  Surface tension*area energy for atom 5: 3.002097605021E-02
+  Surface tension*area energy for atom 6: 1.422810848697E-01
+  Surface tension*area energy for atom 7: 1.524693319183E-01
+  Surface tension*area energy for atom 8: 1.677517024912E-01
+  Surface tension*area energy for atom 9: 1.454261524369E-01
+  Surface tension*area energy for atom 10: 3.909708508865E-02
+  Surface tension*area energy for atom 11: 1.646509316503E-01
+  Surface tension*area energy for atom 12: 1.406421059967E-01
+  Surface tension*area energy for atom 13: 1.646066349240E-01
+
+Total surface tension energy: 1.63832 kJ/mol
+
+Total solvent accessible volume: 218.943 A^3
+
+Total pressure*volume energy: 52.415 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.381016335247E+00
+  WCA energy for atom 1: -1.612317964554E+00
+  WCA energy for atom 2: -1.588013719598E+00
+  WCA energy for atom 3: -1.532162371190E+00
+  WCA energy for atom 4: -5.987950445279E+00
+  WCA energy for atom 5: -6.393089030861E+00
+  WCA energy for atom 6: -1.533454887042E+00
+  WCA energy for atom 7: -1.587650918485E+00
+  WCA energy for atom 8: -1.614083521570E+00
+  WCA energy for atom 9: -1.442402031577E+00
+  WCA energy for atom 10: -6.408813541353E+00
+  WCA energy for atom 11: -1.605830214390E+00
+  WCA energy for atom 12: -1.529385873788E+00
+  WCA energy for atom 13: -1.605662490385E+00
+
+Total WCA energy: -40.8218 kJ/mol
+
+Total non-polar energy = 1.323144287435E+01 kJ/mol
+----------------------------------------
+CALCULATION #8 (solvated-methane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 1.231304303117E+01
+  SASA for atom 1: 2.323233009850E+01
+  SASA for atom 2: 2.345641941977E+01
+  SASA for atom 3: 2.377431357320E+01
+  SASA for atom 4: 2.264344420771E+01
+
+Total solvent accessible surface area: 105.42 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 1.046608657649E-01
+  Surface tension*area energy for atom 1: 1.974748058372E-01
+  Surface tension*area energy for atom 2: 1.993795650680E-01
+  Surface tension*area energy for atom 3: 2.020816653722E-01
+  Surface tension*area energy for atom 4: 1.924692757655E-01
+
+Total surface tension energy: 0.896066 kJ/mol
+
+Total solvent accessible volume: 95.985 A^3
+
+Total pressure*volume energy: 22.9788 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -8.133807570805E+00
+  WCA energy for atom 1: -1.962181541765E+00
+  WCA energy for atom 2: -1.964078319162E+00
+  WCA energy for atom 3: -1.963015006647E+00
+  WCA energy for atom 4: -1.957425549100E+00
+
+Total WCA energy: -15.9805 kJ/mol
+
+Total non-polar energy = 7.894367190329E+00 kJ/mol
+----------------------------------------
+CALCULATION #9 (solvated-neopentane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 2.441701074100E+00
+  SASA for atom 1: 1.663993494942E+01
+  SASA for atom 2: 1.715586152630E+01
+  SASA for atom 3: 1.645753666466E+01
+  SASA for atom 4: 0.000000000000E+00
+  SASA for atom 5: 2.389432243768E+00
+  SASA for atom 6: 1.638457735076E+01
+  SASA for atom 7: 1.667641460637E+01
+  SASA for atom 8: 1.721839808108E+01
+  SASA for atom 9: 2.419300146815E+00
+  SASA for atom 10: 1.640021148945E+01
+  SASA for atom 11: 1.666599184724E+01
+  SASA for atom 12: 1.719234118325E+01
+  SASA for atom 13: 2.449168049862E+00
+  SASA for atom 14: 1.723403221977E+01
+  SASA for atom 15: 1.639500010989E+01
+  SASA for atom 16: 1.663472356985E+01
+
+Total solvent accessible surface area: 210.755 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 2.075445912985E-02
+  Surface tension*area energy for atom 1: 1.414394470700E-01
+  Surface tension*area energy for atom 2: 1.458248229736E-01
+  Surface tension*area energy for atom 3: 1.398890616496E-01
+  Surface tension*area energy for atom 4: 0.000000000000E+00
+  Surface tension*area energy for atom 5: 2.031017407203E-02
+  Surface tension*area energy for atom 6: 1.392689074814E-01
+  Surface tension*area energy for atom 7: 1.417495241541E-01
+  Surface tension*area energy for atom 8: 1.463563836891E-01
+  Surface tension*area energy for atom 9: 2.056405124793E-02
+  Surface tension*area energy for atom 10: 1.394017976603E-01
+  Surface tension*area energy for atom 11: 1.416609307015E-01
+  Surface tension*area energy for atom 12: 1.461349000577E-01
+  Surface tension*area energy for atom 13: 2.081792842383E-02
+  Surface tension*area energy for atom 14: 1.464892738680E-01
+  Surface tension*area energy for atom 15: 1.393575009340E-01
+  Surface tension*area energy for atom 16: 1.413951503437E-01
+
+Total surface tension energy: 1.79141 kJ/mol
+
+Total solvent accessible volume: 251.127 A^3
+
+Total pressure*volume energy: 60.1198 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.011082520236E+00
+  WCA energy for atom 1: -1.497367782613E+00
+  WCA energy for atom 2: -1.498546483218E+00
+  WCA energy for atom 3: -1.492562171495E+00
+  WCA energy for atom 4: -5.447325863939E+00
+  WCA energy for atom 5: -6.004516149175E+00
+  WCA energy for atom 6: -1.492776531092E+00
+  WCA energy for atom 7: -1.496078170066E+00
+  WCA energy for atom 8: -1.501529655270E+00
+  WCA energy for atom 9: -5.996267554365E+00
+  WCA energy for atom 10: -1.492194267752E+00
+  WCA energy for atom 11: -1.496027211216E+00
+  WCA energy for atom 12: -1.500561393960E+00
+  WCA energy for atom 13: -6.000218612907E+00
+  WCA energy for atom 14: -1.500859921426E+00
+  WCA energy for atom 15: -1.492908499790E+00
+  WCA energy for atom 16: -1.494057174414E+00
+
+Total WCA energy: -47.4149 kJ/mol
+
+Total non-polar energy = 1.449633815052E+01 kJ/mol
+----------------------------------------
+CALCULATION #10 (solvated-pentane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 4.405515699447E+00
+  SASA for atom 1: 8.213673337951E-01
+  SASA for atom 2: 3.285469335181E-01
+  SASA for atom 3: 7.466975761774E-01
+  SASA for atom 4: 1.855251124959E+01
+  SASA for atom 5: 2.147609518526E+01
+  SASA for atom 6: 1.852645435176E+01
+  SASA for atom 7: 1.655655287639E+01
+  SASA for atom 8: 1.655134149682E+01
+  SASA for atom 9: 1.360170066332E+01
+  SASA for atom 10: 1.357043238593E+01
+  SASA for atom 11: 1.685881289113E+01
+  SASA for atom 12: 1.687444702982E+01
+  SASA for atom 13: 4.196440378117E+00
+  SASA for atom 14: 1.881308022781E+01
+  SASA for atom 15: 1.882350298694E+01
+  SASA for atom 16: 2.182004623652E+01
+
+Total solvent accessible surface area: 222.524 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 3.744688344530E-02
+  Surface tension*area energy for atom 1: 6.981622337259E-03
+  Surface tension*area energy for atom 2: 2.792648934903E-03
+  Surface tension*area energy for atom 3: 6.346929397508E-03
+  Surface tension*area energy for atom 4: 1.576963456215E-01
+  Surface tension*area energy for atom 5: 1.825468090747E-01
+  Surface tension*area energy for atom 6: 1.574748619900E-01
+  Surface tension*area energy for atom 7: 1.407306994493E-01
+  Surface tension*area energy for atom 8: 1.406864027230E-01
+  Surface tension*area energy for atom 9: 1.156144556382E-01
+  Surface tension*area energy for atom 10: 1.153486752804E-01
+  Surface tension*area energy for atom 11: 1.432999095746E-01
+  Surface tension*area energy for atom 12: 1.434327997535E-01
+  Surface tension*area energy for atom 13: 3.566974321399E-02
+  Surface tension*area energy for atom 14: 1.599111819364E-01
+  Surface tension*area energy for atom 15: 1.599997753890E-01
+  Surface tension*area energy for atom 16: 1.854703930104E-01
+
+Total surface tension energy: 1.89145 kJ/mol
+
+Total solvent accessible volume: 258.93 A^3
+
+Total pressure*volume energy: 61.9878 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.655804319869E+00
+  WCA energy for atom 1: -6.027315962813E+00
+  WCA energy for atom 2: -5.696430965386E+00
+  WCA energy for atom 3: -6.016749084714E+00
+  WCA energy for atom 4: -1.608595384643E+00
+  WCA energy for atom 5: -1.703300955380E+00
+  WCA energy for atom 6: -1.609931495887E+00
+  WCA energy for atom 7: -1.457107525189E+00
+  WCA energy for atom 8: -1.457741620594E+00
+  WCA energy for atom 9: -1.354235498709E+00
+  WCA energy for atom 10: -1.354106470090E+00
+  WCA energy for atom 11: -1.456736412636E+00
+  WCA energy for atom 12: -1.455995435596E+00
+  WCA energy for atom 13: -6.633650611186E+00
+  WCA energy for atom 14: -1.605996088477E+00
+  WCA energy for atom 15: -1.606549890103E+00
+  WCA energy for atom 16: -1.700042300035E+00
+
+Total WCA energy: -49.4003 kJ/mol
+
+Total non-polar energy = 1.447900211546E+01 kJ/mol
+----------------------------------------
+CALCULATION #11 (solvated-propane): APOLAR
+
+Solvent Accessible Surface Area (SASA) for each atom:
+  SASA for atom 0: 3.173464698754E+00
+  SASA for atom 1: 1.931858404557E+01
+  SASA for atom 2: 2.014198201675E+01
+  SASA for atom 3: 2.149694070352E+01
+  SASA for atom 4: 1.904078819252E+00
+  SASA for atom 5: 2.067354273233E+01
+  SASA for atom 6: 1.937590922077E+01
+  SASA for atom 7: 3.098794941136E+00
+  SASA for atom 8: 1.942802301642E+01
+  SASA for atom 9: 1.973028303116E+01
+  SASA for atom 10: 2.204934693736E+01
+
+Total solvent accessible surface area: 170.391 A^2
+
+Surface tension*area energies (gamma * SASA) for each atom:
+  Surface tension*area energy for atom 0: 2.697444993941E-02
+  Surface tension*area energy for atom 1: 1.642079643873E-01
+  Surface tension*area energy for atom 2: 1.712068471424E-01
+  Surface tension*area energy for atom 3: 1.827239959799E-01
+  Surface tension*area energy for atom 4: 1.618466996365E-02
+  Surface tension*area energy for atom 5: 1.757251132248E-01
+  Surface tension*area energy for atom 6: 1.646952283766E-01
+  Surface tension*area energy for atom 7: 2.633975699966E-02
+  Surface tension*area energy for atom 8: 1.651381956396E-01
+  Surface tension*area energy for atom 9: 1.677074057649E-01
+  Surface tension*area energy for atom 10: 1.874194489675E-01
+
+Total surface tension energy: 1.44832 kJ/mol
+
+Total solvent accessible volume: 183.573 A^3
+
+Total pressure*volume energy: 43.9474 kJ/mol
+
+WCA dispersion Energies for each atom:
+  WCA energy for atom 0: -6.818670105515E+00
+  WCA energy for atom 1: -1.641297645338E+00
+  WCA energy for atom 2: -1.649584120441E+00
+  WCA energy for atom 3: -1.711408141255E+00
+  WCA energy for atom 4: -6.624720142882E+00
+  WCA energy for atom 5: -1.610117050515E+00
+  WCA energy for atom 6: -1.596858009746E+00
+  WCA energy for atom 7: -6.816460624835E+00
+  WCA energy for atom 8: -1.642782751806E+00
+  WCA energy for atom 9: -1.645779566650E+00
+  WCA energy for atom 10: -1.714436154542E+00
+
+Total WCA energy: -33.4721 kJ/mol
+
+Total non-polar energy = 1.192358496286E+01 kJ/mol
+----------------------------------------
+PRINT STATEMENTS
+
+print APOL energy 1 (solvated-2-methylbutane) end
+  Global net APOL energy = 1.439739455792E+01 kJ/mol
+
+print APOL energy 2 (solvated-butane) end
+  Global net APOL energy = 1.208346456826E+01 kJ/mol
+
+print APOL energy 3 (solvated-cyclohexane) end
+  Global net APOL energy = 1.354016672221E+01 kJ/mol
+
+print APOL energy 4 (solvated-cyclopentane) end
+  Global net APOL energy = 9.363673200142E+00 kJ/mol
+
+print APOL energy 5 (solvated-ethane) end
+  Global net APOL energy = 9.422717598546E+00 kJ/mol
+
+print APOL energy 6 (solvated-hexane) end
+  Global net APOL energy = 1.640068943201E+01 kJ/mol
+
+print APOL energy 7 (solvated-isobutane) end
+  Global net APOL energy = 1.323144287435E+01 kJ/mol
+
+print APOL energy 8 (solvated-methane) end
+  Global net APOL energy = 7.894367190329E+00 kJ/mol
+
+print APOL energy 9 (solvated-neopentane) end
+  Global net APOL energy = 1.449633815052E+01 kJ/mol
+
+print APOL energy 10 (solvated-pentane) end
+  Global net APOL energy = 1.447900211546E+01 kJ/mol
+
+print APOL energy 11 (solvated-propane) end
+  Global net APOL energy = 1.192358496286E+01 kJ/mol
+----------------------------------------
+CLEANING UP AND SHUTTING DOWN...
+Destroying force arrays.
+No energy arrays to destroy.
+Destroying multigrid structures.
+Destroying finite element structures.
+Destroying 11 molecules
+Final memory usage:  0.001 MB total, 2.204 MB high water
+
+
+Thanks for using APBS!
+
