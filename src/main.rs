@@ -186,13 +186,29 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
 fn get_built_in_gmx() -> Option<String> {
     if cfg!(windows) {
         Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
-            .parent()
-            .expect("Cannot get current super_mmpbsa program directory.")
+            .parent().expect("Cannot get current super_mmpbsa program directory.")
             .join("programs").join("gmx")
             .join("win").join("gmx.exe").to_str()
             .expect("The built-in gromacs not found.").to_string())
     } else {
         println!("Built-in gromacs not supported on Linux.");
+        None
+    }
+}
+
+fn get_built_in_apbs() -> Option<String> {
+    if cfg!(windows) {
+        Some(env::current_dir().expect("Cannot get current super_mmpbsa program directory.")
+            .join("programs").join("apbs")
+            .join("win").join("bin").join("apbs.exe").to_str()
+            .expect("The built-in apbs not found.").to_string())
+    } else if cfg!(unix) {
+        Some(env::current_dir().expect("Cannot get current super_mmpbsa program directory.")
+            .join("programs").join("apbs")
+            .join("linux").join("bin").join("apbs").to_str()
+            .expect("The built-in apbs not found.").to_string())
+    } else {
+        println!("Built-in apbs not found for current system.");
         None
     }
 }
@@ -249,21 +265,49 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
     // apbs
     let apbs_path = match apbs {
         Some(apbs) => {
-            match check_program_validity(apbs.as_str()) {
-                Ok(p) => {
-                    println!("Using APBS: {}", apbs);
-                    match fs::remove_file(Path::new("io.mc")) {
-                        Ok(_) => Some(p),
+            let apbs = match apbs.as_str() {
+                "built-in" => {
+                    get_built_in_gmx()
+                }
+                _ => Some(apbs)
+            };
+            match apbs {
+                Some(apbs) => {
+                    match check_program_validity(apbs.as_str()) {
+                        Ok(p) => {
+                            println!("Using APBS: {}", apbs);
+                            match fs::remove_file(Path::new("io.mc")) {
+                                Ok(_) => Some(p),
+                                Err(_) => {
+                                    println!("io.mc not exist.");
+                                    Some(p)
+                                }
+                            }
+                        }
                         Err(_) => {
-                            println!("io.mc not exist.");
-                            Some(p)
+                            println!("Note: {} not valid. Will try built-in apbs.", apbs);
+                            match get_built_in_apbs() {
+                                Some(apbs) => {
+                                    match check_program_validity(apbs.as_str()) {
+                                        Ok(p) => {
+                                            println!("Using APBS: {}", apbs);
+                                            Some(p)
+                                        }
+                                        Err(_) => {
+                                            println!("Warning: no valid APBS program in use.");
+                                            None
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    println!("Warning: no valid APBS program in use.");
+                                    None
+                                }
+                            }
                         }
                     }
                 }
-                Err(_) => {
-                    println!("Warning: no valid APBS program in use.");
-                    None
-                }
+                None => None
             }
         }
         None => None
