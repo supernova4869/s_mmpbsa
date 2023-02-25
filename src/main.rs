@@ -185,8 +185,7 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
 
 fn get_built_in_gmx() -> Option<String> {
     if cfg!(windows) {
-        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
-            .parent().expect("Cannot get current super_mmpbsa program directory.")
+        Some(env::current_dir().expect("Cannot get current super_mmpbsa program directory.")
             .join("programs").join("gmx")
             .join("win").join("gmx.exe").to_str()
             .expect("The built-in gromacs not found.").to_string())
@@ -267,7 +266,7 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
         Some(apbs) => {
             let apbs = match apbs.as_str() {
                 "built-in" => {
-                    get_built_in_gmx()
+                    get_built_in_apbs()
                 }
                 _ => Some(apbs)
             };
@@ -277,11 +276,7 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
                         Ok(p) => {
                             println!("Using APBS: {}", apbs);
                             match fs::remove_file(Path::new("io.mc")) {
-                                Ok(_) => Some(p),
-                                Err(_) => {
-                                    println!("io.mc not exist.");
-                                    Some(p)
-                                }
+                                _ => Some(p)
                             }
                         }
                         Err(_) => {
@@ -291,7 +286,9 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
                                     match check_program_validity(apbs.as_str()) {
                                         Ok(p) => {
                                             println!("Using APBS: {}", apbs);
-                                            Some(p)
+                                            match fs::remove_file(Path::new("io.mc")) {
+                                                _ => Some(p)
+                                            }
                                         }
                                         Err(_) => {
                                             println!("Warning: no valid APBS program in use.");
