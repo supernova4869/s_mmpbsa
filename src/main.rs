@@ -280,27 +280,8 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
                             }
                         }
                         Err(_) => {
-                            println!("Note: {} not valid. Will try built-in apbs.", apbs);
-                            match get_built_in_apbs() {
-                                Some(apbs) => {
-                                    match check_program_validity(apbs.as_str()) {
-                                        Ok(p) => {
-                                            println!("Using APBS: {}", apbs);
-                                            match fs::remove_file(Path::new("io.mc")) {
-                                                _ => Some(p)
-                                            }
-                                        }
-                                        Err(_) => {
-                                            println!("Warning: no valid APBS program in use.");
-                                            None
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    println!("Warning: no valid APBS program in use.");
-                                    None
-                                }
-                            }
+                            println!("Warning: no valid APBS program in use.");
+                            None
                         }
                     }
                 }
