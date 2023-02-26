@@ -185,7 +185,9 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
 
 fn get_built_in_gmx() -> Option<String> {
     if cfg!(windows) {
-        Some(env::current_dir().expect("Cannot get current super_mmpbsa program directory.")
+        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
+            .parent()
+            .expect("Cannot get current super_mmpbsa program directory.")
             .join("programs").join("gmx")
             .join("win").join("gmx.exe").to_str()
             .expect("The built-in gromacs not found.").to_string())
@@ -197,14 +199,18 @@ fn get_built_in_gmx() -> Option<String> {
 
 fn get_built_in_apbs() -> Option<String> {
     if cfg!(windows) {
-        Some(env::current_dir().expect("Cannot get current super_mmpbsa program directory.")
+        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
+            .parent()
+            .expect("Cannot get current super_mmpbsa program directory.")
             .join("programs").join("apbs")
-            .join("win").join("bin").join("apbs.exe").to_str()
+            .join("win").join("apbs.exe").to_str()
             .expect("The built-in apbs not found.").to_string())
     } else if cfg!(unix) {
-        Some(env::current_dir().expect("Cannot get current super_mmpbsa program directory.")
+        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
+            .parent()
+            .expect("Cannot get current super_mmpbsa program directory.")
             .join("programs").join("apbs")
-            .join("linux").join("bin").join("apbs").to_str()
+            .join("linux").join("apbs").to_str()
             .expect("The built-in apbs not found.").to_string())
     } else {
         println!("Built-in apbs not found for current system.");
