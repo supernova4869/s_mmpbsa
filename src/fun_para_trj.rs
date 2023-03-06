@@ -34,7 +34,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
                             bt, et, dt, atom_radius,
                             settings);
                     }
-                    _ => println!("Please select receptor and ligand groups.")
+                    _ => println!("Please select receptor groups.")
                 }
             }
             1 => {
