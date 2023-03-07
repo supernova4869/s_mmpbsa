@@ -252,9 +252,12 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             pb_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>, sa_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>,
             cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
             aps: &AtomProperty, pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters) {
-    // default gamma for apbs calculation is 1
-    let gamma = 0.0301248;      // Here is the surface extension constant from AMBER-PB4
-    let _const = 0.0;
+
+    // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å2)
+    // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
+    // then the SA energy term is calculated by super_mmpbsa
+    let gamma = 0.030125;
+    let bias = 0.0;
     let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
     if let Some(apbs) = &settings.apbs {
         write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &aps.atm_radius,
@@ -332,7 +335,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         let f = |e_arr: &mut Array2<f64>, n_cols: usize|
             for mut col in e_arr.columns_mut() {
                 col[0] -= col[1];
-                col[2] = gamma * col[2] + _const / n_cols as f64;
+                col[2] = gamma * col[2] + bias / n_cols as f64;
             };
         f(&mut e_com, ndx_com_norm.len());
         f(&mut e_rec, ndx_rec_norm.len());
