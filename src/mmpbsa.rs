@@ -365,8 +365,8 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         // if no ligand, pb_com = pb_lig = 0, so pb_rec should be inversed to be real energy
         if ndx_lig_norm[0] == ndx_rec_norm[0] {
             for j in 0..pb_res.shape()[1] {
-                pb_res[[idx, j]] = pb_res[[idx, j]] * -1 as f64;
-                sa_res[[idx, j]] = sa_res[[idx, j]] * -1 as f64;
+                pb_res[[idx, j]] = -pb_res[[idx, j]];
+                sa_res[[idx, j]] = -sa_res[[idx, j]];
             }
         }
     }

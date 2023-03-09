@@ -83,7 +83,7 @@ impl Results {
             .sum::<f64>() / self.mm.len() as f64;
         let tds = -rt2kj * tds.ln();
         let dg = dh_avg - tds;
-        let ki = f64::exp(dg / rt2kj);
+        let ki = f64::exp(dg / rt2kj) * 1e9;    // nM
         return (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg, vdw_avg, tds, dg, ki);
     }
 }
@@ -150,7 +150,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!();
     println!("TΔS: {:.3} kJ/mol", tds);
     println!("ΔG: {:.3} kJ/mol", dg);
-    println!("Ki: {:.3}", ki);
+    println!("Ki: {:.3} nM", ki);
 
     let f_name = format!("{}_MMPBSA_summary.csv", sys_name);
     println!("\nWrite to file? [Y/n]");
@@ -170,7 +170,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
         energy_sum.write_all(b"\n").unwrap();
         energy_sum.write_all(format!("TΔS,{:.3},(kJ/mol)\n", tds).as_bytes()).unwrap();
         energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).as_bytes()).unwrap();
-        energy_sum.write_all(format!("Ki,{:.3e},Ki=exp(ΔG/RT)\n", ki).as_bytes()).unwrap();
+        energy_sum.write_all(format!("Ki,{:.3e},Ki=exp(ΔG/RT) (nM)\n", ki).as_bytes()).unwrap();
         println!("Binding energy terms have been writen to {}", &f_name);
     }
 }
