@@ -28,7 +28,7 @@ impl PBESet {
         return PBESet {
             temp,
             pdie: 2.0,
-            sdie: 78.54,
+            sdie: 78.4,
             pb_solver: "npbe".to_string(),
             bcfl: "mdh".to_string(),
             srfm: "smol".to_string(),
@@ -90,7 +90,7 @@ impl fmt::Display for PBESet {
         write!(f,
             "  temp  {:7}  # 温度\
             \n  pdie  {:7}  # 溶质介电常数\
-            \n  sdie  {:7}  # 溶剂介电常数, 真空1, 水78.54\
+            \n  sdie  {:7}  # 溶剂介电常数, 真空1, 水78.4 (298.15 K)\
             \n  \
             \n  {}           # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)\
             \n  bcfl  {:>7}  # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\

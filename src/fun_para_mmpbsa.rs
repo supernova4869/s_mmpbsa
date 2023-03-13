@@ -50,7 +50,9 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
-        println!(" -1 Output parameters");
+        println!(" -3 Output PBSA parameters");
+        println!(" -2 Output structural parameters");
+        println!(" -1 Output ff parameters");
         println!("  0 Start MM/PB-SA calculation");
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
@@ -65,16 +67,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         match i {
             -10 => return,
             -1 => {
-                let mut paras = File::create(wd.join("paras.txt")).unwrap();
-                paras.write_all(format!("Receptor group: {}\n", 
-                    ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
-                match ligand_grp {
-                    Some(ligand_grp) => {
-                        paras.write_all(format!("Ligand group: {}\n", 
-                            ndx.groups[ligand_grp as usize].name).as_bytes()).unwrap();
-                    }
-                    None => {}
-                }
+                let mut paras = File::create(wd.join("paras_ff.txt")).unwrap();
                 paras.write_all(format!("Atom types num: {}\n", tpr.atom_types_num).as_bytes()).unwrap();
                 paras.write_all("c6:\n".as_bytes()).unwrap();
                 for i in 0..aps.c6.shape()[0] {
@@ -90,6 +83,21 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     }
                     paras.write_all("\n".as_bytes()).unwrap();
                 }
+                println!("Forcefield parameters have been written to paras_ff.txt");
+            }
+            -2 => {
+                let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
+                paras.write_all(format!("Receptor group: {}\n", 
+                    ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
+                match ligand_grp {
+                    Some(ligand_grp) => {
+                        paras.write_all(format!("Ligand group: {}\n", 
+                            ndx.groups[ligand_grp as usize].name).as_bytes()).unwrap();
+                    }
+                    None => {
+                        paras.write_all("Ligand group: None\n".as_bytes()).unwrap();
+                    }
+                }
                 paras.write_all(format!("Atoms:\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
                 for &atom in &ndx_com {
                     paras.write_all(format!("{:7}{:>7}{:7}{:13.6E}{:13.6E}{:9.2}{:9.2}{:9}{:>9}\n", 
@@ -97,7 +105,20 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     aps.atm_epsilon[atom], aps.atm_charge[atom], aps.atm_radius[atom], aps.atm_resnum[atom] + 1, 
                     aps.atm_resname[atom]).as_bytes()).unwrap();
                 }
-                println!("Parameters have been written to paras.txt");
+                println!("Structural parameters have been written to paras_ff.txt");
+            }
+            -3 => {
+                let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
+                paras.write_all(format!("Use Debye-Huckel shielding method: {}\n", settings.use_dh).as_bytes()).unwrap();
+                paras.write_all(format!("Use entropy contribution: {}\n", settings.use_ts).as_bytes()).unwrap();
+                paras.write_all(format!("Atom radius type: {}\n", RADIUS_TABLE[&settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
+                paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
+                paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
+                paras.write_all(format!("Fine mesh spacing (df): {} A\n\n", settings.df).as_bytes()).unwrap();
+                paras.write_all(format!("PB settings:\n{}\n\n", pbe_set).as_bytes()).unwrap();
+                paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
+                println!("PBSA parameters have been written to paras_pbsa.txt");
             }
             0 => {
                 // Temp directory for PBSA
