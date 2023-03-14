@@ -14,12 +14,14 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64,
                        atom_radius: &Radius, settings: &mut Parameters) {
+    println!("Converting fucking indexes...");
     // atom indexes
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = match ligand_grp {
         Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
         None => None
     };
+    println!("Generating ndx_com...");
     let ndx_com = match ndx_lig {
         Some(ndx_lig) => {
             match ndx_lig[0] > ndx_rec[0] {
@@ -37,6 +39,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         }
         None => ndx_rec.to_vec()
     };
+    println!("Finished index.");
 
     // atom properties
     // 调整com索引防止溢出, 可能和后面的normalize重复
