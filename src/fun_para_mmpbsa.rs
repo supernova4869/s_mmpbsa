@@ -39,11 +39,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         }
         None => ndx_rec.to_vec()
     };
-    println!("Finished index.");
 
     // atom properties
     // 调整com索引防止溢出, 可能和后面的normalize重复
     let aps = AtomProperty::new(tpr, &ndx_com.iter().map(|p| p - ndx_com[0]).collect());
+    println!("Finished index.");
 
     // save a copy of default force field atom type
     let atom_radius_ff = atom_radius.clone();
