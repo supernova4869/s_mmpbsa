@@ -69,14 +69,14 @@ impl PBESet {
     }
 
     pub fn load_params<T: AsRef<Path>>(file: T) -> PBESet {
-        let pbe_set = fs::read_to_string(&file).expect("Read PB parameters error.");
-        let pbe_set: PBESet = serde_json::from_str(pbe_set.as_str()).expect("Read PB parameters error.");
+        let pbe_set = fs::read_to_string(&file).expect("Read PB parameters file error.");
+        let pbe_set: PBESet = serde_yaml::from_str(pbe_set.as_str()).expect("Error format with PB parameters file.");
         pbe_set
     }
 
     pub fn save_params<T: AsRef<Path>>(&self, file: T) {
         let mut f = File::create(&file).expect("Save SA parameters error.");
-        f.write_all(serde_json::to_string_pretty(self).unwrap().as_bytes())
+        f.write_all(serde_yaml::to_string(self).unwrap().as_bytes())
             .expect("Save PB parameters error.");
     }
 }
@@ -193,14 +193,14 @@ impl PBASet {
     }
 
     pub fn load_params<T: AsRef<Path>>(file: T) -> PBASet {
-        let pba_set = fs::read_to_string(&file).expect("Read SA parameters error.");
-        let pba_set: PBASet = serde_json::from_str(pba_set.as_str()).expect("Read SA parameters error.");
+        let pba_set = fs::read_to_string(&file).expect("Read SA parameters file error.");
+        let pba_set: PBASet = serde_yaml::from_str(pba_set.as_str()).expect("Error format with SA parameters file.");
         pba_set
     }
 
     pub fn save_params<T: AsRef<Path>>(&self, file: T) {
         let mut f = File::create(&file).expect("Save SA parameters error.");
-        f.write_all(serde_json::to_string_pretty(self).unwrap().as_bytes())
+        f.write_all(serde_yaml::to_string(self).unwrap().as_bytes())
             .expect("Save SA parameters error.");
     }
 }
