@@ -15,6 +15,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                        bt: f64, et: f64, dt: f64,
                        atom_radius: &Radius, settings: &mut Parameters) {
     // atom indexes
+    println!("Preparing atom indexes...");
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = match ligand_grp {
         Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
@@ -40,9 +41,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
 
     // atom properties
     // 调整com索引防止溢出, 可能和后面的normalize重复
+    println!("Preparing atom properties...");
     let aps = AtomProperty::new(tpr, &ndx_com.iter().map(|p| p - ndx_com[0]).collect());
 
     // save a copy of default force field atom type
+    println!("Applying atom radius...");
     let atom_radius_ff = atom_radius.clone();
     tpr.apply_radius(settings.rad_type, &atom_radius.radii, settings);
     let mut pbe_set = PBESet::new(tpr.temp);

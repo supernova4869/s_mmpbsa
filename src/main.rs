@@ -168,7 +168,7 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
         }
         // check extension
         let file_ext = Path::new(&f_name).extension()
-            .expect("No extension.")
+            .expect("Input file has no extension.")
             .to_str().expect("Extension not valid Unicode.");
         for i in 0..ext_list.len() {
             if file_ext != ext_list[i] {
