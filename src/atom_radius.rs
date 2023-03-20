@@ -17,15 +17,17 @@ lazy_static! {
 
 impl AtomProperty {
     // ff_radius would not be used if radius_type not 0
-    pub fn apply_radius(&mut self, radius_type: usize, tpr: &TPR) {
+    pub fn apply_radius(&mut self, radius_type: usize, tpr: &TPR, ndx_com_norm: &Vec<usize>) {
         match radius_type {
             0 => {
                 let mut idx = 0;
                 for mol in &tpr.molecules {
                     for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                         for atom in &mol.atoms {
-                            self.atm_radius[idx] = atom.radius;
-                            idx += 1;
+                            if ndx_com_norm.contains(&idx) {
+                                self.atm_radius[idx] = atom.radius;
+                                idx += 1;
+                            }
                         }
                     }
                 };
@@ -48,8 +50,10 @@ impl AtomProperty {
                 for mol in &tpr.molecules {
                     for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                         for atom in &mol.atoms {
-                            self.atm_radius[idx] = get_radii(&radii_table, &atom.name.as_str().to_uppercase());
-                            idx += 1;
+                            if ndx_com_norm.contains(&idx) {
+                                self.atm_radius[idx] = get_radii(&radii_table, &atom.name.as_str().to_uppercase());
+                                idx += 1;
+                            }
                         }
                     }
                 }

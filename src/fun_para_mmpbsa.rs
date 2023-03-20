@@ -20,6 +20,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
         None => None
     };
+    // 这要求二者必须是连续的, 如果不连续, 索引就会出问题, 这个问题必须解决
     let ndx_com = match ndx_lig {
         Some(ndx_lig) => {
             match ndx_lig[0] > ndx_rec[0] {
@@ -41,10 +42,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     // atom properties
     // 调整com索引防止溢出, 可能和后面的normalize重复
     println!("Parsing atom properties...");
-    let mut aps = AtomProperty::new(tpr, &ndx_com.iter().map(|p| p - ndx_com[0]).collect());
+    let ndx_com_norm = ndx_com.iter().map(|p| p - ndx_com[0]).collect();
+    let mut aps = AtomProperty::new(tpr, &ndx_com_norm);
     
     println!("Applying {} radius...", RADIUS_TABLE[&settings.rad_type]);
-    aps.apply_radius(settings.rad_type, tpr);
+    aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm);
     let mut pbe_set = PBESet::new(tpr.temp);
     let mut pba_set = PBASet::new(tpr.temp);
     loop {
@@ -182,7 +184,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                         settings.rad_type = 3;
                     }
                 }
-                aps.apply_radius(settings.rad_type, tpr);
+                aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm);
             }
             4 => {
                 println!("Input cutoff value (A), default 0 (inf):");
