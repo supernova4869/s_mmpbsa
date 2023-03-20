@@ -4,7 +4,6 @@ use crate::index_parser::Index;
 use crate::{get_input_selection, parameters::Parameters};
 use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
-use crate::atom_radius::RADIUS_TABLE;
 use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperty;
@@ -45,8 +44,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     let ndx_com_norm = ndx_com.iter().map(|p| p - ndx_com[0]).collect();
     let mut aps = AtomProperty::new(tpr, &ndx_com_norm);
     
-    println!("Applying {} radius...", RADIUS_TABLE[&settings.rad_type]);
-    aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm);
+    // kinds of radius types
+    let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
+    println!("Applying {} radius...", radius_types[settings.rad_type]);
+    aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm, &radius_types);
     let mut pbe_set = PBESet::new(tpr.temp);
     let mut pba_set = PBASet::new(tpr.temp);
     loop {
@@ -58,7 +59,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         println!("  0 Start MM/PB-SA calculation");
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
-        println!("  3 Select atom radius type, current: {}", RADIUS_TABLE[&settings.rad_type]);
+        println!("  3 Select atom radius type, current: {}", radius_types[settings.rad_type]);
         println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
         println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
@@ -100,7 +101,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                         paras.write_all("Ligand group: None\n".as_bytes()).unwrap();
                     }
                 }
-                paras.write_all(format!("Atom radius type: {}\n", RADIUS_TABLE[&settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
                 for &atom in &ndx_com {
                     paras.write_all(format!("{:7}{:>7}{:7}{:13.6E}{:13.6E}{:9.2}{:9.2}{:9}{:>9}\n", 
@@ -114,7 +115,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
                 paras.write_all(format!("Use Debye-Huckel shielding method: {}\n", settings.use_dh).as_bytes()).unwrap();
                 paras.write_all(format!("Use entropy contribution: {}\n", settings.use_ts).as_bytes()).unwrap();
-                paras.write_all(format!("Atom radius type: {}\n", RADIUS_TABLE[&settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
                 paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
                 paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
@@ -164,7 +165,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             3 => {
                 println!("Input atom radius type (default mBondi), Supported:{}", {
                     let mut s = String::new();
-                    for (k, v) in RADIUS_TABLE.clone().into_iter() {
+                    for (k, v) in radius_types.iter().enumerate() {
                         s.push_str(format!("\n{}):\t{}", k, v).as_str());
                     }
                     s
@@ -177,14 +178,14 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     let s = s.trim().parse().expect("Input not valid number.");
                     if s == 0 {
                         settings.rad_type = 0;
-                    } else if RADIUS_TABLE.contains_key(&s) {
+                    } else if s < radius_types.len() {
                         settings.rad_type = s;
                     } else {
-                        println!("Radius type {} not supported. Will use mBondi instead.", RADIUS_TABLE[&s]);
+                        println!("Radius type {} not supported. Will use mBondi instead.", radius_types[s]);
                         settings.rad_type = 3;
                     }
                 }
-                aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm);
+                aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm, &radius_types);
             }
             4 => {
                 println!("Input cutoff value (A), default 0 (inf):");
