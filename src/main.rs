@@ -100,18 +100,8 @@ fn main() {
     let mut tpr = TPR::new(tpr.as_str(), &settings);
     println!("\nFinished reading tpr.");
 
-    let mut atm_radius: Vec<f64> = Vec::new();
-    for mol in &tpr.molecules {
-        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
-            for atom in &mol.atoms {
-                atm_radius.push(atom.radius);
-            }
-        }
-    }
-    let atom_radius = atom_radius::Radius::new(0, atm_radius);
-
     // go to next step
-    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, wd, &atom_radius, &mut settings);
+    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, wd, &mut settings);
 }
 
 fn welcome() {
@@ -186,8 +176,7 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
 fn get_built_in_gmx() -> Option<String> {
     if cfg!(windows) {
         Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
-            .parent()
-            .expect("Cannot get current super_mmpbsa program directory.")
+            .parent().expect("Cannot get current super_mmpbsa program directory.")
             .join("programs").join("gmx")
             .join("win").join("gmx.exe").to_str()
             .expect("The built-in gromacs not found.").to_string())

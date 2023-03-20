@@ -4,7 +4,7 @@ use crate::index_parser::Index;
 use crate::{get_input_selection, parameters::Parameters};
 use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
-use crate::atom_radius::{Radius, RADIUS_TABLE};
+use crate::atom_radius::RADIUS_TABLE;
 use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperty;
@@ -12,8 +12,7 @@ use crate::parse_tpr::TPR;
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                        receptor_grp: usize, ligand_grp: Option<usize>,
-                       bt: f64, et: f64, dt: f64,
-                       atom_radius: &Radius, settings: &mut Parameters) {
+                       bt: f64, et: f64, dt: f64, settings: &mut Parameters) {
     // atom indexes
     println!("Preparing atom indexes...");
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
@@ -41,13 +40,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
 
     // atom properties
     // 调整com索引防止溢出, 可能和后面的normalize重复
-    println!("Preparing atom properties...");
-    let aps = AtomProperty::new(tpr, &ndx_com.iter().map(|p| p - ndx_com[0]).collect());
-
-    // save a copy of default force field atom type
-    println!("Applying atom radius...");
-    let atom_radius_ff = atom_radius.clone();
-    tpr.apply_radius(settings.rad_type, &atom_radius.radii, settings);
+    println!("Parsing atom properties...");
+    let mut aps = AtomProperty::new(tpr, &ndx_com.iter().map(|p| p - ndx_com[0]).collect());
+    
+    println!("Applying {} radius...", RADIUS_TABLE[&settings.rad_type]);
+    aps.apply_radius(settings.rad_type, tpr);
     let mut pbe_set = PBESet::new(tpr.temp);
     let mut pba_set = PBASet::new(tpr.temp);
     loop {
@@ -101,6 +98,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                         paras.write_all("Ligand group: None\n".as_bytes()).unwrap();
                     }
                 }
+                paras.write_all(format!("Atom radius type: {}\n", RADIUS_TABLE[&settings.rad_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
                 for &atom in &ndx_com {
                     paras.write_all(format!("{:7}{:>7}{:7}{:13.6E}{:13.6E}{:9.2}{:9.2}{:9}{:>9}\n", 
@@ -108,7 +106,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     aps.atm_epsilon[atom], aps.atm_charge[atom], aps.atm_radius[atom], aps.atm_resnum[atom] + 1, 
                     aps.atm_resname[atom]).as_bytes()).unwrap();
                 }
-                println!("Structural parameters have been written to paras_ff.txt");
+                println!("Structural parameters have been written to paras_structure.txt");
             }
             -3 => {
                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
@@ -172,7 +170,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    settings.rad_type = 1;
+                    settings.rad_type = 3;
                 } else {
                     let s = s.trim().parse().expect("Input not valid number.");
                     if s == 0 {
@@ -180,13 +178,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     } else if RADIUS_TABLE.contains_key(&s) {
                         settings.rad_type = s;
                     } else {
-                        println!("Radius type {} not supported. Will use mBondi instead.", s);
-                        settings.rad_type = 1;
+                        println!("Radius type {} not supported. Will use mBondi instead.", RADIUS_TABLE[&s]);
+                        settings.rad_type = 3;
                     }
                 }
-                tpr.apply_radius(settings.rad_type,
-                                 &atom_radius_ff.radii,
-                                 settings);
+                aps.apply_radius(settings.rad_type, tpr);
             }
             4 => {
                 println!("Input cutoff value (A), default 0 (inf):");

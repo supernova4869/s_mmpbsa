@@ -1,83 +1,79 @@
 use std::collections::HashMap;
+use std::env::current_exe;
+use std::fs;
 use lazy_static::lazy_static;
-use crate::parameters::Parameters;
-use crate::parse_tpr::{Atom, TPR};
+use crate::atom_property::AtomProperty;
+use crate::parse_tpr::TPR;
 
 lazy_static! {
     pub static ref RADIUS_TABLE: HashMap<usize, String> = HashMap::from ([
         (0, "ff".to_string()),
-        (1, "mBondi".to_string()),
+        (1, "amber".to_string()),
+        (2, "Bondi".to_string()),
+        (3, "mBondi".to_string()),
+        (4, "mBondi2".to_string()),
     ]);
 }
 
-impl Atom {
-    pub fn apply_radius(&mut self, atom_radius_type: usize, ff_rad: f64, settings: &Parameters) {
-        match atom_radius_type {
+impl AtomProperty {
+    // ff_radius would not be used if radius_type not 0
+    pub fn apply_radius(&mut self, radius_type: usize, tpr: &TPR) {
+        match radius_type {
             0 => {
-                self.radius = ff_rad;
+                let mut idx = 0;
+                for mol in &tpr.molecules {
+                    for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+                        for atom in &mol.atoms {
+                            self.atm_radius[idx] = atom.radius;
+                            idx += 1;
+                        }
+                    }
+                };
             }
-            1 => {
-                self.radius = get_mbondi(self.name.as_str(), settings);
-            }
-            _ => {}
-        }
-    }
-}
+            _ => {
+                let mut radii_table: HashMap<&str, f64> = HashMap::new();
+                let rad_type = RADIUS_TABLE[&radius_type].as_str();
+                let radii_file = current_exe().expect("Cannot get current super_mmpbsa program path.")
+                    .parent().expect("Cannot get current super_mmpbsa program directory.")
+                    .join("dat").join(format!("{}.dat", &rad_type))
+                    .to_str().expect("The atom radius data files (dat/) not found.").to_string();
+                let radii_file = fs::read_to_string(radii_file)
+                    .expect(format!("The atom radius data file not found: {}.dat", rad_type).as_str());
+                for l in radii_file.split("\n").filter(|p| !p.trim().starts_with("//")) {
+                    let k_v: Vec<&str> = l.split(":").collect();
+                    radii_table.insert(k_v[0], k_v[1].trim().parse::<f64>().unwrap());
+                }
 
-// store all atom radius data
-pub struct Radius {
-    pub radius_type: usize,
-    pub radius_name: String,
-    pub radii: Vec<f64>,
-}
-
-impl Radius {
-    pub fn new(radius_type: usize, radii: Vec<f64>) -> Radius {
-        Radius { radius_type, radius_name: RADIUS_TABLE[&radius_type].to_string(), radii }
-    }
-}
-
-impl TPR {
-    // ff_radius would not be used if atom_radius_type not 0
-    pub fn apply_radius(&mut self, atom_radius_type: usize, ff_radius: &Vec<f64>, settings: &Parameters) {
-        let mut idx = 0;
-        for mol in &mut self.molecules {
-            for _ in 0..self.molecule_types[mol.molecule_type_id].molecules_num {
-                for atom in &mut mol.atoms {
-                    atom.apply_radius(atom_radius_type, ff_radius[idx], settings);
-                    idx += 1;
+                let mut idx = 0;
+                for mol in &tpr.molecules {
+                    for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+                        for atom in &mol.atoms {
+                            self.atm_radius[idx] = get_radii(&radii_table, &atom.name.as_str().to_uppercase());
+                            idx += 1;
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-// get atom radius, returns default radius if not found
-// mBondi from AMBER20/parmed/tools/changeradii.py
-pub fn get_mbondi(at_type: &str, settings: &Parameters) -> f64 {
-    let rad_bondi: HashMap<&str, f64> = HashMap::from([
-        ("C", 1.7), ("H", 1.2), ("N", 1.55), ("HC", 1.3),
-        ("O", 1.5), ("HN", 1.3), ("F", 1.5), ("HP", 1.3),
-        ("SI", 2.1), ("HO", 0.8), ("P", 1.85), ("HS", 0.8),
-        ("S", 1.8), ("CL", 1.7), ("BR", 1.85), ("I", 1.98),
-    ]);
-    let at_type = at_type.to_uppercase();
-    let mut radius = settings.rad_default;
+// get atom radius from dat
+pub fn get_radii(radii_table: &HashMap<&str, f64>, at_type: &str) -> f64 {
     if at_type.len() >= 2 {
-        let r = rad_bondi.get(&at_type[0..2]);
-        if let Some(&m) = r {
-            radius = m;
-        } else {
-            let r = rad_bondi.get(&at_type[0..1]);
-            if let Some(&m) = r {
-                radius = m;
+        match radii_table.get(&at_type[0..2]) {
+            Some(&m) => m,
+            _ => {
+                match radii_table.get(&at_type[0..1]) {
+                    Some(&m) => m,
+                    _ => radii_table["*"]
+                }
             }
         }
     } else {
-        let r = rad_bondi.get(&at_type[0..1]);
-        if let Some(&m) = r {
-            radius = m;
+        match radii_table.get(at_type) {
+            Some(&m) => m,
+            _ => radii_table["*"]
         }
     }
-    return radius;
 }

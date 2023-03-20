@@ -1,11 +1,10 @@
 use std::path::Path;
 use crate::{get_input_selection, parameters::Parameters};
-use crate::atom_radius::Radius;
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_radius: &Radius, settings: &mut Parameters) {
+pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settings: &mut Parameters) {
     let mut receptor_grp: Option<usize> = None;
     let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps
@@ -31,7 +30,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, atom_r
                         set_para_mmpbsa(trj, tpr, &ndx, wd,
                             receptor_grp,
                             ligand_grp,
-                            bt, et, dt, atom_radius,
+                            bt, et, dt,
                             settings);
                     }
                     _ => println!("Please select receptor groups.")
