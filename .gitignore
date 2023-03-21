@@ -1,5 +1,2 @@
-!/target/debug/dat
-!/target/debug/programs
 /target
-/.idea
 /examples/*/*/
