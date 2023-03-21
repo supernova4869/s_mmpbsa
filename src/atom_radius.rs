@@ -1,23 +1,12 @@
 use std::collections::HashMap;
 use std::env::current_exe;
 use std::fs;
-use lazy_static::lazy_static;
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
 
-lazy_static! {
-    pub static ref RADIUS_TABLE: HashMap<usize, String> = HashMap::from ([
-        (0, "ff".to_string()),
-        (1, "amber".to_string()),
-        (2, "Bondi".to_string()),
-        (3, "mBondi".to_string()),
-        (4, "mBondi2".to_string()),
-    ]);
-}
-
 impl AtomProperty {
     // ff_radius would not be used if radius_type not 0
-    pub fn apply_radius(&mut self, radius_type: usize, tpr: &TPR, ndx_com_norm: &Vec<usize>) {
+    pub fn apply_radius(&mut self, radius_type: usize, tpr: &TPR, ndx_com_norm: &Vec<usize>, radius_types: &Vec<&str>) {
         match radius_type {
             0 => {
                 let mut idx = 0;
@@ -34,7 +23,7 @@ impl AtomProperty {
             }
             _ => {
                 let mut radii_table: HashMap<&str, f64> = HashMap::new();
-                let rad_type = RADIUS_TABLE[&radius_type].as_str();
+                let rad_type = radius_types[radius_type];
                 let radii_file = current_exe().expect("Cannot get current super_mmpbsa program path.")
                     .parent().expect("Cannot get current super_mmpbsa program directory.")
                     .join("dat").join(format!("{}.dat", &rad_type))
