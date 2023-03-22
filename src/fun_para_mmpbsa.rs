@@ -185,6 +185,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                         settings.rad_type = 3;
                     }
                 }
+                println!("Applying {} radius...", radius_types[settings.rad_type]);
                 aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm, &radius_types);
             }
             4 => {
