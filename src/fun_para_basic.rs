@@ -1,11 +1,11 @@
 use std::io::stdin;
 use std::path::Path;
-use crate::parameters::Parameters;
+use crate::settings::Settings;
 use crate::{get_input_selection, convert_cur_dir, confirm_file_validity};
 use crate::fun_para_trj::set_para_trj;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settings: &mut Parameters) {
+pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settings: &mut Settings) {
     let mut trj = String::from(trj);
     let mut ndx = String::from(ndx);
 

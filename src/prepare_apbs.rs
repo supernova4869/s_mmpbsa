@@ -8,7 +8,7 @@ use xdrfile::Frame;
 use crate::apbs_param::*;
 use crate::atom_property::AtomProperty;
 use crate::mmpbsa::set_style;
-use crate::parameters::Parameters;
+use crate::settings::Settings;
 
 pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
                    temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
@@ -81,7 +81,7 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
 
 pub fn write_apbs_input(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &ArrayView2<f64>,
                   atm_radius: &Array1<f64>, pbe_set: &PBESet, pba_set: &PBASet,
-                  temp_dir: &PathBuf, f_name: &String, settings: &Parameters) {
+                  temp_dir: &PathBuf, f_name: &String, settings: &Settings) {
     let mut input_apbs = File::create(temp_dir.join(format!("{}.apbs", f_name))).unwrap();
     input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
     if ndx_lig[0] != ndx_rec[0] {
@@ -213,7 +213,7 @@ pub fn gen_mesh_params(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &Array
 }
 
 pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y: f64, min_z: f64, max_z: f64,
-                settings: &Parameters, pbe_set: &PBESet, pbe_set0: &PBESet, pba_set: &PBASet) -> String {
+                settings: &Settings, pbe_set: &PBESet, pbe_set0: &PBESet, pba_set: &PBASet) -> String {
     let cfac = settings.cfac;
     let fadd = settings.fadd;
     let df = settings.df;

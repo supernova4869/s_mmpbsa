@@ -8,7 +8,7 @@ mod fun_para_mmpbsa;
 mod atom_radius;
 mod apbs_param;
 mod prepare_apbs;
-mod parameters;
+mod settings;
 mod atom_property;
 
 use std::fs;
@@ -21,8 +21,8 @@ use std::str::FromStr;
 use regex::Regex;
 use chrono::Local;
 use crate::parse_tpr::TPR;
-use parameters::Parameters;
-use crate::parameters::init_settings;
+use settings::{Settings, find_settings_in_use};
+use crate::settings::init_settings;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -146,7 +146,7 @@ pub fn get_input_value(default: &String) -> String {
 }
 
 // 把ext_list改成enum
-pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Parameters) -> String {
+pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Settings) -> String {
     let mut f_name = String::from(file_name);
     loop {
         f_name = convert_cur_dir(&f_name, &settings).trim().to_string();
@@ -302,7 +302,7 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
     }
 }
 
-pub fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
+pub fn convert_cur_dir(p: &String, settings: &Settings) -> String {
     if p.starts_with('?') {
         let last_opened = &settings.last_opened;
         if last_opened.len() != 0 {
@@ -319,22 +319,20 @@ pub fn convert_cur_dir(p: &String, settings: &Parameters) -> String {
 }
 
 fn change_settings_last_opened(tpr_mdp: &String) {
-    // change settings.ini last opened file
-    let settings_file = env::current_exe()
-        .expect("Cannot get current super_mmpbsa program path.")
-        .parent().expect("Cannot get current super_mmpbsa program directory.")
-        .join("settings.ini");
-    if settings_file.is_file() {
-        let settings = fs::read_to_string(&settings_file)
-            .expect("Cannot read settings.ini.");
-        let re = Regex::new("last_opened.*\".*\"").unwrap();
-        let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
-            .expect("Cannot convert to absolute path.").display().to_string();
-        let settings = re.replace(settings.as_str(),
-            format!("last_opened = \"{}\"", &last_opened));
-        let mut settings_file = File::create(settings_file)
-            .expect("Cannot edit settings.ini.");
-        settings_file.write_all(settings.as_bytes()).expect("Cannot edit settings.ini.");
+    match find_settings_in_use() {
+        Some(settings_file) => {
+            let settings = fs::read_to_string(&settings_file)
+                .expect("Cannot read settings.ini.");
+            let re = Regex::new("last_opened.*\".*\"").unwrap();
+            let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
+                .expect("Cannot convert to absolute path.").display().to_string();
+            let settings = re.replace(settings.as_str(),
+                format!("last_opened = \"{}\"", &last_opened));
+            let mut settings_file = File::create(settings_file)
+                .expect("Cannot edit settings.ini.");
+            settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
+        }
+        None => {}
     }
 }
 

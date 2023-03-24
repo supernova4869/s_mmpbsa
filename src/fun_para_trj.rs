@@ -1,10 +1,10 @@
 use std::path::Path;
-use crate::{get_input_selection, parameters::Parameters};
+use crate::{get_input_selection, settings::Settings};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settings: &mut Parameters) {
+pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
     let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps

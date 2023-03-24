@@ -5,7 +5,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::BufRead;
 
-use crate::parameters::Parameters;
+use crate::settings::Settings;
 
 pub struct TPR {
     pub name: String,
@@ -31,7 +31,7 @@ impl fmt::Display for TPR {
 }
 
 impl TPR {
-    pub fn new(mdp: &str, settings: &Parameters) -> TPR {
+    pub fn new(mdp: &str, settings: &Settings) -> TPR {
         let mut name = String::new();
         let mut atoms_num = 0;
         let mut molecule_types_num = 0;
@@ -163,7 +163,7 @@ impl TPR {
                             } else {
                                 sigma.push(0.0);
                                 epsilon.push(0.0);
-                                radius.push(settings.rad_default);
+                                radius.push(settings.rad_ff_default);
                             }
                         }
                     }

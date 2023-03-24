@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fs;
 use std::path::PathBuf;
 use xdrfile::*;
-use crate::parameters::Parameters;
+use crate::settings::Settings;
 use ndarray::{ArrayBase, OwnedRepr, ViewRepr, Dim, Array1, Array2, Array3, s};
 use std::fs::File;
 use std::io::Write;
@@ -20,7 +20,7 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperty,
                                ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>,
                                bt: f64, et: f64, dt: f64,
-                               pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters)
+                               pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> Results {
     // run MM/PB-SA calculations
     println!("Running MM/PB-SA calculations...");
@@ -128,7 +128,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
                     total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                     ndx_com: &Vec<usize>,
-                    sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters) -> Results {
+                    sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
     let residues: Array1<(i32, String)> = get_residues(tpr, ndx_com);
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
@@ -196,7 +196,7 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
 
 fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
             residues: &Array1<(i32, String)>, elec_res: &mut Array2<f64>, vdw_res: &mut Array2<f64>,
-            pbe_set: &PBESet, settings: &Parameters) {
+            pbe_set: &PBESet, settings: &Settings) {
     let eps0 = 8.854187812800001e-12;
     let kb = 1.380649e-23;
     let na = 6.02214076e+23;
@@ -251,7 +251,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, ndx_com_norm: &Vec<usize>,
             pb_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>, sa_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>,
             cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
-            aps: &AtomProperty, pbe_set: &PBESet, pba_set: &PBASet, settings: &Parameters) {
+            aps: &AtomProperty, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) {
 
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area

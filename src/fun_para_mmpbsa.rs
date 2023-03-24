@@ -1,7 +1,7 @@
 use std::io::stdin;
 use std::path::Path;
 use crate::index_parser::Index;
-use crate::{get_input_selection, parameters::Parameters};
+use crate::{get_input_selection, settings::Settings};
 use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
 use std::io::Write;
@@ -11,7 +11,7 @@ use crate::parse_tpr::TPR;
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                        receptor_grp: usize, ligand_grp: Option<usize>,
-                       bt: f64, et: f64, dt: f64, settings: &mut Parameters) {
+                       bt: f64, et: f64, dt: f64, settings: &mut Settings) {
     // atom indexes
     println!("Preparing atom indexes...");
     let ndx_rec = &ndx.groups[receptor_grp].indexes;
