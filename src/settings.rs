@@ -41,7 +41,7 @@ pub fn init_settings() -> Settings {
         Some(settings) => {
             let settings = fs::read_to_string(settings).unwrap();
             let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
-            let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini grammar");
+            let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini's grammar.");
             read_user_settings(&mut params, &settings);
             println!("Note: found settings.ini, Will use {} kernels.", params.nkernels);
         }
