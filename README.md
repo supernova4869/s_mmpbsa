@@ -9,8 +9,8 @@ MM/PB-SA method is the most popular method to calculate binding free energy, esp
 
 ## Features of super_mmpbsa
 
-- Freely available.
-- No need for preparing runtime, only needs Gromacs program on linux system. (in contrast to gmx_MMPBSA.py, super_mmpbsa is developed with in Rust).
+- Open source and freely available.
+- No need for preparing running environment, only needs Gromacs program on linux system. (In contrast to other programs such as gmx_MMPBSA.py, super_mmpbsa is developed with Rust).
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke super_mmpbsa for batch use.
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
