@@ -46,8 +46,6 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
-    println!("Applying {} radius...", radius_types[settings.rad_type]);
-    aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm, &radius_types);
     let mut pbe_set = PBESet::new(tpr.temp);
     let mut pba_set = PBASet::new(tpr.temp);
     loop {
@@ -125,6 +123,9 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 println!("PBSA parameters have been written to paras_pbsa.txt");
             }
             0 => {
+                println!("Applying {} radius...", radius_types[settings.rad_type]);
+                aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm, &radius_types);
+
                 // Temp directory for PBSA
                 let mut sys_name = String::from("_system");
                 println!("Input system name (default: {}):", sys_name);
@@ -185,8 +186,6 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                         settings.rad_type = 3;
                     }
                 }
-                println!("Applying {} radius...", radius_types[settings.rad_type]);
-                aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm, &radius_types);
             }
             4 => {
                 println!("Input cutoff value (A), default 0 (inf):");
