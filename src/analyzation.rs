@@ -341,6 +341,6 @@ fn get_outfile(default_name: String) -> String {
     stdin().read_line(&mut temp).unwrap();
     match temp.trim().is_empty() {
         true => default_name,
-        _ => temp
+        _ => temp.trim().to_string()
     }
 }
