@@ -1,0 +1,15 @@
+temp: 300.0
+srfm: sacc
+swin: 0.3
+srad: 1.4
+gamma: 1.0
+press: 0.0
+bconc: 0.0
+sdens: 10.0
+dpos: 0.2
+grid:
+- 0.1
+- 0.1
+- 0.1
+calc_force: false
+calc_energy: total

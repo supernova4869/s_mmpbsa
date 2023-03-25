@@ -335,8 +335,17 @@ fn analyze_vdw_res_traj(results: &Results, wd: &Path, sys_name: &String) {
     println!("Binding energy terms have been writen to {}", &f_name);
 }
 
-fn get_outfile(default_name: String) -> String {
-    println!("\nInput file name to output (default: {}):", default_name);
+pub fn get_outfile(default_name: String) -> String {
+    println!("\nInput file name to write (default: {}):", default_name);
+    let mut temp = String::new();
+    stdin().read_line(&mut temp).unwrap();
+    match temp.trim().is_empty() {
+        true => default_name,
+        _ => temp.trim().to_string()
+    }
+}
+
+pub fn get_infile(default_name: String) -> String {
     let mut temp = String::new();
     stdin().read_line(&mut temp).unwrap();
     match temp.trim().is_empty() {
