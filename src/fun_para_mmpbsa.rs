@@ -231,18 +231,20 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 }
             }
             8 => {
-                pbe_set.save_params(wd.join("PB_settings.txt"));
-                println!("PB parameters have been wrote to PB_settings.txt.\n\
-                    Edit it and press return to reload it.");
+                let pb_fpath = wd.join("PB_settings.txt");
+                pbe_set.save_params(&pb_fpath);
+                println!("PB parameters have been wrote to {}.\n\
+                    Edit it and press return to reload it.", &pb_fpath.to_str().unwrap());
                 stdin().read_line(&mut String::new()).unwrap();
-                pbe_set = PBESet::load_params(wd.join("PB_settings.txt"));
+                pbe_set = PBESet::load_params(&pb_fpath);
             }
             9 => {
-                pba_set.save_params(wd.join("SA_settings.txt"));
-                println!("SA parameters have been wrote to SA_settings.txt.\n\
-                    Edit it and press return to reload it.");
+                let sa_fpath = wd.join("SA_settings.txt");
+                pba_set.save_params(&sa_fpath);
+                println!("SA parameters have been wrote to {}.\n\
+                    Edit it and press return to reload it.", &sa_fpath.to_str().unwrap());
                 stdin().read_line(&mut String::new()).unwrap();
-                pba_set = PBASet::load_params(wd.join("SA_settings.txt"));
+                pba_set = PBASet::load_params(&sa_fpath);
             }
             _ => println!("Invalid input")
         }
