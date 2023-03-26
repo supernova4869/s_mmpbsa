@@ -8,6 +8,7 @@ use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
+use crate::analyzation::get_infile;
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                        receptor_grp: usize, ligand_grp: Option<usize>,
@@ -233,18 +234,18 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             8 => {
                 let pb_fpath = wd.join("PB_settings.txt");
                 pbe_set.save_params(&pb_fpath);
-                println!("PB parameters have been wrote to {}.\n\
-                    Edit it and press return to reload it.", &pb_fpath.to_str().unwrap());
-                stdin().read_line(&mut String::new()).unwrap();
-                pbe_set = PBESet::load_params(&pb_fpath);
+                println!("PB parameters have been wrote to {0}.\n\
+                    Edit it and input its path to reload (default: {0}).", &pb_fpath.to_str().unwrap());
+                let infile = get_infile(&pb_fpath.to_str().unwrap());
+                pbe_set = PBESet::load_params(infile);
             }
             9 => {
                 let sa_fpath = wd.join("SA_settings.txt");
                 pba_set.save_params(&sa_fpath);
-                println!("SA parameters have been wrote to {}.\n\
-                    Edit it and press return to reload it.", &sa_fpath.to_str().unwrap());
-                stdin().read_line(&mut String::new()).unwrap();
-                pba_set = PBASet::load_params(&sa_fpath);
+                println!("SA parameters have been wrote to {0}.\n\
+                    Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
+                let infile = get_infile(&sa_fpath.to_str().unwrap());
+                pba_set = PBASet::load_params(infile);
             }
             _ => println!("Invalid input")
         }
