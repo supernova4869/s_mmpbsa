@@ -12,13 +12,8 @@ use crate::settings::Settings;
 
 pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
                    temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
-                   ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>,
+                   ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                    aps: &AtomProperty) {
-
-    // 调整com和rec索引防止溢出, 可能和后面的normalize重复
-    let ndx_rec: &Vec<usize> = &ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
-    let ndx_com: &Vec<usize> = &ndx_com.iter().map(|p| p - ndx_com[0]).collect();
-
     let pb = ProgressBar::new(total_frames as u64);
     set_style(&pb);
     for cur_frm in (bf..=ef).step_by(dframe) {
@@ -33,7 +28,7 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
         let coordinates = coordinates.slice(s![cur_frm, .., ..]);
 
         // loop atoms and write pqr information (from pqr)
-        for &at_id in ndx_com {
+        for &at_id in ndx_com_norm {
             let index = aps.atm_index[at_id];
             let at_name = &aps.atm_name[at_id];
             let resname = &aps.atm_resname[at_id];
@@ -48,32 +43,22 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
                                     index, at_name, resname, resnum, x, y, z, q, r);
 
             // write qrv files
-            match ndx_lig {
-                Some(_) => {
-                    pqr_com.write_all(atom_line.as_bytes()).unwrap();
+            // if has ligand
+            if ndx_lig_norm[0] != ndx_rec_norm[0] {
+                pqr_com.write_all(atom_line.as_bytes()).unwrap();
+                if ndx_lig_norm.contains(&at_id) {
+                    pqr_lig.write_all(atom_line.as_bytes()).unwrap();
                 }
-                None => {}
             }
-            if ndx_rec.contains(&at_id) {
+            if ndx_rec_norm.contains(&at_id) {
                 pqr_rec.write_all(atom_line.as_bytes()).unwrap();
             }
-            match ndx_lig {
-                Some(ndx_lig) => {
-                    if ndx_lig.contains(&at_id) {
-                        pqr_lig.write_all(atom_line.as_bytes()).unwrap();
-                    }
-                }
-                None => {}
-            };
         }
 
         pb.inc(1);
-        match ndx_lig {
-            None => {
-                fs::remove_file(Path::new(&pqr_com_name)).unwrap();
-                fs::remove_file(Path::new(&pqr_lig_name)).unwrap();
-            }
-            _ => {}
+        if ndx_lig_norm[0] == ndx_rec_norm[0] {
+            fs::remove_file(Path::new(&pqr_com_name)).unwrap();
+            fs::remove_file(Path::new(&pqr_lig_name)).unwrap();
         }
     }
     pb.finish();

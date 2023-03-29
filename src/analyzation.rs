@@ -3,8 +3,6 @@ use std::io::{stdin, Write};
 use std::path::Path;
 use ndarray::{Array1, Array2};
 use crate::get_input_selection;
-use crate::mmpbsa::get_residues;
-use crate::parse_tpr::TPR;
 
 pub struct Results {
     pub times: Array1<f64>,
@@ -24,13 +22,9 @@ pub struct Results {
 }
 
 impl Results {
-    pub fn new(tpr: &TPR, times: Array1<f64>, 
-               ndx_com: &Vec<usize>, elec_res: Array2<f64>, vdw_res: Array2<f64>,
+    pub fn new(times: Array1<f64>, 
+               residues: Array1<(i32, String)>, elec_res: Array2<f64>, vdw_res: Array2<f64>,
                pb_res: Array2<f64>, sa_res: Array2<f64>) -> Results {
-
-        // residues number and name
-        let residues = get_residues(tpr, ndx_com);
-
         let mut dh: Array1<f64> = Array1::zeros(times.len());
         let mut mm: Array1<f64> = Array1::zeros(times.len());
         let mut pb: Array1<f64> = Array1::zeros(times.len());

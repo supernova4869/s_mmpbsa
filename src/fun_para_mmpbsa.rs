@@ -1,26 +1,26 @@
+use std::cmp::Ordering;
 use std::io::stdin;
 use std::path::Path;
 use crate::index_parser::Index;
 use crate::{get_input_selection, settings::Settings};
-use crate::{mmpbsa, analyzation};
 use crate::apbs_param::{PBASet, PBESet};
 use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
-use crate::analyzation::get_infile;
+use crate::mmpbsa::{self, get_residues};
+use crate::analyzation::{self, get_infile};
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64, settings: &mut Settings) {
     // atom indexes
     println!("Preparing atom indexes...");
-    let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_lig = match ligand_grp {
         Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
         None => None
     };
-    // 这要求二者必须是连续的, 如果不连续, 索引就会出问题, 这个问题必须解决
+    let ndx_rec = &ndx.groups[receptor_grp].indexes;
     let ndx_com = match ndx_lig {
         Some(ndx_lig) => {
             match ndx_lig[0] > ndx_rec[0] {
@@ -40,10 +40,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     };
 
     // atom properties
-    // 调整com索引防止溢出, 可能和后面的normalize重复
     println!("Parsing atom properties...");
-    let ndx_com_norm = ndx_com.iter().map(|p| p - ndx_com[0]).collect();
-    let mut aps = AtomProperty::new(tpr, &ndx_com_norm);
+    let mut aps = AtomProperty::new(tpr, &ndx_com);
+    
+    let (ndx_com_norm, ndx_rec_norm, ndx_lig_norm) = normalize_index(ndx_rec, ndx_lig);
     
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
@@ -102,11 +102,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 }
                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
-                for &atom in &ndx_com {
+                for idx in 0..ndx_com_norm.len() {
                     paras.write_all(format!("{:7}{:>7}{:7}{:13.6E}{:13.6E}{:9.2}{:9.2}{:9}{:>9}\n", 
-                    aps.atm_index[atom] + 1, aps.atm_name[atom], aps.atm_typeindex[atom], aps.atm_sigma[atom], 
-                    aps.atm_epsilon[atom], aps.atm_charge[atom], aps.atm_radius[atom], aps.atm_resnum[atom] + 1, 
-                    aps.atm_resname[atom]).as_bytes()).unwrap();
+                    aps.atm_index[idx], aps.atm_name[idx], aps.atm_typeindex[idx], aps.atm_sigma[idx], 
+                    aps.atm_epsilon[idx], aps.atm_charge[idx], aps.atm_radius[idx], aps.atm_resnum[idx] + 1, 
+                    aps.atm_resname[idx]).as_bytes()).unwrap();
                 }
                 println!("Structural parameters have been written to paras_structure.txt");
             }
@@ -152,10 +152,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 } else {
                     println!("Warning: APBS not found. Will not calculate solvation energy.");
                 };
-                let results = mmpbsa::fun_mmpbsa_calculations(trj, tpr, &temp_dir, &sys_name,
-                                                              &aps, &ndx_com, &ndx_rec, ndx_lig,
-                                                              bt, et, dt,
-                                                              &pbe_set, &pba_set, settings);
+                let residues = get_residues(tpr, &ndx_com);
+                let results = mmpbsa::fun_mmpbsa_calculations(trj, &temp_dir, &sys_name, &aps,
+                                                              &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, residues,
+                                                              bt, et, dt, &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd);
             }
             1 => {
@@ -250,4 +250,33 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             _ => println!("Invalid input")
         }
     }
+}
+
+// convert rec and lig to begin at 0 and continous
+pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+    let offset = match ndx_lig {
+        Some(ndx_lig) => ndx_lig[0].min(ndx_rec[0]),
+        None => ndx_rec[0]
+    };
+    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - offset).collect();
+    let mut ndx_lig = match ndx_lig {
+        Some(ndx_lig) => ndx_lig.iter().map(|p| p - offset).collect(),
+        None => ndx_rec.clone()
+    };
+    let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
+        Ordering::Greater => {
+            ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
+            let mut ndx_com = ndx_rec.to_vec();
+            ndx_com.extend(&ndx_lig);
+            ndx_com
+        }
+        Ordering::Less => {
+            ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
+            let mut ndx_com = ndx_lig.to_vec();
+            ndx_com.extend(&ndx_rec);
+            ndx_com
+        }
+        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
+    };
+    (ndx_com, ndx_rec, ndx_lig)
 }

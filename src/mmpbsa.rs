@@ -16,10 +16,10 @@ use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
+pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperty,
-                               ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>,
-                               bt: f64, et: f64, dt: f64,
+                               ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, 
+                               residues: Array1<(i32, String)>, bt: f64, et: f64, dt: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> Results {
     // run MM/PB-SA calculations
@@ -39,45 +39,16 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
     if let Some(_) = settings.apbs.as_ref() {
         println!("Preparing pqr files...");
         prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
-                    sys_name, &coordinates, ndx_com, ndx_rec, ndx_lig, aps);
+                    sys_name, &coordinates, &ndx_com_norm, ndx_rec_norm, ndx_lig_norm, aps);
     }
-
-    // must appear here because the tpr and xtc need origin indexes
-    let (ndx_com_norm, ndx_rec_norm, ndx_lig_norm) = 
-        normalize_index(ndx_com, ndx_rec, ndx_lig);
 
     // calculate MM and PBSA
     println!("Start MM/PB-SA calculations...");
-    let results = calculate_mmpbsa(tpr, &frames, &coordinates, bf, ef, dframe, 
-        total_frames, aps, &temp_dir, &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, &ndx_com,
+    let results = calculate_mmpbsa(&frames, &coordinates, bf, ef, dframe, 
+        total_frames, aps, &temp_dir, &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, residues,
         sys_name, pbe_set, pba_set, settings);
     println!("MM/PB-SA calculation finished.");
     results
-}
-
-// convert rec and lig to begin at 0 and continous
-fn normalize_index(ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
-    let mut ndx_lig = match ndx_lig {
-        Some(ndx_lig) => ndx_lig.iter().map(|p| p - ndx_com[0]).collect(),
-        None => Vec::from_iter(0..ndx_rec.len())
-    };
-    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
-    let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
-        Ordering::Greater => {
-            ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
-            let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.extend(&ndx_lig);
-            ndx_com
-        }
-        Ordering::Less => {
-            ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
-            let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.extend(&ndx_rec);
-            ndx_com
-        }
-        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
-    };
-    (ndx_com, ndx_rec, ndx_lig)
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
@@ -123,13 +94,12 @@ fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usiz
     (bf, ef, dframe, total_frames)
 }
 
-fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
+fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
                     bf: usize, ef: usize, dframe: usize,
                     total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
-                    ndx_com: &Vec<usize>,
+                    residues: Array1<(i32, String)>,
                     sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
-    let residues: Array1<(i32, String)> = get_residues(tpr, ndx_com);
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
@@ -165,9 +135,8 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         .map(|p| frames[p].time as f64).collect();
 
     Results::new(
-        tpr,
         times,
-        ndx_com,
+        residues,
         elec_res,
         vdw_res,
         pb_res,

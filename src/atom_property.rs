@@ -37,25 +37,25 @@ impl AtomProperty {
         let mut atm_resname: Array1<String> = Array1::default(ndx_com.len());
         let mut atm_resnum: Array1<usize> = Array1::zeros(ndx_com.len());
 
+        let mut idx_total = 0;
         let mut idx = 0;
-        let mut idx_com = 0;
-        let mut resind_offset = 0;      // previous residues
+        let mut resind_offset = 0;      // residues number that has been overpast
         for mol in &tpr.molecules {
             for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                 for atom in &mol.atoms {
-                    if ndx_com.contains(&idx) {
-                        atm_charge[idx_com] = atom.charge;
-                        atm_radius[idx_com] = atom.radius;
-                        atm_typeindex[idx_com] = atom.type_id;
-                        atm_sigma[idx_com] = atom.sigma;
-                        atm_epsilon[idx_com] = atom.epsilon;
-                        atm_index[idx_com] = atom.id;
-                        atm_name[idx_com] = atom.name.to_string();
-                        atm_resname[idx_com] = mol.residues[atom.residue_index].name.to_string();
-                        atm_resnum[idx_com] = atom.residue_index + resind_offset;
-                        idx_com += 1;
+                    if ndx_com.contains(&idx_total) {
+                        atm_charge[idx] = atom.charge;
+                        atm_radius[idx] = atom.radius;
+                        atm_typeindex[idx] = atom.type_id;
+                        atm_sigma[idx] = atom.sigma;
+                        atm_epsilon[idx] = atom.epsilon;
+                        atm_index[idx] = atom.id;
+                        atm_name[idx] = atom.name.to_string();
+                        atm_resname[idx] = mol.residues[atom.residue_index].name.to_string();
+                        atm_resnum[idx] = atom.residue_index + resind_offset;
+                        idx += 1;
                     }
-                    idx += 1;
+                    idx_total += 1;
                 }
                 resind_offset += mol.residues.len();
             }
