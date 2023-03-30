@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Write;
 use std::process::Command;
 use std::rc::Rc;
+use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
 use crate::analyzation::Results;
@@ -105,6 +106,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     let mut sa_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
 
     // start calculation
+    env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
     let t_start = Local::now();
 
     let pgb = ProgressBar::new(total_frames as u64);
@@ -135,6 +137,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     // end calculation
     let t_end = Local::now();
     println!("MM/PB-SA calculation finished. Total time cost: {} s", Duration::from(t_end - t_start).num_seconds());
+    env::remove_var("OMP_NUM_THREADS");
 
     // Time list of trajectory
     let times: Array1<f64> = (bf..=ef).step_by(dframe)
