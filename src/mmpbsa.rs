@@ -105,6 +105,9 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut sa_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
 
+    // start calculation
+    let t_start = Local::now();
+
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
     pgb.inc(0);
@@ -129,6 +132,10 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         idx += 1;
     }
     pgb.finish();
+
+    // end calculation
+    let t_end = Local::now();
+    println!("Total time cost: {} s", Duration::from(t_end - t_start).num_seconds());
 
     // Time list of trajectory
     let times: Array1<f64> = (bf..=ef).step_by(dframe)
