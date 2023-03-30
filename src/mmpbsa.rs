@@ -43,12 +43,9 @@ pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
     }
 
     // calculate MM and PBSA
-    println!("Start MM/PB-SA calculations...");
-    let results = calculate_mmpbsa(&frames, &coordinates, bf, ef, dframe, 
+    calculate_mmpbsa(&frames, &coordinates, bf, ef, dframe, 
         total_frames, aps, &temp_dir, &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, residues,
-        sys_name, pbe_set, pba_set, settings);
-    println!("MM/PB-SA calculation finished.");
-    results
+        sys_name, pbe_set, pba_set, settings)
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
@@ -100,6 +97,8 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                     residues: Array1<(i32, String)>,
                     sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
+    println!("Start MM/PB-SA calculations...");
+
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
@@ -135,7 +134,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
 
     // end calculation
     let t_end = Local::now();
-    println!("Total time cost: {} s", Duration::from(t_end - t_start).num_seconds());
+    println!("MM/PB-SA calculation finished. Total time cost: {} s", Duration::from(t_end - t_start).num_seconds());
 
     // Time list of trajectory
     let times: Array1<f64> = (bf..=ef).step_by(dframe)
