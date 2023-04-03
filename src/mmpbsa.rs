@@ -8,18 +8,20 @@ use std::fs::File;
 use std::io::Write;
 use std::process::Command;
 use std::rc::Rc;
+use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
+use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
+pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperty,
-                               ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>,
-                               bt: f64, et: f64, dt: f64,
+                               ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, 
+                               residues: Array1<(i32, String)>, bt: f64, et: f64, dt: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> Results {
     // run MM/PB-SA calculations
@@ -39,45 +41,13 @@ pub fn fun_mmpbsa_calculations(trj: &String, tpr: &TPR, temp_dir: &PathBuf,
     if let Some(_) = settings.apbs.as_ref() {
         println!("Preparing pqr files...");
         prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
-                    sys_name, &coordinates, ndx_com, ndx_rec, ndx_lig, aps);
+                    sys_name, &coordinates, &ndx_com_norm, ndx_rec_norm, ndx_lig_norm, aps);
     }
 
-    // must appear here because the tpr and xtc need origin indexes
-    let (ndx_com_norm, ndx_rec_norm, ndx_lig_norm) = 
-        normalize_index(ndx_com, ndx_rec, ndx_lig);
-
     // calculate MM and PBSA
-    println!("Start MM/PB-SA calculations...");
-    let results = calculate_mmpbsa(tpr, &frames, &coordinates, bf, ef, dframe, 
-        total_frames, aps, &temp_dir, &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, &ndx_com,
-        sys_name, pbe_set, pba_set, settings);
-    println!("MM/PB-SA calculation finished.");
-    results
-}
-
-// convert rec and lig to begin at 0 and continous
-fn normalize_index(ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
-    let mut ndx_lig = match ndx_lig {
-        Some(ndx_lig) => ndx_lig.iter().map(|p| p - ndx_com[0]).collect(),
-        None => Vec::from_iter(0..ndx_rec.len())
-    };
-    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - ndx_com[0]).collect();
-    let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
-        Ordering::Greater => {
-            ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
-            let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.extend(&ndx_lig);
-            ndx_com
-        }
-        Ordering::Less => {
-            ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
-            let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.extend(&ndx_rec);
-            ndx_com
-        }
-        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
-    };
-    (ndx_com, ndx_rec, ndx_lig)
+    calculate_mmpbsa(&frames, &coordinates, bf, ef, dframe, 
+        total_frames, aps, &temp_dir, &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, residues,
+        sys_name, pbe_set, pba_set, settings)
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
@@ -123,17 +93,29 @@ fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usiz
     (bf, ef, dframe, total_frames)
 }
 
-fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
+fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
                     bf: usize, ef: usize, dframe: usize,
                     total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
-                    ndx_com: &Vec<usize>,
+                    residues: Array1<(i32, String)>,
                     sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
-    let residues: Array1<(i32, String)> = get_residues(tpr, ndx_com);
+    println!("Start MM/PB-SA calculations...");
+
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut sa_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
+    
+    // ε0 for dielectric correction
+    let eps0 = 8.854187812800001e-12;
+    let kj_elec = 1389.35457520287;
+    let coeff = Coefficients::new(eps0, kj_elec, pbe_set);
+    let kap = coeff.kap;
+    let pdie = coeff.pdie;
+
+    // start calculation
+    env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
+    let t_start = Local::now();
 
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
@@ -144,8 +126,7 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
             calc_mm(idx, &ndx_rec_norm, &ndx_lig_norm, &aps, &coord, 
-                &residues, &mut elec_res, &mut vdw_res,
-                &pbe_set, &settings);
+                &residues, &mut elec_res, &mut vdw_res, kj_elec, kap, pdie, &settings);
         }
 
         // PBSA
@@ -160,14 +141,18 @@ fn calculate_mmpbsa(tpr: &TPR, frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64
     }
     pgb.finish();
 
+    // end calculation
+    let t_end = Local::now();
+    println!("MM/PB-SA calculation finished. Total time cost: {} s", Duration::from(t_end - t_start).num_seconds());
+    env::remove_var("OMP_NUM_THREADS");
+
     // Time list of trajectory
     let times: Array1<f64> = (bf..=ef).step_by(dframe)
         .map(|p| frames[p].time as f64).collect();
 
     Results::new(
-        tpr,
         times,
-        ndx_com,
+        residues,
         elec_res,
         vdw_res,
         pb_res,
@@ -195,18 +180,8 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
 }
 
 fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
-            residues: &Array1<(i32, String)>, elec_res: &mut Array2<f64>, vdw_res: &mut Array2<f64>,
-            pbe_set: &PBESet, settings: &Settings) {
-    let eps0 = 8.854187812800001e-12;
-    let kb = 1.380649e-23;
-    let na = 6.02214076e+23;
-    let qe = 1.602176634e-19;
-    let ion_strength: f64 = pbe_set.ions.iter()
-        .map(|ion| ion.charge * ion.charge * ion.conc).sum();
-    let kap = 1e-10 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
-
-    let kj_elec = 1389.35457520287;
-
+            residues: &Array1<(i32, String)>, elec_res: &mut Array2<f64>, vdw_res: &mut Array2<f64>, 
+            kj_elec: f64, kap: f64, pdie: f64, settings: &Settings) {
     let mut de_elec: Array1<f64> = Array1::zeros(residues.len());
     let mut de_vdw: Array1<f64> = Array1::zeros(residues.len());
 
@@ -240,7 +215,7 @@ fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps
         }
     }
     for i in 0..residues.len() {
-        de_elec[i] *= kj_elec / (2.0 * pbe_set.pdie);
+        de_elec[i] *= kj_elec / (2.0 * pdie);
         de_vdw[i] /= 2.0;
         elec_res[[idx, i]] += de_elec[i];
         vdw_res[[idx, i]] += de_vdw[i];

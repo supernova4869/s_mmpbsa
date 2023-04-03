@@ -30,7 +30,7 @@ pub fn init_settings() -> Settings {
         fadd: 10.0,
         r_cutoff: 0.0,
         df: 0.5,
-        nkernels: 4,
+        nkernels: 1,
         preserve: true,
         gmx: None,
         apbs: None,
@@ -43,14 +43,13 @@ pub fn init_settings() -> Settings {
             let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
             let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini's grammar.");
             read_user_settings(&mut params, &settings);
-            println!("Note: found settings.ini, Will use {} kernels.", params.nkernels);
+            println!("Note: found settings.ini, will use {} kernels.", params.nkernels);
         }
         None => {
-            println!("Note: settings.ini not found. Will use 1 kernel.");
+            println!("Note: settings.ini not found, will use 1 kernel.");
         }
     }
 
-    println!("(Currently multi-threading not yet utilized)");
     return params;
 }
 

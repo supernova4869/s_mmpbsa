@@ -10,6 +10,7 @@ mod apbs_param;
 mod prepare_apbs;
 mod settings;
 mod atom_property;
+mod coefficients;
 
 use std::fs;
 use std::env;
