@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
+use rayon::prelude::*;
 use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
@@ -143,7 +144,8 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
 
     // end calculation
     let t_end = Local::now();
-    println!("MM/PB-SA calculation finished. Total time cost: {} s", Duration::from(t_end - t_start).num_seconds());
+    let t_spend = Duration::from(t_end - t_start).num_milliseconds();
+    println!("MM/PB-SA calculation finished. Total time cost: {} s", t_spend as f64 / 1000.0);
     env::remove_var("OMP_NUM_THREADS");
 
     // Time list of trajectory
@@ -214,9 +216,14 @@ fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps
             }
         }
     }
+
+    let mut de_elec = de_elec.to_vec();
+    de_elec.par_iter_mut().for_each(|p| *p *= kj_elec / (2.0 * pdie));
+    
+    let mut de_vdw = de_vdw.to_vec();
+    de_vdw.par_iter_mut().for_each(|p| *p /= 2.0);
+
     for i in 0..residues.len() {
-        de_elec[i] *= kj_elec / (2.0 * pdie);
-        de_vdw[i] /= 2.0;
         elec_res[[idx, i]] += de_elec[i];
         vdw_res[[idx, i]] += de_vdw[i];
     }
