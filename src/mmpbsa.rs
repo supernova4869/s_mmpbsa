@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
+use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
 use crate::apbs_param::{PBASet, PBESet};
@@ -104,6 +105,13 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut sa_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
+    
+    // ε0 for dielectric correction
+    let eps0 = 8.854187812800001e-12;
+    let kj_elec = 1389.35457520287;
+    let coeff = Coefficients::new(eps0, kj_elec, pbe_set);
+    let kap = coeff.kap;
+    let pdie = coeff.pdie;
 
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
@@ -118,8 +126,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
             calc_mm(idx, &ndx_rec_norm, &ndx_lig_norm, &aps, &coord, 
-                &residues, &mut elec_res, &mut vdw_res,
-                &pbe_set, &settings);
+                &residues, &mut elec_res, &mut vdw_res, kj_elec, kap, pdie, &settings);
         }
 
         // PBSA
@@ -173,18 +180,8 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
 }
 
 fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
-            residues: &Array1<(i32, String)>, elec_res: &mut Array2<f64>, vdw_res: &mut Array2<f64>,
-            pbe_set: &PBESet, settings: &Settings) {
-    let eps0 = 8.854187812800001e-12;
-    let kb = 1.380649e-23;
-    let na = 6.02214076e+23;
-    let qe = 1.602176634e-19;
-    let ion_strength: f64 = pbe_set.ions.iter()
-        .map(|ion| ion.charge * ion.charge * ion.conc).sum();
-    let kap = 1e-10 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
-
-    let kj_elec = 1389.35457520287;
-
+            residues: &Array1<(i32, String)>, elec_res: &mut Array2<f64>, vdw_res: &mut Array2<f64>, 
+            kj_elec: f64, kap: f64, pdie: f64, settings: &Settings) {
     let mut de_elec: Array1<f64> = Array1::zeros(residues.len());
     let mut de_vdw: Array1<f64> = Array1::zeros(residues.len());
 
@@ -218,7 +215,7 @@ fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps
         }
     }
     for i in 0..residues.len() {
-        de_elec[i] *= kj_elec / (2.0 * pbe_set.pdie);
+        de_elec[i] *= kj_elec / (2.0 * pdie);
         de_vdw[i] /= 2.0;
         elec_res[[idx, i]] += de_elec[i];
         vdw_res[[idx, i]] += de_vdw[i];
