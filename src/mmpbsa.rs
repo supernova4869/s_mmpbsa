@@ -3,7 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use xdrfile::*;
 use crate::settings::Settings;
-use ndarray::{ArrayBase, OwnedRepr, ViewRepr, Dim, Array1, Array2, Array3, s};
+use ndarray::parallel::prelude::*;
+use ndarray::{ArrayBase, OwnedRepr, ViewRepr, Dim, Array1, Array2, Array3, s, Axis};
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
@@ -11,7 +12,6 @@ use std::rc::Rc;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
-use rayon::prelude::*;
 use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
@@ -275,7 +275,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
 
         // extract apbs results
         let mut cur_sys = 0;    // com=0, rec=1, lig=2
-        let mut cur_item = 0;   // total=0, vac=1, sas=2
+        let mut cur_item = 0;   // sol=0, vac=1, sas=2
         let mut cur_atom = 0;   // current atom index
         for line in apbs_results {
             if line.starts_with("CALCULATION") {
@@ -314,14 +314,30 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             }
         }
 
-        let f = |e_arr: &mut Array2<f64>, n_cols: usize|
-            for mut col in e_arr.columns_mut() {
-                col[0] -= col[1];
-                col[2] = gamma * col[2] + bias / n_cols as f64;
-            };
-        f(&mut e_com, ndx_com_norm.len());
-        f(&mut e_rec, ndx_rec_norm.len());
-        f(&mut e_lig, ndx_lig_norm.len());
+        let com_dpb: Vec<f64> = e_com.axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|col| col[0] - col[1])
+            .collect();
+        let com_dsa: Vec<f64> = e_com.axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|col| gamma * col[2] + bias / ndx_com_norm.len() as f64)
+            .collect();
+        let rec_dpb: Vec<f64> = e_rec.axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|col| col[0] - col[1])
+            .collect();
+        let rec_dsa: Vec<f64> = e_rec.axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|col| gamma * col[2] + bias / ndx_rec_norm.len() as f64)
+            .collect();
+        let lig_dpb: Vec<f64> = e_lig.axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|col| col[0] - col[1])
+            .collect();
+        let lig_dsa: Vec<f64> = e_lig.axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|col| gamma * col[2] + bias / ndx_lig_norm.len() as f64)
+            .collect();
 
         // residue decomposition
         let offset_rec = match ndx_lig_norm[0].cmp(&ndx_rec_norm[0]) {
@@ -334,13 +350,14 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             Ordering::Greater => ndx_lig_norm.len(),
             Ordering::Equal => 0
         };
+
         for &i in ndx_com_norm {
             if ndx_rec_norm.contains(&i) {
-                pb_res[[idx, aps.atm_resnum[i]]] += e_com[[0, i]] - e_rec[[0, i - offset_lig]];
-                sa_res[[idx, aps.atm_resnum[i]]] += e_com[[2, i]] - e_rec[[2, i - offset_lig]];
+                pb_res[[idx, aps.atm_resnum[i]]] += com_dpb[i] - rec_dpb[i - offset_lig];
+                sa_res[[idx, aps.atm_resnum[i]]] += com_dsa[i] - rec_dsa[i - offset_lig];
             } else {
-                pb_res[[idx, aps.atm_resnum[i]]] += e_com[[0, i]] - e_lig[[0, i - offset_rec]];
-                sa_res[[idx, aps.atm_resnum[i]]] += e_com[[2, i]] - e_lig[[2, i - offset_rec]];
+                pb_res[[idx, aps.atm_resnum[i]]] += com_dpb[i] - lig_dpb[i - offset_rec];
+                sa_res[[idx, aps.atm_resnum[i]]] += com_dsa[i] - lig_dsa[i - offset_rec];
             }
         }
 

@@ -63,7 +63,7 @@ impl TPR {
         let mut nstxout = 0;
         let mut temp = 0.0;
 
-        println!("Loading dumped tpr file: {}\n", mdp);
+        println!("Loading dump file: {}\n", mdp);
         loop {
             let bytes = read_line(&mut reader, &mut buf);
             if bytes == 0 {
