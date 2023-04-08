@@ -4,9 +4,7 @@ use std::path::PathBuf;
 use xdrfile::*;
 use crate::settings::Settings;
 use ndarray::parallel::prelude::*;
-use ndarray::{ArrayBase, OwnedRepr, ViewRepr, Dim, Array1, Array2, Array3, s, Axis};
-use std::fs::File;
-use std::io::Write;
+use ndarray::{ArrayBase, OwnedRepr, ViewRepr, Dim, Array1, Array2, Array3, s};
 use std::process::Command;
 use std::rc::Rc;
 use std::env;
@@ -126,8 +124,10 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
-            calc_mm(idx, &ndx_rec_norm, &ndx_lig_norm, &aps, &coord, 
-                &residues, &mut elec_res, &mut vdw_res, kj_elec, kap, pdie, &settings);
+            let (res_elec, res_vdw) = 
+                calc_mm(&ndx_rec_norm, &ndx_lig_norm, &aps, &coord, &residues, kj_elec, kap, pdie, &settings);
+            elec_res.row_mut(idx).assign(&res_elec);
+            vdw_res.row_mut(idx).assign(&res_vdw);
         }
 
         // PBSA
@@ -151,6 +151,9 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     // Time list of trajectory
     let times: Array1<f64> = (bf..=ef).step_by(dframe)
         .map(|p| frames[p].time as f64).collect();
+    
+    // Remove temp directory
+    fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
 
     Results::new(
         times,
@@ -181,9 +184,8 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
     Array1::from_vec(residues)
 }
 
-fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
-            residues: &Array1<(i32, String)>, elec_res: &mut Array2<f64>, vdw_res: &mut Array2<f64>, 
-            kj_elec: f64, kap: f64, pdie: f64, settings: &Settings) {
+fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
+            residues: &Array1<(i32, String)>, kj_elec: f64, kap: f64, pdie: f64, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     let mut de_elec: Array1<f64> = Array1::zeros(residues.len());
     let mut de_vdw: Array1<f64> = Array1::zeros(residues.len());
 
@@ -217,16 +219,10 @@ fn calc_mm(idx: usize, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps
         }
     }
 
-    let mut de_elec = de_elec.to_vec();
     de_elec.par_iter_mut().for_each(|p| *p *= kj_elec / (2.0 * pdie));
-    
-    let mut de_vdw = de_vdw.to_vec();
     de_vdw.par_iter_mut().for_each(|p| *p /= 2.0);
 
-    for i in 0..residues.len() {
-        elec_res[[idx, i]] += de_elec[i];
-        vdw_res[[idx, i]] += de_vdw[i];
-    }
+    return (de_elec, de_vdw)
 }
 
 fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, frames: &Vec<Rc<Frame>>, 
@@ -235,7 +231,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
             aps: &AtomProperty, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) {
 
-    // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å2)
+    // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is calculated by super_mmpbsa
     let gamma = 0.030125;
@@ -245,29 +241,27 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &aps.atm_radius,
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
-        let mut apbs_out = File::create(temp_dir.join(format!("{}.out", f_name))).
-            expect("Failed to create apbs out file");
-        let apbs_result = Command::new(apbs).
-            arg(format!("{}.apbs", f_name)).
+        let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).
             current_dir(temp_dir).output().expect("running apbs failed.");
         let apbs_output = String::from_utf8(apbs_result.stdout).
             expect("Failed to get apbs output.");
-        apbs_out.write_all(apbs_output.as_bytes()).expect("Failed to write apbs output");
 
         // parse output
-        let apbs_results = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).unwrap();
-
-        let mut e_com: Array2<f64> = Array2::zeros((3, ndx_rec_norm.len() + ndx_lig_norm.len()));
-        let mut e_rec: Array2<f64> = Array2::zeros((3, ndx_rec_norm.len()));
-        let mut e_lig: Array2<f64> = Array2::zeros((3, ndx_lig_norm.len()));
+        let mut com_pb_sol: Array1<f64> = Array1::zeros(ndx_rec_norm.len() + ndx_lig_norm.len());
+        let mut com_pb_vac: Array1<f64> = Array1::zeros(ndx_rec_norm.len() + ndx_lig_norm.len());
+        let mut com_sa: Array1<f64> = Array1::zeros(ndx_rec_norm.len() + ndx_lig_norm.len());
+        let mut rec_pb_sol: Array1<f64> = Array1::zeros(ndx_rec_norm.len());
+        let mut rec_pb_vac: Array1<f64> = Array1::zeros(ndx_rec_norm.len());
+        let mut rec_sa: Array1<f64> = Array1::zeros(ndx_rec_norm.len());
+        let mut lig_pb_sol: Array1<f64> = Array1::zeros(ndx_lig_norm.len());
+        let mut lig_pb_vac: Array1<f64> = Array1::zeros(ndx_lig_norm.len());
+        let mut lig_sa: Array1<f64> = Array1::zeros(ndx_lig_norm.len());
 
         // preserve CALCULATION, Atom and SASA lines
-        let apbs_results = apbs_results
+        let apbs_results = apbs_output
             .split("\n")
             .filter_map(|p|
-                if p.trim().starts_with("CALCULATION ") ||
-                    p.trim().starts_with("Atom") ||
-                    p.trim().starts_with("SASA") {
+                if p.trim().starts_with("CALCULATION ") || p.trim().starts_with("Atom") || p.trim().starts_with("SASA") {
                     Some(p.trim())
                 } else { None }
             )
@@ -305,39 +299,54 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
                         _ => Some(p)
                     }).collect();
                 match cur_sys {
-                    0 => e_com[[cur_item, cur_atom]] = v[0].parse().unwrap(),
-                    1 => e_rec[[cur_item, cur_atom]] = v[0].parse().unwrap(),
-                    2 => e_lig[[cur_item, cur_atom]] = v[0].parse().unwrap(),
+                    0 => match cur_item {
+                        0 => {
+                            com_pb_sol[cur_atom] = v[0].parse().unwrap()
+                        }
+                        1 => {
+                            com_pb_vac[cur_atom] = v[0].parse().unwrap()
+                        }
+                        2 => {
+                            com_sa[cur_atom] = v[0].parse().unwrap()
+                        }
+                        _ => {}
+                    },
+                    1 => match cur_item {
+                        0 => {
+                            rec_pb_sol[cur_atom] = v[0].parse().unwrap()
+                        }
+                        1 => {
+                            rec_pb_vac[cur_atom] = v[0].parse().unwrap()
+                        }
+                        2 => {
+                            rec_sa[cur_atom] = v[0].parse().unwrap()
+                        }
+                        _ => {}
+                    },
+                    2 => match cur_item {
+                        0 => {
+                            lig_pb_sol[cur_atom] = v[0].parse().unwrap()
+                        }
+                        1 => {
+                            lig_pb_vac[cur_atom] = v[0].parse().unwrap()
+                        }
+                        2 => {
+                            lig_sa[cur_atom] = v[0].parse().unwrap()
+                        }
+                        _ => {}
+                    },
                     _ => ()
                 }
                 cur_atom += 1;
             }
         }
 
-        let com_dpb: Vec<f64> = e_com.axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|col| col[0] - col[1])
-            .collect();
-        let com_dsa: Vec<f64> = e_com.axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|col| gamma * col[2] + bias / ndx_com_norm.len() as f64)
-            .collect();
-        let rec_dpb: Vec<f64> = e_rec.axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|col| col[0] - col[1])
-            .collect();
-        let rec_dsa: Vec<f64> = e_rec.axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|col| gamma * col[2] + bias / ndx_rec_norm.len() as f64)
-            .collect();
-        let lig_dpb: Vec<f64> = e_lig.axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|col| col[0] - col[1])
-            .collect();
-        let lig_dsa: Vec<f64> = e_lig.axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|col| gamma * col[2] + bias / ndx_lig_norm.len() as f64)
-            .collect();
+        let com_pb: Array1<f64> = com_pb_sol - com_pb_vac;
+        com_sa.par_map_inplace(|i| *i = gamma * *i + bias / ndx_com_norm.len() as f64);
+        let rec_pb: Array1<f64> = rec_pb_sol - rec_pb_vac;
+        rec_sa.par_map_inplace(|i| *i = gamma * *i + bias / ndx_rec_norm.len() as f64);
+        let lig_pb: Array1<f64> = lig_pb_sol - lig_pb_vac;
+        lig_sa.par_map_inplace(|i| *i = gamma * *i + bias / ndx_lig_norm.len() as f64);
 
         // residue decomposition
         let offset_rec = match ndx_lig_norm[0].cmp(&ndx_rec_norm[0]) {
@@ -353,11 +362,11 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
 
         for &i in ndx_com_norm {
             if ndx_rec_norm.contains(&i) {
-                pb_res[[idx, aps.atm_resnum[i]]] += com_dpb[i] - rec_dpb[i - offset_lig];
-                sa_res[[idx, aps.atm_resnum[i]]] += com_dsa[i] - rec_dsa[i - offset_lig];
+                pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - rec_pb[i - offset_lig];
+                sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - rec_sa[i - offset_lig];
             } else {
-                pb_res[[idx, aps.atm_resnum[i]]] += com_dpb[i] - lig_dpb[i - offset_rec];
-                sa_res[[idx, aps.atm_resnum[i]]] += com_dsa[i] - lig_dsa[i - offset_rec];
+                pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - lig_pb[i - offset_rec];
+                sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - lig_sa[i - offset_rec];
             }
         }
 
