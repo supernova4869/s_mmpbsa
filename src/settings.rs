@@ -21,7 +21,7 @@ pub struct Settings {
 }
 
 pub fn init_settings() -> Settings {
-    let mut params = Settings {
+    let mut settings = Settings {
         rad_type: 3,
         rad_ff_default: 1.5,
         use_dh: true,
@@ -38,19 +38,19 @@ pub fn init_settings() -> Settings {
     };
     
     match find_settings_in_use() {
-        Some(settings) => {
-            let settings = fs::read_to_string(settings).unwrap();
-            let settings = Regex::new(r"\\").unwrap().replace_all(settings.as_str(), "/").to_string();
-            let settings: Value = toml::from_str(settings.as_str()).expect("Error with settings.ini's grammar.");
-            read_user_settings(&mut params, &settings);
-            println!("Note: found settings.ini, will use {} kernels.", params.nkernels);
+        Some(settings_file) => {
+            let settings_file = fs::read_to_string(settings_file).unwrap();
+            let settings_file = Regex::new(r"\\").unwrap().replace_all(settings_file.as_str(), "/").to_string();
+            let setting_values: Value = toml::from_str(settings_file.as_str()).expect("Error with settings.ini's grammar.");
+            read_user_settings(&mut settings, &setting_values);
+            println!("Note: found settings.ini, will use {} kernels.", settings.nkernels);
         }
         None => {
             println!("Note: settings.ini not found, will use 1 kernel.");
         }
     }
 
-    return params;
+    return settings;
 }
 
 pub fn find_settings_in_use() -> Option<PathBuf> {
@@ -69,33 +69,31 @@ pub fn find_settings_in_use() -> Option<PathBuf> {
     }
 }
 
-fn read_user_settings(params: &mut Settings, settings: &Value) {
-    params.rad_type = parse_param(settings, "radType", params.rad_type);
-    params.rad_ff_default = parse_param(settings, "radDef", params.rad_ff_default);
-    params.cfac = parse_param(settings, "cfac", params.cfac);
-    params.fadd = parse_param(settings, "fadd", params.fadd);
-    params.r_cutoff = parse_param(settings, "r_cutoff", params.r_cutoff);
-    if params.r_cutoff == 0.0 {
-        params.r_cutoff = f64::INFINITY;
+fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
+    settings.rad_type = parse_param(setting_values, "radType", settings.rad_type);
+    settings.rad_ff_default = parse_param(setting_values, "radDef", settings.rad_ff_default);
+    settings.cfac = parse_param(setting_values, "cfac", settings.cfac);
+    settings.fadd = parse_param(setting_values, "fadd", settings.fadd);
+    settings.r_cutoff = parse_param(setting_values, "r_cutoff", settings.r_cutoff);
+    if settings.r_cutoff == 0.0 {
+        settings.r_cutoff = f64::INFINITY;
     }
-    params.df = parse_param(settings, "df", params.df);
-    params.nkernels = parse_param(settings, "nkernels", params.nkernels);
-    // String type cannot move
-    params.preserve = match settings.get("preserve").unwrap().to_string().as_str() {
+    settings.df = parse_param(setting_values, "df", settings.df);
+    settings.nkernels = parse_param(setting_values, "nkernels", settings.nkernels);
+    settings.preserve = match setting_values.get("preserve").unwrap().to_string()[1..2].to_string().as_str() {
         "y" => true,
-        "Y" => true,
         _ => false
     };
-    let gmx = settings.get("gmx").unwrap().to_string();
-    params.gmx = Some(gmx[1..gmx.len() - 1].to_string());
-    let apbs = settings.get("apbs").unwrap().to_string();
-    params.apbs = Some(apbs[1..apbs.len() - 1].to_string());
-    let last_opened = settings.get("last_opened").unwrap().to_string();
-    params.last_opened = last_opened[1..last_opened.len() - 1].to_string();
+    let gmx = setting_values.get("gmx").unwrap().to_string();
+    settings.gmx = Some(gmx[1..gmx.len() - 1].to_string());
+    let apbs = setting_values.get("apbs").unwrap().to_string();
+    settings.apbs = Some(apbs[1..apbs.len() - 1].to_string());
+    let last_opened = setting_values.get("last_opened").unwrap().to_string();
+    settings.last_opened = last_opened[1..last_opened.len() - 1].to_string();
 }
 
-fn parse_param<T: FromStr>(settings: &Value, key: &str, default: T) -> T {
-    match settings.get(key) {
+fn parse_param<T: FromStr>(setting_values: &Value, key: &str, default: T) -> T {
+    match setting_values.get(key) {
         Some(v) => match v.to_string().parse::<T>() {
             Ok(v) => v,
             Err(_) => default

@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
+use regex::Regex;
 use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
@@ -244,114 +245,64 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
+        let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
         if settings.preserve {
             let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name))).expect("Failed to create output file.");
-            outfile.write_all(&apbs_result.stdout).expect("Failed to write apbs output.");
+            outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
         }
-        let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
-
-        // parse output
-        let mut com_pb_sol: Array1<f64> = Array1::zeros(ndx_rec_norm.len() + ndx_lig_norm.len());
-        let mut com_pb_vac: Array1<f64> = Array1::zeros(ndx_rec_norm.len() + ndx_lig_norm.len());
-        let mut com_sa: Array1<f64> = Array1::zeros(ndx_rec_norm.len() + ndx_lig_norm.len());
-        let mut rec_pb_sol: Array1<f64> = Array1::zeros(ndx_rec_norm.len());
-        let mut rec_pb_vac: Array1<f64> = Array1::zeros(ndx_rec_norm.len());
-        let mut rec_sa: Array1<f64> = Array1::zeros(ndx_rec_norm.len());
-        let mut lig_pb_sol: Array1<f64> = Array1::zeros(ndx_lig_norm.len());
-        let mut lig_pb_vac: Array1<f64> = Array1::zeros(ndx_lig_norm.len());
-        let mut lig_sa: Array1<f64> = Array1::zeros(ndx_lig_norm.len());
+        // let apbs_result = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).expect("Failed to parse apbs output.");
 
         // preserve CALCULATION, Atom and SASA lines
-        // 把这里改一下, 按原子数暴力读取, apbs不再输出
-        let apbs_result: Vec<&str> = apbs_result
-            .split("\n")
-            .filter_map(|p|
-                if p.trim().starts_with("CALCULATION ") || p.trim().starts_with("Atom") || p.trim().starts_with("SASA") {
-                    Some(p.trim())
-                } else { None }
-            )
-            .collect();
+        // 改一下这里的计算顺序问题
+        let apbs_result: Vec<&str> = apbs_result.split("\n").filter_map(|p|
+            if p.trim().starts_with("Atom") || p.trim().starts_with("SASA") {
+                Some(p.trim())
+            } else {
+                None
+            }
+        ).collect();
 
         // extract apbs results
-        let mut cur_sys = 0;    // com=0, rec=1, lig=2
-        let mut cur_item = 0;   // sol=0, vac=1, sas=2
-        let mut cur_atom = 0;   // current atom index
-        for line in apbs_result {
-            if line.starts_with("CALCULATION") {
-                if line.contains(format!("{}_com", f_name).as_str()) {
-                    cur_sys = 0;
-                } else if line.contains(format!("{}_rec", f_name).as_str()) {
-                    cur_sys = 1;
-                } else if line.contains(format!("{}_lig", f_name).as_str()) {
-                    cur_sys = 2;
-                }
-                if line.contains("_SOL") {
-                    cur_item = 0;
-                } else if line.contains("_VAC") {
-                    cur_item = 1;
-                } else if line.contains("_SAS") {
-                    cur_item = 2;
-                }
-                cur_atom = 0;
-            } else {
-                let v: Vec<&str> = line
-                    .split(":")
-                    .collect();
-                let v: Vec<&str> = v[1]
-                    .split(" ")
-                    .filter_map(|p| match p.trim().len() {
-                        0 => None,
-                        _ => Some(p)
-                    }).collect();
-                match cur_sys {
-                    0 => match cur_item {
-                        0 => {
-                            com_pb_sol[cur_atom] = v[0].parse().unwrap()
-                        }
-                        1 => {
-                            com_pb_vac[cur_atom] = v[0].parse().unwrap()
-                        }
-                        2 => {
-                            com_sa[cur_atom] = v[0].parse().unwrap()
-                        }
-                        _ => {}
-                    },
-                    1 => match cur_item {
-                        0 => {
-                            rec_pb_sol[cur_atom] = v[0].parse().unwrap()
-                        }
-                        1 => {
-                            rec_pb_vac[cur_atom] = v[0].parse().unwrap()
-                        }
-                        2 => {
-                            rec_sa[cur_atom] = v[0].parse().unwrap()
-                        }
-                        _ => {}
-                    },
-                    2 => match cur_item {
-                        0 => {
-                            lig_pb_sol[cur_atom] = v[0].parse().unwrap()
-                        }
-                        1 => {
-                            lig_pb_vac[cur_atom] = v[0].parse().unwrap()
-                        }
-                        2 => {
-                            lig_sa[cur_atom] = v[0].parse().unwrap()
-                        }
-                        _ => {}
-                    },
-                    _ => ()
-                }
-                cur_atom += 1;
-            }
-        }
+        let re = Regex::new(":\\s+(\\S*\\w).*").unwrap();
+        let n_com = ndx_com_norm.len();
+        let n_rec = ndx_rec_norm.len();
+        let n_lig = ndx_lig_norm.len();
+        // PB
+        let com_pb_sol: Vec<f64> = apbs_result[n_com..2 * n_com].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        let com_pb_vac: Vec<f64> = apbs_result[(3 * n_com)..(4 * n_com)].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        let rec_pb_sol: Vec<f64> = apbs_result[(4 * n_com + n_rec)..(4 * n_com + 2 * n_rec)].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        let rec_pb_vac: Vec<f64> = apbs_result[(4 * n_com + 3 * n_rec)..(4 * n_com + 4 * n_rec)].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        let lig_pb_sol: Vec<f64> = apbs_result[(4 * n_com + 4 * n_rec + n_lig)..(4 * n_com + 4 * n_rec + 2 * n_lig)].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        let lig_pb_vac: Vec<f64> = apbs_result[(4 * n_com + 4 * n_rec + 3 * n_lig)..(4 * n_com + 4 * n_rec + 4 * n_lig)].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        // SA
+        let com_sa: Vec<f64> = apbs_result[(4 * n_com + 4 * n_rec + 4 * n_lig)..(5 * n_com + 4 * n_rec + 4 * n_lig)].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        let rec_sa: Vec<f64> = apbs_result[(5 * n_com + 4 * n_rec + 4 * n_lig)..(5 * n_com + 5 * n_rec + 4 * n_lig)].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
+        let lig_sa: Vec<f64> = apbs_result[(5 * n_com + 5 * n_rec + 4 * n_lig)..].par_iter().map(|p| {
+            parse_apbe_line(&re, p)
+        }).collect();
 
-        let com_pb: Array1<f64> = com_pb_sol - com_pb_vac;
-        com_sa.par_map_inplace(|i| *i = gamma * *i + bias / ndx_com_norm.len() as f64);
-        let rec_pb: Array1<f64> = rec_pb_sol - rec_pb_vac;
-        rec_sa.par_map_inplace(|i| *i = gamma * *i + bias / ndx_rec_norm.len() as f64);
-        let lig_pb: Array1<f64> = lig_pb_sol - lig_pb_vac;
-        lig_sa.par_map_inplace(|i| *i = gamma * *i + bias / ndx_lig_norm.len() as f64);
+        let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
+        let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|i| gamma * *i + bias / n_com as f64).collect());
+        let rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
+        let rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|i| gamma * *i + bias / n_rec as f64).collect());
+        let lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
+        let lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|i| gamma * *i + bias / n_lig as f64).collect());
 
         // residue decomposition
         let offset_rec = match ndx_lig_norm[0].cmp(&ndx_rec_norm[0]) {
@@ -383,4 +334,8 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             }
         }
     }
+}
+
+fn parse_apbe_line(re: &Regex, line: &str) -> f64 {
+    re.captures(line).unwrap().get(1).unwrap().as_str().to_string().parse().unwrap()
 }
