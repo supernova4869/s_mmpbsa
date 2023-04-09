@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::PathBuf;
 use xdrfile::*;
 use crate::settings::Settings;
@@ -152,8 +153,10 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     let times: Array1<f64> = (bf..=ef).step_by(dframe)
         .map(|p| frames[p].time as f64).collect();
     
-    // Remove temp directory
-    fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+    // whether remove temp directory
+    if !settings.preserve {
+        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+    }
 
     Results::new(
         times,
@@ -230,7 +233,6 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             pb_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>, sa_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>,
             cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
             aps: &AtomProperty, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) {
-
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is calculated by super_mmpbsa
@@ -241,10 +243,12 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &aps.atm_radius,
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
-        let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).
-            current_dir(temp_dir).output().expect("running apbs failed.");
-        let apbs_output = String::from_utf8(apbs_result.stdout).
-            expect("Failed to get apbs output.");
+        let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
+        if settings.preserve {
+            let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name))).expect("Failed to create output file.");
+            outfile.write_all(&apbs_result.stdout).expect("Failed to write apbs output.");
+        }
+        let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
 
         // parse output
         let mut com_pb_sol: Array1<f64> = Array1::zeros(ndx_rec_norm.len() + ndx_lig_norm.len());
@@ -258,20 +262,21 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         let mut lig_sa: Array1<f64> = Array1::zeros(ndx_lig_norm.len());
 
         // preserve CALCULATION, Atom and SASA lines
-        let apbs_results = apbs_output
+        // 把这里改一下, 按原子数暴力读取, apbs不再输出
+        let apbs_result: Vec<&str> = apbs_result
             .split("\n")
             .filter_map(|p|
                 if p.trim().starts_with("CALCULATION ") || p.trim().starts_with("Atom") || p.trim().starts_with("SASA") {
                     Some(p.trim())
                 } else { None }
             )
-            .collect::<Vec<&str>>();
+            .collect();
 
         // extract apbs results
         let mut cur_sys = 0;    // com=0, rec=1, lig=2
         let mut cur_item = 0;   // sol=0, vac=1, sas=2
         let mut cur_atom = 0;   // current atom index
-        for line in apbs_results {
+        for line in apbs_result {
             if line.starts_with("CALCULATION") {
                 if line.contains(format!("{}_com", f_name).as_str()) {
                     cur_sys = 0;
@@ -280,12 +285,12 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
                 } else if line.contains(format!("{}_lig", f_name).as_str()) {
                     cur_sys = 2;
                 }
-                if line.contains("_VAC") {
+                if line.contains("_SOL") {
+                    cur_item = 0;
+                } else if line.contains("_VAC") {
                     cur_item = 1;
                 } else if line.contains("_SAS") {
                     cur_item = 2;
-                } else {
-                    cur_item = 0;
                 }
                 cur_atom = 0;
             } else {

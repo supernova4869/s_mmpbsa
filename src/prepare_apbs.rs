@@ -129,20 +129,6 @@ fn get_ub(ndx: &Vec<usize>, axis: usize, coord: &ArrayView2<f64>, atm_radius: &A
 
 pub fn gen_mesh_params(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &ArrayView2<f64>,
                        atm_radius: &Array1<f64>) -> ([f64; 6], [f64; 6], [f64; 6]) {
-    // border of the whole molecule
-    // let min_x = coordinates.slice(s![.., .., 0]).iter().
-    //     fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    // let max_x = coordinates.slice(s![.., .., 0]).iter().
-    //     fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    // let min_y = coordinates.slice(s![.., .., 1]).iter().
-    //     fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    // let max_y = coordinates.slice(s![.., .., 1]).iter().
-    //     fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-    // let min_z = coordinates.slice(s![.., .., 2]).iter().
-    //     fold(f64::INFINITY, |prev, curr| prev.min(*curr));
-    // let max_z = coordinates.slice(s![.., .., 2]).iter().
-    //     fold(f64::NEG_INFINITY, |prev, curr| prev.max(*curr));
-
     let min_x_rec = get_lb(ndx_rec, 0, coord, atm_radius);
     let min_y_rec = get_lb(ndx_rec, 1, coord, atm_radius);
     let min_z_rec = get_lb(ndx_rec, 2, coord, atm_radius);
@@ -171,30 +157,6 @@ pub fn gen_mesh_params(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &Array
     let com_box = [min_x_com, min_y_com, min_z_com, max_x_com, max_y_com, max_z_com];
 
     return (rec_box, lig_box, com_box);
-
-    // if mesh_type == 0 {
-    //     // GMXPBSA
-    //     input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
-    //                                   min_x, max_x, min_y,
-    //                                   max_y, min_z, max_z,
-    //                                   settings,
-    //                                   &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-    //         expect("Failed writing apbs file.");
-    //     input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
-    //                                   min_x, max_x, min_y,
-    //                                   max_y, min_z, max_z,
-    //                                   settings,
-    //                                   &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-    //         expect("Failed writing apbs file.");
-    //     input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
-    //                                   min_x, max_x, min_y,
-    //                                   max_y, min_z, max_z,
-    //                                   settings,
-    //                                   &pbe_set, &pbe_set0, &pba_set).as_bytes()).
-    //         expect("Failed writing apbs file.");
-    // } else if mesh_type == 1 {
-    // write apbs input files for g_mmpbsa
-    // }
 }
 
 pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, max_y: f64, min_z: f64, max_z: f64,
@@ -242,7 +204,7 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
         \n  fgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\
         \n  cgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\n");
 
-    return format!("\nELEC name {}\n\
+    return format!("\nELEC name {}_SOL\n\
     {} \n\
     {} \n\
     end\n\n\
@@ -253,7 +215,7 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
     APOLAR name {}_SAS\n  \
     mol    {:7}\n{}\n\
     end\n\n\
-    print elecEnergy {} - {}_VAC end\n\
+    print elecEnergy {}_SOL - {}_VAC end\n\
     print apolEnergy {}_SAS end\n\n", file, xyz_set, pbe_set.to_string(), file,
                    xyz_set, pbe_set0.to_string(), file, mol_index,
                    pba_set.to_string(), file, file, file);
