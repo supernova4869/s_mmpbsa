@@ -11,7 +11,6 @@ use std::rc::Rc;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
-use regex::Regex;
 use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
 use crate::parse_tpr::TPR;
@@ -263,38 +262,37 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         ).collect();
 
         // extract apbs results
-        let re = Regex::new(":\\s+(\\S*\\w).*").unwrap();
         let n_com = ndx_com_norm.len();
         let n_rec = ndx_rec_norm.len();
         let n_lig = ndx_lig_norm.len();
         // PB
         let com_pb_sol: Vec<f64> = apbs_result[n_com..2 * n_com].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         let com_pb_vac: Vec<f64> = apbs_result[(3 * n_com)..(4 * n_com)].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         let rec_pb_sol: Vec<f64> = apbs_result[(4 * n_com + n_rec)..(4 * n_com + 2 * n_rec)].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         let rec_pb_vac: Vec<f64> = apbs_result[(4 * n_com + 3 * n_rec)..(4 * n_com + 4 * n_rec)].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         let lig_pb_sol: Vec<f64> = apbs_result[(4 * n_com + 4 * n_rec + n_lig)..(4 * n_com + 4 * n_rec + 2 * n_lig)].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         let lig_pb_vac: Vec<f64> = apbs_result[(4 * n_com + 4 * n_rec + 3 * n_lig)..(4 * n_com + 4 * n_rec + 4 * n_lig)].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         // SA
         let com_sa: Vec<f64> = apbs_result[(4 * n_com + 4 * n_rec + 4 * n_lig)..(5 * n_com + 4 * n_rec + 4 * n_lig)].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         let rec_sa: Vec<f64> = apbs_result[(5 * n_com + 4 * n_rec + 4 * n_lig)..(5 * n_com + 5 * n_rec + 4 * n_lig)].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
         let lig_sa: Vec<f64> = apbs_result[(5 * n_com + 5 * n_rec + 4 * n_lig)..].par_iter().map(|p| {
-            parse_apbe_line(&re, p)
+            parse_apbe_line(p)
         }).collect();
 
         let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
@@ -336,6 +334,9 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
     }
 }
 
-fn parse_apbe_line(re: &Regex, line: &str) -> f64 {
-    re.captures(line).unwrap().get(1).unwrap().as_str().to_string().parse().unwrap()
+fn parse_apbe_line(line: &str) -> f64 {
+    let mut s = line.split(":").into_iter();
+    s.next();
+    let a: Vec<&str> = s.next().unwrap().split(" ").filter(|p| !p.trim().is_empty()).collect();
+    a[0].parse().unwrap()
 }
