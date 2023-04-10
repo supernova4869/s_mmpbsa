@@ -276,6 +276,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         let mut rec_sa: Vec<f64> = vec![];
         let mut lig_sa: Vec<f64> = vec![];
 
+        let mut skip_pb = true;     // the first time PB calculation should be wasted
         for (i, &idx) in indexes.iter().enumerate() {
             let st = idx + 1;
             let ed = match i != indexes.len() - 1 {
@@ -283,17 +284,35 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
                 false => apbs_result.len()
             };
             if apbs_result[idx].contains(&"_com_SOL") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_sol);
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_sol);
+                }
+                skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_com_VAC") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_vac);
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_vac);
+                }
+                skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_rec_SOL") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_sol);
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_sol);
+                }
+                skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_rec_VAC") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_vac);
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_vac);
+                }
+                skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_lig_SOL") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_sol);
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_sol);
+                }
+                skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_lig_VAC") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_vac);
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_vac);
+                }
+                skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_com_SAS") {
                 apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_sa);
             } else if apbs_result[idx].contains(&"_rec_SAS") {
@@ -304,11 +323,11 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         }
 
         let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
-        let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|i| gamma * *i + bias / ndx_com_norm.len() as f64).collect());
+        let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|i| gamma * *i + bias / com_sa.len() as f64).collect());
         let rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
-        let rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|i| gamma * *i + bias / ndx_rec_norm.len() as f64).collect());
+        let rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|i| gamma * *i + bias / rec_sa.len() as f64).collect());
         let lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
-        let lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|i| gamma * *i + bias / ndx_lig_norm.len() as f64).collect());
+        let lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|i| gamma * *i + bias / lig_sa.len() as f64).collect());
 
         // residue decomposition
         let offset_rec = match ndx_lig_norm[0].cmp(&ndx_rec_norm[0]) {

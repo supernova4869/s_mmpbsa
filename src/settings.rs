@@ -31,7 +31,7 @@ pub fn init_settings() -> Settings {
         r_cutoff: 0.0,
         df: 0.5,
         nkernels: 1,
-        preserve: true,
+        preserve: false,
         gmx: None,
         apbs: None,
         last_opened: String::new(),
@@ -82,6 +82,7 @@ fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
     settings.nkernels = parse_param(setting_values, "nkernels", settings.nkernels);
     settings.preserve = match setting_values.get("preserve").unwrap().to_string()[1..2].to_string().as_str() {
         "y" => true,
+        "Y" => true,
         _ => false
     };
     let gmx = setting_values.get("gmx").unwrap().to_string();
