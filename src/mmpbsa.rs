@@ -362,8 +362,11 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
 }
 
 fn parse_apbs_line(line: &str) -> f64 {
-    let mut s = line.split(":").into_iter();
-    s.next();
-    let a: Vec<&str> = s.next().unwrap().split(" ").filter(|p| !p.trim().is_empty()).collect();
-    a[0].parse().unwrap()
+    line.split(":")
+        .skip(1)
+        .next().expect("Cannot get information from apbs")
+        .trim_start()
+        .split(" ")
+        .next().expect("Cannot get information from apbs")
+        .parse().expect("Cannot parse value from apbs")
 }
