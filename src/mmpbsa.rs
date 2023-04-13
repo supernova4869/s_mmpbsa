@@ -279,9 +279,9 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         let mut skip_pb = true;     // the first time PB calculation should be wasted
         for (i, &idx) in indexes.iter().enumerate() {
             let st = idx + 1;
-            let ed = match i != indexes.len() - 1 {
-                true => indexes[i + 1],
-                false => apbs_result.len()
+            let ed = match indexes.get(i + 1) {
+                Some(&idx) => idx,
+                None => apbs_result.len()
             };
             if apbs_result[idx].contains(&"_com_SOL") {
                 if !skip_pb {
