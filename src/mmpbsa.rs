@@ -106,12 +106,8 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut sa_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     
-    // ε0 for dielectric correction
-    let eps0 = 8.854187812800001e-12;
-    let kj_elec = 1389.35457520287;
-    let coeff = Coefficients::new(eps0, kj_elec, pbe_set);
-    let kap = coeff.kap;
-    let pdie = coeff.pdie;
+    // parameters for elec calculation
+    let coeff = Coefficients::new(pbe_set);
 
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
@@ -126,7 +122,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
             let (res_elec, res_vdw) = 
-                calc_mm(&ndx_rec_norm, &ndx_lig_norm, &aps, &coord, &residues, kj_elec, kap, pdie, &settings);
+                calc_mm(&ndx_rec_norm, &ndx_lig_norm, &aps, &coord, &residues, &coeff, &settings);
             elec_res.row_mut(idx).assign(&res_elec);
             vdw_res.row_mut(idx).assign(&res_vdw);
         }
@@ -188,7 +184,10 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
 }
 
 fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
-            residues: &Array1<(i32, String)>, kj_elec: f64, kap: f64, pdie: f64, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
+            residues: &Array1<(i32, String)>, coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
+    let kj_elec = coeff.kj_elec;
+    let kap = coeff.kap;
+    let pdie = coeff.pdie;
     let mut de_elec: Array1<f64> = Array1::zeros(residues.len());
     let mut de_vdw: Array1<f64> = Array1::zeros(residues.len());
 
