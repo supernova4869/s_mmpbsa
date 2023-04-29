@@ -7,7 +7,9 @@ pub struct Coefficients {
 }
 
 impl Coefficients {
-    pub fn new(eps0: f64, kj_elec: f64, pbe_set: &PBESet) -> Coefficients {
+    pub fn new(pbe_set: &PBESet) -> Coefficients {
+        let eps0 = 8.854187812800001e-12;
+        let kj_elec = 1389.35457520287;
         let kb = 1.380649e-23;
         let na = 6.02214076e+23;
         let qe = 1.602176634e-19;
