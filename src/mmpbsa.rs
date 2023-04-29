@@ -244,10 +244,13 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
+        let apbs_err = String::from_utf8(apbs_result.stderr).expect("Failed to parse apbs output.");
         let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
         if settings.preserve {
             let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name))).expect("Failed to create output file.");
             outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
+            let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name))).expect("Failed to create err file.");
+            errfile.write_all(apbs_err.as_bytes()).expect("Failed to write apbs output.");
         }
         // let apbs_result = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).expect("Failed to parse apbs output.");
 
