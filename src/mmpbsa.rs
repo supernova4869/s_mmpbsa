@@ -198,9 +198,9 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
         let yi = coord[[i, 1]];
         let zi = coord[[i, 2]];
         for &j in ndx_lig_norm {
-            // if ndx_lig_norm[0] == ndx_rec_norm[0] && j <= i {
-            //     continue;
-            // }
+            if ndx_lig_norm[0] == ndx_rec_norm[0] && j <= i {
+                continue;
+            }
             let qj = aps.atm_charge[j];
             let cj = aps.atm_typeindex[j];
             let xj = coord[[j, 0]];
@@ -343,21 +343,21 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             Ordering::Equal => 0
         };
 
-        for &i in ndx_com_norm {
-            if ndx_rec_norm.contains(&i) {
-                pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - rec_pb[i - offset_lig];
-                sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - rec_sa[i - offset_lig];
-            } else {
-                pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - lig_pb[i - offset_rec];
-                sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - lig_sa[i - offset_rec];
+        if ndx_rec_norm[0] == ndx_lig_norm[0] {
+            // if no ligand, pb_com = pb_lig = 0, so real energy is inversed rec_pbsa
+            for &i in ndx_com_norm {
+                pb_res[[idx, aps.atm_resnum[i]]] += rec_pb[i - offset_lig];
+                sa_res[[idx, aps.atm_resnum[i]]] += rec_sa[i - offset_lig];
             }
-        }
-
-        // if no ligand, pb_com = pb_lig = 0, so pb_rec should be inversed to be real energy
-        if ndx_lig_norm[0] == ndx_rec_norm[0] {
-            for j in 0..pb_res.shape()[1] {
-                pb_res[[idx, j]] = -pb_res[[idx, j]];
-                sa_res[[idx, j]] = -sa_res[[idx, j]];
+        } else {
+            for &i in ndx_com_norm {
+                if ndx_rec_norm.contains(&i) {
+                    pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - rec_pb[i - offset_lig];
+                    sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - rec_sa[i - offset_lig];
+                } else {
+                    pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - lig_pb[i - offset_rec];
+                    sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - lig_sa[i - offset_rec];
+                }
             }
         }
     }
