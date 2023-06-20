@@ -15,6 +15,37 @@ MM/PB-SA method is the most popular method to calculate binding free energy, esp
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
 
+## Usage
+
+``` bash
+# Firstly, add super_mmpbsa folder to $PATH.
+# Start super_mmpbsa, and input as follow (do not include comments)
+md.tpr
+1 # load xtc file
+[return] # default md.xtc
+2 # load ndx file
+[return] # default index.ndx
+0 # go to next step (Trajectory Parameters)
+1 # select receptor group
+[protein group number]
+2 # select ligand group
+[ligand group number]
+5 # set time interval, usually analysis per 1 ns
+1
+0 # go to next step (MM/PB-SA Parameters)
+# Usually no need to change. The PB and SA parameters could be modified by 8 and 9
+0 # go to next step (start calculation)
+[return] # use default system name or input your name
+# Wait for calculation finish
+1 # view summary
+[return] # output energy summary with default file name or input your name
+# also view other infomation by 2-9
+0 # return
+-10 # return
+-10 # return
+-10 # exit super_mmpbsa program
+```
+
 ## Download
 Release file: https://github.com/supernovaZhangJiaXing/super_mmpbsa/releases, where "super_mmpbsa.exe" and "super_mmpbsa" are super_mmpbsa executable files on Windows and Linux operation systems, respectively.
 
