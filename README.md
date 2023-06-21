@@ -1,7 +1,7 @@
 # super_mmpbsa
-super_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajectory, using molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method.
+super_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajectory, using molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method.
 
-Super_mmpbsa can be freely used for both academic and commerical purposes.
+The super_mmpbsa program can be freely used for both academic and commerical purposes.
 
 ## Introduction
 
