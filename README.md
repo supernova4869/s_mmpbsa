@@ -17,12 +17,38 @@ MM/PB-SA method is the most popular method to calculate binding free energy, esp
 
 ## Usage
 
+### Preparation
+
+Before calculation, you should fix the periodic boundary conditions (PBC) of the system.
+
+If studying the protein-ligand system (e.g., enzyme-substrate), then it is better to fix PBC with `cluster` option, i.e.:
+
+```bash
+# build group for protein + ligand
+gmx trjconv -f md.xtc -s md.tpr -n index.ndx -pbc cluster -center -dt 1000 -o md_pbc.xtc
+# select the protein + ligand group
+```
+
+If studying the system of two phase (e.g., solvent extraction), just fix PBC with `mol` option to ensure the structure completion of each molecule, i.e.:
+
+```bash
+# build group for protein + ligand
+gmx trjconv -f md.xtc -s md.tpr -n index.ndx -pbc mol -dt 1000 -o md_pbc.xtc
+# select the protein + ligand group
+```
+
+Better to check if the trajectory PBC has been totally fixed by visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+
+### Calculation
+
+Then start MM/PB-SA calculation.
+
 ``` bash
 # Firstly, add super_mmpbsa folder to $PATH.
 # Start super_mmpbsa, and input as follow (do not include comments)
 md.tpr
 1 # load xtc file
-[return] # default md.xtc
+md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 2 # load ndx file
 [return] # default index.ndx
 0 # go to next step (Trajectory Parameters)
