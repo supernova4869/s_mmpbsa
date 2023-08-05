@@ -150,9 +150,9 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         .map(|p| frames[p].time as f64).collect();
     
     // whether remove temp directory
-    if !settings.preserve {
-        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-    }
+    // if !settings.preserve {
+    //     fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+    // }
 
     Results::new(
         times,
