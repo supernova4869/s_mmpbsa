@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use xdrfile::*;

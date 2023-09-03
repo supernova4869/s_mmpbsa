@@ -22,12 +22,12 @@ use std::str::FromStr;
 use regex::Regex;
 use chrono::Local;
 use crate::parse_tpr::TPR;
-use settings::{Settings, find_settings_in_use};
+use settings::{Settings, get_base_settings};
 use crate::settings::init_settings;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut tpr = String::new();        // may be dump file
+    let mut tpr_dump = String::new();        // may be dump file
     let mut trj = String::from("");
     let mut ndx = String::from("");
 
@@ -43,27 +43,27 @@ fn main() {
             println!("Input path of .tpr or .dump file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang.dump");
             println!("Hint: input \"o\" to simply load last-opened .tpr or .dump file");
             loop {
-                stdin().read_line(&mut tpr).expect("Failed to read tpr or dumped file.");
-                if tpr.trim() == "o" {
-                    tpr = settings.last_opened.to_string();
-                    if tpr.len() == 0 {
+                stdin().read_line(&mut tpr_dump).expect("Failed to read tpr or dumped file.");
+                if tpr_dump.trim() == "o" {
+                    tpr_dump = settings.last_opened.to_string();
+                    if tpr_dump.len() == 0 {
                         println!("Last-opened tpr or mdp not found.");
                     }
                 }
-                if !Path::new(tpr.trim()).is_file() {
-                    println!("Not file: {}, input again:", tpr.trim());
-                    tpr.clear();
+                if !Path::new(tpr_dump.trim()).is_file() {
+                    println!("Not file: {}, input again:", tpr_dump.trim());
+                    tpr_dump.clear();
                 } else {
                     break;
                 }
             }
         }
-        2 => tpr = args[1].to_string(),
+        2 => tpr_dump = args[1].to_string(),
         _ => {
             for i in (1..args.len()).step_by(2) {
                 match args[i].as_str() {
                     "-f" => { trj = args[i + 1].to_string() }
-                    "-s" => { tpr = args[i + 1].to_string() }
+                    "-s" => { tpr_dump = args[i + 1].to_string() }
                     "-n" => { ndx = args[i + 1].to_string() }
                     _ => {
                         println!("Omitted invalid option: {}", args[i])
@@ -72,37 +72,38 @@ fn main() {
             }
         }
     }
-    tpr = confirm_file_validity(&mut tpr, vec!["tpr", "dump"], &settings);
+    tpr_dump = confirm_file_validity(&mut tpr_dump, vec!["tpr", "dump"], &settings);
 
-    change_settings_last_opened(&tpr);
-    settings.last_opened = tpr.to_string();
+    change_settings_last_opened(&tpr_dump);
 
     // working directory (path of tpr location)
-    let wd = Path::new(&tpr).parent().expect("Cannot get tpr path.");
-    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr))
+    let wd = env::current_dir().expect("Cannot get current working directory.");
+    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr_dump))
         .expect("Cannot convert to absolute path.").as_path().parent()
         .expect("Cannot get absolute tpr path.").display());
     // get mdp or dump tpr
-    let tpr = match tpr.ends_with(".tpr") {
+    let tpr_dump = match tpr_dump.ends_with(".tpr") {
         true => {
-            println!("Found tpr file: {}", tpr);
-            let p = tpr[..tpr.len() - 4].to_string() + ".dump";
+            println!("Found tpr file: {}", tpr_dump);
+            let tpr_dump_path = Path::new(&tpr_dump);
+            let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
+            let p = env::current_dir().unwrap().join(tpr_dump_name.to_string() + ".dump");
             let gmx = settings.gmx.as_ref()
                 .expect("Gromacs not configured correctly.").as_str();
-            dump_tpr(&tpr, &p, gmx);
-            p
+            dump_tpr(&tpr_dump, &p.to_str().unwrap().to_string(), gmx);
+            p.to_str().unwrap().to_string()
         }
         false => {
-            println!("Found dump file: {}", tpr);
-            tpr.to_string()
+            println!("Found dump file: {}", tpr_dump);
+            tpr_dump.to_string()
         }
     };
 
-    let mut tpr = TPR::new(tpr.as_str(), &settings);
+    let mut tpr = TPR::new(&tpr_dump.as_str(), &settings);
     println!("\nFinished reading tpr.");
 
     // go to next step
-    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, wd, &mut settings);
+    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &wd, &mut settings);
 }
 
 fn welcome() {
@@ -320,21 +321,16 @@ pub fn convert_cur_dir(p: &String, settings: &Settings) -> String {
 }
 
 fn change_settings_last_opened(tpr_mdp: &String) {
-    match find_settings_in_use() {
-        Some(settings_file) => {
-            let settings = fs::read_to_string(&settings_file)
-                .expect("Cannot read settings.ini.");
-            let re = Regex::new("last_opened.*\".*\"").unwrap();
-            let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
-                .expect("Cannot convert to absolute path.").display().to_string();
-            let settings = re.replace(settings.as_str(),
-                format!("last_opened = \"{}\"", &last_opened));
-            let mut settings_file = File::create(settings_file)
-                .expect("Cannot edit settings.ini.");
-            settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
-        }
-        None => {}
-    }
+    let base_settings = fs::read_to_string(get_base_settings())
+        .expect("Cannot read settings.ini.");
+    let re = Regex::new("last_opened.*\".*\"").unwrap();
+    let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
+        .expect("Cannot convert to absolute path.").display().to_string();
+    let settings = re.replace(base_settings.as_str(),
+        format!("last_opened = \"{}\"", &last_opened));
+    let mut settings_file = File::create(get_base_settings())
+        .expect("Cannot edit settings.ini.");
+    settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
 }
 
 fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
