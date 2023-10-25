@@ -122,7 +122,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
             let (res_elec, res_vdw) = 
-                calc_mm(&ndx_rec_norm, &ndx_lig_norm, &aps, &coord, &residues, &coeff, &settings);
+                calc_mm(&ndx_rec_norm, &ndx_lig_norm, aps, &coord, &residues, &coeff, &settings);
             elec_res.row_mut(idx).assign(&res_elec);
             vdw_res.row_mut(idx).assign(&res_vdw);
         }
@@ -156,7 +156,10 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
 
     Results::new(
         times,
+        coordinates.slice(s![coordinates.shape()[2], .., ..]).to_owned(),
         residues,
+        aps.atm_name.clone(),
+        aps.atm_resnum.clone(),
         elec_res,
         vdw_res,
         pb_res,

@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::{self, File};
 use std::io::{stdin, Write};
 use std::path::Path;
 use ndarray::{Array1, Array2};
@@ -6,7 +6,10 @@ use crate::get_input_selection;
 
 pub struct Results {
     pub times: Array1<f64>,
+    pub coord: Array2<f64>,
     pub residues: Array1<(i32, String)>,
+    pub atm_name: Array1<String>,
+    pub atm_resnum: Array1<usize>,
     pub dh: Array1<f64>,
     pub mm: Array1<f64>,
     pub pb: Array1<f64>,
@@ -22,9 +25,9 @@ pub struct Results {
 }
 
 impl Results {
-    pub fn new(times: Array1<f64>, 
-               residues: Array1<(i32, String)>, elec_res: Array2<f64>, vdw_res: Array2<f64>,
-               pb_res: Array2<f64>, sa_res: Array2<f64>) -> Results {
+    pub fn new(times: Array1<f64>, coord: Array2<f64>, residues: Array1<(i32, String)>,
+               atm_name: Array1<String>, atm_resnum: Array1<usize>, elec_res: Array2<f64>,
+               vdw_res: Array2<f64>, pb_res: Array2<f64>, sa_res: Array2<f64>) -> Results {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
         let mut mm: Array1<f64> = Array1::zeros(times.len());
         let mut pb: Array1<f64> = Array1::zeros(times.len());
@@ -45,7 +48,10 @@ impl Results {
 
         Results {
             times,
+            coord,
             residues,
+            atm_name,
+            atm_resnum,
             dh,
             mm,
             pb,
@@ -85,6 +91,7 @@ impl Results {
 pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String, wd: &Path) {
     loop {
         println!("\n                 ************ MM-PBSA analyzation ************");
+        println!("-1 Write residue-wised bind energy to pdb file");
         println!(" 0 Return");
         println!(" 1 View binding energy terms summary");
         println!(" 2 View binding energy terms by trajectory");
@@ -97,37 +104,39 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
         println!(" 9 View residue-wised binding energy by time: ΔvdW");
         let sel_fun: i32 = get_input_selection();
         match sel_fun {
+            -1 => write_energy_to_bf(results, wd, sys_name),
             0 => break,
-            1 => {
-                analyze_summary(results, temperature, wd, sys_name);
-            }
-            2 => {
-                analyze_traj(results, wd, sys_name);
-            }
-            3 => {
-                analyze_res_avg(results, wd, sys_name);
-            }
-            4 => {
-                analyze_dh_res_traj(results, wd, sys_name);
-            }
-            5 => {
-                analyze_mm_res_traj(results, wd, sys_name);
-            }
-            6 => {
-                analyze_pb_res_traj(results, wd, sys_name);
-            }
-            7 => {
-                analyze_sa_res_traj(results, wd, sys_name);
-            }
-            8 => {
-                analyze_elec_res_traj(results, wd, sys_name);
-            }
-            9 => {
-                analyze_vdw_res_traj(results, wd, sys_name);
-            }
+            1 => analyze_summary(results, temperature, wd, sys_name),
+            2 => analyze_traj(results, wd, sys_name),
+            3 => analyze_res_avg(results, wd, sys_name),
+            4 => analyze_dh_res_traj(results, wd, sys_name),
+            5 => analyze_mm_res_traj(results, wd, sys_name),
+            6 => analyze_pb_res_traj(results, wd, sys_name),
+            7 => analyze_sa_res_traj(results, wd, sys_name),
+            8 => analyze_elec_res_traj(results, wd, sys_name),
+            9 => analyze_vdw_res_traj(results, wd, sys_name),
             _ => println!("Invalid input")
         }
     }
+}
+
+fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String) {
+    let mut f = fs::File::create(wd.join(format!("binding_energy_{}.pdb", sys_name))).unwrap();
+    let coord = &results.coord;
+    f.write_all("REMARK  The B-factor column is filled with the residue-wised binding energy (ΔH), in kcal/mol\n".as_bytes()).unwrap();
+    for atom_id in 0..coord.shape()[0] {
+        let res_id = results.atm_resnum[atom_id];
+        let atom_name = results.atm_name[atom_id].as_str();
+        write_atom_line(res_id, atom_id, atom_name, &results, coord[[atom_id, 0]], coord[[atom_id, 1]], coord[[atom_id, 2]], &mut f);
+    }
+    println!("Finished writing binding energy information to {}", format!("binding_energy_{}.pdb", sys_name));
+}
+
+fn write_atom_line(res_id: usize, atom_id: usize, atom_name: &str, results: &Results, x: f64, y: f64, z: f64, f: &mut File) {
+    let str = format!("ATOM  {:5} {:<4} {:<3} A{:4}    {:8.3}{:8.3}{:8.3}  1.00{:6.2}           {:<2}\n",
+                              atom_id, atom_name, results.residues[res_id].1, results.residues[res_id].0, x, y, z, 
+                              results.dh_res[[results.dh_res.shape()[0] - 1, res_id]] / 4.18, atom_name.get(0..1).unwrap());
+    f.write_all(str.as_bytes()).unwrap();
 }
 
 fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String) {
