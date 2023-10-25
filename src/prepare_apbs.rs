@@ -24,9 +24,9 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
         let mut pqr_rec = File::create(&pqr_rec_name).unwrap();
         let pqr_lig_name = temp_dir.join(format!("{}_lig.pqr", f_name));
         let mut pqr_lig = File::create(&pqr_lig_name).unwrap();
-
+        
         let coordinates = coordinates.slice(s![cur_frm, .., ..]);
-
+        
         // loop atoms and write pqr information (from pqr)
         for &at_id in ndx_com_norm {
             let index = aps.atm_index[at_id];

@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use xdrfile::*;
@@ -109,10 +109,14 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     // parameters for elec calculation
     let coeff = Coefficients::new(pbe_set);
 
+    // Time list of trajectory
+    let times: Array1<f64> = (bf..=ef).step_by(dframe)
+        .map(|p| frames[p].time as f64).collect();
+
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
     let t_start = Local::now();
-
+    
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
     pgb.inc(0);
@@ -132,9 +136,12 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
             &mut pb_res, &mut sa_res, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
 
         pgb.inc(1);
-        pgb.set_message(format!("Will finish at {}", 
-            Local::now().checked_add_signed(Duration::seconds(pgb.eta().as_secs() as i64))
-            .expect("Failed to get finish time").format("%Y-%m-%d %H:%M:%S").to_string()));
+        pgb.set_message(format!("Time: {} ns, MM = {:.2}, PB = {:.2}, SA = {:.2} (kJ/mol), eta. {} s", 
+                                     times[idx] / 1000.0,
+                                     vdw_res.row(idx).sum() + elec_res.row(idx).sum(),
+                                     pb_res.row(idx).sum(),
+                                     sa_res.row(idx).sum(),
+                                     pgb.eta().as_secs()));
         idx += 1;
     }
     pgb.finish();
@@ -144,15 +151,11 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     let t_spend = Duration::from(t_end - t_start).num_milliseconds();
     println!("MM/PB-SA calculation finished. Total time cost: {} s", t_spend as f64 / 1000.0);
     env::remove_var("OMP_NUM_THREADS");
-
-    // Time list of trajectory
-    let times: Array1<f64> = (bf..=ef).step_by(dframe)
-        .map(|p| frames[p].time as f64).collect();
     
     // whether remove temp directory
-    if !settings.preserve {
-        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-    }
+    // if !settings.preserve {
+        //     fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+    // }
 
     Results::new(
         times,

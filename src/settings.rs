@@ -102,3 +102,7 @@ fn parse_param<T: FromStr>(setting_values: &Value, key: &str, default: T) -> T {
         None => default
     }
 }
+
+pub fn get_base_settings() -> PathBuf {
+    return env::current_exe().unwrap().parent().unwrap().join("settings.ini");
+}
