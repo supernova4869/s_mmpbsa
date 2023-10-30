@@ -123,7 +123,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
 fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String) {
     let mut f = fs::File::create(wd.join(format!("binding_energy_{}.pdb", sys_name))).unwrap();
     let coord = &results.coord;
-    f.write_all("REMARK  The B-factor column is filled with the residue-wised binding energy (ΔH), in kcal/mol\n".as_bytes()).unwrap();
+    f.write_all("REMARK  The B-factor column is filled with the INVERSED residue-wised binding energy (ΔH), in kcal/mol\n".as_bytes()).unwrap();
     for atom_id in 0..coord.shape()[0] {
         let res_id = results.atm_resnum[atom_id];
         let atom_name = results.atm_name[atom_id].as_str();
@@ -135,7 +135,7 @@ fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String) {
 fn write_atom_line(res_id: usize, atom_id: usize, atom_name: &str, results: &Results, x: f64, y: f64, z: f64, f: &mut File) {
     let str = format!("ATOM  {:5} {:<4} {:<3} A{:4}    {:8.3}{:8.3}{:8.3}  1.00{:6.2}           {:<2}\n",
                               atom_id, atom_name, results.residues[res_id].1, results.residues[res_id].0, x, y, z, 
-                              results.dh_res[[results.dh_res.shape()[0] - 1, res_id]] / 4.18, atom_name.get(0..1).unwrap());
+                              -results.dh_res[[results.dh_res.shape()[0] - 1, res_id]] / 4.18, atom_name.get(0..1).unwrap());
     f.write_all(str.as_bytes()).unwrap();
 }
 
