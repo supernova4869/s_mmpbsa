@@ -76,22 +76,22 @@ fn main() {
 
     change_settings_last_opened(&tpr_dump);
 
-    // working directory (path of tpr location)
-    let wd = env::current_dir().expect("Cannot get current working directory.");
-    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr_dump))
-        .expect("Cannot convert to absolute path.").as_path().parent()
-        .expect("Cannot get absolute tpr path.").display());
     // get mdp or dump tpr
-    let tpr_dump = match tpr_dump.ends_with(".tpr") {
+    let tpr_dump_path = fs::canonicalize(Path::new(&tpr_dump)).expect("Cannot get absolute tpr path.");
+    let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
+    let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
+    let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
+    println!("Currently working at path: {}", Path::new(&tpr_dir).display());
+
+    // It names tpr but exactly dump file _(:qゝ∠)_
+    let tpr = match tpr_dump.ends_with(".tpr") {
         true => {
             println!("Found tpr file: {}", tpr_dump);
-            let tpr_dump_path = Path::new(&tpr_dump);
-            let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
-            let p = env::current_dir().unwrap().join(tpr_dump_name.to_string() + ".dump");
             let gmx = settings.gmx.as_ref()
                 .expect("Gromacs not configured correctly.").as_str();
-            dump_tpr(&tpr_dump, &p.to_str().unwrap().to_string(), gmx);
-            p.to_str().unwrap().to_string()
+            let dump_to = dump_path.to_str().unwrap().to_string();
+            dump_tpr(&tpr_dump, &dump_to, gmx);
+            dump_to
         }
         false => {
             println!("Found dump file: {}", tpr_dump);
@@ -99,11 +99,11 @@ fn main() {
         }
     };
 
-    let mut tpr = TPR::new(&tpr_dump.as_str(), &settings);
-    println!("\nFinished reading tpr.");
+    let mut tpr = TPR::new(&tpr, &settings);
+    println!("\nFinished loading tpr.");
 
     // go to next step
-    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &wd, &mut settings);
+    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &tpr_dir, &mut settings);
 }
 
 fn welcome() {
@@ -210,8 +210,11 @@ fn get_built_in_apbs() -> Option<String> {
 }
 
 fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<String>, Option<String>) {
-    // gromacs
-    let gmx_path = match gmx {
+    (check_gromacs(gmx), check_apbs(apbs))
+}
+
+fn check_gromacs(gmx: Option<String>) -> Option<String> {
+    match gmx {
         Some(gmx) => {
             let gmx = match gmx.as_str() {
                 "built-in" => {
@@ -256,10 +259,11 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
             println!("Warning: no valid Gromacs program in use.");
             None
         }
-    };
-    
-    // apbs
-    let apbs_path = match apbs {
+    }
+}
+
+fn check_apbs(apbs: Option<String>) -> Option<String> {
+    match apbs {
         Some(apbs) => {
             let apbs = match apbs.as_str() {
                 "built-in" => {
@@ -286,8 +290,7 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
             }
         }
         None => None
-    };
-    (gmx_path, apbs_path)
+    }
 }
 
 fn check_program_validity(program: &str) -> Result<String, ()> {
