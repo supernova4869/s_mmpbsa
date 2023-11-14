@@ -137,11 +137,12 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
 
         pgb.inc(1);
         pgb.set_message(format!("Frame: {}ns, MM={:.2}, PB={:.2}, SA={:.2} (kJ/mol), eta. {} s", 
-                                     times[idx] / 1000.0,
-                                     vdw_res.row(idx).sum() + elec_res.row(idx).sum(),
-                                     pb_res.row(idx).sum(),
-                                     sa_res.row(idx).sum(),
-                                     pgb.eta().as_secs()));
+                                        times[idx] / 1000.0,
+                                        vdw_res.row(idx).sum() + elec_res.row(idx).sum(),
+                                        pb_res.row(idx).sum(),
+                                        sa_res.row(idx).sum(),
+                                        pgb.eta().as_secs()));
+
         idx += 1;
     }
     pgb.finish();
@@ -174,6 +175,17 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
     let mut residues: Vec<(i32, String)> = vec![];
     let mut idx = 0;
     let mut resind_offset = 0;
+    
+    let mut size: u64 = 0;
+    for mol in &tpr.molecules {
+        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+            size += mol.atoms.len() as u64;
+        }
+    }
+    let pb = ProgressBar::new(size);
+    pb.set_style(ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
+        .progress_chars("=>-"));
     for mol in &tpr.molecules {
         for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
             for atom in &mol.atoms {
@@ -182,10 +194,13 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
                     let res = &mol.residues[atom.residue_index];
                     residues.push((res.nr, res.name.to_string()));
                 }
+                pb.inc(1);
+                pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
             }
             resind_offset += mol.residues.len();
         }
     }
+    pb.finish();
     Array1::from_vec(residues)
 }
 
@@ -218,7 +233,8 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
                     false => qi * qj / r,
                     _ => qi * qj / r * f64::exp(-kap * r)
                 };
-                let e_vdw = aps.c12[[ci, cj]] / (r / 10.0).powi(12) - aps.c6[[ci, cj]] / (r / 10.0).powi(6);
+                let r = r / 10.0;
+                let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);
                 de_elec[aps.atm_resnum[i]] += e_elec;
                 de_elec[aps.atm_resnum[j]] += e_elec;
                 de_vdw[aps.atm_resnum[i]] += e_vdw;
