@@ -150,7 +150,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                         }
                     }
                 } else {
-                    println!("Warning: APBS not found. Will not calculate solvation energy.");
+                    println!("Note: APBS not found. Will not calculate solvation energy.");
                 };
                 println!("Collecting residues list...");
                 let residues = get_residues(tpr, &ndx_com);
