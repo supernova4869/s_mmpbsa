@@ -231,7 +231,7 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
             if r < settings.r_cutoff {
                 let e_elec = match settings.use_dh {
                     false => qi * qj / r,
-                    _ => qi * qj / r * f64::exp(-kap * r)
+                    _ => qi * qj / r * f64::exp(-kap * r)   // doi: 10.1088/0256-307X/38/1/018701
                 };
                 let r = r / 10.0;
                 let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);

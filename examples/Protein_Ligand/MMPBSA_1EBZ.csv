@@ -7,6 +7,6 @@ Energy Term,value,info
 Δelec,-151.941,(kJ/mol)
 ΔvdW,-333.041,(kJ/mol)
 
-TΔS,-29.778,(kJ/mol)
-ΔG,-167.214,ΔG=ΔH-TΔS (kJ/mol)
-Ki,7.692e-21,Ki=exp(ΔG/RT) (nM)
+TΔS,0.000,(kJ/mol)
+ΔG,-196.992,ΔG=ΔH-TΔS (kJ/mol)
+Ki,5.028e-26,Ki=exp(ΔG/RT) (nM)

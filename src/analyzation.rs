@@ -2,6 +2,7 @@ use std::fs::{self, File};
 use std::io::{stdin, Write};
 use std::path::Path;
 use ndarray::{Array1, Array2};
+use crate::settings::Settings;
 use crate::get_input_selection;
 
 pub struct Results {
@@ -68,7 +69,7 @@ impl Results {
     }
 
     // totally time average and ts
-    fn summary(&self, temperature: f64) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+    fn summary(&self, temperature: f64, settings: &Settings) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
         let rt2kj = 8.314462618 * temperature / 1e3;
 
         let dh_avg = self.dh.iter().sum::<f64>() / self.dh.len() as f64;
@@ -78,17 +79,19 @@ impl Results {
         let pb_avg = self.pb.iter().sum::<f64>() / self.pb.len() as f64;
         let sa_avg = self.sa.iter().sum::<f64>() / self.sa.len() as f64;
 
-        let tds = self.mm.iter()
-            .map(|&p| f64::exp((p - mm_avg) / rt2kj))
-            .sum::<f64>() / self.mm.len() as f64;
-        let tds = -rt2kj * tds.ln();
+        let tds = match settings.use_ts {
+            true => {
+                -rt2kj * (self.mm.iter().map(|&p| f64::exp((p - mm_avg) / rt2kj)).sum::<f64>() / self.mm.len() as f64).ln()
+            }
+            false => 0.0
+        };
         let dg = dh_avg - tds;
         let ki = f64::exp(dg / rt2kj) * 1e9;    // nM
         return (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg, vdw_avg, tds, dg, ki);
     }
 }
 
-pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String, wd: &Path) {
+pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
     loop {
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!("-1 Write residue-wised bind energy to pdb file");
@@ -106,7 +109,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
         match sel_fun {
             -1 => write_energy_to_bf(results, wd, sys_name),
             0 => break,
-            1 => analyze_summary(results, temperature, wd, sys_name),
+            1 => analyze_summary(results, temperature, wd, sys_name, settings),
             2 => analyze_traj(results, wd, sys_name),
             3 => analyze_res_avg(results, wd, sys_name),
             4 => analyze_dh_res_traj(results, wd, sys_name),
@@ -139,9 +142,9 @@ fn write_atom_line(res_id: usize, atom_id: usize, atom_name: &str, results: &Res
     f.write_all(str.as_bytes()).unwrap();
 }
 
-fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String) {
+fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
     let (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg,
-        vdw_avg, tds, dg, ki) = results.summary(temperature);
+        vdw_avg, tds, dg, ki) = results.summary(temperature, settings);
     println!("Energy terms summary:");
     println!("ΔH: {:.3} kJ/mol", dh_avg);
     println!("ΔMM: {:.3} kJ/mol", mm_avg);
