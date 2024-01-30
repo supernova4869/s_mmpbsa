@@ -160,7 +160,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
 
     Results::new(
         times,
-        coordinates.slice(s![coordinates.shape()[2], .., ..]).to_owned(),
+        coordinates.slice(s![ef, .., ..]).to_owned(),
         residues,
         aps.atm_name.clone(),
         aps.atm_resnum.clone(),
