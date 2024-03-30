@@ -137,7 +137,7 @@ fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String) {
 
 fn write_atom_line(res_id: usize, atom_id: usize, atom_name: &str, results: &Results, x: f64, y: f64, z: f64, f: &mut File) {
     let str = format!("ATOM  {:5} {:<4} {:<3} A{:4}    {:8.3}{:8.3}{:8.3}  1.00{:6.2}           {:<2}\n",
-                              atom_id, atom_name, results.residues[res_id].1, results.residues[res_id].0, x, y, z, 
+                              atom_id + 1, atom_name, results.residues[res_id].1, results.residues[res_id].0, x, y, z, 
                               -results.dh_res[[results.dh_res.shape()[0] - 1, res_id]] / 4.18, atom_name.get(0..1).unwrap());
     f.write_all(str.as_bytes()).unwrap();
 }
