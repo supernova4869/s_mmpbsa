@@ -99,8 +99,6 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                     residues: Array1<(i32, String)>,
                     sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
-    println!("Start MM/PB-SA calculations...");
-
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
@@ -117,6 +115,8 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
     let t_start = Local::now();
     
+    println!("Calculating MM/PB-SA binding energy...");
+
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
     pgb.inc(0);
