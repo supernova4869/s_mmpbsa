@@ -136,11 +136,9 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
             &mut pb_res, &mut sa_res, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
 
         pgb.inc(1);
-        pgb.set_message(format!("At {}ns, MM={:.2}, PB={:.2}, SA={:.2} (kJ/mol), eta. {} s", 
+        pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s", 
                                         times[idx] / 1000.0,
-                                        vdw_res.row(idx).sum() + elec_res.row(idx).sum(),
-                                        pb_res.row(idx).sum(),
-                                        sa_res.row(idx).sum(),
+                                        vdw_res.row(idx).sum() + elec_res.row(idx).sum() + pb_res.row(idx).sum() + sa_res.row(idx).sum(),
                                         pgb.eta().as_secs()));
 
         idx += 1;

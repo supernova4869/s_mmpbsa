@@ -8,8 +8,6 @@ pub struct AtomProperty {
     pub atm_charge: Array1::<f64>,
     pub atm_radius: Array1::<f64>,
     pub atm_typeindex: Array1<usize>,
-    // pub atm_sigma: Array1::<f64>,
-    // pub atm_epsilon: Array1::<f64>,
     pub atm_index: Array1<usize>,
     pub atm_name: Array1<String>,
     pub atm_resname: Array1<String>,
@@ -31,8 +29,6 @@ impl AtomProperty {
         let mut atm_charge: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_radius: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_typeindex: Array1<usize> = Array1::zeros(ndx_com.len());
-        // let mut atm_sigma: Array1::<f64> = Array1::zeros(ndx_com.len());
-        // let mut atm_epsilon: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_index: Array1<usize> = Array1::zeros(ndx_com.len());
         let mut atm_name: Array1<String> = Array1::default(ndx_com.len());
         let mut atm_resname: Array1<String> = Array1::default(ndx_com.len());
@@ -60,8 +56,6 @@ impl AtomProperty {
                         atm_charge[idx] = atom.charge;
                         atm_radius[idx] = atom.radius;
                         atm_typeindex[idx] = atom.type_id;
-                        // atm_sigma[idx] = atom.sigma;
-                        // atm_epsilon[idx] = atom.epsilon;
                         atm_index[idx] = atom.id;
                         atm_name[idx] = atom.name.to_string();
                         atm_resname[idx] = mol.residues[atom.residue_index].name.to_string();

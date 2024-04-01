@@ -91,7 +91,7 @@ impl Results {
     }
 }
 
-pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
+pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String, wd: &Path, total_at_num: usize, settings: &Settings) {
     loop {
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!("-1 Write residue-wised bind energy to pdb file");
@@ -105,29 +105,31 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
         println!(" 7 View residue-wised binding energy by time: ΔSA");
         println!(" 8 View residue-wised binding energy by time: Δelec");
         println!(" 9 View residue-wised binding energy by time: ΔvdW");
+        println!("10 Output the 2-9 related files as default names");
         let sel_fun: i32 = get_input_selection();
         match sel_fun {
-            -1 => write_energy_to_bf(results, wd, sys_name),
+            -1 => write_energy_to_bf(results, wd, sys_name, total_at_num),
             0 => break,
             1 => analyze_summary(results, temperature, wd, sys_name, settings),
-            2 => analyze_traj(results, wd, sys_name),
-            3 => analyze_res_avg(results, wd, sys_name),
-            4 => analyze_dh_res_traj(results, wd, sys_name),
-            5 => analyze_mm_res_traj(results, wd, sys_name),
-            6 => analyze_pb_res_traj(results, wd, sys_name),
-            7 => analyze_sa_res_traj(results, wd, sys_name),
-            8 => analyze_elec_res_traj(results, wd, sys_name),
-            9 => analyze_vdw_res_traj(results, wd, sys_name),
+            2 => analyze_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            3 => analyze_res_avg(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            4 => analyze_dh_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            5 => analyze_mm_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            6 => analyze_pb_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            7 => analyze_sa_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            8 => analyze_elec_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            9 => analyze_vdw_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
+            10 => output_all(results, wd, sys_name),
             _ => println!("Invalid input")
         }
     }
 }
 
-fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String) {
+fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String, total_num: usize) {
     let mut f = fs::File::create(wd.join(format!("binding_energy_{}.pdb", sys_name))).unwrap();
     let coord = &results.coord;
     f.write_all("REMARK  The B-factor column is filled with the INVERSED residue-wised binding energy (ΔH), in kcal/mol\n".as_bytes()).unwrap();
-    for atom_id in 0..coord.shape()[0] {
+    for atom_id in 0..total_num {
         let res_id = results.atm_resnum[atom_id];
         let atom_name = results.atm_name[atom_id].as_str();
         write_atom_line(res_id, atom_id, atom_name, &results, coord[[atom_id, 0]], coord[[atom_id, 1]], coord[[atom_id, 2]], &mut f);
@@ -158,9 +160,9 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!("ΔG: {:.3} kJ/mol", dg);
     println!("Ki: {:.3} nM", ki);
 
-    let f_name = get_outfile(&format!("MMPBSA_{}.csv", sys_name));
+    let def_name = get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name));
     println!("Writing binding energy terms...");
-    let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
     energy_sum.write_all("Energy Term,value,info\n".as_bytes()).unwrap();
     energy_sum.write_all(format!("ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)\n", dh_avg).as_bytes()).unwrap();
     energy_sum.write_all(format!("ΔMM,{:.3},ΔMM=Δelec+ΔvdW (kJ/mol)\n", mm_avg).as_bytes()).unwrap();
@@ -173,13 +175,12 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     energy_sum.write_all(format!("TΔS,{:.3},(kJ/mol)\n", tds).as_bytes()).unwrap();
     energy_sum.write_all(format!("ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).as_bytes()).unwrap();
     energy_sum.write_all(format!("Ki,{:.3e},Ki=exp(ΔG/RT) (nM)\n", ki).as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_traj.csv", sys_name));
+fn analyze_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_sum = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
     energy_sum.write_all("Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW,(kJ/mol)\n"
         .as_bytes()).unwrap();
     for i in 0..results.times.len() {
@@ -188,13 +189,12 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
                                     results.mm[i], results.pb[i], results.sa[i],
                                     results.elec[i], results.vdw[i]).as_bytes()).unwrap();
     }
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_res_avg(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_res.csv", sys_name));
+fn analyze_res_avg(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("Energy term (kJ/mol)".as_bytes()).unwrap();
     for (i, res) in &results.residues {
         energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
@@ -230,13 +230,12 @@ fn analyze_res_avg(results: &Results, wd: &Path, sys_name: &String) {
         energy_res.write_all(format!(",{:.3}", vdw).as_bytes()).unwrap();
     }
     energy_res.write_all("\n".as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_dh_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_res_ΔH.csv", sys_name));
+fn analyze_dh_res_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
     for (i, res) in &results.residues {
         energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
@@ -248,13 +247,12 @@ fn analyze_dh_res_traj(results: &Results, wd: &Path, sys_name: &String) {
         }
     }
     energy_res.write_all("\n".as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_mm_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_res_ΔMM.csv", sys_name));
+fn analyze_mm_res_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
     for (i, res) in &results.residues {
         energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
@@ -266,13 +264,12 @@ fn analyze_mm_res_traj(results: &Results, wd: &Path, sys_name: &String) {
         }
     }
     energy_res.write_all("\n".as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_pb_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_res_ΔPB.csv", sys_name));
+fn analyze_pb_res_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
     for (i, res) in &results.residues {
         energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
@@ -284,13 +281,12 @@ fn analyze_pb_res_traj(results: &Results, wd: &Path, sys_name: &String) {
         }
     }
     energy_res.write_all("\n".as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_sa_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_res_ΔSA.csv", sys_name));
+fn analyze_sa_res_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
     for (i, res) in &results.residues {
         energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
@@ -302,13 +298,12 @@ fn analyze_sa_res_traj(results: &Results, wd: &Path, sys_name: &String) {
         }
     }
     energy_res.write_all("\n".as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_elec_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name));
+fn analyze_elec_res_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
     for (i, res) in &results.residues {
         energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
@@ -320,13 +315,12 @@ fn analyze_elec_res_traj(results: &Results, wd: &Path, sys_name: &String) {
         }
     }
     energy_res.write_all("\n".as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_vdw_res_traj(results: &Results, wd: &Path, sys_name: &String) {
-    let f_name = get_outfile(&format!("MMPBSA_{}_res_ΔvdW.csv", sys_name));
+fn analyze_vdw_res_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
-    let mut energy_res = fs::File::create(wd.join(&f_name)).unwrap();
+    let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("Time (ns)".as_bytes()).unwrap();
     for (i, res) in &results.residues {
         energy_res.write_all(format!(",{}#{}", i, res).as_bytes()).unwrap();
@@ -338,7 +332,18 @@ fn analyze_vdw_res_traj(results: &Results, wd: &Path, sys_name: &String) {
         }
     }
     energy_res.write_all("\n".as_bytes()).unwrap();
-    println!("Binding energy terms have been writen to {}", &f_name);
+    println!("Binding energy terms have been writen to {}", def_name);
+}
+
+pub fn output_all(results: &Results, wd: &Path, sys_name: &String) {
+    analyze_traj(results, wd, &format!("MMPBSA_{}_traj.csv", sys_name));
+    analyze_res_avg(results, wd, &format!("MMPBSA_{}_res.csv", sys_name));
+    analyze_dh_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔH.csv", sys_name));
+    analyze_mm_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔMM.csv", sys_name));
+    analyze_pb_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔPB.csv", sys_name));
+    analyze_sa_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔSA.csv", sys_name));
+    analyze_elec_res_traj(results, wd, &format!("MMPBSA_{}_res_Δelec.csv", sys_name));
+    analyze_vdw_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔvdW.csv", sys_name));
 }
 
 pub fn get_outfile<T: ToString + std::fmt::Display>(default_name: &T) -> String {

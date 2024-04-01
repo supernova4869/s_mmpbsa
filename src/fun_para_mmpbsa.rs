@@ -157,7 +157,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 let results = mmpbsa::fun_mmpbsa_calculations(trj, &temp_dir, &sys_name, &aps,
                                                               &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, residues,
                                                               bt, et, dt, &pbe_set, &pba_set, settings);
-                analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, settings);
+                analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;
