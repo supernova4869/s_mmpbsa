@@ -1,17 +1,17 @@
-# super_mmpbsa
-super_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajectory, using molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method.
+# s_mmpbsa
+s_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajectory, using molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method.
 
-The super_mmpbsa program can be freely used for both academic and commerical purposes.
+The s_mmpbsa program can be freely used for both academic and commerical purposes.
 
 ## Introduction
 
-MM/PB-SA method is the most popular method to calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, all of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Not support newer version of Gromacs (3) Too slow (4) Not cross-platform. Instead, super_mmpbsa provides a convinent interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
+MM/PB-SA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convinent interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
 
-## Features of super_mmpbsa
+## Features of s_mmpbsa
 
 - Open source and freely available.
-- No need for preparing running environment, only needs Gromacs program on linux system. (In contrast to other programs such as gmx_MMPBSA.py, super_mmpbsa is developed with Rust).
-- Interactive operation, no need to write parameter files. Also, user can write shell script to invoke super_mmpbsa for batch use.
+- No need for preparing running environment (e.g., for Python), only needs Gromacs program when running on linux system. (In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust).
+- Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
 
@@ -32,20 +32,20 @@ gmx trjconv -f md.xtc -s md.tpr -n index.ndx -pbc cluster -center -dt 1000 -o md
 If studying the system of two phase (e.g., solvent extraction), just fix PBC with `mol` option to ensure the structure completion of each molecule, i.e.:
 
 ```bash
-# build group for protein + ligand
+# build group for two phase
 gmx trjconv -f md.xtc -s md.tpr -n index.ndx -pbc mol -dt 1000 -o md_pbc.xtc
-# select the protein + ligand group
+# select the system group
 ```
 
-Better to check if the trajectory PBC has been totally fixed by visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+Better to check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
 ### Calculation
 
 Then start MM/PB-SA calculation.
 
 ``` bash
-# Firstly, add super_mmpbsa folder to $PATH.
-# Start super_mmpbsa, and input as follow (do not include comments)
+# Firstly, add s_mmpbsa folder to $PATH.
+# Start s_mmpbsa, and input as follow (do not include comments)
 md.tpr
 1 # load xtc file
 md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
@@ -65,31 +65,32 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 # Wait for calculation finish
 1 # view summary
 [return] # output energy summary with default file name or input your name
-# also view other infomation by 2-9
+10 # output other infomation by 2-9
+-1 # view pdb file with residue-wised INVERSED binding energy filled in B-factor column
 0 # return
 -10 # return
 -10 # return
--10 # exit super_mmpbsa program
+-10 # exit s_mmpbsa program
 ```
 
 ## Download
-Release file: https://github.com/supernovaZhangJiaXing/super_mmpbsa/releases, where "super_mmpbsa.exe" and "super_mmpbsa" are super_mmpbsa executable files on Windows and Linux operation systems, respectively.
+Release file: https://github.com/supernova4869/s_mmpbsa/releases, where "s_mmpbsa.exe" and "s_mmpbsa" are s_mmpbsa executable files on Windows and Linux operation systems, respectively.
 
 ## Citation
-Super_mmpbsa should be properly cited if the work will be published. 
+The `s_mmpbsa` program should be properly cited if the work will be published. 
 
-Currently, super_mmpbsa is still in-develop. If you want to utilize super_mmpbsa in your work, please cite the program as following:
+Currently, s_mmpbsa is still in-develop. If you want to utilize s_mmpbsa in your work, please cite the program as following:
 
 ```
-Jiaxing Zhang, Super_mmpbsa, Version [current version], https://github.com/supernovaZhangJiaXing/super_mmpbsa (accessed on yy-mm-dd)
+Jiaxing Zhang, s_mmpbsa, Version [current version], https://github.com/supernova4869/s_mmpbsa (accessed on yy-mm-dd)
 ```
 
-After the detailed paper about super_mmpbsa is published (if fortunately), please cite the corresponding paper instead of the web page here.
+After the detailed paper about s_mmpbsa is published (if fortunately), please cite the corresponding paper instead of the web page here.
 
 ## About developer
-Dr. Jiaxing Zhang (Contact: Jiaxing_Zhang@outlook.com, Tian Jin University)
+Dr. Jiaxing Zhang (Contact: Jiaxing_Zhang@outlook.com, Tianjin University)
 
-If you encountered any difficulty while using super_mmpbsa, or you found some bugs, or you have any suggestion on improving super_mmpbsa, please send E-mail to me or join my QQ group 864191465 to describe.
+If you encountered any difficulty while using s_mmpbsa, or you found any bugs, or you have any suggestion on improving s_mmpbsa, please E-mail me or join my QQ group 864191465 to describe.
 
 ## New Folder (?
 - Multi-threading
