@@ -160,7 +160,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!("ΔG: {:.3} kJ/mol", dg);
     println!("Ki: {:.3} nM", ki);
 
-    let def_name = get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name));
+    let def_name = get_outfile(&format!("MMPBSA_{}.csv", sys_name));
     println!("Writing binding energy terms...");
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
     energy_sum.write_all("Energy Term,value,info\n".as_bytes()).unwrap();
