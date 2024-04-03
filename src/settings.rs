@@ -18,6 +18,7 @@ pub struct Settings {
     pub gmx: Option<String>,
     pub apbs: Option<String>,
     pub last_opened: String,
+    pub if_alanine_scanning: bool,
 }
 
 pub fn init_settings() -> Settings {
@@ -35,6 +36,7 @@ pub fn init_settings() -> Settings {
         gmx: None,
         apbs: None,
         last_opened: String::new(),
+        if_alanine_scanning: false
     };
     
     match find_settings_in_use() {
@@ -91,6 +93,11 @@ fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
     settings.apbs = Some(apbs[1..apbs.len() - 1].to_string());
     let last_opened = setting_values.get("last_opened").unwrap().to_string();
     settings.last_opened = last_opened[1..last_opened.len() - 1].to_string();
+    settings.if_alanine_scanning = match setting_values.get("alanine_scanning").unwrap().to_string()[1..2].to_string().as_str() {
+        "y" => true,
+        "Y" => true,
+        _ => false
+    };
 }
 
 fn parse_param<T: FromStr>(setting_values: &Value, key: &str, default: T) -> T {

@@ -65,6 +65,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
+        println!(" 10 Toggle whether to do alanine scanning, current: {}", settings.if_alanine_scanning);
         let i = get_input_selection();
         match i {
             -10 => return,
@@ -246,6 +247,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
                 let infile = get_infile(&sa_fpath.to_str().unwrap());
                 pba_set = PBASet::load_params(infile);
+            }
+            10 => {
+                println!("We will proceed with the alanine scanning proposal\nput forward by the Chinese representative.");
+                settings.if_alanine_scanning = !settings.if_alanine_scanning;
             }
             _ => println!("Invalid input")
         }
