@@ -114,7 +114,7 @@ fn welcome() {
         ========================================================================\n\
         Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
-        Version 0.1, first release: 2022-Oct-17\n\
+        Version 0.2, first release: 2022-Oct-17, current: 2024-Apr-3\n\
         Current time: {}\n", Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
     println!("Usage 1: run `super_mmpbsa` and follow the prompts.\n\
         Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
