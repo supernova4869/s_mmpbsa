@@ -3,13 +3,25 @@ use std::env::current_exe;
 use std::fs;
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
+use indicatif::{ProgressBar, ProgressStyle};
 
 impl AtomProperty {
     // ff_radius would not be used if radius_type not 0
     pub fn apply_radius(&mut self, radius_type: usize, tpr: &TPR, ndx_com_norm: &Vec<usize>, radius_types: &Vec<&str>) {
+        let mut size: u64 = 0;
+        for mol in &tpr.molecules {
+            for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+                size += mol.atoms.len() as u64;
+            }
+        }
         match radius_type {
             0 => {
                 let mut idx = 0;
+                
+                let pb = ProgressBar::new(size);
+                pb.set_style(ProgressStyle::with_template(
+                    "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
+                    .progress_chars("=>-"));
                 for mol in &tpr.molecules {
                     for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                         for atom in &mol.atoms {
@@ -17,9 +29,12 @@ impl AtomProperty {
                                 self.atm_radius[idx] = atom.radius;
                                 idx += 1;
                             }
+                            pb.inc(1);
+                            pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
                         }
                     }
                 };
+                pb.finish();
             }
             _ => {
                 let mut radii_table: HashMap<&str, f64> = HashMap::new();
@@ -36,6 +51,11 @@ impl AtomProperty {
                 }
 
                 let mut idx = 0;
+
+                let pb = ProgressBar::new(size);
+                pb.set_style(ProgressStyle::with_template(
+                    "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
+                    .progress_chars("=>-"));
                 for mol in &tpr.molecules {
                     for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                         for atom in &mol.atoms {
@@ -43,9 +63,12 @@ impl AtomProperty {
                                 self.atm_radius[idx] = get_radii(&radii_table, &atom.name.as_str().to_uppercase());
                                 idx += 1;
                             }
+                            pb.inc(1);
+                            pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
                         }
                     }
                 }
+                pb.finish();
             }
         }
     }

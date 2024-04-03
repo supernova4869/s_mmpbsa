@@ -53,11 +53,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
         println!(" -3 Output PBSA parameters");
-        println!(" -2 Output structural parameters");
-        println!(" -1 Output ff parameters");
+        println!(" -2 Output LJ parameters");
+        println!(" -1 Output structural parameters");
         println!("  0 Start MM/PB-SA calculation");
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
-        println!("  2 Toggle whether to use entropy contribution, current: {}", settings.use_ts);
+        println!("  2 Toggle whether to use interaction entropy (IE) method, current: {}", settings.use_ts);
         println!("  3 Select atom radius type, current: {}", radius_types[settings.rad_type]);
         println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
@@ -70,7 +70,30 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         match i {
             -10 => return,
             -1 => {
-                let mut paras = File::create(wd.join("paras_ff.txt")).unwrap();
+                let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
+                paras.write_all(format!("Receptor group: {}\n", 
+                    ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
+                match ligand_grp {
+                    Some(ligand_grp) => {
+                        paras.write_all(format!("Ligand group: {}\n", 
+                            ndx.groups[ligand_grp as usize].name).as_bytes()).unwrap();
+                    }
+                    None => {
+                        paras.write_all("Ligand group: None\n".as_bytes()).unwrap();
+                    }
+                }
+                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
+                for idx in 0..ndx_com_norm.len() {
+                    paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
+                        aps.atm_index[idx], aps.atm_name[idx], aps.atm_typeindex[idx], 
+                        aps.atm_charge[idx], aps.atm_radius[idx], aps.atm_resnum[idx] + 1, 
+                        aps.atm_resname[idx]).as_bytes()).unwrap();
+                }
+                println!("Structural parameters have been written to paras_structure.txt");
+            }
+            -2 => {
+                let mut paras = File::create(wd.join("paras_LJ.txt")).unwrap();
                 paras.write_all(format!("Atom types num: {}\n", tpr.atom_types_num).as_bytes()).unwrap();
                 paras.write_all("c6:\n".as_bytes()).unwrap();
                 for i in 0..aps.c6.shape()[0] {
@@ -86,30 +109,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     }
                     paras.write_all("\n".as_bytes()).unwrap();
                 }
-                println!("Forcefield parameters have been written to paras_ff.txt");
-            }
-            -2 => {
-                let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
-                paras.write_all(format!("Receptor group: {}\n", 
-                    ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
-                match ligand_grp {
-                    Some(ligand_grp) => {
-                        paras.write_all(format!("Ligand group: {}\n", 
-                            ndx.groups[ligand_grp as usize].name).as_bytes()).unwrap();
-                    }
-                    None => {
-                        paras.write_all("Ligand group: None\n".as_bytes()).unwrap();
-                    }
-                }
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
-                paras.write_all(format!("Atoms:\n     id   name   type        sigma      epsilon   charge   radius   resnum  resname\n").as_bytes()).unwrap();
-                for idx in 0..ndx_com_norm.len() {
-                    paras.write_all(format!("{:7}{:>7}{:7}{:13.6E}{:13.6E}{:9.2}{:9.2}{:9}{:>9}\n", 
-                    aps.atm_index[idx], aps.atm_name[idx], aps.atm_typeindex[idx], aps.atm_sigma[idx], 
-                    aps.atm_epsilon[idx], aps.atm_charge[idx], aps.atm_radius[idx], aps.atm_resnum[idx] + 1, 
-                    aps.atm_resname[idx]).as_bytes()).unwrap();
-                }
-                println!("Structural parameters have been written to paras_structure.txt");
+                println!("Forcefield parameters have been written to paras_LJ.txt");
             }
             -3 => {
                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
@@ -151,13 +151,14 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                         }
                     }
                 } else {
-                    println!("Warning: APBS not found. Will not calculate solvation energy.");
+                    println!("Note: Since APBS not found, solvation energy will not be calculated.");
                 };
+                println!("Collecting residues list...");
                 let residues = get_residues(tpr, &ndx_com);
                 let results = mmpbsa::fun_mmpbsa_calculations(trj, &temp_dir, &sys_name, &aps,
                                                               &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, residues,
                                                               bt, et, dt, &pbe_set, &pba_set, settings);
-                analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd);
+                analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;

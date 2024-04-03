@@ -1,5 +1,6 @@
 use ndarray::{Array1, Array2};
 use crate::parse_tpr::TPR;
+use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct AtomProperty {
     pub c6: Array2<f64>,
@@ -7,8 +8,6 @@ pub struct AtomProperty {
     pub atm_charge: Array1::<f64>,
     pub atm_radius: Array1::<f64>,
     pub atm_typeindex: Array1<usize>,
-    pub atm_sigma: Array1::<f64>,
-    pub atm_epsilon: Array1::<f64>,
     pub atm_index: Array1<usize>,
     pub atm_name: Array1<String>,
     pub atm_resname: Array1<String>,
@@ -30,8 +29,6 @@ impl AtomProperty {
         let mut atm_charge: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_radius: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_typeindex: Array1<usize> = Array1::zeros(ndx_com.len());
-        let mut atm_sigma: Array1::<f64> = Array1::zeros(ndx_com.len());
-        let mut atm_epsilon: Array1::<f64> = Array1::zeros(ndx_com.len());
         let mut atm_index: Array1<usize> = Array1::zeros(ndx_com.len());
         let mut atm_name: Array1<String> = Array1::default(ndx_com.len());
         let mut atm_resname: Array1<String> = Array1::default(ndx_com.len());
@@ -40,6 +37,18 @@ impl AtomProperty {
         let mut idx_total = 0;
         let mut idx = 0;
         let mut resind_offset = 0;      // residues number that has been overpast
+
+        let mut size: u64 = 0;
+        for mol in &tpr.molecules {
+            for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+                size += mol.atoms.len() as u64;
+            }
+        }
+        let pb = ProgressBar::new(size);
+        pb.set_style(ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
+            .progress_chars("=>-"));
+
         for mol in &tpr.molecules {
             for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                 for atom in &mol.atoms {
@@ -47,8 +56,6 @@ impl AtomProperty {
                         atm_charge[idx] = atom.charge;
                         atm_radius[idx] = atom.radius;
                         atm_typeindex[idx] = atom.type_id;
-                        atm_sigma[idx] = atom.sigma;
-                        atm_epsilon[idx] = atom.epsilon;
                         atm_index[idx] = atom.id;
                         atm_name[idx] = atom.name.to_string();
                         atm_resname[idx] = mol.residues[atom.residue_index].name.to_string();
@@ -56,18 +63,23 @@ impl AtomProperty {
                         idx += 1;
                     }
                     idx_total += 1;
+                    pb.inc(1);
+                    pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
                 }
                 resind_offset += mol.residues.len();
             }
         }
+
+        pb.finish();
+
         AtomProperty {
             c6,
             c12,
             atm_charge,
             atm_radius,
             atm_typeindex,
-            atm_sigma,
-            atm_epsilon,
+            // atm_sigma,
+            // atm_epsilon,
             atm_index,
             atm_name,
             atm_resname,

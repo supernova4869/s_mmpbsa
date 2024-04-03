@@ -50,8 +50,8 @@ impl TPR {
         let mut atom_resids: Vec<usize> = vec![];   // residue ids of each atom
         let mut atom_types: Vec<usize> = vec![];    // atom type
         let mut atom_radii: Vec<f64> = vec![];      // atom radius
-        let mut atom_sigmas: Vec<f64> = vec![];     // atom sigma
-        let mut atom_epsilons: Vec<f64> = vec![];   // atom epsilon
+        // let mut atom_sigmas: Vec<f64> = vec![];     // atom sigma
+        // let mut atom_epsilons: Vec<f64> = vec![];   // atom epsilon
         let mut atom_charges: Vec<f64> = vec![];    // atom charge
         let mut atom_names: Vec<String> = vec![];   // atom name
 
@@ -201,8 +201,8 @@ impl TPR {
                     atom_resids.push(residue_index);
                     atom_types.push(atom_type_id);
                     atom_radii.push(radius[atom_type_id]);
-                    atom_sigmas.push(sigma[atom_type_id]);
-                    atom_epsilons.push(epsilon[atom_type_id]);
+                    // atom_sigmas.push(sigma[atom_type_id]);
+                    // atom_epsilons.push(epsilon[atom_type_id]);
                     atom_charges.push(atom_charge);
                 }
 
@@ -277,8 +277,8 @@ impl TPR {
                                          atom_charges[id],
                                          atom_resids[id],
                                          atom_names[id].to_string(),
-                                         atom_sigmas[id],
-                                         atom_epsilons[id],
+                                        //  atom_sigmas[id],
+                                        //  atom_epsilons[id],
                                          atom_radii[id]));
                 }
 
@@ -379,8 +379,8 @@ pub struct Atom {
     pub charge: f64,
     pub residue_index: usize,
     pub name: String,
-    pub sigma: f64,
-    pub epsilon: f64,
+    // pub sigma: f64,
+    // pub epsilon: f64,
     pub radius: f64,
 }
 
@@ -393,15 +393,15 @@ impl fmt::Display for Atom {
 
 impl Atom {
     fn new(id: usize, type_id: usize, charge: f64, residue_index: usize, name: String,
-           sigma: f64, epsilon: f64, radius: f64) -> Atom {
+           radius: f64) -> Atom {
         Atom {
             id,
             type_id,
             charge,
             residue_index,
             name,
-            sigma,
-            epsilon,
+            // sigma,
+            // epsilon,
             radius,
         }
     }

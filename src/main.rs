@@ -22,12 +22,12 @@ use std::str::FromStr;
 use regex::Regex;
 use chrono::Local;
 use crate::parse_tpr::TPR;
-use settings::{Settings, find_settings_in_use};
+use settings::{Settings, get_base_settings};
 use crate::settings::init_settings;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut tpr = String::new();        // may be dump file
+    let mut tpr_dump = String::new();        // may be dump file
     let mut trj = String::from("");
     let mut ndx = String::from("");
 
@@ -43,27 +43,27 @@ fn main() {
             println!("Input path of .tpr or .dump file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang.dump");
             println!("Hint: input \"o\" to simply load last-opened .tpr or .dump file");
             loop {
-                stdin().read_line(&mut tpr).expect("Failed to read tpr or dumped file.");
-                if tpr.trim() == "o" {
-                    tpr = settings.last_opened.to_string();
-                    if tpr.len() == 0 {
+                stdin().read_line(&mut tpr_dump).expect("Failed to read tpr or dumped file.");
+                if tpr_dump.trim() == "o" {
+                    tpr_dump = settings.last_opened.to_string();
+                    if tpr_dump.len() == 0 {
                         println!("Last-opened tpr or mdp not found.");
                     }
                 }
-                if !Path::new(tpr.trim()).is_file() {
-                    println!("Not file: {}, input again:", tpr.trim());
-                    tpr.clear();
+                if !Path::new(tpr_dump.trim()).is_file() {
+                    println!("Not file: {}, input again:", tpr_dump.trim());
+                    tpr_dump.clear();
                 } else {
                     break;
                 }
             }
         }
-        2 => tpr = args[1].to_string(),
+        2 => tpr_dump = args[1].to_string(),
         _ => {
             for i in (1..args.len()).step_by(2) {
                 match args[i].as_str() {
                     "-f" => { trj = args[i + 1].to_string() }
-                    "-s" => { tpr = args[i + 1].to_string() }
+                    "-s" => { tpr_dump = args[i + 1].to_string() }
                     "-n" => { ndx = args[i + 1].to_string() }
                     _ => {
                         println!("Omitted invalid option: {}", args[i])
@@ -72,37 +72,38 @@ fn main() {
             }
         }
     }
-    tpr = confirm_file_validity(&mut tpr, vec!["tpr", "dump"], &settings);
+    tpr_dump = confirm_file_validity(&mut tpr_dump, vec!["tpr", "dump"], &settings);
 
-    change_settings_last_opened(&tpr);
-    settings.last_opened = tpr.to_string();
+    change_settings_last_opened(&tpr_dump);
 
-    // working directory (path of tpr location)
-    let wd = Path::new(&tpr).parent().expect("Cannot get tpr path.");
-    println!("Currently working at path: {}", fs::canonicalize(Path::new(&tpr))
-        .expect("Cannot convert to absolute path.").as_path().parent()
-        .expect("Cannot get absolute tpr path.").display());
     // get mdp or dump tpr
-    let tpr = match tpr.ends_with(".tpr") {
+    let tpr_dump_path = fs::canonicalize(Path::new(&tpr_dump)).expect("Cannot get absolute tpr path.");
+    let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
+    let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
+    let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
+    println!("Currently working at path: {}", Path::new(&tpr_dir).display());
+
+    // It names tpr but exactly dump file _(:qゝ∠)_
+    let tpr = match tpr_dump.ends_with(".tpr") {
         true => {
-            println!("Found tpr file: {}", tpr);
-            let p = tpr[..tpr.len() - 4].to_string() + ".dump";
+            println!("Found tpr file: {}", tpr_dump);
             let gmx = settings.gmx.as_ref()
                 .expect("Gromacs not configured correctly.").as_str();
-            dump_tpr(&tpr, &p, gmx);
-            p
+            let dump_to = dump_path.to_str().unwrap().to_string();
+            dump_tpr(&tpr_dump, &dump_to, gmx);
+            dump_to
         }
         false => {
-            println!("Found dump file: {}", tpr);
-            tpr.to_string()
+            println!("Found dump file: {}", tpr_dump);
+            tpr_dump.to_string()
         }
     };
 
-    let mut tpr = TPR::new(tpr.as_str(), &settings);
-    println!("\nFinished reading tpr.");
+    let mut tpr = TPR::new(&tpr, &settings);
+    println!("\nFinished loading tpr.");
 
     // go to next step
-    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, wd, &mut settings);
+    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &tpr_dir, &mut settings);
 }
 
 fn welcome() {
@@ -113,7 +114,7 @@ fn welcome() {
         ========================================================================\n\
         Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
-        Version 0.1, first release: 2022-Oct-17\n\
+        Version 0.2, first release: 2022-Oct-17, current: 2024-Apr-3\n\
         Current time: {}\n", Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
     println!("Usage 1: run `super_mmpbsa` and follow the prompts.\n\
         Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
@@ -209,8 +210,11 @@ fn get_built_in_apbs() -> Option<String> {
 }
 
 fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<String>, Option<String>) {
-    // gromacs
-    let gmx_path = match gmx {
+    (check_gromacs(gmx), check_apbs(apbs))
+}
+
+fn check_gromacs(gmx: Option<String>) -> Option<String> {
+    match gmx {
         Some(gmx) => {
             let gmx = match gmx.as_str() {
                 "built-in" => {
@@ -255,10 +259,11 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
             println!("Warning: no valid Gromacs program in use.");
             None
         }
-    };
-    
-    // apbs
-    let apbs_path = match apbs {
+    }
+}
+
+fn check_apbs(apbs: Option<String>) -> Option<String> {
+    match apbs {
         Some(apbs) => {
             let apbs = match apbs.as_str() {
                 "built-in" => {
@@ -285,8 +290,7 @@ fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<St
             }
         }
         None => None
-    };
-    (gmx_path, apbs_path)
+    }
 }
 
 fn check_program_validity(program: &str) -> Result<String, ()> {
@@ -320,21 +324,16 @@ pub fn convert_cur_dir(p: &String, settings: &Settings) -> String {
 }
 
 fn change_settings_last_opened(tpr_mdp: &String) {
-    match find_settings_in_use() {
-        Some(settings_file) => {
-            let settings = fs::read_to_string(&settings_file)
-                .expect("Cannot read settings.ini.");
-            let re = Regex::new("last_opened.*\".*\"").unwrap();
-            let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
-                .expect("Cannot convert to absolute path.").display().to_string();
-            let settings = re.replace(settings.as_str(),
-                format!("last_opened = \"{}\"", &last_opened));
-            let mut settings_file = File::create(settings_file)
-                .expect("Cannot edit settings.ini.");
-            settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
-        }
-        None => {}
-    }
+    let base_settings = fs::read_to_string(get_base_settings())
+        .expect("Cannot read settings.ini.");
+    let re = Regex::new("last_opened.*\".*\"").unwrap();
+    let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
+        .expect("Cannot convert to absolute path.").display().to_string();
+    let settings = re.replace(base_settings.as_str(),
+        format!("last_opened = \"{}\"", &last_opened));
+    let mut settings_file = File::create(get_base_settings())
+        .expect("Cannot edit settings.ini.");
+    settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
 }
 
 fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {

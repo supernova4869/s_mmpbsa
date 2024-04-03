@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use xdrfile::*;
@@ -25,7 +25,7 @@ pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> Results {
     // run MM/PB-SA calculations
-    println!("Running MM/PB-SA calculations...");
+    println!("Running MM/PB-SA calculations of {}...", sys_name);
     println!("Preparing parameters...");
 
     // pre-treat trajectory: fix pbc
@@ -99,8 +99,6 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                     residues: Array1<(i32, String)>,
                     sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
-    println!("Start MM/PB-SA calculations...");
-
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
@@ -109,9 +107,15 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     // parameters for elec calculation
     let coeff = Coefficients::new(pbe_set);
 
+    // Time list of trajectory
+    let times: Array1<f64> = (bf..=ef).step_by(dframe)
+        .map(|p| frames[p].time as f64).collect();
+
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
     let t_start = Local::now();
+    
+    println!("Calculating MM/PB-SA binding energy...");
 
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
@@ -122,7 +126,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
             let (res_elec, res_vdw) = 
-                calc_mm(&ndx_rec_norm, &ndx_lig_norm, &aps, &coord, &residues, &coeff, &settings);
+                calc_mm(&ndx_rec_norm, &ndx_lig_norm, aps, &coord, &residues, &coeff, &settings);
             elec_res.row_mut(idx).assign(&res_elec);
             vdw_res.row_mut(idx).assign(&res_vdw);
         }
@@ -132,9 +136,11 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
             &mut pb_res, &mut sa_res, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
 
         pgb.inc(1);
-        pgb.set_message(format!("Will finish at {}", 
-            Local::now().checked_add_signed(Duration::seconds(pgb.eta().as_secs() as i64))
-            .expect("Failed to get finish time").format("%Y-%m-%d %H:%M:%S").to_string()));
+        pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s", 
+                                        times[idx] / 1000.0,
+                                        vdw_res.row(idx).sum() + elec_res.row(idx).sum() + pb_res.row(idx).sum() + sa_res.row(idx).sum(),
+                                        pgb.eta().as_secs()));
+
         idx += 1;
     }
     pgb.finish();
@@ -144,19 +150,18 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     let t_spend = Duration::from(t_end - t_start).num_milliseconds();
     println!("MM/PB-SA calculation finished. Total time cost: {} s", t_spend as f64 / 1000.0);
     env::remove_var("OMP_NUM_THREADS");
-
-    // Time list of trajectory
-    let times: Array1<f64> = (bf..=ef).step_by(dframe)
-        .map(|p| frames[p].time as f64).collect();
     
     // whether remove temp directory
-    if !settings.preserve {
-        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-    }
+    // if !settings.preserve {
+        //     fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+    // }
 
     Results::new(
         times,
+        coordinates.slice(s![ef, .., ..]).to_owned(),
         residues,
+        aps.atm_name.clone(),
+        aps.atm_resnum.clone(),
         elec_res,
         vdw_res,
         pb_res,
@@ -168,6 +173,17 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
     let mut residues: Vec<(i32, String)> = vec![];
     let mut idx = 0;
     let mut resind_offset = 0;
+    
+    let mut size: u64 = 0;
+    for mol in &tpr.molecules {
+        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+            size += mol.atoms.len() as u64;
+        }
+    }
+    let pb = ProgressBar::new(size);
+    pb.set_style(ProgressStyle::with_template(
+        "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
+        .progress_chars("=>-"));
     for mol in &tpr.molecules {
         for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
             for atom in &mol.atoms {
@@ -176,10 +192,13 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
                     let res = &mol.residues[atom.residue_index];
                     residues.push((res.nr, res.name.to_string()));
                 }
+                pb.inc(1);
+                pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
             }
             resind_offset += mol.residues.len();
         }
     }
+    pb.finish();
     Array1::from_vec(residues)
 }
 
@@ -210,9 +229,10 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
             if r < settings.r_cutoff {
                 let e_elec = match settings.use_dh {
                     false => qi * qj / r,
-                    _ => qi * qj / r * f64::exp(-kap * r)
+                    _ => qi * qj / r * f64::exp(-kap * r)   // doi: 10.1088/0256-307X/38/1/018701
                 };
-                let e_vdw = aps.c12[[ci, cj]] / (r / 10.0).powi(12) - aps.c6[[ci, cj]] / (r / 10.0).powi(6);
+                let r = r / 10.0;
+                let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);
                 de_elec[aps.atm_resnum[i]] += e_elec;
                 de_elec[aps.atm_resnum[j]] += e_elec;
                 de_vdw[aps.atm_resnum[i]] += e_vdw;
