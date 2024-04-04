@@ -13,7 +13,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
 use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
-use crate::parse_tpr::TPR;
+use crate::parse_tpr::{Residue, TPR};
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
@@ -21,7 +21,7 @@ use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperty,
                                ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, 
-                               residues: Array1<(i32, String)>, bt: f64, et: f64, dt: f64,
+                               residues: &Vec<Residue>, bt: f64, et: f64, dt: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> Results {
     // run MM/PB-SA calculations
@@ -93,12 +93,11 @@ fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usiz
     (bf, ef, dframe, total_frames)
 }
 
-fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
-                    bf: usize, ef: usize, dframe: usize,
-                    total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
+fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usize, ef: usize, 
+                    dframe: usize, total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
-                    residues: Array1<(i32, String)>,
-                    sys_name: &String, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
+                    residues: &Vec<Residue>, sys_name: &String, 
+                    pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
@@ -126,7 +125,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
             let (res_elec, res_vdw) = 
-                calc_mm(&ndx_rec_norm, &ndx_lig_norm, aps, &coord, &residues, &coeff, &settings);
+                calc_mm(&ndx_rec_norm, &ndx_lig_norm, aps, &coord, residues, &coeff, &settings);
             elec_res.row_mut(idx).assign(&res_elec);
             vdw_res.row_mut(idx).assign(&res_vdw);
         }
@@ -148,7 +147,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     // end calculation
     let t_end = Local::now();
     let t_spend = Duration::from(t_end - t_start).num_milliseconds();
-    println!("MM/PB-SA calculation finished. Total time cost: {} s", t_spend as f64 / 1000.0);
+    println!("MM/PB-SA calculation of {} finished. Total time cost: {} s", sys_name, t_spend as f64 / 1000.0);
     env::remove_var("OMP_NUM_THREADS");
     
     // whether remove temp directory
@@ -157,30 +156,25 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>,
     // }
 
     Results::new(
-        times,
-        coordinates.slice(s![ef, .., ..]).to_owned(),
+        aps,
         residues,
-        aps.atm_name.clone(),
-        aps.atm_resnum.clone(),
-        elec_res,
-        vdw_res,
-        pb_res,
-        sa_res
+        ndx_rec_norm,
+        ndx_lig_norm,
+        &times,
+        coordinates.slice(s![ef, .., ..]).to_owned(),
+        &elec_res,
+        &vdw_res,
+        &pb_res,
+        &sa_res,
     )
 }
 
-pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
-    let mut residues: Vec<(i32, String)> = vec![];
+pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
+    let mut residues: Vec<Residue> = vec![];
     let mut idx = 0;
     let mut resind_offset = 0;
     
-    let mut size: u64 = 0;
-    for mol in &tpr.molecules {
-        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
-            size += mol.atoms.len() as u64;
-        }
-    }
-    let pb = ProgressBar::new(size);
+    let pb = ProgressBar::new(tpr.n_atoms as u64);
     pb.set_style(ProgressStyle::with_template(
         "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
         .progress_chars("=>-"));
@@ -188,9 +182,8 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
         for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
             for atom in &mol.atoms {
                 idx += 1;
-                if ndx_com.contains(&idx) && residues.len() <= atom.residue_index + resind_offset {
-                    let res = &mol.residues[atom.residue_index];
-                    residues.push((res.nr, res.name.to_string()));
+                if ndx_com.contains(&idx) && residues.len() <= atom.resind + resind_offset {
+                    residues.push(mol.residues[atom.resind].to_owned());
                 }
                 pb.inc(1);
                 pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
@@ -199,11 +192,11 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Array1<(i32, String)> {
         }
     }
     pb.finish();
-    Array1::from_vec(residues)
+    residues
 }
 
 fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
-            residues: &Array1<(i32, String)>, coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
+            residues: &Vec<Residue>, coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     let kj_elec = coeff.kj_elec;
     let kap = coeff.kap;
     let pdie = coeff.pdie;
@@ -233,10 +226,10 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
                 };
                 let r = r / 10.0;
                 let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);
-                de_elec[aps.atm_resnum[i]] += e_elec;
-                de_elec[aps.atm_resnum[j]] += e_elec;
-                de_vdw[aps.atm_resnum[i]] += e_vdw;
-                de_vdw[aps.atm_resnum[j]] += e_vdw;
+                de_elec[aps.atm_resid[i]] += e_elec;
+                de_elec[aps.atm_resid[j]] += e_elec;
+                de_vdw[aps.atm_resid[i]] += e_vdw;
+                de_vdw[aps.atm_resid[j]] += e_vdw;
             }
         }
     }
@@ -254,7 +247,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
             aps: &AtomProperty, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) {
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
-    // then the SA energy term is calculated by super_mmpbsa
+    // then the SA energy term is calculated by s_mmpbsa
     let gamma = 0.030125;
     let bias = 0.0;
     let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
@@ -366,17 +359,17 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         if ndx_rec_norm[0] == ndx_lig_norm[0] {
             // if no ligand, pb_com = pb_lig = 0, so real energy is inversed rec_pbsa
             for &i in ndx_com_norm {
-                pb_res[[idx, aps.atm_resnum[i]]] += rec_pb[i - offset_lig];
-                sa_res[[idx, aps.atm_resnum[i]]] += rec_sa[i - offset_lig];
+                pb_res[[idx, aps.atm_resid[i]]] += rec_pb[i - offset_lig];
+                sa_res[[idx, aps.atm_resid[i]]] += rec_sa[i - offset_lig];
             }
         } else {
             for &i in ndx_com_norm {
                 if ndx_rec_norm.contains(&i) {
-                    pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - rec_pb[i - offset_lig];
-                    sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - rec_sa[i - offset_lig];
+                    pb_res[[idx, aps.atm_resid[i]]] += com_pb[i] - rec_pb[i - offset_lig];
+                    sa_res[[idx, aps.atm_resid[i]]] += com_sa[i] - rec_sa[i - offset_lig];
                 } else {
-                    pb_res[[idx, aps.atm_resnum[i]]] += com_pb[i] - lig_pb[i - offset_rec];
-                    sa_res[[idx, aps.atm_resnum[i]]] += com_sa[i] - lig_sa[i - offset_rec];
+                    pb_res[[idx, aps.atm_resid[i]]] += com_pb[i] - lig_pb[i - offset_rec];
+                    sa_res[[idx, aps.atm_resid[i]]] += com_sa[i] - lig_sa[i - offset_rec];
                 }
             }
         }

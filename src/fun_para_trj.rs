@@ -1,5 +1,6 @@
 use std::path::Path;
-use crate::{get_input_selection, settings::Settings};
+use crate::settings::Settings;
+use crate::utils::get_input_selection;
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 use crate::parse_tpr::TPR;

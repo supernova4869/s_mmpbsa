@@ -32,7 +32,7 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
             let index = aps.atm_index[at_id];
             let at_name = &aps.atm_name[at_id];
             let resname = &aps.atm_resname[at_id];
-            let resnum = aps.atm_resnum[at_id];
+            let resnum = aps.atm_resid[at_id];
             let coord = coordinates.slice(s![at_id, ..]);
             let x = coord[0];
             let y = coord[1];

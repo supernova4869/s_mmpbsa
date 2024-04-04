@@ -11,6 +11,7 @@ mod prepare_apbs;
 mod settings;
 mod atom_property;
 mod coefficients;
+mod utils;
 
 use std::fs;
 use std::env;
@@ -18,7 +19,6 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::Path;
 use std::process::Command;
-use std::str::FromStr;
 use regex::Regex;
 use crate::parse_tpr::TPR;
 use settings::{Settings, get_base_settings};
@@ -119,30 +119,6 @@ fn welcome() {
         Usage 3: run `s_mmpbsa WangBingBing.dump` to directly load dumped tpr file.\n\
         Usage 4: run `s_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
         Usage 5: run `s_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n");
-}
-
-pub fn get_input_selection<T: FromStr>() -> T {
-    loop {
-        let mut input = String::from("");
-        stdin().read_line(&mut input).expect("Error input.");
-        match input.trim().parse() {
-            Ok(num) => return num,
-            Err(_) => {
-                println!("Error input, input again.");
-                continue;
-            }
-        };
-    }
-}
-
-pub fn get_input_value(default: &String) -> String {
-    let mut input = String::from("");
-    stdin().read_line(&mut input).expect("Error input.");
-    if input.is_empty() {
-        default.to_string()
-    } else {
-        input.trim().to_string()
-    }
 }
 
 // 把ext_list改成enum

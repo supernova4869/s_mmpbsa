@@ -2,14 +2,15 @@ use std::cmp::Ordering;
 use std::io::stdin;
 use std::path::Path;
 use crate::index_parser::Index;
-use crate::{get_input_selection, settings::Settings};
+use crate::utils::{get_input_selection, get_input};
+use crate::settings::Settings;
 use crate::apbs_param::{PBASet, PBESet};
 use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
 use crate::mmpbsa::{self, get_residues};
-use crate::analyzation::{self, get_infile};
+use crate::analyzation;
 
 pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                        receptor_grp: usize, ligand_grp: Option<usize>,
@@ -87,7 +88,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 for idx in 0..ndx_com_norm.len() {
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
                         aps.atm_index[idx], aps.atm_name[idx], aps.atm_typeindex[idx], 
-                        aps.atm_charge[idx], aps.atm_radius[idx], aps.atm_resnum[idx] + 1, 
+                        aps.atm_charge[idx], aps.atm_radius[idx], aps.atm_resid[idx] + 1, 
                         aps.atm_resname[idx]).as_bytes()).unwrap();
                 }
                 println!("Structural parameters have been written to paras_structure.txt");
@@ -126,7 +127,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             }
             0 => {
                 println!("Applying {} radius...", radius_types[settings.rad_type]);
-                aps.apply_radius(settings.rad_type, tpr, &ndx_com_norm, &radius_types);
+                aps.apply_radius(settings.rad_type, tpr, ndx_com_norm.len(), &radius_types);
 
                 // Temp directory for PBSA
                 let mut sys_name = String::from("_system");
@@ -156,7 +157,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 println!("Collecting residues list...");
                 let residues = get_residues(tpr, &ndx_com);
                 let results = mmpbsa::fun_mmpbsa_calculations(trj, &temp_dir, &sys_name, &aps,
-                                                              &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, residues,
+                                                              &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, &residues,
                                                               bt, et, dt, &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
             }
@@ -238,7 +239,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 pbe_set.save_params(&pb_fpath);
                 println!("PB parameters have been wrote to {0}.\n\
                     Edit it and input its path to reload (default: {0}).", &pb_fpath.to_str().unwrap());
-                let infile = get_infile(&pb_fpath.to_str().unwrap());
+                let infile = get_input(pb_fpath.to_str().unwrap().to_string());
                 pbe_set = PBESet::load_params(infile);
             }
             9 => {
@@ -246,7 +247,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 pba_set.save_params(&sa_fpath);
                 println!("SA parameters have been wrote to {0}.\n\
                     Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
-                let infile = get_infile(&sa_fpath.to_str().unwrap());
+                let infile = get_input(sa_fpath.to_str().unwrap().to_string());
                 pba_set = PBASet::load_params(infile);
             }
             10 => {

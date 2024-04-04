@@ -1,7 +1,8 @@
 use std::io::stdin;
 use std::path::Path;
 use crate::settings::Settings;
-use crate::{get_input_selection, convert_cur_dir, confirm_file_validity, check_apbs};
+use crate::utils::get_input_selection;
+use crate::{convert_cur_dir, confirm_file_validity, check_apbs};
 use crate::fun_para_trj::set_para_trj;
 use crate::parse_tpr::TPR;
 

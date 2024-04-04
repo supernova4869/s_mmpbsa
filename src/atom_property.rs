@@ -2,6 +2,7 @@ use ndarray::{Array1, Array2};
 use crate::parse_tpr::TPR;
 use indicatif::{ProgressBar, ProgressStyle};
 
+#[derive(Clone)]
 pub struct AtomProperty {
     pub c6: Array2<f64>,
     pub c12: Array2<f64>,
@@ -11,7 +12,7 @@ pub struct AtomProperty {
     pub atm_index: Array1<usize>,
     pub atm_name: Array1<String>,
     pub atm_resname: Array1<String>,
-    pub atm_resnum: Array1<usize>,
+    pub atm_resid: Array1<usize>,
 }
 
 impl AtomProperty {
@@ -32,7 +33,7 @@ impl AtomProperty {
         let mut atm_index: Array1<usize> = Array1::zeros(ndx_com.len());
         let mut atm_name: Array1<String> = Array1::default(ndx_com.len());
         let mut atm_resname: Array1<String> = Array1::default(ndx_com.len());
-        let mut atm_resnum: Array1<usize> = Array1::zeros(ndx_com.len());
+        let mut atm_resid: Array1<usize> = Array1::zeros(ndx_com.len());
 
         let mut idx_total = 0;
         let mut idx = 0;
@@ -58,8 +59,8 @@ impl AtomProperty {
                         atm_typeindex[idx] = atom.type_id;
                         atm_index[idx] = atom.id;
                         atm_name[idx] = atom.name.to_string();
-                        atm_resname[idx] = mol.residues[atom.residue_index].name.to_string();
-                        atm_resnum[idx] = atom.residue_index + resind_offset;
+                        atm_resname[idx] = mol.residues[atom.resind].name.to_string();
+                        atm_resid[idx] = atom.resind + resind_offset;
                         idx += 1;
                     }
                     idx_total += 1;
@@ -78,12 +79,10 @@ impl AtomProperty {
             atm_charge,
             atm_radius,
             atm_typeindex,
-            // atm_sigma,
-            // atm_epsilon,
             atm_index,
             atm_name,
             atm_resname,
-            atm_resnum
+            atm_resid
         }
     }
 }

@@ -60,8 +60,8 @@ pub fn find_settings_in_use() -> Option<PathBuf> {
         Some(Path::new("settings.ini").to_path_buf())
     } else {
         let settings_file = env::current_exe()
-            .expect("Cannot get current super_mmpbsa program path.")
-            .parent().expect("Cannot get current super_mmpbsa program directory.")
+            .expect("Cannot get current s_mmpbsa program path.")
+            .parent().expect("Cannot get current s_mmpbsa program directory.")
             .join("settings.ini");
         if settings_file.is_file() {
             Some(settings_file)

@@ -9,7 +9,7 @@ use crate::settings::Settings;
 
 pub struct TPR {
     pub name: String,
-    pub atoms_num: usize,
+    pub n_atoms: usize,
     pub molecule_types_num: usize,
     pub molecule_types: Vec<MolType>,
     pub atom_types_num: usize,
@@ -24,7 +24,7 @@ pub struct TPR {
 impl fmt::Display for TPR {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}, with\n{} atoms,\n{} type(s) of molecules,\n{} atom types,\n{} LJ types",
-               self.name, self.atoms_num, self.molecule_types_num,
+               self.name, self.n_atoms, self.molecule_types_num,
                self.atom_types_num, self.lj_sr_params.len()
         )
     }
@@ -201,8 +201,6 @@ impl TPR {
                     atom_resids.push(residue_index);
                     atom_types.push(atom_type_id);
                     atom_radii.push(radius[atom_type_id]);
-                    // atom_sigmas.push(sigma[atom_type_id]);
-                    // atom_epsilons.push(epsilon[atom_type_id]);
                     atom_charges.push(atom_charge);
                 }
 
@@ -277,8 +275,6 @@ impl TPR {
                                          atom_charges[id],
                                          atom_resids[id],
                                          atom_names[id].to_string(),
-                                        //  atom_sigmas[id],
-                                        //  atom_epsilons[id],
                                          atom_radii[id]));
                 }
 
@@ -292,7 +288,7 @@ impl TPR {
         }
         TPR {
             name,
-            atoms_num,
+            n_atoms: atoms_num,
             molecule_types_num,
             molecule_types,
             atom_types_num,
@@ -377,17 +373,15 @@ pub struct Atom {
     pub id: usize,
     pub type_id: usize,
     pub charge: f64,
-    pub residue_index: usize,
+    pub resind: usize,
     pub name: String,
-    // pub sigma: f64,
-    // pub epsilon: f64,
     pub radius: f64,
 }
 
 impl fmt::Display for Atom {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Atom {}: {} with type {}, charge {}, radius {}, in residue {}",
-               self.id, self.name, self.type_id, self.charge, self.radius, self.residue_index)
+               self.id, self.name, self.type_id, self.charge, self.radius, self.resind)
     }
 }
 
@@ -398,10 +392,8 @@ impl Atom {
             id,
             type_id,
             charge,
-            residue_index,
+            resind: residue_index,
             name,
-            // sigma,
-            // epsilon,
             radius,
         }
     }

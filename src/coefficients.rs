@@ -17,6 +17,6 @@ impl Coefficients {
             .map(|ion| ion.charge * ion.charge * ion.conc).sum();
         let kap = 1e-10 / f64::sqrt(eps0 * kb * pbe_set.temp * pbe_set.sdie / (ion_strength * qe * qe * na * 1e3));
         let pdie = pbe_set.pdie;
-        return Coefficients {kj_elec, kap, pdie};
+        return Coefficients { kj_elec, kap, pdie };
     }
 }
