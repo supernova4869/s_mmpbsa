@@ -20,7 +20,6 @@ use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
 use regex::Regex;
-use chrono::Local;
 use crate::parse_tpr::TPR;
 use settings::{Settings, get_base_settings};
 use crate::settings::init_settings;
@@ -109,18 +108,17 @@ fn main() {
 fn welcome() {
     println!("\
         ========================================================================\n\
-        | super_mmpbsa: Supernova's tool of calculating binding free energy by |\n\
+        | s_mmpbsa: Supernova's tool of calculating binding free energy using  |\n\
         | molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method |\n\
         ========================================================================\n\
-        Website: https://github.com/supernovaZhangJiaXing/super_mmpbsa\n\
+        Website: https://github.com/supernova4869/s_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
-        Version 0.2, first release: 2022-Oct-17, current: 2024-Apr-3\n\
-        Current time: {}\n", Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
-    println!("Usage 1: run `super_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `super_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
-        Usage 3: run `super_mmpbsa WangBingBing.dump` to directly load dumped tpr file.\n\
-        Usage 4: run `super_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
-        Usage 5: run `super_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n");
+        Version 0.2, first release: 2022-Oct-17, current version: 2024-Apr-3\n");
+    println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
+        Usage 2: run `s_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
+        Usage 3: run `s_mmpbsa WangBingBing.dump` to directly load dumped tpr file.\n\
+        Usage 4: run `s_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
+        Usage 5: run `s_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n");
 }
 
 pub fn get_input_selection<T: FromStr>() -> T {
@@ -177,8 +175,8 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: 
 
 fn get_built_in_gmx() -> Option<String> {
     if cfg!(windows) {
-        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
-            .parent().expect("Cannot get current super_mmpbsa program directory.")
+        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+            .parent().expect("Cannot get current s_mmpbsa program directory.")
             .join("programs").join("gmx")
             .join("win").join("gmx.exe").to_str()
             .expect("The built-in gromacs not found.").to_string())
@@ -190,16 +188,16 @@ fn get_built_in_gmx() -> Option<String> {
 
 fn get_built_in_apbs() -> Option<String> {
     if cfg!(windows) {
-        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
+        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
             .parent()
-            .expect("Cannot get current super_mmpbsa program directory.")
+            .expect("Cannot get current s_mmpbsa program directory.")
             .join("programs").join("apbs")
             .join("win").join("apbs.exe").to_str()
             .expect("The built-in apbs not found.").to_string())
     } else if cfg!(unix) {
-        Some(env::current_exe().expect("Cannot get current super_mmpbsa program path.")
+        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
             .parent()
-            .expect("Cannot get current super_mmpbsa program directory.")
+            .expect("Cannot get current s_mmpbsa program directory.")
             .join("programs").join("apbs")
             .join("linux").join("apbs").to_str()
             .expect("The built-in apbs not found.").to_string())
