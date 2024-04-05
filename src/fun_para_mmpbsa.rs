@@ -193,7 +193,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
                 };
                 println!("Collecting residues list...");
                 let residues = get_residues(tpr, &ndx_com);
-                let results = mmpbsa::fun_mmpbsa_calculations(&trj_whole, &temp_dir, &sys_name, &aps,
+                let results = mmpbsa::fun_mmpbsa_calculations(&trj_pbc, &temp_dir, &sys_name, &aps,
                                                               &ndx_rec, ndx_lig, &residues,
                                                               bt, et, dt, &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
