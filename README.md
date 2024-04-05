@@ -17,29 +17,7 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 
 ## Usage
 
-### Preparation
-
-Before calculation, you should fix the periodic boundary conditions (PBC) of the system.
-
-If studying the protein-ligand system (e.g., enzyme-substrate), then it is better to fix PBC with `cluster` option, i.e.:
-
-```bash
-# build group for protein + ligand
-gmx trjconv -f md.xtc -s md.tpr -n index.ndx -pbc cluster -center -dt 1000 -o md_pbc.xtc
-# select the protein + ligand group
-```
-
-If studying the system of two phase (e.g., solvent extraction), just fix PBC with `mol` option to ensure the structure completion of each molecule, i.e.:
-
-```bash
-# build group for two phase
-gmx trjconv -f md.xtc -s md.tpr -n index.ndx -pbc mol -dt 1000 -o md_pbc.xtc
-# select the system group
-```
-
-Better to check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
-
-### Calculation
+Currently s_mmpbsa has supported to fix PBC conditions and write trajectory to `xx_pbc.xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
 Then start MM/PB-SA calculation.
 
@@ -65,7 +43,12 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 # Wait for calculation finish
 1 # view summary
 [return] # output energy summary with default file name or input your name
-10 # output other infomation by 2-9
+2 # output energy by time
+[return]
+3 # output energy by residue
+1 # write residues within 3 A (also try other options)
+[return]
+4 # output other infomations
 -1 # view pdb file with residue-wised INVERSED binding energy filled in B-factor column
 0 # return
 -10 # return
@@ -94,5 +77,4 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 
 ## New Folder (?
 - Multi-threading
-- Automatic Periodic boundary conditions (PBC) fix
 - Add supporting of other PBSA solvers, e.g., AFMPB, Delphi2
