@@ -41,7 +41,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
     };
 
     // pre-treat trajectory: fix pbc
-    println!("Fixing PBC conditions");
+    println!("Fixing PBC conditions...");
 
     let trj_whole = append_new_name(trj, "_trj_whole.xtc"); // get trj output file name
     let trj_center = append_new_name(trj, "_trj_center.xtc");
@@ -301,20 +301,18 @@ fn trjconv(grp: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &
         Command::new("cmd")
         .args(&["/C", ("echo ".to_string() + grp).as_str()])
         .stdout(Stdio::piped())
-        .current_dir(wd)
         .stderr(Stdio::null())
         .spawn()
         .expect("Failed to execute command")
-    } else if cfg!(linux) {
-        Command::new("echo ")
+    } else if cfg!(unix) {
+        Command::new("echo")
         .args(&[grp])
         .stdout(Stdio::piped())
-        .current_dir(wd)
-        .stderr(Stdio::null())
+        // .stderr(Stdio::null())
         .spawn()
         .expect("Failed to execute command")
     } else {
-        Command::new("Fuck you!").spawn().unwrap()
+        Command::new("FCurrently not supported.").spawn().unwrap()
     };
 
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();

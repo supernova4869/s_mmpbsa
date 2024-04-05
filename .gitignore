@@ -3,3 +3,4 @@
 /examples/*/*/
 /examples/*/MMPBSA*.csv
 /examples/*/*_*.xtc
+/examples/*/*_*.ndx
