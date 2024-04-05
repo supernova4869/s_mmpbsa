@@ -105,28 +105,16 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
         println!(" 0 Return");
         println!(" 1 View binding energy terms summary");
         println!(" 2 Output binding energy terms by trajectory");
-        println!(" 3 Output residue-wised binding energy");
-        println!(" 4 View residue-wised binding energy by time: ΔH");
-        println!(" 5 View residue-wised binding energy by time: ΔMM");
-        println!(" 6 View residue-wised binding energy by time: ΔPB");
-        println!(" 7 View residue-wised binding energy by time: ΔSA");
-        println!(" 8 View residue-wised binding energy by time: Δelec");
-        println!(" 9 View residue-wised binding energy by time: ΔvdW");
-        println!("10 Output the 4-9 related files as default names");
+        println!(" 3 Output average binding energy terms by residue");
+        println!(" 4 Output residue-wised binding energy terms by time as default names");
         let sel_fun: i32 = get_input_selection();
         match sel_fun {
             -1 => write_energy_to_bf(results, wd, sys_name, total_at_num),
             0 => break,
             1 => analyze_summary(results, temperature, wd, sys_name, settings),
-            2 => analyze_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_traj.csv", sys_name))),
-            3 => analyze_res(results, wd, &get_outfile(&format!("MMPBSA_{}_res.csv", sys_name))),
-            4 => analyze_dh_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_ΔH.csv", sys_name))),
-            5 => analyze_mm_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_ΔMM.csv", sys_name))),
-            6 => analyze_pb_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_ΔPB.csv", sys_name))),
-            7 => analyze_sa_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_ΔSA.csv", sys_name))),
-            8 => analyze_elec_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_Δelec.csv", sys_name))),
-            9 => analyze_vdw_res_traj(results, wd, &get_outfile(&format!("MMPBSA_{}_res_ΔvdW.csv", sys_name))),
-            10 => output_all_details(results, wd, sys_name),
+            2 => analyze_traj(results, wd, sys_name),
+            3 => analyze_res(results, wd, sys_name),
+            4 => output_all_details(results, wd, sys_name),
             _ => println!("Invalid input")
         }
     }
@@ -185,8 +173,9 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_traj(results: &Results, wd: &Path, def_name: &String) {
+fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
     println!("Writing binding energy terms...");
+    let def_name = &get_outfile(&format!("MMPBSA_{}_traj.csv", sys_name));
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
     write!(energy_sum, "Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW,(kJ/mol)\n").unwrap();
     for i in 0..results.times.len() {
@@ -198,7 +187,7 @@ fn analyze_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_res(results: &Results, wd: &Path, def_name: &String) {
+fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     println!("Determine the residue range to output:");
     println!(" 1 Ligand and receptor residues within 3 A");
     println!(" 2 Ligand and receptor residues within 5 A");
@@ -239,6 +228,7 @@ fn analyze_res(results: &Results, wd: &Path, def_name: &String) {
     
     // 分析输出
     println!("Writing binding energy terms...");
+    let def_name = get_outfile(&format!("MMPBSA_{}_res.csv", sys_name));
     let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
     // 各项取平均输出
