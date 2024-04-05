@@ -73,6 +73,8 @@ fn main() {
     }
     tpr_dump = confirm_file_validity(&mut tpr_dump, vec!["tpr", "dump"], &settings);
 
+    settings.last_opened = fs::canonicalize(Path::new(&tpr_dump))
+        .expect("Cannot convert to absolute path.").display().to_string();
     change_settings_last_opened(&tpr_dump);
 
     // get mdp or dump tpr
@@ -113,7 +115,7 @@ fn welcome() {
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
-        Version 0.2, first release: 2022-Oct-17, current version: 2024-Apr-3\n");
+        Version 0.2, first release: 2022-Oct-17, current version: 2024-Apr-5\n");
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
         Usage 2: run `s_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
         Usage 3: run `s_mmpbsa WangBingBing.dump` to directly load dumped tpr file.\n\

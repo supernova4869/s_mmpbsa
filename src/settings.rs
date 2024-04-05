@@ -82,18 +82,20 @@ fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
     }
     settings.df = parse_param(setting_values, "df", settings.df);
     settings.nkernels = parse_param(setting_values, "nkernels", settings.nkernels);
-    settings.preserve = match setting_values.get("preserve").unwrap().to_string()[1..2].to_string().as_str() {
+    let preserve = parse_param(setting_values, "preserve", settings.preserve);
+    settings.preserve = match preserve.to_string()[1..2].to_string().as_str() {
         "y" => true,
         "Y" => true,
         _ => false
     };
-    let gmx = setting_values.get("gmx").unwrap().to_string();
+    let gmx = parse_param(setting_values, "gmx", "\"\"".to_string());
     settings.gmx = Some(gmx[1..gmx.len() - 1].to_string());
-    let apbs = setting_values.get("apbs").unwrap().to_string();
+    let apbs = parse_param(setting_values, "apbs", "\"\"".to_string());
     settings.apbs = Some(apbs[1..apbs.len() - 1].to_string());
-    let last_opened = setting_values.get("last_opened").unwrap().to_string();
+    let last_opened = parse_param(setting_values, "last_opened", "\"\"".to_string());
     settings.last_opened = last_opened[1..last_opened.len() - 1].to_string();
-    settings.if_alanine_scanning = match setting_values.get("alanine_scanning").unwrap().to_string()[1..2].to_string().as_str() {
+    let if_alanine_scanning = parse_param(setting_values, "alanine_scanning", "\"\"".to_string());
+    settings.if_alanine_scanning = match if_alanine_scanning[1..2].to_string().as_str() {
         "y" => true,
         "Y" => true,
         _ => false

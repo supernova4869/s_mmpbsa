@@ -12,7 +12,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settin
     let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
     let mut dt: f64 = tpr.dt * tpr.nstxout as f64;          // ps
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
-    let ndx = Index::new(ndx);
+    let ndx = Index::from(ndx);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
         println!("-10 Return");
