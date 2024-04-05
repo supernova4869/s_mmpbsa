@@ -5,7 +5,7 @@ use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settings: &mut Settings) {
+pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
     let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps
@@ -28,7 +28,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, settin
             0 => {
                 match receptor_grp {
                     Some(receptor_grp) => {
-                        set_para_mmpbsa(trj, tpr, &ndx, wd,
+                        set_para_mmpbsa(trj, tpr, &ndx, wd, tpr_name,
                             receptor_grp,
                             ligand_grp,
                             bt, et, dt,

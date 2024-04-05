@@ -20,15 +20,17 @@ use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
 pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperty,
-                               ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, 
+                               ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>, 
                                residues: &Vec<Residue>, bt: f64, et: f64, dt: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> Results {
+    // Index normalization
+    let (ndx_com_norm, ndx_rec_norm, ndx_lig_norm) = normalize_index(ndx_rec, ndx_lig);
+
     // run MM/PB-SA calculations
     println!("Running MM/PB-SA calculations of {}...", sys_name);
     println!("Preparing parameters...");
-
-    // pre-treat trajectory: fix pbc
+    
     println!("Reading trajectory file...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
@@ -41,7 +43,7 @@ pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
     if let Some(_) = settings.apbs.as_ref() {
         println!("Preparing pqr files...");
         prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
-                    sys_name, &coordinates, &ndx_com_norm, ndx_rec_norm, ndx_lig_norm, aps);
+                    sys_name, &coordinates, &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, aps);
     }
 
     // calculate MM and PBSA
@@ -384,4 +386,33 @@ fn parse_apbs_line(line: &str) -> f64 {
         .split(" ")
         .next().expect("Cannot get information from apbs")
         .parse().expect("Cannot parse value from apbs")
+}
+
+// convert rec and lig to begin at 0 and continous
+pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+    let offset = match ndx_lig {
+        Some(ndx_lig) => ndx_lig[0].min(ndx_rec[0]),
+        None => ndx_rec[0]
+    };
+    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - offset).collect();
+    let mut ndx_lig = match ndx_lig {
+        Some(ndx_lig) => ndx_lig.iter().map(|p| p - offset).collect(),
+        None => ndx_rec.clone()
+    };
+    let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
+        Ordering::Greater => {
+            ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
+            let mut ndx_com = ndx_rec.to_vec();
+            ndx_com.extend(&ndx_lig);
+            ndx_com
+        }
+        Ordering::Less => {
+            ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
+            let mut ndx_com = ndx_lig.to_vec();
+            ndx_com.extend(&ndx_rec);
+            ndx_com
+        }
+        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
+    };
+    (ndx_com, ndx_rec, ndx_lig)
 }

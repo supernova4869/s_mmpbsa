@@ -1,18 +1,24 @@
-use std::fs;
+use std::{fs::{self, File}, io::Write};
 use regex::Regex;
 
+#[derive(Clone)]
 pub struct IndexGroup {
     pub name: String,
     pub indexes: Vec<usize>,      // starts at 0
 }
 
+impl IndexGroup {
+    pub fn new(name: &str, list: &Vec<usize>) -> IndexGroup {
+        IndexGroup { name: name.to_string(), indexes: list.to_owned() }
+    }
+}
+
+#[derive(Clone)]
 pub struct Index {
     pub groups: Vec<IndexGroup>,
 }
 
 impl Index {
-    // pub fn new(list: Vec<usize>) {}
-
     pub fn from(index_file: &String) -> Index {
         let ndx = fs::read_to_string(index_file).expect("Failed reading index file");
         let re = Regex::new(r"\[\s*(.+?)\s*]").unwrap();
@@ -51,5 +57,30 @@ impl Index {
         for i in 0..self.groups.len() {
             println!("{:>3}): {:<-15}{:>10} atoms", i, self.groups[i].name, self.groups[i].indexes.len())
         }
+    }
+
+    pub fn push(&mut self, ng: &IndexGroup) {
+        self.groups.push(ng.to_owned());
+    }
+
+    pub fn to_ndx(&self, file_name: &str) {
+        let mut f = File::create(file_name).unwrap();
+        for ig in &self.groups {
+            writeln!(f, "[ {} ]", ig.name).unwrap();
+            for i in 0..(ig.indexes.len() / 10)  {
+                for j in 0..10 {
+                    write!(f, "{:7}", ig.indexes[i * 10 + j] + 1).unwrap();
+                }
+                writeln!(f).unwrap();
+            }
+            for i in 0..(ig.indexes.len() % 10) {
+                write!(f, "{:7}", ig.indexes[(ig.indexes.len() / 10) * 10 + i] + 1).unwrap();
+            }
+            writeln!(f).unwrap();
+        }
+    }
+
+    pub fn rm_group(&mut self, name: &str) {
+        self.groups.retain(|g| g.name.ne(name));
     }
 }

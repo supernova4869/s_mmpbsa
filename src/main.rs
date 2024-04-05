@@ -85,7 +85,7 @@ fn main() {
     println!("Currently working at path: {}", Path::new(&tpr_dir).display());
 
     // It names tpr but exactly dump file _(:qゝ∠)_
-    let tpr = match tpr_dump.ends_with(".tpr") {
+    let tpr_name = match tpr_dump.ends_with(".tpr") {
         true => {
             println!("Found tpr file: {}", tpr_dump);
             let gmx = settings.gmx.as_ref()
@@ -100,11 +100,11 @@ fn main() {
         }
     };
 
-    let mut tpr = TPR::new(&tpr, &settings);
+    let mut tpr = TPR::new(&tpr_name, &settings);
     println!("\nFinished loading tpr.");
 
     // go to next step
-    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &tpr_dir, &mut settings);
+    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &tpr_dir, tpr_name.as_str(), &mut settings);
 }
 
 fn welcome() {

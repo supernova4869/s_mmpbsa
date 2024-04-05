@@ -1,10 +1,10 @@
-use std::cmp::Ordering;
 use std::io::stdin;
 use std::path::Path;
-use crate::index_parser::Index;
-use crate::utils::{get_input_selection, get_input};
+use crate::utils::{get_input, get_input_selection, append_new_name};
+use crate::index_parser::{Index, IndexGroup};
 use crate::settings::Settings;
 use crate::apbs_param::{PBASet, PBESet};
+use std::process::{Command, Stdio};
 use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperty;
@@ -12,7 +12,7 @@ use crate::parse_tpr::TPR;
 use crate::mmpbsa::{self, get_residues};
 use crate::analyzation;
 
-pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
+pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_name: &str,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64, settings: &mut Settings) {
     // atom indexes
@@ -40,11 +40,48 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         None => ndx_rec.to_vec()
     };
 
+    // pre-treat trajectory: fix pbc
+    println!("Fixing PBC conditions");
+
+    let trj_whole = append_new_name(trj, "_trj_whole.xtc"); // get trj output file name
+    let trj_center = append_new_name(trj, "_trj_center.xtc");
+    let trj_cluster = append_new_name(trj, "_trj_cluster.xtc");
+    let trj_pbc = append_new_name(trj, "_pbc.xtc");
+    let tpr_name = append_new_name(tpr_name, ".tpr");       // fuck the tpr name is dump
+    // add a Complex group to index file
+    let com_group = IndexGroup::new("Complex", &ndx_com);
+    let mut new_ndx = ndx.clone();
+    new_ndx.rm_group("Complex");
+    new_ndx.push(&com_group);
+    let ndx_path = wd.join("index_pbc_whole.ndx");
+    let ndx_path = ndx_path.to_str().unwrap();
+    new_ndx.to_ndx(ndx_path);
+
+    // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
+    trjconv("Complex", wd, settings, trj, &tpr_name, ndx_path, &trj_whole, &["-pbc", "whole"]);
+
+    match ligand_grp {
+        Some(lig) => {
+            // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
+            trjconv(&(ndx.groups[lig].name.to_owned() + " Complex"), 
+                wd, settings, &trj_whole, &tpr_name, ndx_path, &trj_center, &["-pbc", "mol", "-center"]);
+            // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
+            trjconv(&("Complex Complex"), 
+                wd, settings, &trj_center, &tpr_name, ndx_path, &trj_cluster, &["-pbc", "cluster"]);
+            // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
+            trjconv(&(ndx.groups[lig].name.to_owned() + " Complex"), 
+                wd, settings, &trj_cluster, &tpr_name, ndx_path, &trj_pbc, &["-fit", "rot+trans"]);
+        },
+        None => {
+            // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
+            trjconv(&ndx.groups[receptor_grp].name, 
+                wd, settings, &trj_whole, &tpr_name, ndx_path, &trj_pbc, &["-pbc", "mol", "-center"]);
+        }
+    }
+
     // atom properties
     println!("Parsing atom properties...");
     let mut aps = AtomProperty::new(tpr, &ndx_com);
-    
-    let (ndx_com_norm, ndx_rec_norm, ndx_lig_norm) = normalize_index(ndx_rec, ndx_lig);
     
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
@@ -85,7 +122,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 }
                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
-                for idx in 0..ndx_com_norm.len() {
+                for idx in 0..ndx_com.len() {
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
                         aps.atm_index[idx], aps.atm_name[idx], aps.atm_typeindex[idx], 
                         aps.atm_charge[idx], aps.atm_radius[idx], aps.atm_resid[idx] + 1, 
@@ -127,7 +164,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             }
             0 => {
                 println!("Applying {} radius...", radius_types[settings.rad_type]);
-                aps.apply_radius(settings.rad_type, tpr, ndx_com_norm.len(), &radius_types);
+                aps.apply_radius(settings.rad_type, tpr, ndx_com.len(), &radius_types);
 
                 // Temp directory for PBSA
                 let mut sys_name = String::from("_system");
@@ -156,8 +193,8 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 };
                 println!("Collecting residues list...");
                 let residues = get_residues(tpr, &ndx_com);
-                let results = mmpbsa::fun_mmpbsa_calculations(trj, &temp_dir, &sys_name, &aps,
-                                                              &ndx_com_norm, &ndx_rec_norm, &ndx_lig_norm, &residues,
+                let results = mmpbsa::fun_mmpbsa_calculations(&trj_whole, &temp_dir, &sys_name, &aps,
+                                                              &ndx_rec, ndx_lig, &residues,
                                                               bt, et, dt, &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
             }
@@ -259,31 +296,36 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     }
 }
 
-// convert rec and lig to begin at 0 and continous
-pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
-    let offset = match ndx_lig {
-        Some(ndx_lig) => ndx_lig[0].min(ndx_rec[0]),
-        None => ndx_rec[0]
+fn trjconv(grp: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
+    let mut cmd1 = if cfg!(windows) {
+        Command::new("cmd")
+        .args(&["/C", ("echo ".to_string() + grp).as_str()])
+        .stdout(Stdio::piped())
+        .current_dir(wd)
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to execute command")
+    } else if cfg!(linux) {
+        Command::new("echo ")
+        .args(&[grp])
+        .stdout(Stdio::piped())
+        .current_dir(wd)
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to execute command")
+    } else {
+        Command::new("Fuck you!").spawn().unwrap()
     };
-    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - offset).collect();
-    let mut ndx_lig = match ndx_lig {
-        Some(ndx_lig) => ndx_lig.iter().map(|p| p - offset).collect(),
-        None => ndx_rec.clone()
-    };
-    let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
-        Ordering::Greater => {
-            ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
-            let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.extend(&ndx_lig);
-            ndx_com
-        }
-        Ordering::Less => {
-            ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
-            let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.extend(&ndx_rec);
-            ndx_com
-        }
-        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
-    };
-    (ndx_com, ndx_rec, ndx_lig)
+
+    let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
+    Command::new(settings.gmx.as_mut().unwrap())
+        .args(&args)
+        .current_dir(wd)
+        .stdin(cmd1.stdout.take().unwrap())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to execute command")
+        .wait_with_output()
+        .expect("Failed to wait for command");
 }
