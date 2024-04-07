@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
+use std::process::exit;
 use ndarray::{Array1, Array2};
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::Residue;
@@ -102,7 +103,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
     loop {
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!("-1 Write residue-wised bind energy to pdb file");
-        println!(" 0 Return");
+        println!(" 0 Exit program");
         println!(" 1 View binding energy terms summary");
         println!(" 2 Output binding energy terms by trajectory");
         println!(" 3 Output average binding energy terms by residue");
@@ -110,7 +111,7 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
         let sel_fun: i32 = get_input_selection();
         match sel_fun {
             -1 => write_energy_to_bf(results, wd, sys_name, total_at_num),
-            0 => break,
+            0 => exit(0),
             1 => analyze_summary(results, temperature, wd, sys_name, settings),
             2 => analyze_traj(results, wd, sys_name),
             3 => analyze_res(results, wd, sys_name),
