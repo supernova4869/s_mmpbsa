@@ -275,20 +275,20 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
                 }
             }
             8 => {
-                let pb_fpath = wd.join("PB_settings.txt");
+                let pb_fpath = wd.join("PB_settings.yaml");
                 pbe_set.save_params(&pb_fpath);
                 println!("PB parameters have been wrote to {0}.\n\
                     Edit it and input its path to reload (default: {0}).", &pb_fpath.to_str().unwrap());
-                let infile = get_input(pb_fpath.to_str().unwrap().to_string());
-                pbe_set = PBESet::load_params(infile);
+                let pb_fpath = get_input(pb_fpath.to_str().unwrap().to_string());
+                pbe_set = PBESet::load_params(pb_fpath);
             }
             9 => {
-                let sa_fpath = wd.join("SA_settings.txt");
+                let sa_fpath = wd.join("SA_settings.yaml");
                 pba_set.save_params(&sa_fpath);
                 println!("SA parameters have been wrote to {0}.\n\
                     Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
-                let infile = get_input(sa_fpath.to_str().unwrap().to_string());
-                pba_set = PBASet::load_params(infile);
+                let sa_fpath = get_input(sa_fpath.to_str().unwrap().to_string());
+                pba_set = PBASet::load_params(sa_fpath);
             }
             10 => {
                 println!("We will proceed with the alanine scanning proposal\nput forward by the Chinese representative.");
