@@ -69,7 +69,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
             trjconv(&("Complex Complex"), 
                 wd, settings, &trj_center, &tpr_name, ndx_path, &trj_cluster, &["-pbc", "cluster"]);
             // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
-            trjconv(&(ndx.groups[lig].name.to_owned() + " Complex"), 
+            trjconv(&(ndx.groups[receptor_grp].name.to_owned() + " Complex"), 
                 wd, settings, &trj_cluster, &tpr_name, ndx_path, &trj_pbc, &["-fit", "rot+trans"]);
             fs::remove_file(&trj_center).unwrap();
             fs::remove_file(&trj_cluster).unwrap();
