@@ -66,7 +66,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
             trjconv(&(ndx.groups[lig].name.to_owned() + " Complex"), 
                 wd, settings, &trj_whole, &tpr_name, ndx_path, &trj_center, &["-pbc", "mol", "-center"]);
             // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
-            trjconv(&("Complex Complex"), 
+            trjconv("Complex Complex", 
                 wd, settings, &trj_center, &tpr_name, ndx_path, &trj_cluster, &["-pbc", "cluster"]);
             // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
             trjconv(&(ndx.groups[receptor_grp].name.to_owned() + " Complex"), 
@@ -76,8 +76,8 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
         },
         None => {
             // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
-            trjconv(&ndx.groups[receptor_grp].name, 
-                wd, settings, &trj_whole, &tpr_name, ndx_path, &trj_pbc, &["-pbc", "mol", "-center"]);
+            trjconv("Complex Complex Complex", 
+                wd, settings, &trj_whole, &tpr_name, ndx_path, &trj_pbc, &["-pbc", "mol", "-center", "-fit", "rot+trans"]);
         }
     }
     fs::remove_file(&trj_whole).unwrap();
