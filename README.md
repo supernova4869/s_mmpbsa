@@ -23,7 +23,7 @@ Then start MM/PB-SA calculation.
 
 ``` bash
 # Firstly, add s_mmpbsa folder to $PATH.
-# Start s_mmpbsa, and input as follow (do not include comments)
+# Start s_mmpbsa, and input as follow (support # comments, but not recommended to input comments)
 md.tpr
 1 # load xtc file
 md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
