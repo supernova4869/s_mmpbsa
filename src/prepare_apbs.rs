@@ -1,9 +1,9 @@
-use std::fs::{File, self};
+use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use indicatif::ProgressBar;
-use ndarray::{Array1, Array3, ArrayView2, s};
+use ndarray::{Array1, Array3, ArrayView2};
 use xdrfile::Frame;
 use crate::apbs_param::*;
 use crate::atom_property::AtomProperty;
@@ -18,14 +18,15 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
     set_style(&pb);
     for cur_frm in (bf..=ef).step_by(dframe) {
         let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        let pqr_com_name = temp_dir.join(format!("{}_com.pqr", f_name));
-        let mut pqr_com = File::create(&pqr_com_name).unwrap();
-        let pqr_rec_name = temp_dir.join(format!("{}_rec.pqr", f_name));
-        let mut pqr_rec = File::create(&pqr_rec_name).unwrap();
-        let pqr_lig_name = temp_dir.join(format!("{}_lig.pqr", f_name));
-        let mut pqr_lig = File::create(&pqr_lig_name).unwrap();
-        
-        let coordinates = coordinates.slice(s![cur_frm, .., ..]);
+        let mut pqr_com = match ndx_lig_norm[0] != ndx_rec_norm[0] {
+            true => Some(File::create(&temp_dir.join(format!("{}_com.pqr", f_name))).unwrap()),
+            false => None
+        };
+        let mut pqr_lig = match ndx_lig_norm[0] != ndx_rec_norm[0] {
+            true => Some(File::create(&temp_dir.join(format!("{}_lig.pqr", f_name))).unwrap()),
+            false => None
+        };
+        let mut pqr_rec = File::create(&temp_dir.join(format!("{}_rec.pqr", f_name))).unwrap();
         
         // loop atoms and write pqr information (from pqr)
         for &at_id in ndx_com_norm {
@@ -33,10 +34,9 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
             let at_name = &aps.atm_name[at_id];
             let resname = &aps.atm_resname[at_id];
             let resnum = aps.atm_resid[at_id];
-            let coord = coordinates.slice(s![at_id, ..]);
-            let x = coord[0];
-            let y = coord[1];
-            let z = coord[2];
+            let x = coordinates[[cur_frm, at_id, 0]];
+            let y = coordinates[[cur_frm, at_id, 1]];
+            let z = coordinates[[cur_frm, at_id, 2]];
             let q = aps.atm_charge[at_id];
             let r = aps.atm_radius[at_id];
             let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} {:12.6} {:12.6}\n",
@@ -44,8 +44,10 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
 
             // write qrv files
             // if has ligand
-            if ndx_lig_norm[0] != ndx_rec_norm[0] {
+            if let Some(pqr_com) = &mut pqr_com {
                 pqr_com.write_all(atom_line.as_bytes()).unwrap();
+            }
+            if let Some(pqr_lig) = &mut pqr_lig {
                 if ndx_lig_norm.contains(&at_id) {
                     pqr_lig.write_all(atom_line.as_bytes()).unwrap();
                 }
@@ -56,10 +58,6 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
         }
 
         pb.inc(1);
-        if ndx_lig_norm[0] == ndx_rec_norm[0] {
-            fs::remove_file(Path::new(&pqr_com_name)).unwrap();
-            fs::remove_file(Path::new(&pqr_lig_name)).unwrap();
-        }
     }
     pb.finish();
 }
@@ -68,16 +66,16 @@ pub fn write_apbs_input(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &Arra
                   atm_radius: &Array1<f64>, pbe_set: &PBESet, pba_set: &PBASet,
                   temp_dir: &PathBuf, f_name: &String, settings: &Settings) {
     let mut input_apbs = File::create(temp_dir.join(format!("{}.apbs", f_name))).unwrap();
-    input_apbs.write_all("read\n".as_bytes()).expect("Failed to write apbs input file.");
+    writeln!(input_apbs, "read").expect("Failed writing apbs file.");
     if ndx_lig[0] != ndx_rec[0] {
-        input_apbs.write_all(format!("  mol pqr {}_com.pqr\n", f_name).as_bytes()).expect("Failed to write apbs input file.");
+        writeln!(input_apbs, "  mol pqr {}_com.pqr", f_name).expect("Failed writing apbs file.");
     }
-    input_apbs.write_all(format!("  mol pqr {}_rec.pqr\n", f_name).as_bytes()).expect("Failed to write apbs input file.");
+    writeln!(input_apbs, "  mol pqr {}_rec.pqr", f_name).expect("Failed writing apbs file.");
     if ndx_lig[0] != ndx_rec[0] {
-        input_apbs.write_all(format!("  mol pqr {}_lig.pqr\n", f_name).as_bytes()).expect("Failed to write apbs input file.");
+        writeln!(input_apbs, "  mol pqr {}_lig.pqr", f_name).expect("Failed writing apbs file.");
     }
-    input_apbs.write_all("end\n\n".as_bytes()).expect("Failed to write apbs input file.");
-
+    writeln!(input_apbs, "end\n").expect("Failed writing apbs file.");
+    
     let (rec_box, lig_box, com_box) =
         gen_mesh_params(ndx_rec, ndx_lig, coord, atm_radius);
 
@@ -86,31 +84,35 @@ pub fn write_apbs_input(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &Arra
 
     if ndx_lig[0] != ndx_rec[0] {
         input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
-                                    com_box[0], com_box[3], com_box[1],
-                                    com_box[4], com_box[2], com_box[5],
+                                    com_box[0], com_box[3], 
+                                    com_box[1], com_box[4], 
+                                    com_box[2], com_box[5],
                                     settings,
                                     pbe_set, &pbe_set0, pba_set).as_bytes()).
             expect("Failed writing apbs file.");
     }
     if ndx_lig[0] != ndx_rec[0] {
         input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
-                                    rec_box[0], rec_box[3], rec_box[1],
-                                    rec_box[4], rec_box[2], rec_box[5],
+                                    rec_box[0], rec_box[3], 
+                                    rec_box[1], rec_box[4], 
+                                    rec_box[2], rec_box[5],
                                     settings,
                                     pbe_set, &pbe_set0, pba_set).as_bytes()).
             expect("Failed writing apbs file.");
     } else {
         input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 1,
-                                    rec_box[0], rec_box[3], rec_box[1],
-                                    rec_box[4], rec_box[2], rec_box[5],
+                                    rec_box[0], rec_box[3], 
+                                    rec_box[1], rec_box[4], 
+                                    rec_box[2], rec_box[5],
                                     settings,
                                     pbe_set, &pbe_set0, pba_set).as_bytes()).
             expect("Failed writing apbs file.");
     }
     if ndx_lig[0] != ndx_rec[0] {
         input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
-                                    lig_box[0], lig_box[3], lig_box[1],
-                                    lig_box[4], lig_box[2], lig_box[5],
+                                    lig_box[0], lig_box[3], 
+                                    lig_box[1], lig_box[4], 
+                                    lig_box[2], lig_box[5],
                                     settings,
                                     pbe_set, &pbe_set0, pba_set).as_bytes()).
             expect("Failed writing apbs file.");
@@ -165,12 +167,12 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
     let fadd = settings.fadd;
     let df = settings.df;
 
-    let min_x = min_x;
-    let min_y = min_y;
-    let min_z = min_z;
-    let max_x = max_x;
-    let max_y = max_y;
-    let max_z = max_z;
+    // let min_x = min_x;
+    // let min_y = min_y;
+    // let min_z = min_z;
+    // let max_x = max_x;
+    // let max_y = max_y;
+    // let max_z = max_z;
 
     let x_len = (max_x - min_x).max(0.1);
     let x_center = (max_x + min_x) / 2.0;
@@ -186,14 +188,11 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
     let f_y = (y_len + fadd).min(c_y);
     let f_z = (z_len + fadd).min(c_z);
 
-    let n_lev = 4;
-    let t = 2_f64.powi(n_lev+1);
-    let n_x = (f_x / df).round() as i32 - 1;
-    let n_x = (t * (n_x as f64 / t).round()) as i32 + 1;
-    let n_y = (f_y / df).round() as i32 - 1;
-    let n_y = (t * (n_y as f64 / t).round()) as i32 + 1;
-    let n_z = (f_z / df).round() as i32 - 1;
-    let n_z = (t * (n_z as f64 / t).round()) as i32 + 1;
+    // 格点数为32的倍数, apbs的特殊要求
+    let t = 32.0;
+    let n_x = ((f_x / df / t).round() * t) as i32 + 1;
+    let n_y = ((f_y / df / t).round() * t) as i32 + 1;
+    let n_z = ((f_z / df / t).round() * t) as i32 + 1;
 
     let mg_set = "mg-auto";
 
@@ -205,12 +204,12 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
         \n  cgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\n");
 
     return format!("\nELEC name {}_SOL\n\
-    {} \n\
-    {} \n\
+    {}\n\
+    {}\n\
     end\n\n\
     ELEC name {}_VAC\n\
     {}\n\
-    {} \n\
+    {}\n\
     end\n\n\
     APOLAR name {}_SAS\n  \
     mol    {:7}\n{}\n\
