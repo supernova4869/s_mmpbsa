@@ -32,5 +32,3 @@ ELEC name test
   calcforce  no
   calcenergy comps 
 end
-
-print elecEnergy test end

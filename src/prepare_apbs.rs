@@ -167,13 +167,6 @@ pub fn dim_apbs(file: &str, mol_index: i32, min_x: f64, max_x: f64, min_y: f64, 
     let fadd = settings.fadd;
     let df = settings.df;
 
-    // let min_x = min_x;
-    // let min_y = min_y;
-    // let min_z = min_z;
-    // let max_x = max_x;
-    // let max_y = max_y;
-    // let max_z = max_z;
-
     let x_len = (max_x - min_x).max(0.1);
     let x_center = (max_x + min_x) / 2.0;
     let y_len = (max_y - min_y).max(0.1);
