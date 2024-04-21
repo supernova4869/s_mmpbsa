@@ -84,14 +84,14 @@ fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
     }
     settings.df = parse_param(setting_values, "df", settings.df);
     settings.nkernels = parse_param(setting_values, "nkernels", settings.nkernels);
-    let fix_pbc = parse_param(setting_values, "fix_pbc", "y".to_string());
-    settings.fix_pbc = match fix_pbc.to_string()[1..2].to_string().as_str() {
+    let fix_pbc = parse_param(setting_values, "fix_pbc", "\"y\"".to_string());
+    settings.fix_pbc = match fix_pbc[1..2].to_string().as_str() {
         "y" => true,
         "Y" => true,
         _ => false
     };
-    let preserve = parse_param(setting_values, "preserve", "y".to_string());
-    settings.preserve = match preserve.to_string()[1..2].to_string().as_str() {
+    let preserve = parse_param(setting_values, "preserve", "\"y\"".to_string());
+    settings.preserve = match preserve[1..2].to_string().as_str() {
         "y" => true,
         "Y" => true,
         _ => false
@@ -102,7 +102,7 @@ fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
     settings.apbs = Some(apbs[1..apbs.len() - 1].to_string());
     let last_opened = parse_param(setting_values, "last_opened", "\"\"".to_string());
     settings.last_opened = last_opened[1..last_opened.len() - 1].to_string();
-    let if_alanine_scanning = parse_param(setting_values, "alanine_scanning", "y".to_string());
+    let if_alanine_scanning = parse_param(setting_values, "alanine_scanning", "\"y\"".to_string());
     settings.if_alanine_scanning = match if_alanine_scanning[1..2].to_string().as_str() {
         "y" => true,
         "Y" => true,

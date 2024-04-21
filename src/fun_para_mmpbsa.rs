@@ -49,7 +49,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     let residues = get_residues(tpr, &ndx_com);
 
     // pre-treat trajectory: fix pbc
-    println!("Fixing PBC conditions...");
+    println!("Extracting trajectory...");
 
     let trj_whole = append_new_name(trj, "_trj_whole.xtc"); // get trj output file name
     let trj_center = append_new_name(trj, "_trj_center.xtc");
@@ -93,6 +93,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
 
     let trj_mmpbsa = if settings.fix_pbc {
+        println!("Fixing PBC conditions...");
         match ligand_grp {
             Some(ligand_grp) => {
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
