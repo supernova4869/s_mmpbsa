@@ -19,6 +19,10 @@ pub struct Index {
 }
 
 impl Index {
+    pub fn new(groups: Vec<IndexGroup>) -> Index {
+        Index{ groups }
+    }
+
     pub fn from(index_file: &String) -> Index {
         let ndx = fs::read_to_string(index_file).expect("Failed reading index file");
         let re = Regex::new(r"\[\s*(.+?)\s*]").unwrap();

@@ -4,15 +4,17 @@ use crate::utils::{get_input, get_input_selection, append_new_name};
 use crate::index_parser::{Index, IndexGroup};
 use crate::settings::Settings;
 use crate::apbs_param::{PBASet, PBESet};
-use std::process::{Command, Stdio};
 use std::io::Write;
 use std::fs::{File, self};
+use std::cmp::Ordering;
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::TPR;
 use crate::mmpbsa::{self, get_residues};
 use crate::analyzation;
+use crate::utils::{convert_tpr, trjconv};
 
-pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_name: &str,
+pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
+                       tpr_name: &str, ndx_name: &str,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64, settings: &mut Settings) {
     // atom indexes
@@ -39,6 +41,12 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
         }
         None => ndx_rec.to_vec()
     };
+        
+    // atom properties
+    println!("Parsing atom properties...");
+    let mut aps = AtomProperty::new(tpr, &ndx_com);
+    println!("Collecting residues list...");
+    let residues = get_residues(tpr, &ndx_com);
 
     // pre-treat trajectory: fix pbc
     println!("Fixing PBC conditions...");
@@ -46,45 +54,70 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
     let trj_whole = append_new_name(trj, "_trj_whole.xtc"); // get trj output file name
     let trj_center = append_new_name(trj, "_trj_center.xtc");
     let trj_cluster = append_new_name(trj, "_trj_cluster.xtc");
-    let trj_pbc = append_new_name(trj, "_pbc.xtc");
+    let trj_mmpbsa = append_new_name(trj, "_mmpbsa.xtc");
     let tpr_name = append_new_name(tpr_name, ".tpr");       // fuck the tpr name is dump
+    
     // add a Complex group to index file
     let com_group = IndexGroup::new("Complex", &ndx_com);
     let mut new_ndx = ndx.clone();
     new_ndx.rm_group("Complex");
     new_ndx.push(&com_group);
-    let ndx_path = wd.join("index_pbc_whole.ndx");
-    let ndx_path = ndx_path.to_str().unwrap();
-    new_ndx.to_ndx(ndx_path);
-
+    let ndx_whole = append_new_name(ndx_name, "_whole.ndx"); // get extracted index file name
+    new_ndx.to_ndx(&ndx_whole);
+    
     // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
-    trjconv("Complex", wd, settings, trj, &tpr_name, ndx_path, &trj_whole, &["-pbc", "whole"]);
+    trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"]);
+    // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
+    let tpr_mmpbsa = append_new_name(&tpr_name, "_mmpbsa.tpr"); // get extracted tpr file name
+    convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
+    fs::remove_file(&ndx_whole).unwrap();
 
-    match ligand_grp {
-        Some(lig) => {
-            // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
-            trjconv(&(ndx.groups[lig].name.to_owned() + " Complex"), 
-                wd, settings, &trj_whole, &tpr_name, ndx_path, &trj_center, &["-pbc", "mol", "-center"]);
-            // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
-            trjconv("Complex Complex", 
-                wd, settings, &trj_center, &tpr_name, ndx_path, &trj_cluster, &["-pbc", "cluster"]);
-            // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
-            trjconv(&(ndx.groups[receptor_grp].name.to_owned() + " Complex"), 
-                wd, settings, &trj_cluster, &tpr_name, ndx_path, &trj_pbc, &["-fit", "rot+trans"]);
-            fs::remove_file(&trj_center).unwrap();
-            fs::remove_file(&trj_cluster).unwrap();
+    // Index normalization
+    let (ndx_com, ndx_rec, ndx_lig) = normalize_index(ndx_rec, ndx_lig);
+
+    // extract index file
+    let ndx_mmpbsa = match ligand_grp {
+        Some(ligand_grp) => {
+            Index::new(vec![
+                IndexGroup::new("Complex", &ndx_com), 
+                IndexGroup::new(&ndx.groups[receptor_grp].name, &ndx_rec),
+                IndexGroup::new(&ndx.groups[ligand_grp].name, &ndx_lig)
+            ])
         },
         None => {
-            // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
-            trjconv("Complex Complex Complex", 
-                wd, settings, &trj_whole, &tpr_name, ndx_path, &trj_pbc, &["-pbc", "mol", "-center", "-fit", "rot+trans"]);
+            Index::new(vec![IndexGroup::new("Complex", &ndx_com)])
         }
-    }
-    fs::remove_file(&trj_whole).unwrap();
-        
-    // atom properties
-    println!("Parsing atom properties...");
-    let mut aps = AtomProperty::new(tpr, &ndx_com);
+    };
+    ndx_mmpbsa.to_ndx("index_mmpbsa.ndx");
+    let ndx_mmpbsa = Path::new(wd).join("index_mmpbsa.ndx");
+    let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
+
+    let trj_mmpbsa = if settings.fix_pbc {
+        match ligand_grp {
+            Some(ligand_grp) => {
+                // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
+                trjconv(&(ndx.groups[ligand_grp].name.to_owned() + " Complex"),
+                    wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"]);
+                // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
+                trjconv("Complex Complex",
+                    wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"]);
+                // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
+                trjconv("1 0",
+                    wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"]);
+                fs::remove_file(&trj_center).unwrap();
+                fs::remove_file(&trj_cluster).unwrap();
+            },
+            None => {
+                // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
+                trjconv("0 0 0", 
+                    wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"]);
+            }
+        }
+        fs::remove_file(&trj_whole).unwrap();
+        trj_mmpbsa
+    } else {
+        trj_whole
+    };
     
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
@@ -194,11 +227,9 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
                 } else {
                     println!("Note: Since APBS not found, solvation energy will not be calculated.");
                 };
-                println!("Collecting residues list...");
-                let residues = get_residues(tpr, &ndx_com);
-                let results = mmpbsa::fun_mmpbsa_calculations(&trj_pbc, &temp_dir, &sys_name, &aps,
-                                                              &ndx_rec, ndx_lig, &residues,
-                                                              bt, et, dt, &pbe_set, &pba_set, settings);
+                let results = mmpbsa::fun_mmpbsa_calculations(&trj_mmpbsa, &temp_dir, &sys_name, &aps,
+                                                                &ndx_com, &ndx_rec, &ndx_lig, &residues,
+                                                                bt, et, dt, &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
             }
             1 => {
@@ -299,34 +330,31 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, tpr_
     }
 }
 
-fn trjconv(grp: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
-    let mut cmd1 = if cfg!(windows) {
-        Command::new("cmd")
-        .args(&["/C", ("echo ".to_string() + grp).as_str()])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to execute command")
-    } else if cfg!(unix) {
-        Command::new("echo")
-        .args(&[grp])
-        .stdout(Stdio::piped())
-        // .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to execute command")
-    } else {
-        Command::new("FCurrently not supported.").spawn().unwrap()
+// convert rec and lig to begin at 0 and continous
+pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+    let offset = match ndx_lig {
+        Some(ndx_lig) => ndx_lig[0].min(ndx_rec[0]),
+        None => ndx_rec[0]
     };
-
-    let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    Command::new(settings.gmx.as_mut().unwrap())
-        .args(&args)
-        .current_dir(wd)
-        .stdin(cmd1.stdout.take().unwrap())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to execute command")
-        .wait_with_output()
-        .expect("Failed to wait for command");
+    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - offset).collect();
+    let mut ndx_lig = match ndx_lig {
+        Some(ndx_lig) => ndx_lig.iter().map(|p| p - offset).collect(),
+        None => ndx_rec.clone()
+    };
+    let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
+        Ordering::Greater => {
+            ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
+            let mut ndx_com = ndx_rec.to_vec();
+            ndx_com.extend(&ndx_lig);
+            ndx_com
+        }
+        Ordering::Less => {
+            ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
+            let mut ndx_com = ndx_lig.to_vec();
+            ndx_com.extend(&ndx_rec);
+            ndx_com
+        }
+        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
+    };
+    (ndx_com, ndx_rec, ndx_lig)
 }

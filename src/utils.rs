@@ -2,6 +2,8 @@ use std::path::Path;
 use std::io;
 use std::str::FromStr;
 use std::fmt::Debug;
+use std::process::{Child, Command, Stdio};
+use crate::settings::Settings;
 
 pub fn range2list(range_str: &str) -> Vec<i32> {
     let mut selection_range: Vec<i32> = vec![];
@@ -66,4 +68,50 @@ pub fn append_new_name(origin_name: &str, append_name: &str) -> String {
     let file_stem = file_path.file_stem().unwrap();
     let new_name = file_path.parent().unwrap().join(file_stem.to_str().unwrap().to_string() + append_name);
     new_name.to_str().unwrap().to_string()
+}
+
+fn echo(s: &str) -> Child {
+    if cfg!(windows) {
+        Command::new("cmd")
+        .arg("/C")
+        .arg("echo ".to_string() + s)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to execute command")
+    } else if cfg!(unix) {
+        Command::new("echo")
+        .args(&[s])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to execute command")
+    } else {
+        Command::new("Currently not supported.").spawn().unwrap()
+    }
+}
+
+fn gmx_cmd(gmx: &str, cmd1: &mut Child, wd: &Path, args: &[&str]) {
+    Command::new(gmx)
+        .args(args)
+        .current_dir(wd)
+        .stdin(cmd1.stdout.take().unwrap())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("Failed to execute command")
+        .wait_with_output()
+        .expect("Failed to wait for command");
+}
+
+pub fn convert_tpr(grps: &str, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str) {
+    let mut echo_cmd = echo(grps);
+    let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
+    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args);
+}
+
+pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
+    let mut echo_cmd = echo(grps);
+    let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
+    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args);
 }

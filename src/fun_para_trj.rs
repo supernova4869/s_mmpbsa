@@ -5,17 +5,18 @@ use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::Index;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
+pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
     let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
     let mut dt: f64 = tpr.dt * tpr.nstxout as f64;          // ps
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
-    let ndx = Index::from(ndx);
+    let ndx = Index::from(ndx_name);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
         println!("-10 Return");
+        println!(" -1 Toggle whether to fix PBC conditions, current: {}", settings.fix_pbc);
         println!("  0 Go to next step");
         println!("  1 Select receptor groups, current:          {}", show_grp(receptor_grp, &ndx));
         println!("  2 Select ligand groups, current:            {}", show_grp(ligand_grp, &ndx));
@@ -25,10 +26,13 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, tpr_na
         let i = get_input_selection();
         match i {
             -10 => return,
+            -1 => {
+                settings.fix_pbc = !settings.fix_pbc;
+            }
             0 => {
                 match receptor_grp {
                     Some(receptor_grp) => {
-                        set_para_mmpbsa(trj, tpr, &ndx, wd, tpr_name,
+                        set_para_mmpbsa(trj, tpr, &ndx, wd, tpr_name, ndx_name,
                             receptor_grp,
                             ligand_grp,
                             bt, et, dt,

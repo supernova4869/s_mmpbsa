@@ -71,6 +71,9 @@ impl AtomProperty {
             }
         }
 
+        // normalize resid
+        let atm_resid = &atm_resid - atm_resid[0];
+
         pb.finish();
 
         AtomProperty {

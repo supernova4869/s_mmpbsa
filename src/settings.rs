@@ -14,6 +14,7 @@ pub struct Settings {
     pub r_cutoff: f64,
     pub df: f64,
     pub nkernels: i32,
+    pub fix_pbc: bool,
     pub preserve: bool,
     pub gmx: Option<String>,
     pub apbs: Option<String>,
@@ -32,6 +33,7 @@ pub fn init_settings() -> Settings {
         r_cutoff: 0.0,
         df: 0.5,
         nkernels: 1,
+        fix_pbc: true,
         preserve: false,
         gmx: None,
         apbs: None,
@@ -82,7 +84,13 @@ fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
     }
     settings.df = parse_param(setting_values, "df", settings.df);
     settings.nkernels = parse_param(setting_values, "nkernels", settings.nkernels);
-    let preserve = parse_param(setting_values, "preserve", settings.preserve);
+    let fix_pbc = parse_param(setting_values, "fix_pbc", "y".to_string());
+    settings.fix_pbc = match fix_pbc.to_string()[1..2].to_string().as_str() {
+        "y" => true,
+        "Y" => true,
+        _ => false
+    };
+    let preserve = parse_param(setting_values, "preserve", "y".to_string());
     settings.preserve = match preserve.to_string()[1..2].to_string().as_str() {
         "y" => true,
         "Y" => true,
@@ -94,7 +102,7 @@ fn read_user_settings(settings: &mut Settings, setting_values: &Value) {
     settings.apbs = Some(apbs[1..apbs.len() - 1].to_string());
     let last_opened = parse_param(setting_values, "last_opened", "\"\"".to_string());
     settings.last_opened = last_opened[1..last_opened.len() - 1].to_string();
-    let if_alanine_scanning = parse_param(setting_values, "alanine_scanning", "\"\"".to_string());
+    let if_alanine_scanning = parse_param(setting_values, "alanine_scanning", "y".to_string());
     settings.if_alanine_scanning = match if_alanine_scanning[1..2].to_string().as_str() {
         "y" => true,
         "Y" => true,
