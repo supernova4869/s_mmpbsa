@@ -66,11 +66,13 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     new_ndx.to_ndx(&ndx_whole);
     
     // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
-    trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"]);
+    trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"], settings.debug_mode);
     // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
     let tpr_mmpbsa = append_new_name(&tpr_name, "_mmpbsa.tpr"); // get extracted tpr file name
-    convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
-    fs::remove_file(&ndx_whole).unwrap();
+    convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa, settings.debug_mode);
+    if settings.debug_mode {
+        fs::remove_file(&ndx_whole).unwrap();
+    }
 
     // Index normalization
     let (ndx_com, ndx_rec, ndx_lig) = normalize_index(ndx_rec, ndx_lig);
@@ -98,23 +100,29 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             Some(ligand_grp) => {
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
                 trjconv(&(ndx.groups[ligand_grp].name.to_owned() + " Complex"),
-                    wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"]);
+                    wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"], settings.debug_mode);
                 // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
                 trjconv("Complex Complex",
-                    wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"]);
+                    wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"], settings.debug_mode);
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
                 trjconv("1 0",
-                    wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"]);
-                fs::remove_file(&trj_center).unwrap();
-                fs::remove_file(&trj_cluster).unwrap();
+                    wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"], settings.debug_mode);
+                if settings.debug_mode {
+                    fs::remove_file(&trj_center).unwrap();
+                    fs::remove_file(&trj_cluster).unwrap();
+                }
             },
             None => {
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
                 trjconv("0 0 0", 
-                    wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"]);
+                    wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"], settings.debug_mode);
             }
         }
-        fs::remove_file(&trj_whole).unwrap();
+        if settings.debug_mode {
+            fs::remove_file(&trj_whole).unwrap();
+            fs::remove_file(&tpr_mmpbsa).unwrap();
+            fs::remove_file(&ndx_mmpbsa).unwrap();
+        }
         trj_mmpbsa
     } else {
         trj_whole

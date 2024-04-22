@@ -21,8 +21,7 @@ use std::path::Path;
 use std::process::Command;
 use regex::Regex;
 use crate::parse_tpr::TPR;
-use settings::{Settings, get_base_settings};
-use crate::settings::init_settings;
+use settings::{Settings, get_base_settings, get_settings_in_use};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -32,7 +31,15 @@ fn main() {
 
     welcome();
     // initialize parameters
-    let mut settings = init_settings();
+    let mut settings = match get_settings_in_use() {
+        Some(settings_file) => {
+            Settings::from(&settings_file)
+        }
+        None => {
+            println!("Note: settings.ini not found, will use 1 kernel.");
+            Settings::new()
+        }
+    };
     let programs = check_basic_programs(settings.gmx, settings.apbs);
     settings.gmx = programs.0;
     settings.apbs = programs.1;
@@ -88,8 +95,7 @@ fn main() {
     let tpr_name = match tpr_dump.ends_with(".tpr") {
         true => {
             println!("Found tpr file: {}", tpr_dump);
-            let gmx = settings.gmx.as_ref()
-                .expect("Gromacs not configured correctly.").as_str();
+            let gmx = settings.gmx.as_ref().unwrap();
             let dump_to = dump_path.to_str().unwrap().to_string();
             dump_tpr(&tpr_dump, &dump_to, gmx);
             dump_to
@@ -102,6 +108,10 @@ fn main() {
 
     let mut tpr = TPR::new(&tpr_name, &settings);
     println!("\nFinished loading tpr.");
+    match settings.debug_mode {
+        true => println!("Debug mode open."),
+        false => println!("Debug mode closed."),
+    }
 
     // go to next step
     fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &tpr_dir, tpr_name.as_str(), &mut settings);
@@ -300,16 +310,18 @@ pub fn convert_cur_dir(p: &String, settings: &Settings) -> String {
 }
 
 fn change_settings_last_opened(tpr_mdp: &String) {
-    let base_settings = fs::read_to_string(get_base_settings())
-        .expect("Cannot read settings.ini.");
-    let re = Regex::new("last_opened.*\".*\"").unwrap();
-    let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
-        .expect("Cannot convert to absolute path.").display().to_string();
-    let settings = re.replace(base_settings.as_str(),
-        format!("last_opened = \"{}\"", &last_opened));
-    let mut settings_file = File::create(get_base_settings())
-        .expect("Cannot edit settings.ini.");
-    settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
+    if get_base_settings().is_file() {
+        let base_settings = fs::read_to_string(get_base_settings())
+            .expect("Cannot read settings.ini.");
+        let re = Regex::new("last_opened.*\".*\"").unwrap();
+        let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
+            .expect("Cannot convert to absolute path.").display().to_string();
+        let settings = re.replace(base_settings.as_str(),
+            format!("last_opened = \"{}\"", &last_opened));
+        let mut settings_file = File::create(get_base_settings())
+            .expect("Cannot edit settings.ini.");
+        settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
+    }
 }
 
 fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {

@@ -91,27 +91,42 @@ fn echo(s: &str) -> Child {
     }
 }
 
-fn gmx_cmd(gmx: &str, cmd1: &mut Child, wd: &Path, args: &[&str]) {
-    Command::new(gmx)
-        .args(args)
-        .current_dir(wd)
-        .stdin(cmd1.stdout.take().unwrap())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to execute command")
-        .wait_with_output()
-        .expect("Failed to wait for command");
+fn gmx_cmd(gmx: &str, cmd1: &mut Child, wd: &Path, args: &[&str], debug_mode: bool) {
+    match debug_mode {
+        true => {
+            Command::new(gmx)
+                .args(args)
+                .current_dir(wd)
+                .stdin(cmd1.stdout.take().unwrap())
+                .spawn()
+                .expect("Failed to execute command")
+                .wait_with_output()
+                .expect("Failed to wait for command");
+        },
+        false => {
+            Command::new(gmx)
+                .args(args)
+                .current_dir(wd)
+                .stdin(cmd1.stdout.take().unwrap())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .expect("Failed to execute command")
+                .wait_with_output()
+                .expect("Failed to wait for command");
+        }
+    }
+    
 }
 
-pub fn convert_tpr(grps: &str, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str) {
+pub fn convert_tpr(grps: &str, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str, debug_mode: bool) {
     let mut echo_cmd = echo(grps);
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
-    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args);
+    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
 }
 
-pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
+pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str], debug_mode: bool) {
     let mut echo_cmd = echo(grps);
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args);
+    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
 }
