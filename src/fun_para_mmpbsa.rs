@@ -98,12 +98,15 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         println!("Fixing PBC conditions...");
         match ligand_grp {
             Some(ligand_grp) => {
+                println!("Fixing PBC 0/3...");
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
                 trjconv(&(ndx.groups[ligand_grp].name.to_owned() + " Complex"),
                     wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"], settings.debug_mode);
+                println!("Fixing PBC 1/3...");
                 // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
                 trjconv("Complex Complex",
                     wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"], settings.debug_mode);
+                println!("Fixing PBC 2/3...");
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
                 trjconv("1 0",
                     wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"], settings.debug_mode);
@@ -114,6 +117,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             },
             None => {
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
+                println!("Fixing PBC 0/1...");
                 trjconv("0 0 0", 
                     wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"], settings.debug_mode);
             }
@@ -129,6 +133,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
         fs::remove_file(&tpr_mmpbsa).unwrap();
         fs::remove_file(&ndx_mmpbsa).unwrap();
     }
+    println!("Fixing PBC finished.");
     
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];

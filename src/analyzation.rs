@@ -3,7 +3,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::exit;
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, Array3};
 use crate::atom_property::AtomProperty;
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
@@ -15,7 +15,7 @@ pub struct Results {
     pub ndx_rec: Vec<usize>,
     pub ndx_lig: Vec<usize>,
     pub times: Array1<f64>,
-    pub coord: Array2<f64>,
+    pub coord: Array3<f64>,
     pub dh: Array1<f64>,
     pub mm: Array1<f64>,
     pub pb: Array1<f64>,
@@ -33,7 +33,7 @@ pub struct Results {
 impl Results {
     pub fn new(aps: &AtomProperty, residues: &Vec<Residue>,
                ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
-               times: &Array1<f64>, coord: Array2<f64>, 
+               times: &Array1<f64>, coord: Array3<f64>, 
                elec_res: &Array2<f64>, vdw_res: &Array2<f64>, 
                pb_res: &Array2<f64>, sa_res: &Array2<f64>) -> Results {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
@@ -122,22 +122,36 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
 }
 
 fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String, total_at_num: usize) {
-    let mut f = fs::File::create(wd.join(format!("binding_energy_{}.pdb", sys_name))).unwrap();
+    println!("Input the time point (in ns) to write pdb (default: all):");
+    let ts = get_input(-1.0);
+    println!("Writing pdb file(s)...");
+    if ts != -1.0 {
+        let ts_id = get_time_index(ts, results);
+        write_bf_pdb(results, sys_name, ts_id, wd, total_at_num);
+    } else {
+        for ts_id in 0..results.times.len() {
+            write_bf_pdb(results, sys_name, ts_id, wd, total_at_num);
+        }
+    }
+    println!("Finished writing pdb file(s) with binding energy information.");
+}
+
+fn write_bf_pdb(results: &Results, sys_name: &String, ts_id: usize, wd: &Path, total_at_num: usize) {
+    let mut f = fs::File::create(wd.join(&format!("binding_energy_{}_{}ns.pdb", sys_name, results.times[ts_id] / 1000.0))).unwrap();
     let coord = &results.coord;
-    f.write_all("REMARK  The B-factor column is filled with the INVERSED residue-wised binding energy (ΔH), in kcal/mol\n".as_bytes()).unwrap();
+    writeln!(f, "REMARK  The B-factor column is filled with the INVERSED residue-wised binding energy (ΔH), in kcal/mol").unwrap();
     for atom_id in 0..total_at_num {
         let res_id = results.aps.atm_resid[atom_id];
         let atom_name = results.aps.atm_name[atom_id].as_str();
-        write_atom_line(res_id, atom_id, atom_name, &results, coord[[atom_id, 0]], coord[[atom_id, 1]], coord[[atom_id, 2]], &mut f);
+        write_atom_line(res_id, atom_id, atom_name, &results, 
+            coord[[ts_id, atom_id, 0]], coord[[ts_id, atom_id, 1]], coord[[ts_id, atom_id, 2]], &mut f);
     }
-    println!("Finished writing binding energy information to {}", format!("binding_energy_{}.pdb", sys_name));
 }
 
 fn write_atom_line(res_id: usize, atom_id: usize, atom_name: &str, results: &Results, x: f64, y: f64, z: f64, f: &mut File) {
-    let str = format!("ATOM  {:5} {:<4} {:<3} A{:4}    {:8.3}{:8.3}{:8.3}  1.00{:6.2}           {:<2}\n",
-                              atom_id + 1, atom_name, results.residues[res_id].name, results.residues[res_id].nr, x, y, z, 
-                              -results.dh_res[[results.dh_res.shape()[0] - 1, res_id]] / 4.18, atom_name.get(0..1).unwrap());
-    f.write_all(str.as_bytes()).unwrap();
+    writeln!(f, "ATOM  {:5} {:<4} {:<3} A{:4}    {:8.3}{:8.3}{:8.3}  1.00{:6.2}           {:<2}", 
+                 atom_id + 1, atom_name, results.residues[res_id].name, results.residues[res_id].nr, x, y, z, 
+                 -results.dh_res[[results.dh_res.shape()[0] - 1, res_id]] / 4.18, atom_name.get(0..1).unwrap()).unwrap();
 }
 
 fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
@@ -252,9 +266,10 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
 
 fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
     let mut res_range: HashSet<usize> = HashSet::new();
-    let ligand_x: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[a, 0]]).collect();
-    let ligand_y: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[a, 1]]).collect();
-    let ligand_z: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[a, 2]]).collect();
+    let total_frames = results.times.len() - 1;
+    let ligand_x: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 0]]).collect();
+    let ligand_y: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 1]]).collect();
+    let ligand_z: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 2]]).collect();
     for res in &results.residues {
         let atoms_id: Vec<usize> = results.aps.atm_resid.iter()
             .enumerate()
@@ -262,9 +277,9 @@ fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
             .map(|(index, _)| index)
             .collect();
         for i in atoms_id {
-            let x = results.coord[[i, 0]];
-            let y = results.coord[[i, 1]];
-            let z = results.coord[[i, 2]];
+            let x = results.coord[[total_frames, i, 0]];
+            let y = results.coord[[total_frames, i, 1]];
+            let z = results.coord[[total_frames, i, 2]];
             for j in 0..results.ndx_lig.len() {
                 if (x - ligand_x[j]).powi(2) + (y - ligand_y[j]).powi(2) + (z - ligand_z[j]).powi(2) < cutoff.powi(2) {
                     res_range.insert(results.aps.atm_resid[i]);
@@ -384,4 +399,8 @@ pub fn output_all_details(results: &Results, wd: &Path, sys_name: &String) {
     analyze_sa_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔSA.csv", sys_name));
     analyze_elec_res_traj(results, wd, &format!("MMPBSA_{}_res_Δelec.csv", sys_name));
     analyze_vdw_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔvdW.csv", sys_name));
+}
+
+fn get_time_index(ts: f64, results: &Results) -> usize {
+    ((ts * 1000.0 - results.times[0]) / (results.times[1] - results.times[0])) as usize
 }

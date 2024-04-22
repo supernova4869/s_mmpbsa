@@ -20,7 +20,7 @@ sudo apt update
 sudo apt install build-essential
 ```
 
-Currently s_mmpbsa has supported to fix PBC conditions and write trajectory to `xx_pbc.xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+Currently s_mmpbsa has supported to fix PBC conditions and write trajectory to `MMPBSA_[name].xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
 ``` bash
 # Firstly, add s_mmpbsa folder to $PATH.

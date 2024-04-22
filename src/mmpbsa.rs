@@ -31,7 +31,7 @@ pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
     println!("Reading trajectory file...");
     let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
     let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
-    // pbc whole 先不写, 先默认按照已经消除了周期性来做后续处理, 之后再看周期性的事
+
     println!("Extracting atoms coordination...");
     let (coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)
 
@@ -151,7 +151,9 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     
     // whether remove temp directory
     if !settings.debug_mode {
-        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+        if settings.apbs.is_some() {
+            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+        }
     }
 
     Results::new(
@@ -160,7 +162,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
         ndx_rec_norm,
         ndx_lig_norm,
         &times,
-        coordinates.slice(s![ef, .., ..]).to_owned(),
+        coordinates.clone(),
         &elec_res,
         &vdw_res,
         &pb_res,
