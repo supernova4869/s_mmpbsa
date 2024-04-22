@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 use xdrfile::*;
@@ -150,9 +150,9 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     env::remove_var("OMP_NUM_THREADS");
     
     // whether remove temp directory
-    // if !settings.preserve {
-        //     fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-    // }
+    if !settings.debug_mode {
+        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+    }
 
     Results::new(
         aps,
@@ -257,7 +257,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
         let apbs_err = String::from_utf8(apbs_result.stderr).expect("Failed to parse apbs output.");
         let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
-        if settings.preserve {
+        if settings.debug_mode {
             let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name))).expect("Failed to create output file.");
             outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
             let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name))).expect("Failed to create err file.");

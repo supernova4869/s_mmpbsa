@@ -15,7 +15,6 @@ pub struct Settings {
     pub df: f64,
     pub nkernels: i32,
     pub fix_pbc: bool,
-    pub preserve: bool,
     pub gmx: Option<String>,
     pub apbs: Option<String>,
     pub last_opened: String,
@@ -36,7 +35,6 @@ impl Settings {
             df: 0.5,
             nkernels: 1,
             fix_pbc: true,
-            preserve: false,
             gmx: Some("gmx".to_string()),
             apbs: None,
             last_opened: String::new(),
@@ -66,12 +64,6 @@ impl Settings {
         let nkernels = parse_param(&setting_values, "nkernels", default_settings.nkernels);
         let fix_pbc = parse_param(&setting_values, "fix_pbc", "\"y\"".to_string());
         let fix_pbc = match fix_pbc[1..2].to_string().as_str() {
-            "y" => true,
-            "Y" => true,
-            _ => false
-        };
-        let preserve = parse_param(&setting_values, "preserve", "\"y\"".to_string());
-        let preserve = match preserve[1..2].to_string().as_str() {
             "y" => true,
             "Y" => true,
             _ => false
@@ -108,7 +100,6 @@ impl Settings {
             df,
             nkernels,
             fix_pbc,
-            preserve,
             gmx,
             apbs,
             last_opened,
