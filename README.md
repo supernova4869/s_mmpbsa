@@ -4,11 +4,9 @@ s_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajec
 The s_mmpbsa program can be freely used for both academic and commerical purposes.
 
 ## Introduction
-
 MM/PB-SA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convinent interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
 
 ## Features of s_mmpbsa
-
 - Open source and freely available.
 - No need for preparing running environment (e.g., for Python), only needs Gromacs program when running on linux system. (In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust).
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
@@ -16,10 +14,13 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
 
 ## Usage
+For Ubuntu system, maybe user should run the following commands to avoid `cc` error.
+```
+sudo apt update
+sudo apt install build-essential
+```
 
 Currently s_mmpbsa has supported to fix PBC conditions and write trajectory to `xx_pbc.xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
-
-Then start MM/PB-SA calculation.
 
 ``` bash
 # Firstly, add s_mmpbsa folder to $PATH.
@@ -50,10 +51,7 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 [return]
 4 # output other infomations
 -1 # view pdb file with residue-wised INVERSED binding energy filled in B-factor column
-0 # return
--10 # return
--10 # return
--10 # exit s_mmpbsa program
+0 # exit s_mmpbsa program
 ```
 
 ## Download
@@ -77,4 +75,5 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 
 ## New Folder (?
 - Multi-threading
-- Add supporting of other PBSA solvers, e.g., AFMPB, Delphi2
+- Alanine scanning
+- Add supporting of other PBSA solvers, e.g., AFMPB, Delphi2, and also built-in LPBE solver
