@@ -63,10 +63,10 @@ pub fn get_outfile<T: ToString + std::fmt::Display>(default_name: &T) -> String 
     }
 }
 
-pub fn append_new_name(origin_name: &str, append_name: &str) -> String {
+pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> String {
     let file_path = Path::new(origin_name);
     let file_stem = file_path.file_stem().unwrap();
-    let new_name = file_path.parent().unwrap().join(file_stem.to_str().unwrap().to_string() + append_name);
+    let new_name = file_path.parent().unwrap().join(prefix.to_string() + file_stem.to_str().unwrap() + append_name);
     new_name.to_str().unwrap().to_string()
 }
 

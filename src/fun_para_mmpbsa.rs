@@ -51,26 +51,26 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     // pre-treat trajectory: fix pbc
     println!("Extracting trajectory...");
 
-    let trj_whole = append_new_name(trj, "_trj_whole.xtc"); // get trj output file name
-    let trj_center = append_new_name(trj, "_trj_center.xtc");
-    let trj_cluster = append_new_name(trj, "_trj_cluster.xtc");
-    let trj_mmpbsa = append_new_name(trj, "_mmpbsa.xtc");
-    let tpr_name = append_new_name(tpr_name, ".tpr");       // fuck the tpr name is dump
+    let trj_whole = append_new_name(trj, "_whole.xtc", "MMPBSA_"); // get trj output file name
+    let trj_center = append_new_name(trj, "_center.xtc", "MMPBSA_");
+    let trj_cluster = append_new_name(trj, "_cluster.xtc", "MMPBSA_");
+    let trj_mmpbsa = append_new_name(trj, ".xtc", "MMPBSA_");
+    let tpr_name = append_new_name(tpr_name, ".tpr", "");       // fuck the tpr name is dump
     
     // add a Complex group to index file
     let com_group = IndexGroup::new("Complex", &ndx_com);
     let mut new_ndx = ndx.clone();
     new_ndx.rm_group("Complex");
     new_ndx.push(&com_group);
-    let ndx_whole = append_new_name(ndx_name, "_whole.ndx"); // get extracted index file name
+    let ndx_whole = append_new_name(ndx_name, "_whole.ndx", "MMPBSA_"); // get extracted index file name
     new_ndx.to_ndx(&ndx_whole);
     
     // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
     trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"], settings.debug_mode);
     // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
-    let tpr_mmpbsa = append_new_name(&tpr_name, "_mmpbsa.tpr"); // get extracted tpr file name
+    let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "MMPBSA_"); // get extracted tpr file name
     convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa, settings.debug_mode);
-    if settings.debug_mode {
+    if !settings.debug_mode {
         fs::remove_file(&ndx_whole).unwrap();
     }
 
@@ -87,11 +87,11 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             ])
         },
         None => {
-            Index::new(vec![IndexGroup::new("Complex", &ndx_com)])
+            Index::new(vec![IndexGroup::new("Receptor", &ndx_com)])
         }
     };
-    ndx_mmpbsa.to_ndx("index_mmpbsa.ndx");
-    let ndx_mmpbsa = Path::new(wd).join("index_mmpbsa.ndx");
+    ndx_mmpbsa.to_ndx(Path::new(wd).join("MMPBSA_index.ndx").to_str().unwrap());
+    let ndx_mmpbsa = Path::new(wd).join("MMPBSA_index.ndx");
     let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
 
     let trj_mmpbsa = if settings.fix_pbc {
@@ -107,7 +107,7 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
                 trjconv("1 0",
                     wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"], settings.debug_mode);
-                if settings.debug_mode {
+                if !settings.debug_mode {
                     fs::remove_file(&trj_center).unwrap();
                     fs::remove_file(&trj_cluster).unwrap();
                 }
@@ -118,15 +118,17 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                     wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"], settings.debug_mode);
             }
         }
-        if settings.debug_mode {
+        if !settings.debug_mode {
             fs::remove_file(&trj_whole).unwrap();
-            fs::remove_file(&tpr_mmpbsa).unwrap();
-            fs::remove_file(&ndx_mmpbsa).unwrap();
         }
         trj_mmpbsa
     } else {
         trj_whole
     };
+    if !settings.debug_mode {
+        fs::remove_file(&tpr_mmpbsa).unwrap();
+        fs::remove_file(&ndx_mmpbsa).unwrap();
+    }
     
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
@@ -239,6 +241,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
                 let results = mmpbsa::fun_mmpbsa_calculations(&trj_mmpbsa, &temp_dir, &sys_name, &aps,
                                                                 &ndx_com, &ndx_rec, &ndx_lig, &residues,
                                                                 bt, et, dt, &pbe_set, &pba_set, settings);
+                // Clean trj
+                if !settings.debug_mode {
+                    fs::remove_file(&trj_mmpbsa).unwrap();
+                }
                 analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
             }
             1 => {

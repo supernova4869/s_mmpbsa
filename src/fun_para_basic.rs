@@ -13,6 +13,7 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, tpr_
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
+        println!(" -2 Toggle whether debug mode, current: {}", settings.debug_mode);
         println!(" -1 Set apbs path, current: {}", match &settings.apbs {
             Some(s) => s.to_string(),
             None => String::from("Not set")
@@ -28,6 +29,7 @@ pub fn set_para_basic(trj: &String, tpr: &mut TPR, ndx: &String, wd: &Path, tpr_
         });
         let i = get_input_selection();
         match i {
+            -2 => settings.debug_mode = !settings.debug_mode,
             -1 => {
                 println!("Input APBS path (if empty, means do not do PBSA calculation):");
                 let s: String = get_input_selection();
