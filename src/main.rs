@@ -46,7 +46,7 @@ fn main() {
 
     match args.len() {
         1 => {
-            println!("Input path of .tpr or .dump file, e.g. D:/Study/ZhangYang.tpr or D:/Study/ZhangYang.dump");
+            println!("Input path of .tpr or .dump file, e.g. D:/Conan/Haibara_Ai.tpr or D:/Conan/Haibara_Ai.dump");
             println!("Hint: input \"o\" to simply load last-opened .tpr or .dump file");
             loop {
                 stdin().read_line(&mut tpr_dump).expect("Failed to read tpr or dumped file.");
@@ -127,8 +127,8 @@ fn welcome() {
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
         Version 0.2, first release: 2022-Oct-17, current version: 2024-Apr-22\n");
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `s_mmpbsa WangBingBing.tpr` to directly load tpr file.\n\
-        Usage 3: run `s_mmpbsa WangBingBing.dump` to directly load dumped tpr file.\n\
+        Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to directly load tpr file.\n\
+        Usage 3: run `s_mmpbsa Miyano_Shiho.dump` to directly load dumped tpr file.\n\
         Usage 4: run `s_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
         Usage 5: run `s_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n");
 }
