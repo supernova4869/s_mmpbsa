@@ -51,10 +51,10 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     // pre-treat trajectory: fix pbc
     println!("Extracting trajectory...");
 
-    let trj_whole = append_new_name(trj, "_whole.xtc", "MMPBSA_"); // get trj output file name
-    let trj_center = append_new_name(trj, "_center.xtc", "MMPBSA_");
-    let trj_cluster = append_new_name(trj, "_cluster.xtc", "MMPBSA_");
-    let trj_mmpbsa = append_new_name(trj, ".xtc", "MMPBSA_");
+    let trj_whole = append_new_name(trj, "_whole.xtc", "_MMPBSA_"); // get trj output file name
+    let trj_center = append_new_name(trj, "_center.xtc", "_MMPBSA_");
+    let trj_cluster = append_new_name(trj, "_cluster.xtc", "_MMPBSA_");
+    let trj_mmpbsa = append_new_name(trj, ".xtc", "_MMPBSA_");
     let tpr_name = append_new_name(tpr_name, ".tpr", "");       // fuck the tpr name is dump
     
     // add a Complex group to index file
@@ -62,13 +62,13 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
     let mut new_ndx = ndx.clone();
     new_ndx.rm_group("Complex");
     new_ndx.push(&com_group);
-    let ndx_whole = append_new_name(ndx_name, "_whole.ndx", "MMPBSA_"); // get extracted index file name
+    let ndx_whole = append_new_name(ndx_name, "_whole.ndx", "_MMPBSA_"); // get extracted index file name
     new_ndx.to_ndx(&ndx_whole);
     
     // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
     trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"], settings.debug_mode);
     // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
-    let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "MMPBSA_"); // get extracted tpr file name
+    let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
     convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa, settings.debug_mode);
     if !settings.debug_mode {
         fs::remove_file(&ndx_whole).unwrap();
@@ -90,8 +90,8 @@ pub fn set_para_mmpbsa(trj: &String, tpr: &mut TPR, ndx: &Index, wd: &Path,
             Index::new(vec![IndexGroup::new("Receptor", &ndx_com)])
         }
     };
-    ndx_mmpbsa.to_ndx(Path::new(wd).join("MMPBSA_index.ndx").to_str().unwrap());
-    let ndx_mmpbsa = Path::new(wd).join("MMPBSA_index.ndx");
+    ndx_mmpbsa.to_ndx(Path::new(wd).join("_MMPBSA_index.ndx").to_str().unwrap());
+    let ndx_mmpbsa = Path::new(wd).join("_MMPBSA_index.ndx");
     let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
 
     let trj_mmpbsa = if settings.fix_pbc {
