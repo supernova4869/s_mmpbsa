@@ -257,7 +257,7 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn write_res_csv(results: &Results, sys_name: &String, ts_id: usize, wd: &Path, target_res: &HashSet<usize>) {
-    let def_name = get_outfile(&format!("_MMPBSA_{}_res_{}ns.csv", sys_name, ts_id));
+    let def_name = wd.join(&format!("_MMPBSA_{}_res_{}ns.csv", sys_name, results.times[ts_id] / 1000.0));
     let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
     for (i, res) in results.residues.iter().enumerate() {
@@ -411,5 +411,9 @@ pub fn output_all_details(results: &Results, wd: &Path, sys_name: &String) {
 }
 
 fn get_time_index(ts: f64, results: &Results) -> usize {
-    ((ts * 1000.0 - results.times[0]) / (results.times[1] - results.times[0])) as usize
+    if ts * 1000.0 == results.times[0] {
+        0
+    } else {
+        ((ts * 1000.0 - results.times[0]) / (results.times[1] - results.times[0])) as usize
+    }
 }
