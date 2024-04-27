@@ -102,11 +102,11 @@ impl Results {
 pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String, wd: &Path, total_at_num: usize, settings: &Settings) {
     loop {
         println!("\n                 ************ MM-PBSA analyzation ************");
-        println!("-1 Write residue-wised bind energy to pdb file");
+        println!("-1 Write residue-wised bind energy at specific time to pdb file");
         println!(" 0 Exit program");
         println!(" 1 View binding energy terms summary");
         println!(" 2 Output binding energy terms by trajectory");
-        println!(" 3 Output average binding energy terms by residue");
+        println!(" 3 Output binding energy terms by residue at specific time");
         println!(" 4 Output residue-wised binding energy terms by time as default names");
         let sel_fun: i32 = get_input_selection();
         match sel_fun {
@@ -210,7 +210,7 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     println!(" 4 Self-defined residue range");
     // 残基范围确定
     let i: i32 = get_input_selection();
-    let target_residues = match i {
+    let target_res = match i {
         1 => {
             get_residue_range(results, 3.0)
         },
@@ -241,27 +241,36 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
         }
     };
     
-    // 分析输出
-    println!("Writing binding energy terms...");
-    let def_name = get_outfile(&format!("_MMPBSA_{}_res.csv", sys_name));
+    println!("Input the time point (in ns) to output (default: all):");
+    let ts = get_input(-1.0);
+    println!("Writing energy file(s)...");
+    if ts != -1.0 {
+        let ts_id = get_time_index(ts, results);
+        write_res_csv(results, sys_name, ts_id, wd, &target_res);
+    } else {
+        for ts_id in 0..results.times.len() {
+            write_res_csv(results, sys_name, ts_id, wd, &target_res);
+        }
+    }
+
+    println!("Finished writing residue-wised binding energy file(s).");
+}
+
+fn write_res_csv(results: &Results, sys_name: &String, ts_id: usize, wd: &Path, target_res: &HashSet<usize>) {
+    let def_name = get_outfile(&format!("_MMPBSA_{}_res_{}ns.csv", sys_name, ts_id));
     let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
-    // 各项取平均输出
-    let avg_dh_res: Array1<f64> = results.dh_res.columns().into_iter().map(|col| col.sum() / results.times.len() as f64).collect();
-    let avg_mm_res: Array1<f64> = results.mm_res.columns().into_iter().map(|col| col.sum() / results.times.len() as f64).collect();
-    let avg_pb_res: Array1<f64> = results.pb_res.columns().into_iter().map(|col| col.sum() / results.times.len() as f64).collect();
-    let avg_sa_res: Array1<f64> = results.sa_res.columns().into_iter().map(|col| col.sum() / results.times.len() as f64).collect();
-    let avg_elec_res: Array1<f64> = results.elec_res.columns().into_iter().map(|col| col.sum() / results.times.len() as f64).collect();
-    let avg_vdw_res: Array1<f64> = results.vdw_res.columns().into_iter().map(|col| col.sum() / results.times.len() as f64).collect();
     for (i, res) in results.residues.iter().enumerate() {
-        if !target_residues.contains(&res.id) {
+        if !target_res.contains(&res.id) {
             continue;
         }
         write!(energy_res, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
-            res.nr, res.name, avg_dh_res[i], avg_mm_res[i], avg_pb_res[i], avg_sa_res[i], avg_elec_res[i], avg_vdw_res[i])
+            res.nr, res.name, 
+            results.dh_res[[ts_id, i]], results.mm_res[[ts_id, i]], 
+            results.pb_res[[ts_id, i]], results.sa_res[[ts_id, i]], 
+            results.elec_res[[ts_id, i]], results.vdw_res[[ts_id, i]])
             .expect("Error while writing residue-wised energy file");
     }
-    println!("Binding energy terms have been writen to {}", &def_name);
 }
 
 fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
