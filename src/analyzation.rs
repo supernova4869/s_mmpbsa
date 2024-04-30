@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::exit;
 use ndarray::{Array1, Array2, Array3};
 use crate::atom_property::AtomProperty;
@@ -241,24 +241,42 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
         }
     };
     
-    println!("Input the time point (in ns) to output (default: all):");
+    println!("Input the time point (in ns) to output (default: average):");
     let ts = get_input(-1.0);
     println!("Writing energy file(s)...");
     if ts != -1.0 {
         let ts_id = get_time_index(ts, results);
-        write_res_csv(results, sys_name, ts_id, wd, &target_res);
+        let def_name = wd.join(&format!("_MMPBSA_{}_res_{}ns.csv", sys_name, results.times[ts_id] / 1000.0));
+        write_res_csv(results, ts_id, wd, &target_res, &def_name);
     } else {
-        for ts_id in 0..results.times.len() {
-            write_res_csv(results, sys_name, ts_id, wd, &target_res);
-        }
+        let def_name = wd.join(&format!("_MMPBSA_{}_res_avg.csv", sys_name));
+        write_res_avg_csv(results, wd, &target_res, &def_name);
     }
 
     println!("Finished writing residue-wised binding energy file(s).");
 }
 
-fn write_res_csv(results: &Results, sys_name: &String, ts_id: usize, wd: &Path, target_res: &HashSet<usize>) {
-    let def_name = wd.join(&format!("_MMPBSA_{}_res_{}ns.csv", sys_name, results.times[ts_id] / 1000.0));
-    let mut energy_res = fs::File::create(wd.join(&def_name)).unwrap();
+fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &HashSet<usize>, def_name: &PathBuf) {
+    let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
+    energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
+    for (i, res) in results.residues.iter().enumerate() {
+        if !target_res.contains(&res.id) {
+            continue;
+        }
+        write!(energy_res, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
+            res.nr, res.name,
+            results.dh_res[[ts_id, i]],
+            results.mm_res[[ts_id, i]],
+            results.pb_res[[ts_id, i]],
+            results.sa_res[[ts_id, i]],
+            results.elec_res[[ts_id, i]],
+            results.vdw_res[[ts_id, i]])
+            .expect("Error while writing residue-wised energy file");
+    }
+}
+
+fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &HashSet<usize>, def_name: &PathBuf) {
+    let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
     for (i, res) in results.residues.iter().enumerate() {
         if !target_res.contains(&res.id) {
@@ -266,9 +284,12 @@ fn write_res_csv(results: &Results, sys_name: &String, ts_id: usize, wd: &Path, 
         }
         write!(energy_res, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
             res.nr, res.name, 
-            results.dh_res[[ts_id, i]], results.mm_res[[ts_id, i]], 
-            results.pb_res[[ts_id, i]], results.sa_res[[ts_id, i]], 
-            results.elec_res[[ts_id, i]], results.vdw_res[[ts_id, i]])
+            results.dh_res.column(i).mean().unwrap(),
+            results.mm_res.column(i).mean().unwrap(),
+            results.pb_res.column(i).mean().unwrap(),
+            results.sa_res.column(i).mean().unwrap(),
+            results.elec_res.column(i).mean().unwrap(),
+            results.vdw_res.column(i).mean().unwrap())
             .expect("Error while writing residue-wised energy file");
     }
 }
