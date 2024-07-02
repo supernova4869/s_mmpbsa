@@ -13,29 +13,21 @@ use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
 use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
-use crate::parse_tpr::{Residue, TPR};
+use crate::parse_tpr::Residue;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::AtomProperty;
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(trj: &String, temp_dir: &PathBuf,
+pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperty,
                                ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
-                               residues: &Vec<Residue>, bt: f64, et: f64, dt: f64,
+                               residues: &Vec<Residue>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> Results {
-    // run MM/PB-SA calculations
     println!("Running MM/PB-SA calculations of {}...", sys_name);
-    println!("Preparing parameters...");
-    
-    println!("Reading trajectory file...");
-    let trj = XTCTrajectory::open_read(trj).expect("Error reading trajectory");
-    let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
-
+                
     println!("Extracting atoms coordination...");
     let (coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)
-
-    let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
 
     if let Some(_) = settings.apbs.as_ref() {
         println!("Preparing pqr files...");
@@ -79,19 +71,6 @@ pub fn set_style(pb: &ProgressBar) {
         .progress_chars("=>-"));
 }
 
-fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usize, usize, usize, usize) {
-    // decide frame step according to time step
-    let time_step = (frames[1].time - frames[0].time) as f64;
-    let bf = ((bt - frames[0].time as f64) / time_step) as usize;
-    let ef = ((et - frames[0].time as f64) / time_step) as usize;
-    let dframe = match dt.partial_cmp(&time_step).unwrap() {
-        Ordering::Less => 1,            // converted trajectory with big time step (e.g., 1 ns)
-        _ => (dt / time_step) as usize  // time step partially less than target dt (e.g., initial trajectory)
-    };
-    let total_frames = (ef - bf) / dframe + 1;
-    (bf, ef, dframe, total_frames)
-}
-
 fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usize, ef: usize, 
                     dframe: usize, total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
@@ -119,6 +98,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     set_style(&pgb);
     pgb.inc(0);
     let mut idx = 0;
+    pgb.set_message(format!("at {} ns...", times[idx] / 1000.0));
     for cur_frm in (bf..=ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
@@ -170,32 +150,6 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     )
 }
 
-pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
-    let mut residues: Vec<Residue> = vec![];
-    let mut idx = 0;
-    let mut resind_offset = 0;
-    
-    let pb = ProgressBar::new(tpr.n_atoms as u64);
-    pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
-        .progress_chars("=>-"));
-    for mol in &tpr.molecules {
-        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
-            for atom in &mol.atoms {
-                idx += 1;
-                if ndx_com.contains(&idx) && residues.len() <= atom.resind + resind_offset {
-                    residues.push(mol.residues[atom.resind].to_owned());
-                }
-                pb.inc(1);
-                pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
-            }
-            resind_offset += mol.residues.len();
-        }
-    }
-    pb.finish();
-    residues
-}
-
 fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
             residues: &Vec<Residue>, coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     let kj_elec = coeff.kj_elec;
@@ -205,8 +159,8 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
     let mut de_vdw: Array1<f64> = Array1::zeros(residues.len());
 
     for &i in ndx_rec_norm {
-        let qi = aps.atm_charge[i];
-        let ci = aps.atm_typeindex[i];
+        let qi = aps.atom_charge[i];
+        let ci = aps.atom_type_id[i];
         let xi = coord[[i, 0]];
         let yi = coord[[i, 1]];
         let zi = coord[[i, 2]];
@@ -214,8 +168,8 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
             if ndx_lig_norm[0] == ndx_rec_norm[0] && j <= i {
                 continue;
             }
-            let qj = aps.atm_charge[j];
-            let cj = aps.atm_typeindex[j];
+            let qj = aps.atom_charge[j];
+            let cj = aps.atom_type_id[j];
             let xj = coord[[j, 0]];
             let yj = coord[[j, 1]];
             let zj = coord[[j, 2]];
@@ -223,14 +177,18 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
             if r < settings.r_cutoff {
                 let e_elec = match settings.use_dh {
                     false => qi * qj / r,
-                    _ => qi * qj / r * f64::exp(-kap * r)   // doi: 10.1088/0256-307X/38/1/018701
-                };
+                    true => qi * qj / r * f64::exp(-kap * r)   // doi: 10.1088/0256-307X/38/1/018701
+                }; // use A
                 let r = r / 10.0;
-                let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);
-                de_elec[aps.atm_resid[i]] += e_elec;
-                de_elec[aps.atm_resid[j]] += e_elec;
-                de_vdw[aps.atm_resid[i]] += e_vdw;
-                de_vdw[aps.atm_resid[j]] += e_vdw;
+                let e_vdw = if aps.c10[[ci, cj]] < 1e-10 {
+                    (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6) // use nm
+                } else {
+                    aps.c12[[ci, cj]] / r.powi(12) - aps.c10[[ci, cj]] / r.powi(10)
+                };
+                de_elec[aps.atom_resid[i]] += e_elec;
+                de_elec[aps.atom_resid[j]] += e_elec;
+                de_vdw[aps.atom_resid[i]] += e_vdw;
+                de_vdw[aps.atom_resid[j]] += e_vdw;
             }
         }
     }
@@ -253,7 +211,7 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
     let bias = 0.0;
     let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
     if let Some(apbs) = &settings.apbs {
-        write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &aps.atm_radius,
+        write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &aps.atom_radius,
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
@@ -360,17 +318,17 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         if ndx_rec_norm[0] == ndx_lig_norm[0] {
             // if no ligand, pb_com = pb_lig = 0, so real energy is inversed rec_pbsa
             for &i in ndx_com_norm {
-                pb_res[[idx, aps.atm_resid[i]]] += rec_pb[i - offset_lig];
-                sa_res[[idx, aps.atm_resid[i]]] += rec_sa[i - offset_lig];
+                pb_res[[idx, aps.atom_resid[i]]] += rec_pb[i - offset_lig];
+                sa_res[[idx, aps.atom_resid[i]]] += rec_sa[i - offset_lig];
             }
         } else {
             for &i in ndx_com_norm {
                 if ndx_rec_norm.contains(&i) {
-                    pb_res[[idx, aps.atm_resid[i]]] += com_pb[i] - rec_pb[i - offset_lig];
-                    sa_res[[idx, aps.atm_resid[i]]] += com_sa[i] - rec_sa[i - offset_lig];
+                    pb_res[[idx, aps.atom_resid[i]]] += com_pb[i] - rec_pb[i - offset_lig];
+                    sa_res[[idx, aps.atom_resid[i]]] += com_sa[i] - rec_sa[i - offset_lig];
                 } else {
-                    pb_res[[idx, aps.atm_resid[i]]] += com_pb[i] - lig_pb[i - offset_rec];
-                    sa_res[[idx, aps.atm_resid[i]]] += com_sa[i] - lig_sa[i - offset_rec];
+                    pb_res[[idx, aps.atom_resid[i]]] += com_pb[i] - lig_pb[i - offset_rec];
+                    sa_res[[idx, aps.atom_resid[i]]] += com_sa[i] - lig_sa[i - offset_rec];
                 }
             }
         }

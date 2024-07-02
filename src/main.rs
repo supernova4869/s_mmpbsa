@@ -1,9 +1,10 @@
 mod index_parser;
 mod mmpbsa;
 mod parse_tpr;
+mod parse_pdbqt;
 mod analyzation;
 mod fun_para_basic;
-mod fun_para_trj;
+mod fun_para_system;
 mod fun_para_mmpbsa;
 mod atom_radius;
 mod apbs_param;
@@ -20,15 +21,9 @@ use std::io::{stdin, Write};
 use std::path::Path;
 use std::process::Command;
 use regex::Regex;
-use crate::parse_tpr::TPR;
 use settings::{Settings, get_base_settings, get_settings_in_use};
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let mut tpr_dump = String::new();        // may be dump file
-    let mut trj = String::from("");
-    let mut ndx = String::from("");
-
     welcome();
     // initialize parameters
     let mut settings = match get_settings_in_use() {
@@ -44,77 +39,77 @@ fn main() {
     settings.gmx = programs.0;
     settings.apbs = programs.1;
 
+    let args: Vec<String> = env::args().collect();
+    let mut infile: String = String::new();
     match args.len() {
         1 => {
-            println!("Input path of .tpr or .dump file, e.g. D:/Conan/Haibara_Ai.tpr or D:/Conan/Haibara_Ai.dump");
-            println!("Hint: input \"o\" to simply load last-opened .tpr or .dump file");
+            println!("Input path of tpr, dump or pdbqt file, e.g. D:/Shinichi/Shiho.tpr or D:/Conan/Ai.pdbqt");
+            println!("Hint: input \"o\" to simply load last-opened file");
             loop {
-                stdin().read_line(&mut tpr_dump).expect("Failed to read tpr or dumped file.");
-                if tpr_dump.trim() == "o" {
-                    tpr_dump = settings.last_opened.to_string();
-                    if tpr_dump.len() == 0 {
+                stdin().read_line(&mut infile).expect("Failed to get input file.");
+                if infile.trim() == "o" {
+                    infile = settings.last_opened.to_string();
+                    if infile.len() == 0 {
                         println!("Last-opened tpr or mdp not found.");
                     }
                 }
-                if !Path::new(tpr_dump.trim()).is_file() {
-                    println!("Not file: {}, input again:", tpr_dump.trim());
-                    tpr_dump.clear();
+                if !Path::new(infile.trim()).is_file() {
+                    println!("Not file: {}, input again:", infile.trim());
+                    infile.clear();
                 } else {
                     break;
                 }
             }
         }
-        2 => tpr_dump = args[1].to_string(),
-        _ => {
-            for i in (1..args.len()).step_by(2) {
-                match args[i].as_str() {
-                    "-f" => { trj = args[i + 1].to_string() }
-                    "-s" => { tpr_dump = args[i + 1].to_string() }
-                    "-n" => { ndx = args[i + 1].to_string() }
-                    _ => {
-                        println!("Omitted invalid option: {}", args[i])
-                    }
-                }
-            }
+        2 => {
+            infile = args[1].to_string()
         }
+        _ => {}
     }
-    tpr_dump = confirm_file_validity(&mut tpr_dump, vec!["tpr", "dump"], &settings);
 
-    settings.last_opened = fs::canonicalize(Path::new(&tpr_dump))
+    infile = confirm_file_validity(&infile, vec!["tpr", "dump", "pdbqt"], &settings);
+
+    settings.last_opened = fs::canonicalize(Path::new(&infile))
         .expect("Cannot convert to absolute path.").display().to_string();
-    change_settings_last_opened(&tpr_dump);
+    change_settings_last_opened(&infile);
 
-    // get mdp or dump tpr
-    let tpr_dump_path = fs::canonicalize(Path::new(&tpr_dump)).expect("Cannot get absolute tpr path.");
-    let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
-    let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
-    let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
-    println!("Currently working at path: {}", Path::new(&tpr_dir).display());
+    // dump tpr and do nothing with pdbqt
+    if infile.ends_with("tpr") || infile.ends_with("dump") {
+        infile = get_dump(&infile, &settings);
+    }
 
-    // It names tpr but exactly dump file _(:qゝ∠)_
-    let tpr_name = match tpr_dump.ends_with(".tpr") {
-        true => {
-            println!("Found tpr file: {}", tpr_dump);
-            let gmx = settings.gmx.as_ref().unwrap();
-            let dump_to = dump_path.to_str().unwrap().to_string();
-            dump_tpr(&tpr_dump, &dump_to, gmx);
-            dump_to
-        }
-        false => {
-            println!("Found dump file: {}", tpr_dump);
-            tpr_dump.to_string()
-        }
-    };
-
-    let mut tpr = TPR::new(&tpr_name, &settings);
-    println!("\nFinished loading tpr.");
     match settings.debug_mode {
         true => println!("Debug mode open."),
         false => println!("Debug mode closed."),
     }
 
     // go to next step
-    fun_para_basic::set_para_basic(&trj, &mut tpr, &ndx, &tpr_dir, tpr_name.as_str(), &mut settings);
+    fun_para_basic::set_para_basic(&infile, &Path::new(&infile).parent().unwrap(), &mut settings);
+}
+
+fn get_dump(infile: &String, settings: &Settings) -> String {
+    // get dump file or dumpped tpr
+    let tpr_dump_path = fs::canonicalize(Path::new(&infile)).expect("Cannot get absolute tpr path.");
+    let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
+    let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
+    let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
+    println!("Currently working at path: {}", Path::new(&tpr_dir).display());
+
+    // It names tpr but exactly dump file _(:qゝ∠)_
+    let tpr_name = match infile.ends_with(".tpr") {
+        true => {
+            println!("Found tpr file: {}", infile);
+            let gmx = settings.gmx.as_ref().unwrap();
+            let dump_to = dump_path.to_str().unwrap().to_string();
+            dump_tpr(&infile, &dump_to, gmx);
+            dump_to
+        }
+        false => {
+            println!("Found dump file: {}", infile);
+            infile.to_string()
+        }
+    };
+    tpr_name
 }
 
 fn welcome() {
@@ -124,13 +119,12 @@ fn welcome() {
         | molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method |\n\
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
-        Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tian Jin University.\n\
-        Version 0.2, first release: 2022-Oct-17, current version: 2024-Apr-22\n");
+        Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
+        Version 0.3, first release: 2022-Oct-17, current release: 2024-Jul-03\n");
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to directly load tpr file.\n\
-        Usage 3: run `s_mmpbsa Miyano_Shiho.dump` to directly load dumped tpr file.\n\
-        Usage 4: run `s_mmpbsa -f md.xtc -s md.tpr -n index.ndx` to assign all files.\n\
-        Usage 5: run `s_mmpbsa -f md.xtc -s md.dump -n index.ndx` to assign all files.\n");
+        Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n\
+        Usage 3: run `s_mmpbsa Miyano_Shiho.dump` to load dumped tpr file.\n\
+        Usage 4: run `s_mmpbsa Haibara_Ai.pdbqt` to load receptor pdbqt file.\n");
 }
 
 // 把ext_list改成enum

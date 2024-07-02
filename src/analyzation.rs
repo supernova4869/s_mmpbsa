@@ -141,8 +141,8 @@ fn write_bf_pdb(results: &Results, sys_name: &String, ts_id: usize, wd: &Path, t
     let coord = &results.coord;
     writeln!(f, "REMARK  The B-factor column is filled with the INVERSED residue-wised binding energy (ΔH), in kcal/mol").unwrap();
     for atom_id in 0..total_at_num {
-        let res_id = results.aps.atm_resid[atom_id];
-        let atom_name = results.aps.atm_name[atom_id].as_str();
+        let res_id = results.aps.atom_resid[atom_id];
+        let atom_name = results.aps.atom_name[atom_id].as_str();
         write_atom_line(res_id, atom_id, atom_name, &results, 
             coord[[ts_id, atom_id, 0]], coord[[ts_id, atom_id, 1]], coord[[ts_id, atom_id, 2]], &mut f);
     }
@@ -229,7 +229,7 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
                 0 => results.residues.iter().map(|r| r.nr).collect(),
                 _ => range2list(&res_range)
             };
-            results.aps.atm_resid
+            results.aps.atom_resid
                 .iter()
                 .filter(|&i| res_range.contains(&(results.residues[*i].nr)))    // 用户筛选用nr
                 .map(|&i| results.residues[i].id)     // 索引用id
@@ -301,7 +301,7 @@ fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
     let ligand_y: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 1]]).collect();
     let ligand_z: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 2]]).collect();
     for res in &results.residues {
-        let atoms_id: Vec<usize> = results.aps.atm_resid.iter()
+        let atoms_id: Vec<usize> = results.aps.atom_resid.iter()
             .enumerate()
             .filter(|&(_, &a)| a == res.id)
             .map(|(index, _)| index)
@@ -312,7 +312,7 @@ fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
             let z = results.coord[[total_frames, i, 2]];
             for j in 0..results.ndx_lig.len() {
                 if (x - ligand_x[j]).powi(2) + (y - ligand_y[j]).powi(2) + (z - ligand_z[j]).powi(2) < cutoff.powi(2) {
-                    res_range.insert(results.aps.atm_resid[i]);
+                    res_range.insert(results.aps.atom_resid[i]);
                 }
             }
         }

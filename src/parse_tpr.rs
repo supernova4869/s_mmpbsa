@@ -5,6 +5,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::BufRead;
 
+use crate::atom_radius;
 use crate::settings::Settings;
 
 pub struct TPR {
@@ -413,7 +414,7 @@ impl fmt::Display for Residue {
 }
 
 impl Residue {
-    fn new(id: usize, name: String, nr: i32) -> Residue {
+    pub fn new(id: usize, name: String, nr: i32) -> Residue {
         Residue {
             id,
             name,

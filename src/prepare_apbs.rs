@@ -30,15 +30,15 @@ pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize,
         
         // loop atoms and write pqr information (from pqr)
         for &at_id in ndx_com_norm {
-            let index = aps.atm_index[at_id];
-            let at_name = &aps.atm_name[at_id];
-            let resname = &aps.atm_resname[at_id];
-            let resnum = aps.atm_resid[at_id];
+            let index = aps.atom_id[at_id];
+            let at_name = &aps.atom_name[at_id];
+            let resname = &aps.atom_resname[at_id];
+            let resnum = aps.atom_resid[at_id];
             let x = coordinates[[cur_frm, at_id, 0]];
             let y = coordinates[[cur_frm, at_id, 1]];
             let z = coordinates[[cur_frm, at_id, 2]];
-            let q = aps.atm_charge[at_id];
-            let r = aps.atm_radius[at_id];
+            let q = aps.atom_charge[at_id];
+            let r = aps.atom_radius[at_id];
             let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} {:12.6} {:12.6}\n",
                                     index, at_name, resname, resnum, x, y, z, q, r);
 
