@@ -1,7 +1,7 @@
-use std::{collections::{HashMap, HashSet}, ops::Deref};
+use std::collections::HashMap;
 
 use ndarray::{Array1, Array2};
-use crate::{atom_radius::{get_ad4_map, get_ad4_param, get_radii, get_radii_map, AD4param}, parse_pdbqt::PDBQT, parse_tpr::TPR};
+use crate::{atom_radius::{get_ad4_map, get_ad4_param}, parse_pdbqt::PDBQT, parse_tpr::TPR};
 use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Clone)]
@@ -23,7 +23,7 @@ impl AtomProperty {
         // c6 and c12
         let mut c6: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
         let mut c12: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
-        let mut c10: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
+        let c10: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
         for i in 0..tpr.atom_types_num {
             for j in 0..tpr.atom_types_num {
                 c6[[i, j]] = tpr.lj_sr_params[i * tpr.atom_types_num + j].c6;
@@ -117,7 +117,6 @@ impl AtomProperty {
             }
             atom_type_id[i] = at_map[s];
         }
-        println!("{}", atom_type_id);
 
         // AD4 parameters for all atoms
         let ad4_map = get_ad4_map();

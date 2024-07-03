@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::io::stdin;
 use std::path::Path;
 use crate::utils::{get_input, get_input_selection};
-use crate::index_parser::{Index, IndexGroup};
+use crate::index_parser::Index;
 use crate::settings::Settings;
 use crate::apbs_param::{PBASet, PBESet};
 use std::io::Write;
@@ -15,7 +15,7 @@ use std::rc::Rc;
 use xdrfile::{XTCTrajectory, Frame};
 
 pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperty,
-                       tpr_name: &str, ndx_name: &str, ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
+                       ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64, residues: &Vec<Residue>, settings: &mut Settings) {
     // kinds of radius types

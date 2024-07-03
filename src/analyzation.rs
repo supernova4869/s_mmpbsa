@@ -12,7 +12,6 @@ use crate::utils::{get_input, get_input_selection, range2list, get_outfile};
 pub struct Results {
     pub aps: AtomProperty,
     pub residues: Vec<Residue>,
-    pub ndx_rec: Vec<usize>,
     pub ndx_lig: Vec<usize>,
     pub times: Array1<f64>,
     pub coord: Array3<f64>,
@@ -32,7 +31,7 @@ pub struct Results {
 
 impl Results {
     pub fn new(aps: &AtomProperty, residues: &Vec<Residue>,
-               ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
+               ndx_lig: &Vec<usize>,
                times: &Array1<f64>, coord: Array3<f64>, 
                elec_res: &Array2<f64>, vdw_res: &Array2<f64>, 
                pb_res: &Array2<f64>, sa_res: &Array2<f64>) -> Results {
@@ -57,7 +56,6 @@ impl Results {
         Results {
             aps: aps.to_owned(),
             residues: residues.to_owned(),
-            ndx_rec: ndx_rec.to_owned(),
             ndx_lig: ndx_lig.to_owned(),
             times: times.to_owned(),
             coord: coord.to_owned(),

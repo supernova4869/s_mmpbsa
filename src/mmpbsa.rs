@@ -139,7 +139,6 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     Results::new(
         aps,
         residues,
-        ndx_rec_norm,
         ndx_lig_norm,
         &times,
         coordinates.clone(),
@@ -183,6 +182,7 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
                 let e_vdw = if aps.c10[[ci, cj]] < 1e-10 {
                     (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6) // use nm
                 } else {
+                    // use 12-10 style to calculate LJ for pdbqt hbond
                     aps.c12[[ci, cj]] / r.powi(12) - aps.c10[[ci, cj]] / r.powi(10)
                 };
                 de_elec[aps.atom_resid[i]] += e_elec;

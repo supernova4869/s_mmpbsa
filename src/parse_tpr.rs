@@ -5,7 +5,6 @@ use regex::Regex;
 use std::fs::File;
 use std::io::BufRead;
 
-use crate::atom_radius;
 use crate::settings::Settings;
 
 pub struct TPR {
@@ -151,10 +150,9 @@ impl TPR {
                     for j in 0..atom_types_num {
                         read_line(&mut reader, &mut buf);
                         let m = re.captures(&buf).unwrap();
-                        let func_id: usize = m.get(1).unwrap().as_str().parse().unwrap();
                         let c6: f64 = m.get(2).unwrap().as_str().parse().unwrap();
                         let c12: f64 = m.get(3).unwrap().as_str().parse().unwrap();
-                        fun_type.push(LJType::new(func_id, c6, c12));
+                        fun_type.push(LJType::new(c6, c12));
                         // calculate σ, ε, radius for each atom
                         if j == i {
                             if c6 != 0.0 && c12 != 0.0 {
@@ -326,15 +324,13 @@ impl fmt::Display for MolType {
 }
 
 pub struct LJType {
-    pub func_id: usize,
     pub c6: f64,
     pub c12: f64,
 }
 
 impl LJType {
-    fn new(func_id: usize, c6: f64, c12: f64) -> LJType {
+    fn new(c6: f64, c12: f64) -> LJType {
         LJType {
-            func_id,
             c6,
             c12,
         }

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::path::Path;
 use std::rc::Rc;
 use xdrfile::Frame;
@@ -14,7 +15,6 @@ use crate::atom_property::AtomProperty;
 use crate::parse_tpr::Residue;
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::utils::{convert_tpr, trjconv};
-use crate::analyzation;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
@@ -72,7 +72,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         println!("Parsing atom properties...");
                         let mut aps = AtomProperty::from_tpr(tpr, &ndx_com);
                         println!("Collecting residues list...");
-                        let residues = get_residues(tpr, &ndx_com);
+                        let residues = get_residues_tpr(tpr, &ndx_com);
 
                         // pre-treat trajectory: fix pbc
                         println!("Extracting trajectory...");
@@ -165,7 +165,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         }
                         println!("Fixing PBC finished.");
 
-                        set_para_mmpbsa(&trj_mmpbsa, tpr, &ndx, wd, &mut aps, &tpr_name, ndx_name,
+                        set_para_mmpbsa(&trj_mmpbsa, tpr, &ndx, wd, &mut aps, 
                             &ndx_com,
                             &ndx_rec,
                             &ndx_lig,
@@ -337,7 +337,7 @@ pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (V
     (ndx_com, ndx_rec, ndx_lig)
 }
 
-pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
+pub fn get_residues_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
     let mut residues: Vec<Residue> = vec![];
     let mut idx = 0;
     let mut resind_offset = 0;
@@ -365,11 +365,31 @@ pub fn get_residues(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
 
 pub fn get_residues_pdbqt(receptor: &PDBQT, ligand: &PDBQT) -> Vec<Residue> {
     let mut residues: Vec<Residue> = vec![];
-    for (i, atom) in receptor.models[0].atoms.iter().enumerate() {
-        residues.push(Residue::new(i, atom.resname.to_string(), atom.resid));
+    let receptor_resid: HashSet<i32> = HashSet::from_iter(receptor.models[0].atoms.iter().map(|a| a.resid));
+    let mut receptor_resid: Vec<i32> = receptor_resid.into_iter().collect();
+    receptor_resid.sort();
+    let ligand_resid: HashSet<i32> = HashSet::from_iter(ligand.models[0].atoms.iter().map(|a| a.resid));
+    let mut ligand_resid: Vec<i32> = ligand_resid.into_iter().collect();
+    ligand_resid.sort();
+    receptor_resid.extend(ligand_resid);
+    let resid = receptor_resid;
+    let mut atoms = receptor.models[0].atoms.to_vec();
+    atoms.extend(ligand.models[0].atoms.to_vec());
+
+    // residue names
+    let mut resnames = Vec::new();
+    let mut index = 0;
+    for a in &atoms {
+        if a.resid == resid[index] {
+            resnames.push(a.resname.to_string());
+            index += 1;
+            if index == resid.len() {
+                break;
+            }
+        }
     }
-    for (i, atom) in ligand.models[0].atoms.iter().enumerate() {
-        residues.push(Residue::new(i, atom.resname.to_string(), atom.resid));
+    for (index, resid) in resid.iter().enumerate() {
+        residues.push(Residue::new(index, resnames[index].to_string(), *resid));
     }
     residues
 }
