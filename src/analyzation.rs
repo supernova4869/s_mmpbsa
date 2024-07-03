@@ -122,6 +122,10 @@ pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String
 fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String, total_at_num: usize) {
     println!("Input the time point (in ns) to write pdb (default: all):");
     let ts = get_input(-1.0);
+    if ts * 1000.0 > *results.times.last().unwrap() || (ts < 0.0 && ts != -1.0) {
+        println!("Error input: {} ns", ts);
+        return;
+    }
     println!("Writing pdb file(s)...");
     if ts != -1.0 {
         let ts_id = get_time_index(ts, results);
@@ -208,23 +212,30 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     println!(" 4 Self-defined residue range");
     // 残基范围确定
     let i: i32 = get_input_selection();
+    let mut range_des = String::from("3A");
     let target_res = match i {
         1 => {
             get_residue_range(results, 3.0)
         },
         2 => {
+            range_des = String::from("5A");
             get_residue_range(results, 5.0)
         },
         3 => {
             println!("Input the cut-off distance you want to expand, default: 3");
-            let cutoff: f64 = get_input(3.0);
+            let cutoff = get_input(3.0);
+            range_des = format!("{:.1}A", cutoff);
             get_residue_range(results, cutoff)
         },
         4 => {
             println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
             let res_range = get_input(String::new());
+            range_des = res_range.to_string();
             let res_range: Vec<i32> = match res_range.len() {
-                0 => results.residues.iter().map(|r| r.nr).collect(),
+                0 => {
+                    range_des = "all".to_string();
+                    results.residues.iter().map(|r| r.nr).collect()
+                },
                 _ => range2list(&res_range)
             };
             results.aps.atom_resid
@@ -244,10 +255,10 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     println!("Writing energy file(s)...");
     if ts != -1.0 {
         let ts_id = get_time_index(ts, results);
-        let def_name = wd.join(&format!("MMPBSA_{}_res_{}ns.csv", sys_name, results.times[ts_id] / 1000.0));
+        let def_name = wd.join(&format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id] / 1000.0));
         write_res_csv(results, ts_id, wd, &target_res, &def_name);
     } else {
-        let def_name = wd.join(&format!("MMPBSA_{}_res_avg.csv", sys_name));
+        let def_name = wd.join(&format!("MMPBSA_{}_res_{}_avg.csv", sys_name, range_des));
         write_res_avg_csv(results, wd, &target_res, &def_name);
     }
 
