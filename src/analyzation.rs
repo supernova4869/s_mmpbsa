@@ -252,6 +252,10 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     
     println!("Input the time point (in ns) to output (default: average):");
     let ts = get_input(-1.0);
+    if ts * 1000.0 > *results.times.last().unwrap() || (ts < 0.0 && ts != -1.0) {
+        println!("Error input: {} ns", ts);
+        return;
+    }
     println!("Writing energy file(s)...");
     if ts != -1.0 {
         let ts_id = get_time_index(ts, results);
