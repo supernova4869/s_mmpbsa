@@ -256,7 +256,7 @@ pub fn set_para_dock(receptor: &PDBQT, ligand: &PDBQT, wd: &Path, settings: &mut
                 for i in 0..ligand.models.len() {
                     let mut frame = Frame::with_len(receptor.models[0].atoms.len() + ligand.models[0].atoms.len());
                     frame.step = i;
-                    frame.time = i as f32 * 1000.0;
+                    frame.time = (i + 1) as f32 * 1000.0;
                     for (j, aj) in frame.coords.iter_mut().enumerate() {
                         if j < receptor.models[0].atoms.len() {
                             let cur_atom = &receptor.models[0].atoms[j];

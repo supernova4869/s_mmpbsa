@@ -89,7 +89,7 @@ pub fn get_ad4_map() -> HashMap<String, AD4param> {
     let radii_file_content = fs::read_to_string(radii_file)
         .expect("Error reading atom radius data file: AD4_parameters.dat");
     for l in radii_file_content.split("\n").filter(|p| !p.trim().starts_with("//") && !p.trim().is_empty()) {
-        let k_v: Vec<&str> = l.split(" ").filter(|s| !s.is_empty()).collect();
+        let k_v: Vec<&str> = l.trim().split(" ").filter(|s| !s.is_empty()).collect();
         let ad4 = AD4param {
             sigma: k_v[1].parse::<f64>().unwrap() / 10.0, // in nm
             eps: k_v[2].parse::<f64>().unwrap() * 4.18,    // in kJ/mol
