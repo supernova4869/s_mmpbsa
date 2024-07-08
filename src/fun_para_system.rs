@@ -253,7 +253,7 @@ pub fn set_para_dock(receptor: &PDBQT, ligand: &PDBQT, wd: &Path, settings: &mut
             0 => {
                 // 建立frames
                 let mut frames: Vec<Rc<Frame>> = vec![];
-                for i in bf as usize..(ef as usize + 1) {
+                for i in 0..ligand.models.len() {
                     let mut frame = Frame::with_len(receptor.models[0].atoms.len() + ligand.models[0].atoms.len());
                     frame.step = i;
                     frame.time = i as f32 * 1000.0;

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::exit;
 use ndarray::{Array1, Array2, Array3};
 use crate::atom_property::AtomProperty;
@@ -259,17 +259,17 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     println!("Writing energy file(s)...");
     if ts != -1.0 {
         let ts_id = get_time_index(ts, results);
-        let def_name = wd.join(&format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id] / 1000.0));
+        let def_name = format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id] / 1000.0);
         write_res_csv(results, ts_id, wd, &target_res, &def_name);
     } else {
-        let def_name = wd.join(&format!("MMPBSA_{}_res_{}_avg.csv", sys_name, range_des));
+        let def_name = format!("MMPBSA_{}_res_{}_avg.csv", sys_name, range_des);
         write_res_avg_csv(results, wd, &target_res, &def_name);
     }
 
     println!("Finished writing residue-wised binding energy file(s).");
 }
 
-fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &HashSet<usize>, def_name: &PathBuf) {
+fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &HashSet<usize>, def_name: &String) {
     let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
     for (i, res) in results.residues.iter().enumerate() {
@@ -288,7 +288,7 @@ fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &HashSe
     }
 }
 
-fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &HashSet<usize>, def_name: &PathBuf) {
+fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &HashSet<usize>, def_name: &String) {
     let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
     for (i, res) in results.residues.iter().enumerate() {
