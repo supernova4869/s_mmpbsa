@@ -12,6 +12,8 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
+- Supports molecular docking results (by vina or DSDP) analysis.
+- Can perform alanine scanning based on both MD and molecular docking results.
 
 ## Usage
 For Ubuntu system, maybe user should run the following commands to avoid `cc` error.
@@ -77,4 +79,3 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 - Add support of other PBSA solvers, e.g., AFMPB, Delphi2, and also built-in LPBE solver
 - Add figures: plotting data, 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
 - Multi-threading
-- Alanine scanning
