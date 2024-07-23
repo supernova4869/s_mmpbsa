@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::io;
 use std::str::FromStr;
@@ -129,4 +130,38 @@ pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str,
     let mut echo_cmd = echo(grps);
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
     gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
+}
+
+pub fn resname_3to1(name: &str) -> Option<String> {
+    let mut resname_map: HashMap<&str, &str> = HashMap::new();
+    resname_map.insert("ALA", "A");
+    resname_map.insert("CYS", "C");
+    resname_map.insert("ASP", "D");
+    resname_map.insert("ASH", "D");
+    resname_map.insert("GLU", "E");
+    resname_map.insert("GLH", "E");
+    resname_map.insert("PHE", "F");
+    resname_map.insert("GLY", "G");
+    resname_map.insert("HIS", "H");
+    resname_map.insert("HID", "H");
+    resname_map.insert("HIE", "H");
+    resname_map.insert("HIP", "H");
+    resname_map.insert("ILE", "I");
+    resname_map.insert("LYS", "K");
+    resname_map.insert("LEU", "L");
+    resname_map.insert("MET", "M");
+    resname_map.insert("ASN", "N");
+    resname_map.insert("PRO", "P");
+    resname_map.insert("GLN", "Q");
+    resname_map.insert("ARG", "R");
+    resname_map.insert("SER", "S");
+    resname_map.insert("THR", "T");
+    resname_map.insert("VAL", "V");
+    resname_map.insert("TRP", "W");
+    resname_map.insert("TYR", "Y");
+    if let Some(s) = resname_map.get(name) {
+        Some(s.to_string())
+    } else {
+        None
+    }
 }

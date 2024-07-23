@@ -4,8 +4,9 @@ use std::io::Write;
 use std::path::PathBuf;
 use xdrfile::*;
 use crate::settings::Settings;
+use crate::utils::resname_3to1;
 use ndarray::parallel::prelude::*;
-use ndarray::{ArrayBase, OwnedRepr, ViewRepr, Dim, Array1, Array2, Array3, s};
+use ndarray::{s, Array1, Array2, Array3, ArrayBase, Axis, Dim, OwnedRepr, ViewRepr};
 use std::process::Command;
 use std::rc::Rc;
 use std::env;
@@ -15,30 +16,101 @@ use crate::coefficients::Coefficients;
 use crate::analyzation::Results;
 use crate::parse_tpr::Residue;
 use crate::apbs_param::{PBASet, PBESet};
-use crate::atom_property::AtomProperty;
+use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
 pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
-                               sys_name: &String, aps: &AtomProperty,
+                               sys_name: &String, aps: &AtomProperties,
                                ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
-                               residues: &Vec<Residue>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
+                               ala_list: &Vec<i32>, residues: &Vec<Residue>, 
+                               bf: usize, ef: usize, dframe: usize, total_frames: usize,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
-                               -> Results {
+                               -> (Results, Vec<Results>) {
     println!("Running MM/PB-SA calculations of {}...", sys_name);
                 
     println!("Extracting atoms coordination...");
     let (coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)
-
-    if let Some(_) = settings.apbs.as_ref() {
-        println!("Preparing pqr files...");
-        prepare_pqr(&frames, bf, ef, dframe, total_frames, &temp_dir,
-                    sys_name, &coordinates, ndx_com, &ndx_rec, ndx_lig, aps);
-    }
+    let time_list: Vec<f32> = frames.iter().map(|f| f.time / 1000.0).collect();
 
     // calculate MM and PBSA
-    calculate_mmpbsa(&frames, &coordinates, bf, ef, dframe, 
+    let result_wt = calculate_mmpbsa(&time_list, &coordinates, "WT", bf, ef, dframe, 
         total_frames, aps, &temp_dir, &ndx_com, &ndx_rec, &ndx_lig, residues,
-        sys_name, pbe_set, pba_set, settings)
+        sys_name, pbe_set, pba_set, settings);
+
+    let mut result_ala_scan: Vec<Results> = vec![];
+    if ala_list.len() > 0 {
+        // main chain atoms number
+        let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) && r.name.ne("GLY")).collect();
+        for asr in as_res {
+            let mut new_aps = aps.clone();
+            let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
+                Some(a.clone())
+            } else {
+                None
+            }).collect();
+            let mut sc_out: Vec<&AtomProperty> = as_atoms.iter().filter(|&a| a.name.ne("N") && a.name.ne("HN") 
+                && a.name.ne("CB") && a.name.ne("HCB") && a.name.ne("CA") && a.name.ne("HCA") 
+                && a.name.ne("C") && a.name.ne("O")).collect();
+            let xgs: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
+                if a.name.eq("CG") || a.name.eq("SG") || a.name.eq("OG") {
+                    Some(a.clone())
+                } else {
+                    None
+                }}).collect();
+            for xg in xgs.iter() {
+                new_aps.atom_props[xg.id].change_atom(aps.at_map["HC"], "HB", &aps.radius_type);
+            }
+            // 脯氨酸需要把CD改成H
+            if asr.name.eq("PRO") {
+                sc_out.retain(|&a| a.name.ne("CD"));
+                let cg = sc_out.iter().find(|&&a| a.name == "CG").unwrap();
+                new_aps.atom_props[cg.id].change_atom(aps.at_map["HN"], "HN", &aps.radius_type);
+            }
+            
+            // delete other atoms in the scanned residue
+            let del_list: Vec<usize> = sc_out.iter().map(|a| a.id).collect();
+            let xg_list: Vec<usize> = xgs.iter().map(|a| a.id).collect();
+            new_aps.atom_props.retain(|a| !del_list.contains(&a.id) || xg_list.contains(&a.id));
+            let retain_id: Vec<usize> = new_aps.atom_props.iter().map(|a| a.id).collect();
+            for (i, ap) in new_aps.atom_props.iter_mut().enumerate() {
+                ap.id = i;
+            };
+            let new_coordinates = coordinates.select(Axis(1), &retain_id);
+            let new_ndx_com = Vec::from_iter(0..(ndx_com.len() - (aps.atom_props.len() - new_aps.atom_props.len())));
+            let new_ndx_rec = match ndx_rec[0].partial_cmp(&ndx_lig[0]) {
+                Some(Ordering::Less) => Vec::from_iter(0..(ndx_rec.len() - (aps.atom_props.len() - new_aps.atom_props.len()))),
+                Some(Ordering::Greater) => Vec::from_iter(ndx_lig.len()..(ndx_com.len() - (aps.atom_props.len() - new_aps.atom_props.len()))),
+                Some(Ordering::Equal) => new_ndx_com.to_vec(),
+                None => vec![]
+            };
+            let new_ndx_lig = match ndx_rec[0].partial_cmp(&ndx_lig[0]) {
+                Some(Ordering::Less) => Vec::from_iter(new_ndx_rec.len()..new_ndx_com.len()),
+                Some(Ordering::Greater) => Vec::from_iter(0..ndx_lig.len()),
+                Some(Ordering::Equal) => new_ndx_com.to_vec(),
+                None => vec![]
+            };
+
+            // After alanine mutation
+            if let Some(mutation) = resname_3to1(&asr.name) {
+                let result_as = calculate_mmpbsa(&time_list, &new_coordinates, &format!("{}{}A", mutation, asr.nr),
+                    bf, ef, dframe, total_frames, &new_aps, &temp_dir, 
+                    &new_ndx_com, &new_ndx_rec, &new_ndx_lig, residues,
+                    sys_name, pbe_set, pba_set, settings);
+                result_ala_scan.push(result_as);
+            } else {
+                println!("Residue unknown: {}", asr.name);
+            }
+        }
+    };
+
+    // whether remove temp directory
+    if !settings.debug_mode {
+        if settings.apbs.is_some() {
+            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+        }
+    }
+
+    (result_wt, result_ala_scan)
 }
 
 fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
@@ -71,8 +143,8 @@ pub fn set_style(pb: &ProgressBar) {
         .progress_chars("=>-"));
 }
 
-fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usize, ef: usize, 
-                    dframe: usize, total_frames: usize, aps: &AtomProperty, temp_dir: &PathBuf,
+fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, mutation: &str, bf: usize, ef: usize, 
+                    dframe: usize, total_frames: usize, aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                     residues: &Vec<Residue>, sys_name: &String, 
                     pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
@@ -85,8 +157,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     let coeff = Coefficients::new(pbe_set);
 
     // Time list of trajectory
-    let times: Array1<f64> = (bf..=ef).step_by(dframe)
-        .map(|p| frames[p].time as f64).collect();
+    let times: Array1<f64> = Array1::from_iter((bf..=ef).into_iter().step_by(dframe).map(|f| time_list[f] as f64));
 
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
@@ -98,7 +169,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     set_style(&pgb);
     pgb.inc(0);
     let mut idx = 0;
-    pgb.set_message(format!("at {} ns...", times[idx] / 1000.0));
+    pgb.set_message(format!("at {} ns...", times[idx]));
     for cur_frm in (bf..=ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
@@ -110,12 +181,15 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
         }
 
         // PBSA
-        calc_pbsa(idx, &coord, frames, ndx_rec_norm, ndx_lig_norm, ndx_com_norm,
-            &mut pb_res, &mut sa_res, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
+        if settings.apbs.is_some() {
+            prepare_pqr(cur_frm, &time_list, &temp_dir, sys_name, &coordinates, ndx_com_norm, &ndx_rec_norm, ndx_lig_norm, aps);
+            calc_pbsa(idx, &coord, time_list, ndx_rec_norm, ndx_lig_norm, ndx_com_norm,
+                &mut pb_res, &mut sa_res, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
+        }
 
         pgb.inc(1);
         pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s", 
-                                        times[idx] / 1000.0,
+                                        times[idx],
                                         vdw_res.row(idx).sum() + elec_res.row(idx).sum() + pb_res.row(idx).sum() + sa_res.row(idx).sum(),
                                         pgb.eta().as_secs()));
 
@@ -128,13 +202,6 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     let t_spend = Duration::from(t_end - t_start).num_milliseconds();
     println!("MM/PB-SA calculation of {} finished. Total time cost: {} s", sys_name, t_spend as f64 / 1000.0);
     env::remove_var("OMP_NUM_THREADS");
-    
-    // whether remove temp directory
-    if !settings.debug_mode {
-        if settings.apbs.is_some() {
-            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-        }
-    }
 
     Results::new(
         aps,
@@ -142,6 +209,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
         ndx_lig_norm,
         &times,
         coordinates.clone(),
+        mutation,
         &elec_res,
         &vdw_res,
         &pb_res,
@@ -149,7 +217,7 @@ fn calculate_mmpbsa(frames: &Vec<Rc<Frame>>, coordinates: &Array3<f64>, bf: usiz
     )
 }
 
-fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperty, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
+fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperties, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
             residues: &Vec<Residue>, coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     let kj_elec = coeff.kj_elec;
     let kap = coeff.kap;
@@ -158,8 +226,8 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
     let mut de_vdw: Array1<f64> = Array1::zeros(residues.len());
 
     for &i in ndx_rec_norm {
-        let qi = aps.atom_charge[i];
-        let ci = aps.atom_type_id[i];
+        let qi = aps.atom_props[i].charge;
+        let ci = aps.atom_props[i].type_id;
         let xi = coord[[i, 0]];
         let yi = coord[[i, 1]];
         let zi = coord[[i, 2]];
@@ -167,8 +235,8 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
             if ndx_lig_norm[0] == ndx_rec_norm[0] && j <= i {
                 continue;
             }
-            let qj = aps.atom_charge[j];
-            let cj = aps.atom_type_id[j];
+            let qj = aps.atom_props[j].charge;
+            let cj = aps.atom_props[j].type_id;
             let xj = coord[[j, 0]];
             let yj = coord[[j, 1]];
             let zj = coord[[j, 2]];
@@ -185,10 +253,10 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
                     // use 12-10 style to calculate LJ for pdbqt hbond
                     aps.c12[[ci, cj]] / r.powi(12) - aps.c10[[ci, cj]] / r.powi(10)
                 };
-                de_elec[aps.atom_resid[i]] += e_elec;
-                de_elec[aps.atom_resid[j]] += e_elec;
-                de_vdw[aps.atom_resid[i]] += e_vdw;
-                de_vdw[aps.atom_resid[j]] += e_vdw;
+                de_elec[aps.atom_props[i].resid] += e_elec;
+                de_elec[aps.atom_props[j].resid] += e_elec;
+                de_vdw[aps.atom_props[i].resid] += e_vdw;
+                de_vdw[aps.atom_props[j].resid] += e_vdw;
             }
         }
     }
@@ -199,19 +267,19 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
     return (de_elec, de_vdw)
 }
 
-fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, frames: &Vec<Rc<Frame>>, 
+fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, time_list: &Vec<f32>, 
             ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, ndx_com_norm: &Vec<usize>,
             pb_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>, sa_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>,
             cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
-            aps: &AtomProperty, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) {
+            aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) {
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is calculated by s_mmpbsa
     let gamma = 0.030125;
     let bias = 0.0;
-    let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
+    let f_name = format!("{}_{}ns", sys_name, time_list[cur_frm]);
     if let Some(apbs) = &settings.apbs {
-        write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &aps.atom_radius,
+        write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
@@ -318,17 +386,17 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, fra
         if ndx_rec_norm[0] == ndx_lig_norm[0] {
             // if no ligand, pb_com = pb_lig = 0, so real energy is inversed rec_pbsa
             for &i in ndx_com_norm {
-                pb_res[[idx, aps.atom_resid[i]]] += rec_pb[i - offset_lig];
-                sa_res[[idx, aps.atom_resid[i]]] += rec_sa[i - offset_lig];
+                pb_res[[idx, aps.atom_props[i].resid]] += rec_pb[i - offset_lig];
+                sa_res[[idx, aps.atom_props[i].resid]] += rec_sa[i - offset_lig];
             }
         } else {
             for &i in ndx_com_norm {
                 if ndx_rec_norm.contains(&i) {
-                    pb_res[[idx, aps.atom_resid[i]]] += com_pb[i] - rec_pb[i - offset_lig];
-                    sa_res[[idx, aps.atom_resid[i]]] += com_sa[i] - rec_sa[i - offset_lig];
+                    pb_res[[idx, aps.atom_props[i].resid]] += com_pb[i] - rec_pb[i - offset_lig];
+                    sa_res[[idx, aps.atom_props[i].resid]] += com_sa[i] - rec_sa[i - offset_lig];
                 } else {
-                    pb_res[[idx, aps.atom_resid[i]]] += com_pb[i] - lig_pb[i - offset_rec];
-                    sa_res[[idx, aps.atom_resid[i]]] += com_sa[i] - lig_sa[i - offset_rec];
+                    pb_res[[idx, aps.atom_props[i].resid]] += com_pb[i] - lig_pb[i - offset_rec];
+                    sa_res[[idx, aps.atom_props[i].resid]] += com_sa[i] - lig_sa[i - offset_rec];
                 }
             }
         }

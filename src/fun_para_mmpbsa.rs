@@ -1,20 +1,20 @@
 use std::cmp::Ordering;
 use std::io::stdin;
 use std::path::Path;
-use crate::utils::{get_input, get_input_selection};
+use crate::utils::{self, get_input, get_input_selection};
 use crate::index_parser::Index;
 use crate::settings::Settings;
 use crate::apbs_param::{PBASet, PBESet};
 use std::io::Write;
 use std::fs::{File, self};
-use crate::atom_property::AtomProperty;
+use crate::atom_property::AtomProperties;
 use crate::parse_tpr::{Residue, TPR};
 use crate::mmpbsa;
 use crate::analyzation;
 use std::rc::Rc;
 use xdrfile::{XTCTrajectory, Frame};
 
-pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperty,
+pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
                        ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64, residues: &Vec<Residue>, settings: &mut Settings) {
@@ -22,6 +22,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
     let mut pbe_set = PBESet::new(tpr.temp);
     let mut pba_set = PBASet::new(tpr.temp);
+    let mut ala_list: Vec<i32> = vec![];
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
@@ -38,7 +39,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
         println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
-        println!(" 10 Toggle whether to do alanine scanning, current: {}", settings.if_alanine_scanning);
+        println!(" 10 Select residues list for alanine scanning, current: {:?}", ala_list);
         let i = get_input_selection();
         match i {
             -10 => return,
@@ -57,11 +58,9 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 }
                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
-                for idx in 0..ndx_com.len() {
+                for ap in &aps.atom_props {
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
-                        aps.atom_id[idx], aps.atom_name[idx], aps.atom_type_id[idx], 
-                        aps.atom_charge[idx], aps.atom_radius[idx], aps.atom_resid[idx] + 1, 
-                        aps.atom_resname[idx]).as_bytes()).unwrap();
+                        ap.id, ap.name, ap.type_id, ap.charge, ap.radius, ap.resid + 1, ap.resname).as_bytes()).unwrap();
                 }
                 println!("Structural parameters have been written to paras_structure.txt");
             }
@@ -135,14 +134,14 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
 
                 let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
                 
-                let results = mmpbsa::fun_mmpbsa_calculations(&frames, &temp_dir, &sys_name, &aps,
-                                                                &ndx_com, &ndx_rec, &ndx_lig, &residues,
+                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&frames, &temp_dir, &sys_name, &aps,
+                                                                &ndx_com, &ndx_rec, &ndx_lig, &ala_list, &residues,
                                                                 bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
                 // Clean trj
                 if !settings.debug_mode {
                     fs::remove_file(&trj_mmpbsa).unwrap();
                 }
-                analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
+                analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;
@@ -234,8 +233,9 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 pba_set = PBASet::load_params(sa_fpath);
             }
             10 => {
-                println!("We will proceed with the alanine scanning proposal\nput forward by the Chinese representative.");
-                settings.if_alanine_scanning = !settings.if_alanine_scanning;
+                println!("Input the residues list for alanine scanning:");
+                let rs = get_input("".to_string());
+                ala_list = utils::range2list(rs.as_str());
             }
             _ => println!("Invalid input")
         }
@@ -255,13 +255,14 @@ fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usiz
     (bf, ef, dframe, total_frames)
 }
 
-pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperty, bf: usize, ef: usize, dframe: usize, total_frames: usize, temperature: f64,
+pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, bf: usize, ef: usize, dframe: usize, total_frames: usize, temperature: f64,
                        ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, wd: &Path, residues: &Vec<Residue>, settings: &mut Settings) {
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
     settings.rad_type = 0;
     let mut pbe_set = PBESet::new(temperature);
     let mut pba_set = PBASet::new(temperature);
+    let mut ala_list: Vec<i32> = vec![];
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
         println!("-10 Return");
@@ -286,11 +287,9 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperty, bf
                 let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
-                for idx in 0..aps.atom_id.len() {
+                for ap in &aps.atom_props {
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
-                        aps.atom_id[idx], aps.atom_name[idx], aps.atom_type_id[idx], 
-                        aps.atom_charge[idx], aps.atom_radius[idx], aps.atom_resid[idx] + 1, 
-                        aps.atom_resname[idx]).as_bytes()).unwrap();
+                        ap.id, ap.name, ap.type_id, ap.charge, ap.radius, ap.resid + 1, ap.resname).as_bytes()).unwrap();
                 }
                 println!("Structural parameters have been written to paras_structure.txt");
             }
@@ -360,10 +359,9 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperty, bf
                 };
                 
                 // run MM/PB-SA calculations
-                let results = mmpbsa::fun_mmpbsa_calculations(&frames, &temp_dir, &sys_name, &aps,
-                                                                &ndx_com, &ndx_rec, &ndx_lig, &residues,
-                                                                bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
-                analyzation::analyze_controller(&results, pbe_set.temp, &sys_name, wd, ndx_com.len(), settings);
+                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&frames, &temp_dir, &sys_name, &aps,
+                    &ndx_com, &ndx_rec, &ndx_lig, &ala_list, &residues, bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
+                analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
             }
             1 => {
                 settings.use_dh = !settings.use_dh;
@@ -455,8 +453,9 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperty, bf
                 pba_set = PBASet::load_params(sa_fpath);
             }
             10 => {
-                println!("We will proceed with the alanine scanning proposal\nput forward by the Chinese representative.");
-                settings.if_alanine_scanning = !settings.if_alanine_scanning;
+                println!("Input the residues list for alanine scanning:");
+                let rs = get_input("".to_string());
+                ala_list = utils::range2list(rs.as_str());
             }
             _ => println!("Invalid input")
         }

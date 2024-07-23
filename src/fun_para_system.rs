@@ -11,7 +11,7 @@ use crate::utils::{get_input_selection, append_new_name};
 use crate::fun_para_mmpbsa::{set_para_mmpbsa, set_para_mmpbsa_pdbqt};
 use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
-use crate::atom_property::AtomProperty;
+use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::utils::{convert_tpr, trjconv};
@@ -70,7 +70,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
 
                         // atom properties
                         println!("Parsing atom properties...");
-                        let mut aps = AtomProperty::from_tpr(tpr, &ndx_com);
+                        let mut aps = AtomProperties::from_tpr(tpr, &ndx_com);
                         println!("Collecting residues list...");
                         let residues = get_residues_tpr(tpr, &ndx_com);
 
@@ -274,7 +274,7 @@ pub fn set_para_dock(receptor: &PDBQT, ligand: &PDBQT, wd: &Path, settings: &mut
                 }
 
                 println!("Parsing atom properties...");
-                let mut aps = AtomProperty::from_pdbqt(receptor, ligand);
+                let mut aps = AtomProperties::from_pdbqt(receptor, ligand);
                 println!("Collecting residues list...");
                 let residues = get_residues_pdbqt(receptor, ligand);
                 let ndx_com = Vec::from_iter(0..(receptor.models[0].atoms.len() + ligand.models[0].atoms.len()));

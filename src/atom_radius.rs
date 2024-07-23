@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::env::current_exe;
 use std::fs;
-use crate::atom_property::AtomProperty;
+use crate::atom_property::AtomProperties;
 use crate::parse_tpr::TPR;
 use indicatif::{ProgressBar, ProgressStyle};
 
-impl AtomProperty {
+impl AtomProperties {
     // ff_radius would not be used
     pub fn apply_radius(&mut self, radius_type: usize, at_list: &Vec<String>, total_at_num: usize, radius_types: &Vec<&str>) {
         let pb = ProgressBar::new(total_at_num as u64);
@@ -14,10 +14,11 @@ impl AtomProperty {
             .progress_chars("=>-"));
         let rad_type = radius_types[radius_type];
         let radii_table = get_radii_map(rad_type);
-        for (i, r) in &mut self.atom_radius.iter_mut().enumerate() {
-            *r = get_radii(&radii_table, &at_list[i]);
+        for (i, r) in &mut self.atom_props.iter_mut().enumerate() {
+            r.radius = get_radii(&radii_table, &at_list[i]);
             pb.inc(1);
         }
+        self.radius_type = rad_type.to_string();
         pb.finish();
     }
 }

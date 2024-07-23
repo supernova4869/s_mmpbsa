@@ -50,10 +50,9 @@ impl TPR {
         let mut atom_resids: Vec<usize> = vec![];   // residue ids of each atom
         let mut atom_types: Vec<usize> = vec![];    // atom type
         let mut atom_radii: Vec<f64> = vec![];      // atom radius
-        // let mut atom_sigmas: Vec<f64> = vec![];     // atom sigma
-        // let mut atom_epsilons: Vec<f64> = vec![];   // atom epsilon
         let mut atom_charges: Vec<f64> = vec![];    // atom charge
         let mut atom_names: Vec<String> = vec![];   // atom name
+        let mut type_names: Vec<String> = vec![];   // atom name
 
         let mut molecules: Vec<Molecule> = vec![];
 
@@ -213,25 +212,28 @@ impl TPR {
                     atom_names.push(name.to_string());
                 }
 
-                loop {
+                // atom types
+                read_line(&mut reader, &mut buf);
+                // type[0]={name="N3",nameB="N3"}
+                let re = Regex::new("name=\"(.*)\",").unwrap();
+                for _ in 0..atoms_num {
                     read_line(&mut reader, &mut buf);
-                    if buf.trim().starts_with("residue (") {
-                        // residues
-                        let re = Regex::new(r"\s*residue \((\d+)\)").unwrap();
-                        let res_num: i32 = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                        let re = Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=([\\d\\-]+).*").unwrap();
-                        for _ in 0..res_num {
-                            read_line(&mut reader, &mut buf);
-                            let m = re.captures(&buf).unwrap();
-                            let id: usize = m.get(1).unwrap().as_str().parse().unwrap();
-                            let name = m.get(2).unwrap().as_str().to_string();
-                            let nr: i32 = m.get(3).unwrap().as_str().parse().unwrap();
-                            residues.push(Residue::new(id, name, nr));
-                        }
-                    }
-                    if buf.trim().starts_with("excls:") {
-                        break;
-                    }
+                    let name = re.captures(&buf).unwrap().get(1).unwrap().as_str();
+                    type_names.push(name.to_string());
+                }
+
+                // residues
+                read_line(&mut reader, &mut buf);
+                let re = Regex::new(r"\s*residue \((\d+)\)").unwrap();
+                let res_num: i32 = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
+                let re = Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=([\\d\\-]+).*").unwrap();
+                for _ in 0..res_num {
+                    read_line(&mut reader, &mut buf);
+                    let m = re.captures(&buf).unwrap();
+                    let id: usize = m.get(1).unwrap().as_str().parse().unwrap();
+                    let name = m.get(2).unwrap().as_str().to_string();
+                    let nr: i32 = m.get(3).unwrap().as_str().parse().unwrap();
+                    residues.push(Residue::new(id, name, nr));
                 }
 
                 // angles
@@ -270,11 +272,12 @@ impl TPR {
                 for id in 0..atoms_num {
                     let id = id + offset;
                     atoms.push(Atom::new(id,
-                                         atom_types[id],
-                                         atom_charges[id],
-                                         atom_resids[id],
-                                         atom_names[id].to_string(),
-                                         atom_radii[id]));
+                                        &type_names[id],
+                                        atom_types[id],
+                                        atom_charges[id],
+                                        atom_resids[id],
+                                        atom_names[id].to_string(),
+                                        atom_radii[id]));
                 }
 
                 molecules.push(Molecule::new(molecule_type_id, molecule_name, atoms_num,
@@ -368,6 +371,7 @@ impl fmt::Display for Molecule {
 #[derive(Clone)]
 pub struct Atom {
     pub id: usize,
+    pub at_type: String,
     pub type_id: usize,
     pub charge: f64,
     pub resind: usize,
@@ -383,10 +387,11 @@ impl fmt::Display for Atom {
 }
 
 impl Atom {
-    fn new(id: usize, type_id: usize, charge: f64, residue_index: usize, name: String,
+    fn new(id: usize, at_type: &str, type_id: usize, charge: f64, residue_index: usize, name: String,
            radius: f64) -> Atom {
         Atom {
             id,
+            at_type: at_type.to_string(),
             type_id,
             charge,
             resind: residue_index,

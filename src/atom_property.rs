@@ -1,25 +1,41 @@
 use std::collections::HashMap;
 
 use ndarray::{Array1, Array2};
-use crate::{atom_radius::{get_ad4_map, get_ad4_param}, parse_pdbqt::PDBQT, parse_tpr::TPR};
+use crate::{atom_radius::{get_ad4_map, get_ad4_param, get_radii, get_radii_map}, parse_pdbqt::PDBQT, parse_tpr::TPR};
 use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Clone)]
-pub struct AtomProperty {
+pub struct AtomProperties {
     pub c6: Array2<f64>,
     pub c12: Array2<f64>,
     pub c10: Array2<f64>,
-    pub atom_charge: Array1::<f64>,
-    pub atom_radius: Array1::<f64>,
-    pub atom_type_id: Array1<usize>,
-    pub atom_id: Array1<usize>,
-    pub atom_name: Array1<String>,
-    pub atom_resname: Array1<String>,
-    pub atom_resid: Array1<usize>,
+    pub at_map: HashMap<String, usize>,
+    pub radius_type: String,
+    pub atom_props: Vec<AtomProperty>
+}
+
+#[derive(Clone)]
+pub struct AtomProperty {
+    pub charge: f64,
+    pub radius: f64,
+    pub type_id: usize,
+    pub id: usize,
+    pub name: String,
+    pub resname: String,
+    pub resid: usize,
 }
 
 impl AtomProperty {
-    pub fn from_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> AtomProperty {
+    pub fn change_atom(&mut self, new_type_id: usize, new_name: &str, radius_type: &str) {
+        self.type_id = new_type_id;
+        self.name = new_name.to_string();
+        let radii_table = get_radii_map(radius_type);
+        self.radius = get_radii(&radii_table, "HC");
+    }
+}
+
+impl AtomProperties {
+    pub fn from_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> AtomProperties {
         // c6 and c12
         let mut c6: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
         let mut c12: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
@@ -31,43 +47,33 @@ impl AtomProperty {
             }
         }
 
-        let mut atom_charge: Array1<f64> = Array1::zeros(ndx_com.len());
-        let mut atom_radius: Array1<f64> = Array1::zeros(ndx_com.len());
-        let mut atom_type_id: Array1<usize> = Array1::zeros(ndx_com.len());
-        let mut atom_id: Array1<usize> = Array1::zeros(ndx_com.len());
-        let mut atom_name: Array1<String> = Array1::default(ndx_com.len());
-        let mut atom_resname: Array1<String> = Array1::default(ndx_com.len());
-        let mut atom_resid: Array1<usize> = Array1::zeros(ndx_com.len());
+        let mut atom_props: Vec<AtomProperty> = vec![];
 
-        let mut index_total = 0;
-        let mut index = 0;
+        let mut cur_atom_id = 0;
         let mut resid_offset = 0;      // residues number that has been overpast
 
-        let mut size: u64 = 0;
-        for mol in &tpr.molecules {
-            for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
-                size += mol.atoms.len() as u64;
-            }
-        }
-        let pb = ProgressBar::new(size);
+        let pb = ProgressBar::new(tpr.atom_types_num as u64);
         pb.set_style(ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
             .progress_chars("=>-"));
 
+        let mut at_list = vec![];
         for mol in &tpr.molecules {
             for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                 for atom in &mol.atoms {
-                    if ndx_com.contains(&index_total) {
-                        atom_charge[index] = atom.charge;
-                        atom_radius[index] = atom.radius;
-                        atom_type_id[index] = atom.type_id;
-                        atom_id[index] = atom.id;
-                        atom_name[index] = atom.name.to_string();
-                        atom_resname[index] = mol.residues[atom.resind].name.to_string();
-                        atom_resid[index] = atom.resind + resid_offset;
-                        index += 1;
+                    if ndx_com.contains(&cur_atom_id) {
+                        atom_props.push(AtomProperty {
+                            charge: atom.charge,
+                            radius: atom.radius,
+                            type_id: atom.type_id,
+                            id: atom.id,
+                            name: atom.name.to_string(),
+                            resname: mol.residues[atom.resind].name.to_string(),
+                            resid: atom.resind + resid_offset,
+                        });
+                        at_list.push(atom.at_type.to_string());
                     }
-                    index_total += 1;
+                    cur_atom_id += 1;
                     pb.inc(1);
                     pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
                 }
@@ -76,25 +82,41 @@ impl AtomProperty {
         }
 
         // normalize resid
-        let atom_resid = &atom_resid - atom_resid[0];
+        let first_resid = atom_props[0].resid;
+        for ap in atom_props.iter_mut() {
+            ap.resid -= first_resid;
+        }
 
         pb.finish();
+        
+        // HashMap to store the first occurrence index of each string
+        let mut at_map: HashMap<String, usize> = HashMap::new();
+        let mut ordered_atom_types = Vec::new();
+        
+        let mut atom_type_id: Array1<usize> = Array1::zeros(ndx_com.len());
+        let mut index = 0;
+        
+        for (i, s) in at_list.iter().enumerate() {
+            if !at_map.contains_key(s) {
+                // If the string is not in the map, insert it with the current index
+                at_map.insert(s.to_string(), index);
+                ordered_atom_types.push(s);
+                index += 1;
+            }
+            atom_type_id[i] = at_map[s];
+        }
 
-        AtomProperty {
+        AtomProperties {
             c6,
             c12,
             c10,
-            atom_charge,
-            atom_radius,
-            atom_type_id,
-            atom_id,
-            atom_name,
-            atom_resname,
-            atom_resid
+            at_map,
+            radius_type: "ff".to_string(),
+            atom_props
         }
     }
 
-    pub fn from_pdbqt(receptor: &PDBQT, ligand: &PDBQT) -> AtomProperty {
+    pub fn from_pdbqt(receptor: &PDBQT, ligand: &PDBQT) -> AtomProperties {
         let mut atoms = receptor.models[0].atoms.to_vec();
         atoms.extend(ligand.models[0].atoms.to_vec());
         let atom_num = atoms.len();
@@ -103,7 +125,7 @@ impl AtomProperty {
         let at_list: Vec<String> = atoms.iter().map(|a| a.attype.to_owned()).collect();
         
         // HashMap to store the first occurrence index of each string
-        let mut at_map = HashMap::new();
+        let mut at_map: HashMap<String, usize> = HashMap::new();
         let mut ordered_atom_types = Vec::new();
         
         let mut atom_type_id: Array1<usize> = Array1::zeros(atom_num);
@@ -111,7 +133,7 @@ impl AtomProperty {
         for (i, s) in at_list.iter().enumerate() {
             if !at_map.contains_key(s) {
                 // If the string is not in the map, insert it with the current index
-                at_map.insert(s, index);
+                at_map.insert(s.to_string(), index);
                 ordered_atom_types.push(s);
                 index += 1;
             }
@@ -137,14 +159,14 @@ impl AtomProperty {
                 c6[[i, j]] = 2.0 * epsij * sigmaij.powi(6);
 
                 // for H-bond
-                let hb_h_ids: Vec<usize> = at_map.iter().filter_map(|(&k, &v)| {
+                let hb_h_ids: Vec<usize> = at_map.iter().filter_map(|(k, &v)| {
                     if k.eq("HD") || k.eq("HS") {
                         Some(v)
                     } else {
                         None
                     }
                 }).collect();
-                let hb_a_ids: Vec<usize> = at_map.iter().filter_map(|(&k, &v)| {
+                let hb_a_ids: Vec<usize> = at_map.iter().filter_map(|(k, &v)| {
                     if k.eq("NA") || k.eq("NS") || k.eq("OA") || k.eq("OS") || k.eq("SA") {
                         Some(v)
                     } else {
@@ -176,11 +198,8 @@ impl AtomProperty {
             }
         }
 
-        let atom_charge: Array1<f64> = Array1::from_iter(atoms.iter().map(|at| at.charge));
-        let atom_radius: Array1<f64> = Array1::from_iter(atoms.iter().map(|at| get_ad4_param(&ad4_map, &at.attype).sigma * 5.0));
-        let atom_id: Array1<usize> = Array1::from_iter(0..atoms.len());
-        let atom_name: Array1<String> = Array1::from_iter(atoms.iter().map(|at| at.atname.to_string()));
-        let atom_resname: Array1<String> = Array1::from_iter(atoms.iter().map(|at| at.resname.to_string()));
+        let mut atom_props : Vec<AtomProperty> = vec![];
+
         // 每个原子对应的残基编号
         let resid_offset_receptor = receptor.models[0].atoms[0].resid;
         let resid_offset_ligand = ligand.models[0].atoms[0].resid;
@@ -191,17 +210,25 @@ impl AtomProperty {
         atom_resid.extend(resid_ligand);
         let atom_resid: Array1<usize> = Array1::from_vec(atom_resid);
 
-        AtomProperty {
+        for (i, atom) in atoms.iter().enumerate() {
+            atom_props.push(AtomProperty {
+                charge: atom.charge,
+                radius: get_ad4_param(&ad4_map, &atom.attype).sigma * 5.0,
+                type_id: atom_type_id[i],
+                id: i,
+                name: atom.atname.to_string(),
+                resname: atom.resname.to_string(),
+                resid: atom_resid[i],
+            });
+        }
+
+        AtomProperties {
             c6,
             c12,
             c10,
-            atom_charge,
-            atom_radius,
-            atom_type_id,
-            atom_id,
-            atom_name,
-            atom_resname,
-            atom_resid
+            at_map,
+            radius_type: "AD4_parameters".to_string(),
+            atom_props
         }
     }
 }

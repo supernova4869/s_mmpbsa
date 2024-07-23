@@ -1,65 +1,54 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use indicatif::ProgressBar;
 use ndarray::{Array1, Array3, ArrayView2};
-use xdrfile::Frame;
 use crate::apbs_param::*;
-use crate::atom_property::AtomProperty;
-use crate::mmpbsa::set_style;
+use crate::atom_property::AtomProperties;
 use crate::settings::Settings;
 
-pub fn prepare_pqr(frames: &Vec<Rc<Frame>>, bf: usize, ef: usize, dframe: usize, total_frames: usize,
+pub fn prepare_pqr(cur_frm: usize, time_list: &Vec<f32>,
                    temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
                    ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
-                   aps: &AtomProperty) {
-    let pb = ProgressBar::new(total_frames as u64);
-    set_style(&pb);
-    for cur_frm in (bf..=ef).step_by(dframe) {
-        let f_name = format!("{}_{}ns", sys_name, frames[cur_frm].time / 1000.0);
-        let mut pqr_com = match ndx_lig_norm[0] != ndx_rec_norm[0] {
-            true => Some(File::create(&temp_dir.join(format!("{}_com.pqr", f_name))).unwrap()),
-            false => None
-        };
-        let mut pqr_lig = match ndx_lig_norm[0] != ndx_rec_norm[0] {
-            true => Some(File::create(&temp_dir.join(format!("{}_lig.pqr", f_name))).unwrap()),
-            false => None
-        };
-        let mut pqr_rec = File::create(&temp_dir.join(format!("{}_rec.pqr", f_name))).unwrap();
-        
-        // loop atoms and write pqr information (from pqr)
-        for &at_id in ndx_com_norm {
-            let index = aps.atom_id[at_id];
-            let at_name = &aps.atom_name[at_id];
-            let resname = &aps.atom_resname[at_id];
-            let resnum = aps.atom_resid[at_id];
-            let x = coordinates[[cur_frm, at_id, 0]];
-            let y = coordinates[[cur_frm, at_id, 1]];
-            let z = coordinates[[cur_frm, at_id, 2]];
-            let q = aps.atom_charge[at_id];
-            let r = aps.atom_radius[at_id];
-            let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} {:12.6} {:12.6}\n",
-                                    index, at_name, resname, resnum, x, y, z, q, r);
+                   aps: &AtomProperties) {
+    let f_name = format!("{}_{}ns", sys_name, time_list[cur_frm]);
+    let mut pqr_com = match ndx_lig_norm[0] != ndx_rec_norm[0] {
+        true => Some(File::create(&temp_dir.join(format!("{}_com.pqr", f_name))).unwrap()),
+        false => None
+    };
+    let mut pqr_lig = match ndx_lig_norm[0] != ndx_rec_norm[0] {
+        true => Some(File::create(&temp_dir.join(format!("{}_lig.pqr", f_name))).unwrap()),
+        false => None
+    };
+    let mut pqr_rec = File::create(&temp_dir.join(format!("{}_rec.pqr", f_name))).unwrap();
+    
+    // loop atoms and write pqr information (from pqr)
+    for &at_id in ndx_com_norm {
+        let index = aps.atom_props[at_id].id;
+        let at_name = &aps.atom_props[at_id].name;
+        let resname = &aps.atom_props[at_id].resname;
+        let resnum = aps.atom_props[at_id].resid;
+        let x = coordinates[[cur_frm, at_id, 0]];
+        let y = coordinates[[cur_frm, at_id, 1]];
+        let z = coordinates[[cur_frm, at_id, 2]];
+        let q = aps.atom_props[at_id].charge;
+        let r = aps.atom_props[at_id].radius;
+        let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} {:12.6} {:12.6}\n",
+                                index, at_name, resname, resnum, x, y, z, q, r);
 
-            // write qrv files
-            // if has ligand
-            if let Some(pqr_com) = &mut pqr_com {
-                pqr_com.write_all(atom_line.as_bytes()).unwrap();
-            }
-            if let Some(pqr_lig) = &mut pqr_lig {
-                if ndx_lig_norm.contains(&at_id) {
-                    pqr_lig.write_all(atom_line.as_bytes()).unwrap();
-                }
-            }
-            if ndx_rec_norm.contains(&at_id) {
-                pqr_rec.write_all(atom_line.as_bytes()).unwrap();
+        // write qrv files
+        // if has ligand
+        if let Some(pqr_com) = &mut pqr_com {
+            pqr_com.write_all(atom_line.as_bytes()).unwrap();
+        }
+        if let Some(pqr_lig) = &mut pqr_lig {
+            if ndx_lig_norm.contains(&at_id) {
+                pqr_lig.write_all(atom_line.as_bytes()).unwrap();
             }
         }
-
-        pb.inc(1);
+        if ndx_rec_norm.contains(&at_id) {
+            pqr_rec.write_all(atom_line.as_bytes()).unwrap();
+        }
     }
-    pb.finish();
 }
 
 pub fn write_apbs_input(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, coord: &ArrayView2<f64>,

@@ -4,17 +4,18 @@ use std::io::Write;
 use std::path::Path;
 use std::process::exit;
 use ndarray::{Array1, Array2, Array3};
-use crate::atom_property::AtomProperty;
+use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, range2list, get_outfile};
 
 pub struct Results {
-    pub aps: AtomProperty,
+    pub aps: AtomProperties,
     pub residues: Vec<Residue>,
     pub ndx_lig: Vec<usize>,
     pub times: Array1<f64>,
     pub coord: Array3<f64>,
+    pub mutation: String,
     pub dh: Array1<f64>,
     pub mm: Array1<f64>,
     pub pb: Array1<f64>,
@@ -30,9 +31,9 @@ pub struct Results {
 }
 
 impl Results {
-    pub fn new(aps: &AtomProperty, residues: &Vec<Residue>,
-               ndx_lig: &Vec<usize>,
-               times: &Array1<f64>, coord: Array3<f64>, 
+    pub fn new(aps: &AtomProperties, residues: &Vec<Residue>,
+               ndx_lig: &Vec<usize>, times: &Array1<f64>, 
+               coord: Array3<f64>, mutation: &str,
                elec_res: &Array2<f64>, vdw_res: &Array2<f64>, 
                pb_res: &Array2<f64>, sa_res: &Array2<f64>) -> Results {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
@@ -59,6 +60,7 @@ impl Results {
             ndx_lig: ndx_lig.to_owned(),
             times: times.to_owned(),
             coord: coord.to_owned(),
+            mutation: mutation.to_string(),
             dh,
             mm,
             pb,
@@ -75,7 +77,7 @@ impl Results {
     }
 
     // totally time average and ts
-    fn summary(&self, temperature: f64, settings: &Settings) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+    pub fn summary(&self, temperature: f64, settings: &Settings) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
         let rt2kj = 8.314462618 * temperature / 1e3;
 
         let dh_avg = self.dh.iter().sum::<f64>() / self.dh.len() as f64;
@@ -97,56 +99,125 @@ impl Results {
     }
 }
 
-pub fn analyze_controller(results: &Results, temperature: f64, sys_name: &String, wd: &Path, total_at_num: usize, settings: &Settings) {
-    loop {
-        println!("\n                 ************ MM-PBSA analyzation ************");
-        println!("-1 Write residue-wised bind energy at specific time to pdb file");
-        println!(" 0 Exit program");
-        println!(" 1 View binding energy terms summary");
-        println!(" 2 Output binding energy terms by trajectory");
-        println!(" 3 Output binding energy terms by residue at specific time");
-        println!(" 4 Output residue-wised binding energy terms by time as default names");
-        let sel_fun: i32 = get_input_selection();
-        match sel_fun {
-            -1 => write_energy_to_bf(results, wd, sys_name, total_at_num),
-            0 => exit(0),
-            1 => analyze_summary(results, temperature, wd, sys_name, settings),
-            2 => analyze_traj(results, wd, sys_name),
-            3 => analyze_res(results, wd, sys_name),
-            4 => output_all_details(results, wd, sys_name),
-            _ => println!("Invalid input")
+pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
+    if result_as.is_empty() {
+        loop {
+            println!("\n                 ************ MM-PBSA analyzation ************");
+            println!("-1 Write residue-wised bind energy at specific time to pdb file");
+            println!(" 0 Exit program");
+            println!(" 1 View binding energy terms summary");
+            println!(" 2 Output binding energy terms by trajectory");
+            println!(" 3 Output binding energy terms by residue at specific time");
+            println!(" 4 Output residue-wised binding energy terms by time as default names");
+            let sel_fun: i32 = get_input_selection();
+            match sel_fun {
+                -1 => {
+                    let ts_ids = get_time_points(result_wt);
+                    write_energy_to_bf(result_wt, &ts_ids, wd, sys_name);
+                    println!("Finished writing pdb file(s) with binding energy information.");
+                },
+                0 => exit(0),
+                1 => analyze_summary(result_wt, temperature, wd, sys_name, settings),
+                2 => analyze_traj(result_wt, wd, sys_name),
+                3 => analyze_res(result_wt, wd, sys_name),
+                4 => output_all_details(result_wt, wd, sys_name),
+                _ => println!("Invalid input")
+            }
+        }
+    } else {
+        let result_diffs: Vec<Results> = result_as.iter().map(|r| Results::new(
+            &r.aps, &r.residues, &r.ndx_lig, &r.times, r.coord.to_owned(), &r.mutation,
+            &(&r.elec_res - &result_wt.elec_res), 
+            &(&r.vdw_res - &result_wt.vdw_res), 
+            &(&r.pb_res - &result_wt.pb_res), 
+            &(&r.sa_res - &result_wt.sa_res))).collect();
+        loop {
+            println!("\n                 ************ MM-PBSA analyzation (Alanine scanning) ************");
+            println!("-1 Write ALL residue-wised bind energy DIFF at specific time to pdb file");
+            println!(" 0 Exit program");
+            println!(" 1 View ALL binding energy terms DIFF summary");
+            println!(" 2 Output ALL binding energy terms DIFF by trajectory");
+            println!(" 3 Output ALL binding energy terms DIFF by residue at specific time");
+            println!(" 4 Output ALL residue-wised binding energy terms DIFF by time as default names");
+            let sel_fun: i32 = get_input_selection();
+            match sel_fun {
+                -1 => {
+                    let ts_ids = get_time_points(result_wt);
+                    for r_df in &result_diffs {
+                        write_energy_to_bf(r_df, &ts_ids, wd, &format!("{}-{}", sys_name, r_df.mutation))
+                    }
+                    println!("Finished writing pdb file(s) with binding energy information.");
+                },
+                0 => exit(0),
+                1 => {
+                    for r_df in &result_diffs {
+                        analyze_summary(r_df, temperature, wd, &format!("{}-{}", sys_name, r_df.mutation), settings)
+                    }
+                },
+                2 => {
+                    for r_df in &result_diffs {
+                        analyze_traj(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation))
+                    }
+                },
+                3 => {
+                    for r_df in &result_diffs {
+                        analyze_res(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation))
+                    }
+                },
+                4 => {
+                    for r_df in &result_diffs {
+                        output_all_details(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation))
+                    }
+                },
+                _ => println!("Invalid input")
+            }
         }
     }
 }
 
-fn write_energy_to_bf(results: &Results, wd: &Path, sys_name: &String, total_at_num: usize) {
+fn get_time_points(result: &Results) -> Vec<usize> {
     println!("Input the time point (in ns) to write pdb (default: all):");
     let ts = get_input(-1.0);
-    if ts * 1000.0 > *results.times.last().unwrap() || (ts < 0.0 && ts != -1.0) {
-        println!("Error input: {} ns", ts);
-        return;
-    }
     println!("Writing pdb file(s)...");
     if ts != -1.0 {
-        let ts_id = get_time_index(ts, results);
-        write_bf_pdb(results, sys_name, ts_id, wd, total_at_num);
-    } else {
-        for ts_id in 0..results.times.len() {
-            write_bf_pdb(results, sys_name, ts_id, wd, total_at_num);
+        if let Some(ts_id) = get_time_index(ts, result) {
+            vec![ts_id]
+        } else {
+            println!("Error input: {} ns", ts);
+            vec![]
         }
+    } else {
+        Vec::from_iter(0..result.times.len())
     }
-    println!("Finished writing pdb file(s) with binding energy information.");
 }
 
-fn write_bf_pdb(results: &Results, sys_name: &String, ts_id: usize, wd: &Path, total_at_num: usize) {
-    let mut f = fs::File::create(wd.join(&format!("MMPBSA_binding_energy_{}_{}ns.pdb", sys_name, results.times[ts_id] / 1000.0))).unwrap();
+fn get_time_index(ts: f64, results: &Results) -> Option<usize> {
+    if ts == results.times[0] {
+        Some(0)
+    } else {
+        if results.times.len() > 1 {
+            Some(((ts - results.times[0]) / (results.times[1] - results.times[0])) as usize)
+        } else {
+            None
+        }
+    }
+}
+
+fn write_energy_to_bf(results: &Results, ts_ids: &Vec<usize>, wd: &Path, sys_name: &String) {
+    for ts_id in ts_ids {
+        write_bf_pdb(results, sys_name, *ts_id, wd);
+    }
+}
+
+fn write_bf_pdb(results: &Results, sys_name: &String, ts_id: usize, wd: &Path) {
+    let mut f = fs::File::create(wd.join(&format!("MMPBSA_binding_energy_{}_{}ns.pdb", sys_name, results.times[ts_id]))).unwrap();
     let coord = &results.coord;
     writeln!(f, "REMARK  The B-factor column is filled with the INVERSED residue-wised binding energy (ΔH), in kcal/mol").unwrap();
-    for atom_id in 0..total_at_num {
-        let res_id = results.aps.atom_resid[atom_id];
-        let atom_name = results.aps.atom_name[atom_id].as_str();
-        write_atom_line(res_id, atom_id, atom_name, &results, 
-            coord[[ts_id, atom_id, 0]], coord[[ts_id, atom_id, 1]], coord[[ts_id, atom_id, 2]], &mut f);
+    for atom in &results.aps.atom_props {
+        let res_id = atom.resid;
+        let atom_name = atom.name.as_str();
+        write_atom_line(res_id, atom.id, atom_name, &results, 
+            coord[[ts_id, atom.id, 0]], coord[[ts_id, atom.id, 1]], coord[[ts_id, atom.id, 2]], &mut f);
     }
 }
 
@@ -197,7 +268,7 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
     write!(energy_sum, "Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW,(kJ/mol)\n").unwrap();
     for i in 0..results.times.len() {
         write!(energy_sum, "{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n",
-                            results.times[i] / 1000.0, results.dh[i],
+                            results.times[i], results.dh[i],
                             results.mm[i], results.pb[i], results.sa[i],
                             results.elec[i], results.vdw[i]).unwrap();
     }
@@ -238,10 +309,10 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
                 },
                 _ => range2list(&res_range)
             };
-            results.aps.atom_resid
+            results.aps.atom_props
                 .iter()
-                .filter(|&i| res_range.contains(&(results.residues[*i].nr)))    // 用户筛选用nr
-                .map(|&i| results.residues[i].id)     // 索引用id
+                .filter(|&i| res_range.contains(&(results.residues[i.resid].nr)))    // 用户筛选用nr
+                .map(|i| results.residues[i.resid].id)     // 索引用id
                 .collect()
         },
         _ => {
@@ -258,9 +329,13 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     }
     println!("Writing energy file(s)...");
     if ts != -1.0 {
-        let ts_id = get_time_index(ts, results);
-        let def_name = format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id] / 1000.0);
-        write_res_csv(results, ts_id, wd, &target_res, &def_name);
+        if let Some(ts_id) = get_time_index(ts, results) {
+            let def_name = format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id]);
+            write_res_csv(results, ts_id, wd, &target_res, &def_name);
+        } else {
+            println!("Error input: {} ns", ts);
+            return;
+        }
     } else {
         let def_name = format!("MMPBSA_{}_res_{}_avg.csv", sys_name, range_des);
         write_res_avg_csv(results, wd, &target_res, &def_name);
@@ -314,10 +389,12 @@ fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
     let ligand_y: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 1]]).collect();
     let ligand_z: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 2]]).collect();
     for res in &results.residues {
-        let atoms_id: Vec<usize> = results.aps.atom_resid.iter()
-            .enumerate()
-            .filter(|&(_, &a)| a == res.id)
-            .map(|(index, _)| index)
+        let atoms_id: Vec<usize> = results.aps.atom_props.iter()
+            .filter_map(|a| if a.resid == res.id {
+                Some(a.id)
+            } else {
+                None
+            })
             .collect();
         for i in atoms_id {
             let x = results.coord[[total_frames, i, 0]];
@@ -325,7 +402,7 @@ fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
             let z = results.coord[[total_frames, i, 2]];
             for j in 0..results.ndx_lig.len() {
                 if (x - ligand_x[j]).powi(2) + (y - ligand_y[j]).powi(2) + (z - ligand_z[j]).powi(2) < cutoff.powi(2) {
-                    res_range.insert(results.aps.atom_resid[i]);
+                    res_range.insert(results.aps.atom_props[i].resid);
                 }
             }
         }
@@ -341,7 +418,7 @@ fn analyze_dh_res_traj(results: &Results, wd: &Path, def_name: &String) {
         energy_res.write_all(format!(",{}#{}", res.nr, res.name).as_bytes()).unwrap();
     }
     for i in 0..results.times.len() {
-        energy_res.write_all(format!("\n{}", results.times[i] / 1000.0).as_bytes()).unwrap();
+        energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
         for dh in &results.dh_res.row(i) {
             energy_res.write_all(format!(",{:.3}", dh).as_bytes()).unwrap();
         }
@@ -358,7 +435,7 @@ fn analyze_mm_res_traj(results: &Results, wd: &Path, def_name: &String) {
         energy_res.write_all(format!(",{}#{}", res.nr, res.name).as_bytes()).unwrap();
     }
     for i in 0..results.times.len() {
-        energy_res.write_all(format!("\n{}", results.times[i] / 1000.0).as_bytes()).unwrap();
+        energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
         for mm in &results.mm_res.row(i) {
             energy_res.write_all(format!(",{:.3}", mm).as_bytes()).unwrap();
         }
@@ -375,7 +452,7 @@ fn analyze_pb_res_traj(results: &Results, wd: &Path, def_name: &String) {
         energy_res.write_all(format!(",{}#{}", res.nr, res.name).as_bytes()).unwrap();
     }
     for i in 0..results.times.len() {
-        energy_res.write_all(format!("\n{}", results.times[i] / 1000.0).as_bytes()).unwrap();
+        energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
         for pb in &results.pb_res.row(i) {
             energy_res.write_all(format!(",{:.3}", pb).as_bytes()).unwrap();
         }
@@ -392,7 +469,7 @@ fn analyze_sa_res_traj(results: &Results, wd: &Path, def_name: &String) {
         energy_res.write_all(format!(",{}#{}", res.nr, res.name).as_bytes()).unwrap();
     }
     for i in 0..results.times.len() {
-        energy_res.write_all(format!("\n{}", results.times[i] / 1000.0).as_bytes()).unwrap();
+        energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
         for sa in &results.sa_res.row(i) {
             energy_res.write_all(format!(",{:.3}", sa).as_bytes()).unwrap();
         }
@@ -409,7 +486,7 @@ fn analyze_elec_res_traj(results: &Results, wd: &Path, def_name: &String) {
         energy_res.write_all(format!(",{}#{}", res.nr, res.name).as_bytes()).unwrap();
     }
     for i in 0..results.times.len() {
-        energy_res.write_all(format!("\n{}", results.times[i] / 1000.0).as_bytes()).unwrap();
+        energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
         for elec in &results.elec_res.row(i) {
             energy_res.write_all(format!(",{:.3}", elec).as_bytes()).unwrap();
         }
@@ -426,7 +503,7 @@ fn analyze_vdw_res_traj(results: &Results, wd: &Path, def_name: &String) {
         energy_res.write_all(format!(",{}#{}", res.nr, res.name).as_bytes()).unwrap();
     }
     for i in 0..results.times.len() {
-        energy_res.write_all(format!("\n{}", results.times[i] / 1000.0).as_bytes()).unwrap();
+        energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
         for vdw in &results.vdw_res.row(i) {
             energy_res.write_all(format!(",{:.3}", vdw).as_bytes()).unwrap();
         }
@@ -442,12 +519,4 @@ pub fn output_all_details(results: &Results, wd: &Path, sys_name: &String) {
     analyze_sa_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔSA.csv", sys_name));
     analyze_elec_res_traj(results, wd, &format!("MMPBSA_{}_res_Δelec.csv", sys_name));
     analyze_vdw_res_traj(results, wd, &format!("MMPBSA_{}_res_ΔvdW.csv", sys_name));
-}
-
-fn get_time_index(ts: f64, results: &Results) -> usize {
-    if ts * 1000.0 == results.times[0] {
-        0
-    } else {
-        ((ts * 1000.0 - results.times[0]) / (results.times[1] - results.times[0])) as usize
-    }
 }

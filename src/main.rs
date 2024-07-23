@@ -120,7 +120,7 @@ fn welcome() {
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
-        Version 0.3, first release: 2022-Oct-17, current release: 2024-Jul-03\n");
+        Version 0.4, first release: 2022-Oct-17, current release: 2024-Jul-24\n");
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
         Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n\
         Usage 3: run `s_mmpbsa Miyano_Shiho.dump` to load dumped tpr file.\n\
