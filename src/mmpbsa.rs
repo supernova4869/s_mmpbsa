@@ -50,9 +50,8 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
             } else {
                 None
             }).collect();
-            let mut sc_out: Vec<&AtomProperty> = as_atoms.iter().filter(|&a| a.name.ne("N") && a.name.ne("HN") 
-                && a.name.ne("CB") && a.name.ne("HCB") && a.name.ne("CA") && a.name.ne("HCA") 
-                && a.name.ne("C") && a.name.ne("O")).collect();
+            let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
+            let mut sc_out: Vec<&AtomProperty> = as_atoms.iter().filter(|&a| !exclude_list.contains(&a.name.as_str())).collect();
             let xgs: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
                 if a.name.eq("CG") || a.name.eq("SG") || a.name.eq("OG") {
                     Some(a.clone())
@@ -60,13 +59,13 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
                     None
                 }}).collect();
             for xg in xgs.iter() {
-                new_aps.atom_props[xg.id].change_atom(aps.at_map["HC"], "HB", &aps.radius_type);
+                new_aps.atom_props[xg.id].change_atom(aps.at_map.get("HC"), "HC", &aps.radius_type);
             }
             // 脯氨酸需要把CD改成H
             if asr.name.eq("PRO") {
                 sc_out.retain(|&a| a.name.ne("CD"));
                 let cg = sc_out.iter().find(|&&a| a.name == "CG").unwrap();
-                new_aps.atom_props[cg.id].change_atom(aps.at_map["HN"], "HN", &aps.radius_type);
+                new_aps.atom_props[cg.id].change_atom(aps.at_map.get("HN"), "HN", &aps.radius_type);
             }
             
             // delete other atoms in the scanned residue

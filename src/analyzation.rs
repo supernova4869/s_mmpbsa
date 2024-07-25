@@ -277,7 +277,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
 fn analyze_summary_as(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
     let (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg,
         vdw_avg, tds, dg, ki) = results.summary(temperature, settings);
-    println!("Energy terms summary:");
+    println!("\nEnergy terms summary - {}:", results.mutation);
     println!("ΔΔH: {:.3} kJ/mol", dh_avg);
     println!("ΔΔMM: {:.3} kJ/mol", mm_avg);
     println!("ΔΔPB: {:.3} kJ/mol", pb_avg);

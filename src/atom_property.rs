@@ -26,11 +26,13 @@ pub struct AtomProperty {
 }
 
 impl AtomProperty {
-    pub fn change_atom(&mut self, new_type_id: usize, new_name: &str, radius_type: &str) {
-        self.type_id = new_type_id;
-        self.name = new_name.to_string();
-        let radii_table = get_radii_map(radius_type);
-        self.radius = get_radii(&radii_table, "HC");
+    pub fn change_atom(&mut self, new_type_id: Option<&usize>, new_name: &str, radius_type: &str) {
+        if let Some(&new_type_id) = new_type_id {
+            self.type_id = new_type_id;
+            self.name = new_name.to_string();
+            let radii_table = get_radii_map(radius_type);
+            self.radius = get_radii(&radii_table, "HC");
+        }
     }
 }
 
