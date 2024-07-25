@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::io::stdin;
 use std::path::Path;
-use crate::utils::{self, get_input, get_input_selection};
+use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca};
 use crate::index_parser::Index;
 use crate::settings::Settings;
 use crate::apbs_param::{PBASet, PBESet};
@@ -233,9 +233,44 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 pba_set = PBASet::load_params(sa_fpath);
             }
             10 => {
-                println!("Input the residues list for alanine scanning:");
-                let rs = get_input("".to_string());
-                ala_list = utils::range2list(rs.as_str());
+                println!("Select the residues for alanine scanning:");
+                println!(" 1 Select the residues within the first layer (0-4 A)");
+                println!(" 2 Select the residues within the second layer (4-6 A)");
+                println!(" 3 Select the residues within the third layer (6-8 A)");
+                println!(" 4 Select the residues within specific distance");
+                println!(" 5 Directly input the resudues list");
+                let i: i32 = get_input_selection();
+                let receptor_res: Vec<Residue> = residues.iter().filter_map(|r| if r.id != aps.atom_props[ndx_lig[0]].resid {
+                    Some(r.clone())
+                } else {
+                    None
+                }).collect();
+                match i {
+                    1 => {
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, &aps, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                    },
+                    2 => {
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, &aps, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                    },
+                    3 => {
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, &aps, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                    },
+                    4 => {
+                        println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
+                        let cutoff = get_input(4.0);
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, &aps, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                    },
+                    5 => {
+                        println!("Input the residues list for alanine scanning:");
+                        let rs = get_input("".to_string());
+                        ala_list = utils::range2list(rs.as_str());
+                    },
+                    _ => {}
+                }
             }
             _ => println!("Invalid input")
         }
@@ -279,7 +314,7 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, 
         println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
-        println!(" 10 Toggle whether to do alanine scanning, current: {}", settings.if_alanine_scanning);
+        println!(" 10 Select residues list for alanine scanning, current: {:?}", ala_list);
         let i = get_input_selection();
         match i {
             -10 => return,

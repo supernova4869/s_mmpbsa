@@ -18,7 +18,6 @@ pub struct Settings {
     pub gmx: Option<String>,
     pub apbs: Option<String>,
     pub last_opened: String,
-    pub if_alanine_scanning: bool,
     pub debug_mode: bool,
 }
 
@@ -38,7 +37,6 @@ impl Settings {
             gmx: Some("gmx".to_string()),
             apbs: None,
             last_opened: String::new(),
-            if_alanine_scanning: false,
             debug_mode: false,
         }
     }
@@ -74,12 +72,6 @@ impl Settings {
         let apbs = Some(apbs[1..apbs.len() - 1].to_string());
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
-        let if_alanine_scanning = parse_param(&setting_values, "alanine_scanning", "\"y\"".to_string());
-        let if_alanine_scanning = match if_alanine_scanning[1..2].to_string().as_str() {
-            "y" => true,
-            "Y" => true,
-            _ => false
-        };
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
         let debug_mode = match debug_mode[1..2].to_string().as_str() {
             "y" => true,
@@ -103,7 +95,6 @@ impl Settings {
             gmx,
             apbs,
             last_opened,
-            if_alanine_scanning,
             debug_mode,
         }
     }

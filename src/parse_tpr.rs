@@ -1,6 +1,7 @@
 use std::fmt::Formatter;
 use std::fmt;
 use std::io::BufReader;
+use ndarray::Array2;
 use regex::Regex;
 use std::fs::File;
 use std::io::BufRead;
@@ -18,14 +19,16 @@ pub struct TPR {
     pub dt: f64,
     pub nsteps: u64,
     pub nstxout: u32,
-    pub temp: f64
+    pub temp: f64,
+    pub coordinates: Array2<f64>,
 }
 
 impl fmt::Display for TPR {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}, with\n{} atoms,\n{} type(s) of molecules,\n{} atom types,\n{} LJ types",
+        write!(f, "{}, with\n{} atoms,\n{} type(s) of molecules,\n{} atom types,\n{} LJ types,\n{}x{} coordinate",
                self.name, self.n_atoms, self.molecule_types_num,
-               self.atom_types_num, self.lj_sr_params.len()
+               self.atom_types_num, self.lj_sr_params.len(), 
+               self.coordinates.shape()[0], self.coordinates.shape()[1]
         )
     }
 }
@@ -53,6 +56,8 @@ impl TPR {
         let mut atom_charges: Vec<f64> = vec![];    // atom charge
         let mut atom_names: Vec<String> = vec![];   // atom name
         let mut type_names: Vec<String> = vec![];   // atom name
+        
+        let mut coordinates: Vec<f64> = vec![];   // atom name
 
         let mut molecules: Vec<Molecule> = vec![];
 
@@ -283,6 +288,24 @@ impl TPR {
                 molecules.push(Molecule::new(molecule_type_id, molecule_name, atoms_num,
                                              &atoms, &residues));
             }
+
+            // coordinates
+            // x (3218x3):
+            if buf.trim().starts_with("x (") {
+                println!("Reading coordinate information...");
+                let re = Regex::new(r"\{\s*(.*),\s*(.*),\s*(.*)\}").unwrap();
+                for _ in 0..atoms_num {
+                    read_line(&mut reader, &mut buf);
+                    // x[    0]={ 1.41430e+00,  1.38595e+00,  2.14591e-01}
+                    let caps = re.captures(&buf).unwrap();
+                    let x: f64 = caps.get(1).unwrap().as_str().parse().unwrap();
+                    let y: f64 = caps.get(2).unwrap().as_str().parse().unwrap();
+                    let z: f64 = caps.get(3).unwrap().as_str().parse().unwrap();
+                    coordinates.push(x * 10.0);
+                    coordinates.push(y * 10.0);
+                    coordinates.push(z * 10.0);
+                }
+            }
         }
         println!("System molecular composition:");
         for mol in &molecules {
@@ -299,7 +322,8 @@ impl TPR {
             dt,
             nsteps,
             nstxout,
-            temp
+            temp,
+            coordinates: Array2::from_shape_vec((atoms_num, 3), coordinates).unwrap()
         }
     }
 }

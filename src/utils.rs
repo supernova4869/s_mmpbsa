@@ -4,6 +4,9 @@ use std::io;
 use std::str::FromStr;
 use std::fmt::Debug;
 use std::process::{Child, Command, Stdio};
+use ndarray::{Array2, Axis};
+use crate::atom_property::AtomProperties;
+use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 
 pub fn range2list(range_str: &str) -> Vec<i32> {
@@ -54,15 +57,15 @@ pub fn get_input_selection<T: FromStr>() -> T {
     }
 }
 
-pub fn get_outfile<T: ToString + std::fmt::Display>(default_name: &T) -> String {
-    println!("\nInput file name to write (default: {}):", default_name);
-    let mut temp = String::new();
-    io::stdin().read_line(&mut temp).unwrap();
-    match temp.trim().is_empty() {
-        true => default_name.to_string(),
-        _ => temp.trim().to_string()
-    }
-}
+// pub fn get_outfile<T: ToString + std::fmt::Display>(default_name: &T) -> String {
+//     println!("\nInput file name to write (default: {}):", default_name);
+//     let mut temp = String::new();
+//     io::stdin().read_line(&mut temp).unwrap();
+//     match temp.trim().is_empty() {
+//         true => default_name.to_string(),
+//         _ => temp.trim().to_string()
+//     }
+// }
 
 pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> String {
     let file_path = Path::new(origin_name);
@@ -164,4 +167,26 @@ pub fn resname_3to1(name: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &Vec<usize>, cutoff: f64, aps: &AtomProperties, residues: &Vec<Residue>) -> Vec<usize> {
+    let mut res_range: Vec<usize> = vec![];
+    let ligand_coord = coord.select(Axis(0), ref_ids);
+    for res in residues {
+        let cur_res_ca_id: Vec<usize> = aps.atom_props.iter()
+            .filter_map(|a| if a.resid == res.id && a.name.eq("CA") {
+                Some(a.id)
+            } else {
+                None
+            })
+            .collect();
+        let receptor_residue_coord = coord.select(Axis(0), &cur_res_ca_id);
+        for ri in ligand_coord.rows() {
+            if (&receptor_residue_coord - &ri).map(|&i| i.powi(2)).sum() <= cutoff.powi(2) {
+                res_range.push(res.id);
+                break;
+            }
+        }
+    }
+    res_range
 }

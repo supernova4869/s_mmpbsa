@@ -33,14 +33,16 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
     let time_list: Vec<f32> = frames.iter().map(|f| f.time / 1000.0).collect();
 
     // calculate MM and PBSA
-    let result_wt = calculate_mmpbsa(&time_list, &coordinates, "WT", bf, ef, dframe, 
+    println!("Calculating binding energy for {}...", sys_name);
+    let result_wt = calculate_mmpbsa(&time_list, &coordinates, bf, ef, dframe, 
         total_frames, aps, &temp_dir, &ndx_com, &ndx_rec, &ndx_lig, residues,
-        sys_name, pbe_set, pba_set, settings);
+        sys_name, "WT", pbe_set, pba_set, settings);
 
     let mut result_ala_scan: Vec<Results> = vec![];
     if ala_list.len() > 0 {
         // main chain atoms number
-        let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) && r.name.ne("GLY")).collect();
+        let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
+            && r.name.ne("GLY") && r.name.ne("ALA")).collect();     // gly not contain CB, ala no need to mutate
         for asr in as_res {
             let mut new_aps = aps.clone();
             let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
@@ -91,15 +93,19 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
             };
 
             // After alanine mutation
-            if let Some(mutation) = resname_3to1(&asr.name) {
-                let result_as = calculate_mmpbsa(&time_list, &new_coordinates, &format!("{}{}A", mutation, asr.nr),
-                    bf, ef, dframe, total_frames, &new_aps, &temp_dir, 
-                    &new_ndx_com, &new_ndx_rec, &new_ndx_lig, residues,
-                    sys_name, pbe_set, pba_set, settings);
-                result_ala_scan.push(result_as);
-            } else {
-                println!("Residue unknown: {}", asr.name);
-            }
+            let mutation = match resname_3to1(&asr.name) {
+                Some(mutation) => mutation,
+                None => asr.name.to_string()
+            };
+
+            let mutation = format!("{}{}A", mutation, asr.nr);
+            let sys_name = format!("{}-{}", sys_name, mutation);
+            println!("Calculating binding energy for {}...", sys_name);
+            let result_as = calculate_mmpbsa(&time_list, &new_coordinates,
+                bf, ef, dframe, total_frames, &new_aps, &temp_dir, 
+                &new_ndx_com, &new_ndx_rec, &new_ndx_lig, residues,
+                &sys_name, &mutation, pbe_set, pba_set, settings);
+            result_ala_scan.push(result_as);
         }
     };
 
@@ -143,10 +149,10 @@ pub fn set_style(pb: &ProgressBar) {
         .progress_chars("=>-"));
 }
 
-fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, mutation: &str, bf: usize, ef: usize, 
+fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, bf: usize, ef: usize, 
                     dframe: usize, total_frames: usize, aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
-                    residues: &Vec<Residue>, sys_name: &String, 
+                    residues: &Vec<Residue>, sys_name: &String, mutation: &str,
                     pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
     let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
     let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
@@ -163,8 +169,6 @@ fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, mutation: &
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
     let t_start = Local::now();
     
-    println!("Calculating MM/PB-SA binding energy...");
-
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
     pgb.inc(0);

@@ -1,13 +1,12 @@
-use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::exit;
-use ndarray::{Array1, Array2, Array3};
+use ndarray::{s, Array1, Array2, Array3};
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
-use crate::utils::{get_input, get_input_selection, range2list, get_outfile};
+use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
 
 pub struct Results {
     pub aps: AtomProperties,
@@ -94,7 +93,11 @@ impl Results {
             false => 0.0
         };
         let dg = dh_avg - tds;
-        let ki = f64::exp(dg / rt2kj) * 1e9;    // nM
+        let ki = if dg < 0.0 {
+            f64::exp(dg / rt2kj) * 1e9    // nM
+        } else {
+            0.0
+        };
         return (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg, vdw_avg, tds, dg, ki);
     }
 }
@@ -119,7 +122,7 @@ pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, tempera
                 0 => exit(0),
                 1 => analyze_summary(result_wt, temperature, wd, sys_name, settings),
                 2 => analyze_traj(result_wt, wd, sys_name),
-                3 => analyze_res(result_wt, wd, sys_name),
+                3 => analyze_res(result_wt, wd, sys_name, get_input(-1.0)),
                 4 => output_all_details(result_wt, wd, sys_name),
                 _ => println!("Invalid input")
             }
@@ -151,7 +154,7 @@ pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, tempera
                 0 => exit(0),
                 1 => {
                     for r_df in &result_diffs {
-                        analyze_summary(r_df, temperature, wd, &format!("{}-{}", sys_name, r_df.mutation), settings)
+                        analyze_summary_as(r_df, temperature, wd, &format!("{}-{}", sys_name, r_df.mutation), settings)
                     }
                 },
                 2 => {
@@ -160,8 +163,10 @@ pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, tempera
                     }
                 },
                 3 => {
+                    println!("Input the time point (in ns) to output (default: average):");
+                    let ts = get_input(-1.0);
                     for r_df in &result_diffs {
-                        analyze_res(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation))
+                        analyze_res(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation), ts)
                     }
                 },
                 4 => {
@@ -241,9 +246,13 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!();
     println!("TΔS: {:.3} kJ/mol", tds);
     println!("ΔG: {:.3} kJ/mol", dg);
-    println!("Ki: {:.3} nM", ki);
+    if dg <= 0.0 {
+        println!("Ki: {:.3} nM", ki);
+    } else {
+        println!("Ki: Unavailable");
+    }
 
-    let def_name = get_outfile(&format!("MMPBSA_{}.csv", sys_name));
+    let def_name = format!("MMPBSA_{}.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
     write!(energy_sum, "Energy Term,value,info\n").unwrap();
@@ -257,13 +266,54 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     write!(energy_sum, "\n").unwrap();
     write!(energy_sum, "TΔS,{:.3},(kJ/mol)\n", tds).unwrap();
     write!(energy_sum, "ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
-    write!(energy_sum, "Ki,{:.3e},Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
+    if dg <= 0.0 {
+        write!(energy_sum, "Ki,{:.3e},Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
+    } else {
+        write!(energy_sum, "Ki,Unavailable,Ki=exp(ΔG/RT) (nM)\n").unwrap();
+    }
     println!("Binding energy terms have been writen to {}", &def_name);
+}
+
+fn analyze_summary_as(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
+    let (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg,
+        vdw_avg, tds, dg, ki) = results.summary(temperature, settings);
+    println!("Energy terms summary:");
+    println!("ΔΔH: {:.3} kJ/mol", dh_avg);
+    println!("ΔΔMM: {:.3} kJ/mol", mm_avg);
+    println!("ΔΔPB: {:.3} kJ/mol", pb_avg);
+    println!("ΔΔSA: {:.3} kJ/mol", sa_avg);
+    println!();
+    println!("ΔΔelec: {:.3} kJ/mol", elec_avg);
+    println!("ΔΔvdw: {:.3} kJ/mol", vdw_avg);
+    println!();
+    println!("Δ(TΔS): {:.3} kJ/mol", tds);
+    println!("ΔΔG: {:.3} kJ/mol", dg);
+    if dg <= 0.0 {
+        println!("Ki: {:.3} nM", ki);
+    } else {
+        println!("Ki: Unavailable");
+    }
+
+    let def_name = format!("MMPBSA_{}.csv", sys_name);
+    println!("Writing binding energy terms DIFF...");
+    let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
+    write!(energy_sum, "Energy Term,value,info\n").unwrap();
+    write!(energy_sum, "ΔΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)\n", dh_avg).unwrap();
+    write!(energy_sum, "ΔΔMM,{:.3},ΔMM=Δelec+ΔvdW (kJ/mol)\n", mm_avg).unwrap();
+    write!(energy_sum, "ΔΔPB,{:.3},(kJ/mol)\n", pb_avg).unwrap();
+    write!(energy_sum, "ΔΔSA,{:.3},(kJ/mol)\n", sa_avg).unwrap();
+    write!(energy_sum, "\n").unwrap();
+    write!(energy_sum, "ΔΔelec,{:.3},(kJ/mol)\n", elec_avg).unwrap();
+    write!(energy_sum, "ΔΔvdW,{:.3},(kJ/mol)\n", vdw_avg).unwrap();
+    write!(energy_sum, "\n").unwrap();
+    write!(energy_sum, "Δ(TΔS),{:.3},(kJ/mol)\n", tds).unwrap();
+    write!(energy_sum, "ΔΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
+    println!("Binding energy terms DIFF have been writen to {}", &def_name);
 }
 
 fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
     println!("Writing binding energy terms...");
-    let def_name = &get_outfile(&format!("MMPBSA_{}_traj.csv", sys_name));
+    let def_name = format!("MMPBSA_{}_traj.csv", sys_name);
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
     write!(energy_sum, "Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW,(kJ/mol)\n").unwrap();
     for i in 0..results.times.len() {
@@ -275,7 +325,7 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
     println!("Binding energy terms have been writen to {}", &def_name);
 }
 
-fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
+fn analyze_res(results: &Results, wd: &Path, sys_name: &String, ts: f64) {
     println!("Determine the residue range to output:");
     println!(" 1 Ligand and receptor residues within 3 A");
     println!(" 2 Ligand and receptor residues within 5 A");
@@ -283,22 +333,26 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     println!(" 4 Self-defined residue range");
     // 残基范围确定
     let i: i32 = get_input_selection();
-    let mut range_des = String::from("3A");
+    let mut range_des = String::from("4A");
     let target_res = match i {
         1 => {
-            get_residue_range(results, 3.0)
+            get_residue_range_from_results(results, 4.0)
         },
         2 => {
-            range_des = String::from("5A");
-            get_residue_range(results, 5.0)
+            range_des = String::from("6A");
+            get_residue_range_from_results(results, 6.0)
         },
         3 => {
-            println!("Input the cut-off distance you want to expand, default: 3");
-            let cutoff = get_input(3.0);
-            range_des = format!("{:.1}A", cutoff);
-            get_residue_range(results, cutoff)
+            range_des = String::from("8A");
+            get_residue_range_from_results(results, 8.0)
         },
         4 => {
+            println!("Input the cut-off distance you want to expand from ligand, default: 4");
+            let cutoff = get_input(4.0);
+            range_des = format!("{:.1}A", cutoff);
+            get_residue_range_from_results(results, cutoff)
+        },
+        5 => {
             println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
             let res_range = get_input(String::new());
             range_des = res_range.to_string();
@@ -321,12 +375,6 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
         }
     };
     
-    println!("Input the time point (in ns) to output (default: average):");
-    let ts = get_input(-1.0);
-    if ts * 1000.0 > *results.times.last().unwrap() || (ts < 0.0 && ts != -1.0) {
-        println!("Error input: {} ns", ts);
-        return;
-    }
     println!("Writing energy file(s)...");
     if ts != -1.0 {
         if let Some(ts_id) = get_time_index(ts, results) {
@@ -344,7 +392,7 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String) {
     println!("Finished writing residue-wised binding energy file(s).");
 }
 
-fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &HashSet<usize>, def_name: &String) {
+fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &Vec<usize>, def_name: &String) {
     let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
     for (i, res) in results.residues.iter().enumerate() {
@@ -363,7 +411,7 @@ fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &HashSe
     }
 }
 
-fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &HashSet<usize>, def_name: &String) {
+fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &Vec<usize>, def_name: &String) {
     let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
     for (i, res) in results.residues.iter().enumerate() {
@@ -382,33 +430,11 @@ fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &HashSet<usize>, 
     }
 }
 
-fn get_residue_range(results: &Results, cutoff: f64) -> HashSet<usize> {
-    let mut res_range: HashSet<usize> = HashSet::new();
+fn get_residue_range_from_results(results: &Results, cutoff: f64) -> Vec<usize> {
     let total_frames = results.times.len() - 1;
-    let ligand_x: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 0]]).collect();
-    let ligand_y: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 1]]).collect();
-    let ligand_z: Vec<f64> = results.ndx_lig.iter().map(|&a| results.coord[[total_frames, a, 2]]).collect();
-    for res in &results.residues {
-        let atoms_id: Vec<usize> = results.aps.atom_props.iter()
-            .filter_map(|a| if a.resid == res.id {
-                Some(a.id)
-            } else {
-                None
-            })
-            .collect();
-        for i in atoms_id {
-            let x = results.coord[[total_frames, i, 0]];
-            let y = results.coord[[total_frames, i, 1]];
-            let z = results.coord[[total_frames, i, 2]];
-            for j in 0..results.ndx_lig.len() {
-                if (x - ligand_x[j]).powi(2) + (y - ligand_y[j]).powi(2) + (z - ligand_z[j]).powi(2) < cutoff.powi(2) {
-                    res_range.insert(results.aps.atom_props[i].resid);
-                }
-            }
-        }
-    }
-    res_range
+    get_residue_range_ca(&results.coord.slice(s![total_frames, .., ..]).to_owned(), &results.ndx_lig, cutoff, &results.aps, &results.residues)
 }
+
 
 fn analyze_dh_res_traj(results: &Results, wd: &Path, def_name: &String) {
     println!("Writing binding energy terms...");
