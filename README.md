@@ -78,4 +78,3 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 ## New Folder (?
 - Add support of other PBSA solvers, e.g., AFMPB, Delphi2, and also built-in LPBE solver
 - Add figures: plotting data, 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
-- Multi-threading
