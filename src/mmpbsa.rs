@@ -37,7 +37,7 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
             } else {
                 None
             }).collect();
-        println!("Alanine scanning for: {}", as_res.join(", "));
+        println!("Mutations for alanine scanning: {}", as_res.join(", "));
     }
                 
     println!("Extracting atoms coordination...");
@@ -65,7 +65,7 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
             let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
             let mut sc_out: Vec<&AtomProperty> = as_atoms.iter().filter(|&a| !exclude_list.contains(&a.name.as_str())).collect();
             let xgs: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
-                if a.name.eq("CG") || a.name.eq("SG") || a.name.eq("OG") {
+                if a.name.eq("CG") || a.name.eq("CG1") || a.name.eq("CG2") || a.name.eq("SG") || a.name.eq("OG") || a.name.eq("OG1") {
                     Some(a.clone())
                 } else {
                     None
@@ -141,12 +141,15 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
                 None => asr.name.to_string()
             };
 
+            let mut new_residues = residues.clone();
+            new_residues[asr.id].name = "ALA".to_string();
+
             let mutation = format!("{}{}A", mutation, asr.nr);
             let sys_name = format!("{}-{}", sys_name, mutation);
             println!("Calculating binding energy for {}...", sys_name);
             let result_as = calculate_mmpbsa(&time_list, &new_coordinates,
                 bf, ef, dframe, total_frames, &new_aps, &temp_dir, 
-                &new_ndx_com, &new_ndx_rec, &new_ndx_lig, residues,
+                &new_ndx_com, &new_ndx_rec, &new_ndx_lig, &new_residues,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
             result_ala_scan.push(result_as);
         }

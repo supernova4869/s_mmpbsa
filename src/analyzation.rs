@@ -2,8 +2,10 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::exit;
+use indicatif::ProgressBar;
 use ndarray::{s, Array1, Array2, Array3};
 use crate::atom_property::{AtomProperties, AtomProperty};
+use crate::mmpbsa::set_style;
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
@@ -118,9 +120,13 @@ pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, tempera
         match sel_fun {
             -1 => {
                 let ts_ids = get_time_points(result_wt);
+                let pb = ProgressBar::new(results.len() as u64);
+                set_style(&pb);
                 for result in &results {
-                    write_energy_to_bf(result, &ts_ids, wd, &format!("{}-{}", sys_name, result.mutation))
+                    write_energy_to_bf(result, &ts_ids, wd, &format!("{}-{}", sys_name, result.mutation));
+                    pb.inc(1);
                 }
+                pb.finish();
                 println!("Finished writing pdb file(s) with binding energy information.");
             },
             0 => exit(0),
