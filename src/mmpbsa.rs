@@ -27,6 +27,18 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> (Results, Vec<Results>) {
     println!("Running MM/PB-SA calculations of {}...", sys_name);
+    if ala_list.len() > 0 {
+        let as_res: Vec<String> = residues.iter().filter_map(
+            |r| if ala_list.contains(&r.nr) && r.name.ne("GLY") && r.name.ne("ALA") {
+                match resname_3to1(&r.name) {
+                    Some(mutation) => Some(format!("{}{}A", mutation, r.nr)),
+                    None => Some(format!("{}{}A", r.name.to_string(), r.nr))
+                }
+            } else {
+                None
+            }).collect();
+        println!("Alanine scanning for: {}", as_res.join(", "));
+    }
                 
     println!("Extracting atoms coordination...");
     let (mut coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)

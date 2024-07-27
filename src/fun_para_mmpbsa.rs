@@ -253,11 +253,21 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                     },
                     2 => {
                         let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, &aps, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, &aps, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
+                            Some(residues[i].nr)
+                        } else {
+                            None
+                        } ).collect();
                     },
                     3 => {
                         let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, &aps, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, &aps, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
+                            Some(residues[i].nr)
+                        } else {
+                            None
+                        } ).collect();
                     },
                     4 => {
                         println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
