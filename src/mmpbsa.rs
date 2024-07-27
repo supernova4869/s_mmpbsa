@@ -29,7 +29,7 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
     println!("Running MM/PB-SA calculations of {}...", sys_name);
                 
     println!("Extracting atoms coordination...");
-    let (coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)
+    let (mut coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)
     let time_list: Vec<f32> = frames.iter().map(|f| f.time / 1000.0).collect();
 
     // calculate MM and PBSA
@@ -58,14 +58,46 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
                 } else {
                     None
                 }}).collect();
+            // 通过CB定位新的HB
+            let cb: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
+                if a.name.eq("CB") {
+                    Some(a.clone())
+                } else {
+                    None
+                }}).collect();
             for xg in xgs.iter() {
                 new_aps.atom_props[xg.id].change_atom(aps.at_map.get("HC"), "HC", &aps.radius_type);
+                // 获取新的HB坐标
+                for layer in 0..coordinates.shape()[0] {
+                    let cb_coords: Array1<f64> = coordinates.slice(s![layer, cb[0].id, ..]).to_owned();
+                    let hg_coords: Array1<f64> = coordinates.slice(s![layer, xg.id, ..]).to_owned();
+                    let new_hg_coord = transform_coordinate(&cb_coords, &hg_coords, 1.09);
+                    coordinates[[layer, xg.id, 0]] = new_hg_coord[0];
+                    coordinates[[layer, xg.id, 1]] = new_hg_coord[1];
+                    coordinates[[layer, xg.id, 2]] = new_hg_coord[2];
+                }
             }
             // 脯氨酸需要把CD改成H
+            // 通过N定位新的HN
             if asr.name.eq("PRO") {
+                let n: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
+                    if a.name.eq("N") {
+                        Some(a.clone())
+                    } else {
+                        None
+                    }}).collect();
                 sc_out.retain(|&a| a.name.ne("CD"));
-                let cg = sc_out.iter().find(|&&a| a.name == "CG").unwrap();
-                new_aps.atom_props[cg.id].change_atom(aps.at_map.get("HN"), "HN", &aps.radius_type);
+                let cd = as_atoms.iter().find(|&a| a.name == "CD").unwrap();
+                new_aps.atom_props[cd.id].change_atom(aps.at_map.get("H"), "HN", &aps.radius_type);
+                // 获取新的HN坐标
+                for layer in 0..coordinates.shape()[0] {
+                    let n_coords: Array1<f64> = coordinates.slice(s![layer, n[0].id, ..]).to_owned();
+                    let hn_coords: Array1<f64> = coordinates.slice(s![layer, cd.id, ..]).to_owned();
+                    let new_hn_coord = transform_coordinate(&n_coords, &hn_coords, 1.07);
+                    coordinates[[layer, cd.id, 0]] = new_hn_coord[0];
+                    coordinates[[layer, cd.id, 1]] = new_hn_coord[1];
+                    coordinates[[layer, cd.id, 2]] = new_hn_coord[2];
+                }
             }
             
             // delete other atoms in the scanned residue
@@ -397,4 +429,12 @@ fn parse_apbs_line(line: &str) -> f64 {
         .split(" ")
         .next().expect("Cannot get information from apbs")
         .parse().expect("Cannot parse value from apbs")
+}
+
+fn transform_coordinate(base: &Array1<f64>, origin: &Array1<f64>, target_length: f64) -> Array1<f64> {
+    let v_ch: Array1<f64> = origin - base;
+    let cur_len = v_ch.iter().map(|d| d.powi(2)).sum::<f64>().sqrt();
+    let lambda = target_length / cur_len;
+    let new_v_ch: Array1<f64> = Array1::from_iter(v_ch.iter().map(|r| r * lambda));
+    return base + new_v_ch
 }

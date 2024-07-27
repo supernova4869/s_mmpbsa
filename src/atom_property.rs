@@ -31,7 +31,7 @@ impl AtomProperty {
             self.type_id = new_type_id;
             self.name = new_name.to_string();
             let radii_table = get_radii_map(radius_type);
-            self.radius = get_radii(&radii_table, "HC");
+            self.radius = get_radii(&radii_table, new_name);
         }
     }
 }
