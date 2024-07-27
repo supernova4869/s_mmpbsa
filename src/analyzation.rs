@@ -3,11 +3,12 @@ use std::io::Write;
 use std::path::Path;
 use std::process::exit;
 use ndarray::{s, Array1, Array2, Array3};
-use crate::atom_property::AtomProperties;
+use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
 
+#[derive(Clone)]
 pub struct Results {
     pub aps: AtomProperties,
     pub residues: Vec<Residue>,
@@ -21,20 +22,20 @@ pub struct Results {
     pub sa: Array1<f64>,
     pub elec: Array1<f64>,
     pub vdw: Array1<f64>,
-    pub dh_res: Array2<f64>,
-    pub mm_res: Array2<f64>,
-    pub pb_res: Array2<f64>,
-    pub sa_res: Array2<f64>,
-    pub elec_res: Array2<f64>,
-    pub vdw_res: Array2<f64>,
+    pub dh_atom: Array2<f64>,
+    pub mm_atom: Array2<f64>,
+    pub pb_atom: Array2<f64>,
+    pub sa_atom: Array2<f64>,
+    pub elec_atom: Array2<f64>,
+    pub vdw_atom: Array2<f64>,
 }
 
 impl Results {
     pub fn new(aps: &AtomProperties, residues: &Vec<Residue>,
                ndx_lig: &Vec<usize>, times: &Array1<f64>, 
                coord: Array3<f64>, mutation: &str,
-               elec_res: &Array2<f64>, vdw_res: &Array2<f64>, 
-               pb_res: &Array2<f64>, sa_res: &Array2<f64>) -> Results {
+               elec_atom: &Array2<f64>, vdw_atom: &Array2<f64>, 
+               pb_atom: &Array2<f64>, sa_atom: &Array2<f64>) -> Results {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
         let mut mm: Array1<f64> = Array1::zeros(times.len());
         let mut pb: Array1<f64> = Array1::zeros(times.len());
@@ -42,16 +43,16 @@ impl Results {
         let mut elec: Array1<f64> = Array1::zeros(times.len());
         let mut vdw: Array1<f64> = Array1::zeros(times.len());
         for idx in 0..times.len() {
-            elec[idx] = elec_res.row(idx).sum();
-            vdw[idx] = vdw_res.row(idx).sum();
+            elec[idx] = elec_atom.row(idx).sum();
+            vdw[idx] = vdw_atom.row(idx).sum();
             mm[idx] = elec[idx] + vdw[idx];
-            pb[idx] = pb_res.row(idx).iter().sum();
-            sa[idx] = sa_res.row(idx).iter().sum();
+            pb[idx] = pb_atom.row(idx).iter().sum();
+            sa[idx] = sa_atom.row(idx).iter().sum();
             dh[idx] = mm[idx] + pb[idx] + sa[idx];
         }
 
-        let mm_res: Array2<f64> = elec_res + vdw_res;
-        let dh_res: Array2<f64> = &mm_res + pb_res + sa_res;
+        let mm_atom: Array2<f64> = elec_atom + vdw_atom;
+        let dh_atom: Array2<f64> = &mm_atom + pb_atom + sa_atom;
 
         Results {
             aps: aps.to_owned(),
@@ -66,12 +67,12 @@ impl Results {
             sa,
             elec,
             vdw,
-            dh_res,
-            mm_res,
-            pb_res: pb_res.to_owned(),
-            sa_res: sa_res.to_owned(),
-            elec_res: elec_res.to_owned(),
-            vdw_res: vdw_res.to_owned(),
+            dh_atom,
+            mm_atom,
+            pb_atom: pb_atom.to_owned(),
+            sa_atom: sa_atom.to_owned(),
+            elec_atom: elec_atom.to_owned(),
+            vdw_atom: vdw_atom.to_owned(),
         }
     }
 
@@ -103,79 +104,49 @@ impl Results {
 }
 
 pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
-    if result_as.is_empty() {
-        loop {
-            println!("\n                 ************ MM-PBSA analyzation ************");
-            println!("-1 Write residue-wised bind energy at specific time to pdb file");
-            println!(" 0 Exit program");
-            println!(" 1 View binding energy terms summary");
-            println!(" 2 Output binding energy terms by trajectory");
-            println!(" 3 Output binding energy terms by residue at specific time");
-            println!(" 4 Output residue-wised binding energy terms by time as default names");
-            let sel_fun: i32 = get_input_selection();
-            match sel_fun {
-                -1 => {
-                    let ts_ids = get_time_points(result_wt);
-                    write_energy_to_bf(result_wt, &ts_ids, wd, sys_name);
-                    println!("Finished writing pdb file(s) with binding energy information.");
-                },
-                0 => exit(0),
-                1 => analyze_summary(result_wt, temperature, wd, sys_name, settings),
-                2 => analyze_traj(result_wt, wd, sys_name),
-                3 => analyze_res(result_wt, wd, sys_name, get_input(-1.0)),
-                4 => output_all_details(result_wt, wd, sys_name),
-                _ => println!("Invalid input")
-            }
-        }
-    } else {
-        let result_diffs: Vec<Results> = result_as.iter().map(|r| Results::new(
-            &r.aps, &r.residues, &r.ndx_lig, &r.times, r.coord.to_owned(), &r.mutation,
-            &(&r.elec_res - &result_wt.elec_res), 
-            &(&r.vdw_res - &result_wt.vdw_res), 
-            &(&r.pb_res - &result_wt.pb_res), 
-            &(&r.sa_res - &result_wt.sa_res))).collect();
-        loop {
-            println!("\n                 ************ MM-PBSA analyzation (Alanine scanning) ************");
-            println!("-1 Write ALL residue-wised bind energy DIFF at specific time to pdb file");
-            println!(" 0 Exit program");
-            println!(" 1 View ALL binding energy terms DIFF summary");
-            println!(" 2 Output ALL binding energy terms DIFF by trajectory");
-            println!(" 3 Output ALL binding energy terms DIFF by residue at specific time");
-            println!(" 4 Output ALL residue-wised binding energy terms DIFF by time as default names");
-            let sel_fun: i32 = get_input_selection();
-            match sel_fun {
-                -1 => {
-                    let ts_ids = get_time_points(result_wt);
-                    for r_df in &result_diffs {
-                        write_energy_to_bf(r_df, &ts_ids, wd, &format!("{}-{}", sys_name, r_df.mutation))
-                    }
-                    println!("Finished writing pdb file(s) with binding energy information.");
-                },
-                0 => exit(0),
-                1 => {
-                    for r_df in &result_diffs {
-                        analyze_summary_as(r_df, temperature, wd, &format!("{}-{}", sys_name, r_df.mutation), settings)
-                    }
-                },
-                2 => {
-                    for r_df in &result_diffs {
-                        analyze_traj(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation))
-                    }
-                },
-                3 => {
-                    println!("Input the time point (in ns) to output (default: average):");
-                    let ts = get_input(-1.0);
-                    for r_df in &result_diffs {
-                        analyze_res(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation), ts)
-                    }
-                },
-                4 => {
-                    for r_df in &result_diffs {
-                        output_all_details(r_df, wd, &format!("{}-{}", sys_name, r_df.mutation))
-                    }
-                },
-                _ => println!("Invalid input")
-            }
+    let mut results = result_as.clone();
+    results.insert(0, result_wt.clone());
+    loop {
+        println!("\n                 ************ MM-PBSA analyzation (Alanine scanning) ************");
+        println!("-1 Write ALL residue-wised binding energy at specific time to pdb file");
+        println!(" 0 Exit program");
+        println!(" 1 View ALL binding energy terms summary");
+        println!(" 2 Output ALL binding energy terms by trajectory");
+        println!(" 3 Output ALL binding energy terms by residue at specific time");
+        println!(" 4 Output ALL residue-wised binding energy terms by time as default names");
+        let sel_fun: i32 = get_input_selection();
+        match sel_fun {
+            -1 => {
+                let ts_ids = get_time_points(result_wt);
+                for result in &results {
+                    write_energy_to_bf(result, &ts_ids, wd, &format!("{}-{}", sys_name, result.mutation))
+                }
+                println!("Finished writing pdb file(s) with binding energy information.");
+            },
+            0 => exit(0),
+            1 => {
+                for result in &results {
+                    analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation), settings)
+                }
+            },
+            2 => {
+                for result in &results {
+                    analyze_traj(result, wd, &format!("{}-{}", sys_name, result.mutation))
+                }
+            },
+            3 => {
+                println!("Input the time point (in ns) to output (default: average):");
+                let ts = get_input(-1.0);
+                for result in &results {
+                    analyze_res(result, wd, &format!("{}-{}", sys_name, result.mutation), ts)
+                }
+            },
+            4 => {
+                for result in &results {
+                    output_all_details(result, wd, &format!("{}-{}", sys_name, result.mutation))
+                }
+            },
+            _ => println!("Invalid input")
         }
     }
 }
@@ -217,19 +188,18 @@ fn write_energy_to_bf(results: &Results, ts_ids: &Vec<usize>, wd: &Path, sys_nam
 fn write_bf_pdb(results: &Results, sys_name: &String, ts_id: usize, wd: &Path) {
     let mut f = fs::File::create(wd.join(&format!("MMPBSA_binding_energy_{}_{}ns.pdb", sys_name, results.times[ts_id]))).unwrap();
     let coord = &results.coord;
-    writeln!(f, "REMARK  The B-factor column is filled with the INVERSED residue-wised binding energy (ΔH), in kcal/mol").unwrap();
+    writeln!(f, "REMARK  Generated by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
+    writeln!(f, "REMARK  B-factor column filled with INVERSED receptor-ligand interaction energy (kJ/mol)").unwrap();
     for atom in &results.aps.atom_props {
-        let res_id = atom.resid;
-        let atom_name = atom.name.as_str();
-        write_atom_line(res_id, atom.id, atom_name, &results, 
-            coord[[ts_id, atom.id, 0]], coord[[ts_id, atom.id, 1]], coord[[ts_id, atom.id, 2]], &mut f);
+        write_atom_line(&results, atom, ts_id, coord[[ts_id, atom.id, 0]], coord[[ts_id, atom.id, 1]], coord[[ts_id, atom.id, 2]], &mut f);
     }
+    writeln!(f, "END").unwrap();
 }
 
-fn write_atom_line(res_id: usize, atom_id: usize, atom_name: &str, results: &Results, x: f64, y: f64, z: f64, f: &mut File) {
+fn write_atom_line(results: &Results, atom: &AtomProperty, ts_id: usize, x: f64, y: f64, z: f64, f: &mut File) {
     writeln!(f, "ATOM  {:5} {:<4} {:<3} A{:4}    {:8.3}{:8.3}{:8.3}  1.00{:6.2}           {:<2}", 
-                 atom_id + 1, atom_name, results.residues[res_id].name, results.residues[res_id].nr, x, y, z, 
-                 -results.dh_res[[results.dh_res.shape()[0] - 1, res_id]] / 4.18, atom_name.get(0..1).unwrap()).unwrap();
+                atom.id + 1, atom.name, results.residues[atom.resid].name, results.residues[atom.resid].nr, x, y, z, 
+                -results.dh_atom[[ts_id, atom.id]], atom.name.get(0..1).unwrap()).unwrap();
 }
 
 fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
@@ -272,43 +242,6 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
         write!(energy_sum, "Ki,Unavailable,Ki=exp(ΔG/RT) (nM)\n").unwrap();
     }
     println!("Binding energy terms have been writen to {}", &def_name);
-}
-
-fn analyze_summary_as(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
-    let (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg,
-        vdw_avg, tds, dg, ki) = results.summary(temperature, settings);
-    println!("\nEnergy terms summary - {}:", results.mutation);
-    println!("ΔΔH: {:.3} kJ/mol", dh_avg);
-    println!("ΔΔMM: {:.3} kJ/mol", mm_avg);
-    println!("ΔΔPB: {:.3} kJ/mol", pb_avg);
-    println!("ΔΔSA: {:.3} kJ/mol", sa_avg);
-    println!();
-    println!("ΔΔelec: {:.3} kJ/mol", elec_avg);
-    println!("ΔΔvdw: {:.3} kJ/mol", vdw_avg);
-    println!();
-    println!("Δ(TΔS): {:.3} kJ/mol", tds);
-    println!("ΔΔG: {:.3} kJ/mol", dg);
-    if dg <= 0.0 {
-        println!("Ki: {:.3} nM", ki);
-    } else {
-        println!("Ki: Unavailable");
-    }
-
-    let def_name = format!("MMPBSA_{}.csv", sys_name);
-    println!("Writing binding energy terms DIFF...");
-    let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
-    write!(energy_sum, "Energy Term,value,info\n").unwrap();
-    write!(energy_sum, "ΔΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)\n", dh_avg).unwrap();
-    write!(energy_sum, "ΔΔMM,{:.3},ΔMM=Δelec+ΔvdW (kJ/mol)\n", mm_avg).unwrap();
-    write!(energy_sum, "ΔΔPB,{:.3},(kJ/mol)\n", pb_avg).unwrap();
-    write!(energy_sum, "ΔΔSA,{:.3},(kJ/mol)\n", sa_avg).unwrap();
-    write!(energy_sum, "\n").unwrap();
-    write!(energy_sum, "ΔΔelec,{:.3},(kJ/mol)\n", elec_avg).unwrap();
-    write!(energy_sum, "ΔΔvdW,{:.3},(kJ/mol)\n", vdw_avg).unwrap();
-    write!(energy_sum, "\n").unwrap();
-    write!(energy_sum, "Δ(TΔS),{:.3},(kJ/mol)\n", tds).unwrap();
-    write!(energy_sum, "ΔΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
-    println!("Binding energy terms DIFF have been writen to {}", &def_name);
 }
 
 fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
@@ -395,18 +328,42 @@ fn analyze_res(results: &Results, wd: &Path, sys_name: &String, ts: f64) {
 fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &Vec<usize>, def_name: &String) {
     let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
-    for (i, res) in results.residues.iter().enumerate() {
+    for res in results.residues.iter() {
         if !target_res.contains(&res.id) {
             continue;
         }
         write!(energy_res, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
             res.nr, res.name,
-            results.dh_res[[ts_id, i]],
-            results.mm_res[[ts_id, i]],
-            results.pb_res[[ts_id, i]],
-            results.sa_res[[ts_id, i]],
-            results.elec_res[[ts_id, i]],
-            results.vdw_res[[ts_id, i]])
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.dh_atom[[ts_id, a.resid]])
+            } else {
+                None
+            } ).sum::<f64>(),
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.mm_atom[[ts_id, a.resid]])
+            } else {
+                None
+            } ).sum::<f64>(),
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.pb_atom[[ts_id, a.resid]])
+            } else {
+                None
+            } ).sum::<f64>(),
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.sa_atom[[ts_id, a.resid]])
+            } else {
+                None
+            } ).sum::<f64>(),
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.elec_atom[[ts_id, a.resid]])
+            } else {
+                None
+            } ).sum::<f64>(),
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.vdw_atom[[ts_id, a.resid]])
+            } else {
+                None
+            } ).sum::<f64>())
             .expect("Error while writing residue-wised energy file");
     }
 }
@@ -414,18 +371,42 @@ fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &Vec<us
 fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &Vec<usize>, def_name: &String) {
     let mut energy_res = fs::File::create(wd.join(def_name)).unwrap();
     energy_res.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
-    for (i, res) in results.residues.iter().enumerate() {
+    for res in results.residues.iter() {
         if !target_res.contains(&res.id) {
             continue;
         }
         write!(energy_res, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
             res.nr, res.name, 
-            results.dh_res.column(i).mean().unwrap(),
-            results.mm_res.column(i).mean().unwrap(),
-            results.pb_res.column(i).mean().unwrap(),
-            results.sa_res.column(i).mean().unwrap(),
-            results.elec_res.column(i).mean().unwrap(),
-            results.vdw_res.column(i).mean().unwrap())
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.dh_atom.column(a.resid).sum())
+            } else {
+                None
+            } ).sum::<f64>() / results.times.len() as f64,
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.mm_atom.column(a.resid).sum())
+            } else {
+                None
+            } ).sum::<f64>() / results.times.len() as f64,
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.pb_atom.column(a.resid).sum())
+            } else {
+                None
+            } ).sum::<f64>() / results.times.len() as f64,
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.sa_atom.column(a.resid).sum())
+            } else {
+                None
+            } ).sum::<f64>() / results.times.len() as f64,
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.elec_atom.column(a.resid).sum())
+            } else {
+                None
+            } ).sum::<f64>() / results.times.len() as f64,
+            results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
+                Some(results.vdw_atom.column(a.resid).sum())
+            } else {
+                None
+            } ).sum::<f64>() / results.times.len() as f64)
             .expect("Error while writing residue-wised energy file");
     }
 }
@@ -445,7 +426,7 @@ fn analyze_dh_res_traj(results: &Results, wd: &Path, def_name: &String) {
     }
     for i in 0..results.times.len() {
         energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
-        for dh in &results.dh_res.row(i) {
+        for dh in &results.dh_atom.row(i) {
             energy_res.write_all(format!(",{:.3}", dh).as_bytes()).unwrap();
         }
     }
@@ -462,7 +443,7 @@ fn analyze_mm_res_traj(results: &Results, wd: &Path, def_name: &String) {
     }
     for i in 0..results.times.len() {
         energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
-        for mm in &results.mm_res.row(i) {
+        for mm in &results.mm_atom.row(i) {
             energy_res.write_all(format!(",{:.3}", mm).as_bytes()).unwrap();
         }
     }
@@ -479,7 +460,7 @@ fn analyze_pb_res_traj(results: &Results, wd: &Path, def_name: &String) {
     }
     for i in 0..results.times.len() {
         energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
-        for pb in &results.pb_res.row(i) {
+        for pb in &results.pb_atom.row(i) {
             energy_res.write_all(format!(",{:.3}", pb).as_bytes()).unwrap();
         }
     }
@@ -496,7 +477,7 @@ fn analyze_sa_res_traj(results: &Results, wd: &Path, def_name: &String) {
     }
     for i in 0..results.times.len() {
         energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
-        for sa in &results.sa_res.row(i) {
+        for sa in &results.sa_atom.row(i) {
             energy_res.write_all(format!(",{:.3}", sa).as_bytes()).unwrap();
         }
     }
@@ -513,7 +494,7 @@ fn analyze_elec_res_traj(results: &Results, wd: &Path, def_name: &String) {
     }
     for i in 0..results.times.len() {
         energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
-        for elec in &results.elec_res.row(i) {
+        for elec in &results.elec_atom.row(i) {
             energy_res.write_all(format!(",{:.3}", elec).as_bytes()).unwrap();
         }
     }
@@ -530,7 +511,7 @@ fn analyze_vdw_res_traj(results: &Results, wd: &Path, def_name: &String) {
     }
     for i in 0..results.times.len() {
         energy_res.write_all(format!("\n{}", results.times[i]).as_bytes()).unwrap();
-        for vdw in &results.vdw_res.row(i) {
+        for vdw in &results.vdw_atom.row(i) {
             energy_res.write_all(format!(",{:.3}", vdw).as_bytes()).unwrap();
         }
     }

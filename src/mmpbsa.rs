@@ -6,7 +6,7 @@ use xdrfile::*;
 use crate::settings::Settings;
 use crate::utils::resname_3to1;
 use ndarray::parallel::prelude::*;
-use ndarray::{s, Array1, Array2, Array3, ArrayBase, Axis, Dim, OwnedRepr, ViewRepr};
+use ndarray::{s, Array1, Array2, Array3, ArrayBase, Axis, Dim, ViewRepr};
 use std::process::Command;
 use std::rc::Rc;
 use std::env;
@@ -153,10 +153,10 @@ fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, bf: usize, 
                     ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                     residues: &Vec<Residue>, sys_name: &String, mutation: &str,
                     pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
-    let mut elec_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
-    let mut vdw_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
-    let mut pb_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
-    let mut sa_res: Array2<f64> = Array2::zeros((total_frames, residues.len()));
+    let mut elec_atom: Array2<f64> = Array2::zeros((total_frames, aps.atom_props.len()));
+    let mut vdw_atom: Array2<f64> = Array2::zeros((total_frames, aps.atom_props.len()));
+    let mut pb_atom: Array2<f64> = Array2::zeros((total_frames, aps.atom_props.len()));
+    let mut sa_atom: Array2<f64> = Array2::zeros((total_frames, aps.atom_props.len()));
     
     // parameters for elec calculation
     let coeff = Coefficients::new(pbe_set);
@@ -171,32 +171,35 @@ fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, bf: usize, 
     let pgb = ProgressBar::new(total_frames as u64);
     set_style(&pgb);
     pgb.inc(0);
-    let mut idx = 0;
-    pgb.set_message(format!("at {} ns...", times[idx]));
+    let mut frame_id = 0;
+    pgb.set_message(format!("at {} ns...", times[frame_id]));
     for cur_frm in (bf..=ef).step_by(dframe) {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if ndx_lig_norm[0] != ndx_rec_norm[0] {
-            let (res_elec, res_vdw) = 
-                calc_mm(&ndx_rec_norm, &ndx_lig_norm, aps, &coord, residues, &coeff, &settings);
-            elec_res.row_mut(idx).assign(&res_elec);
-            vdw_res.row_mut(idx).assign(&res_vdw);
+            let (de_elec, de_vdw) = 
+                calc_mm(&ndx_rec_norm, &ndx_lig_norm, aps, &coord, &coeff, &settings);
+            elec_atom.row_mut(frame_id).assign(&de_elec);
+            vdw_atom.row_mut(frame_id).assign(&de_vdw);
         }
 
         // PBSA
         if settings.apbs.is_some() {
             prepare_pqr(cur_frm, &time_list, &temp_dir, sys_name, &coordinates, ndx_com_norm, &ndx_rec_norm, ndx_lig_norm, aps);
-            calc_pbsa(idx, &coord, time_list, ndx_rec_norm, ndx_lig_norm, ndx_com_norm,
-                &mut pb_res, &mut sa_res, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
+            let (de_pb, de_sa) = 
+                calc_pbsa(&coord, time_list, ndx_rec_norm, ndx_lig_norm, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
+            pb_atom.row_mut(frame_id).assign(&de_pb);
+            sa_atom.row_mut(frame_id).assign(&de_sa);
         }
 
         pgb.inc(1);
         pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s", 
-                                        times[idx],
-                                        vdw_res.row(idx).sum() + elec_res.row(idx).sum() + pb_res.row(idx).sum() + sa_res.row(idx).sum(),
+                                        times[frame_id],
+                                        vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum() + 
+                                        pb_atom.row(frame_id).sum() + sa_atom.row(frame_id).sum(),
                                         pgb.eta().as_secs()));
 
-        idx += 1;
+        frame_id += 1;
     }
     pgb.finish();
 
@@ -213,20 +216,17 @@ fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, bf: usize, 
         &times,
         coordinates.clone(),
         mutation,
-        &elec_res,
-        &vdw_res,
-        &pb_res,
-        &sa_res,
+        &elec_atom,
+        &vdw_atom,
+        &pb_atom,
+        &sa_atom,
     )
 }
 
 fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomProperties, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, 
-            residues: &Vec<Residue>, coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
-    let kj_elec = coeff.kj_elec;
-    let kap = coeff.kap;
-    let pdie = coeff.pdie;
-    let mut de_elec: Array1<f64> = Array1::zeros(residues.len());
-    let mut de_vdw: Array1<f64> = Array1::zeros(residues.len());
+            coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
+    let mut de_elec: Array1<f64> = Array1::zeros(aps.atom_props.len());
+    let mut de_vdw: Array1<f64> = Array1::zeros(aps.atom_props.len());
 
     for &i in ndx_rec_norm {
         let qi = aps.atom_props[i].charge;
@@ -243,38 +243,37 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
             let xj = coord[[j, 0]];
             let yj = coord[[j, 1]];
             let zj = coord[[j, 2]];
-            let r = f64::sqrt((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2));
-            if r < settings.r_cutoff {
+            let r = ((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2)).sqrt();
+            if r <= settings.r_cutoff {
                 let e_elec = match settings.use_dh {
                     false => qi * qj / r,
-                    true => qi * qj / r * f64::exp(-kap * r)   // doi: 10.1088/0256-307X/38/1/018701
-                }; // use A
+                    true => qi * qj / r * (-coeff.kap * r).exp()   // doi: 10.1088/0256-307X/38/1/018701
+                }; // use A for elec
+                // use nm for vdW
                 let r = r / 10.0;
                 let e_vdw = if aps.c10[[ci, cj]] < 1e-10 {
-                    (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6) // use nm
+                    (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6)
                 } else {
                     // use 12-10 style to calculate LJ for pdbqt hbond
                     aps.c12[[ci, cj]] / r.powi(12) - aps.c10[[ci, cj]] / r.powi(10)
                 };
-                de_elec[aps.atom_props[i].resid] += e_elec;
-                de_elec[aps.atom_props[j].resid] += e_elec;
-                de_vdw[aps.atom_props[i].resid] += e_vdw;
-                de_vdw[aps.atom_props[j].resid] += e_vdw;
+                de_elec[aps.atom_props[i].id] += e_elec;
+                de_elec[aps.atom_props[j].id] += e_elec;
+                de_vdw[aps.atom_props[i].id] += e_vdw;
+                de_vdw[aps.atom_props[j].id] += e_vdw;
             }
         }
     }
 
-    de_elec.par_iter_mut().for_each(|p| *p *= kj_elec / (2.0 * pdie));
+    de_elec.par_iter_mut().for_each(|p| *p *= coeff.kj_elec / (2.0 * coeff.pdie));
     de_vdw.par_iter_mut().for_each(|p| *p /= 2.0);
 
     return (de_elec, de_vdw)
 }
 
-fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, time_list: &Vec<f32>, 
-            ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, ndx_com_norm: &Vec<usize>,
-            pb_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>, sa_res: &mut ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>,
-            cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
-            aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) {
+fn calc_pbsa(coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, time_list: &Vec<f32>, 
+            ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
+            aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is calculated by s_mmpbsa
@@ -369,40 +368,24 @@ fn calc_pbsa(idx: usize, coord: &ArrayBase<ViewRepr<&f64>, Dim<[usize; 2]>>, tim
 
         let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
         let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|i| gamma * *i + bias / com_sa.len() as f64).collect());
-        let rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
-        let rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|i| gamma * *i + bias / rec_sa.len() as f64).collect());
-        let lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
-        let lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|i| gamma * *i + bias / lig_sa.len() as f64).collect());
+        let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
+        let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|i| gamma * *i + bias / rec_sa.len() as f64).collect());
+        let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
+        let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|i| gamma * *i + bias / lig_sa.len() as f64).collect());
 
-        // residue decomposition
-        let offset_rec = match ndx_lig_norm[0].cmp(&ndx_rec_norm[0]) {
-            Ordering::Less => 0,
-            Ordering::Greater => ndx_rec_norm.len(),
-            Ordering::Equal => 0
-        };
-        let offset_lig = match ndx_rec_norm[0].cmp(&ndx_lig_norm[0]) {
-            Ordering::Less => 0,
-            Ordering::Greater => ndx_lig_norm.len(),
-            Ordering::Equal => 0
-        };
-
-        if ndx_rec_norm[0] == ndx_lig_norm[0] {
-            // if no ligand, pb_com = pb_lig = 0, so real energy is inversed rec_pbsa
-            for &i in ndx_com_norm {
-                pb_res[[idx, aps.atom_props[i].resid]] += rec_pb[i - offset_lig];
-                sa_res[[idx, aps.atom_props[i].resid]] += rec_sa[i - offset_lig];
-            }
+        if ndx_rec_norm[0] < ndx_lig_norm[0] {
+            rec_pb.append(Axis(0), lig_pb.view()).unwrap();
+            rec_sa.append(Axis(0), lig_sa.view()).unwrap();
+            return (com_pb - rec_pb, com_sa - rec_sa)
+        } else if ndx_rec_norm[0] > ndx_lig_norm[0] {
+            lig_pb.append(Axis(0), rec_pb.view()).unwrap();
+            lig_sa.append(Axis(0), rec_sa.view()).unwrap();
+            return (com_pb - lig_pb, com_sa - lig_sa)
         } else {
-            for &i in ndx_com_norm {
-                if ndx_rec_norm.contains(&i) {
-                    pb_res[[idx, aps.atom_props[i].resid]] += com_pb[i] - rec_pb[i - offset_lig];
-                    sa_res[[idx, aps.atom_props[i].resid]] += com_sa[i] - rec_sa[i - offset_lig];
-                } else {
-                    pb_res[[idx, aps.atom_props[i].resid]] += com_pb[i] - lig_pb[i - offset_rec];
-                    sa_res[[idx, aps.atom_props[i].resid]] += com_sa[i] - lig_sa[i - offset_rec];
-                }
-            }
+            return (rec_pb, rec_sa)
         }
+    } else {
+        return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
     }
 }
 
