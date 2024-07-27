@@ -205,7 +205,7 @@ fn write_atom_line(results: &Results, atom: &AtomProperty, ts_id: usize, x: f64,
 fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
     let (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg,
         vdw_avg, tds, dg, ki) = results.summary(temperature, settings);
-    println!("Energy terms summary:");
+    println!("\nEnergy terms summary:");
     println!("ΔH: {:.3} kJ/mol", dh_avg);
     println!("ΔMM: {:.3} kJ/mol", mm_avg);
     println!("ΔPB: {:.3} kJ/mol", pb_avg);
