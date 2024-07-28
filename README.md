@@ -40,17 +40,19 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 5 # set time interval, usually analysis per 1 ns
 1
 0 # go to next step (MM/PB-SA Parameters)
-# Usually no need to change. The PB and SA parameters could be modified by 8 and 9
+10 # Do Alanine scanning
+1 # select residues within 4 A
+# Other options usually no need to change. The PB and SA parameters could be modified by 8 and 9
 0 # go to next step (start calculation)
 [return] # use default system name or input your name
 # Wait for calculation finish
+-1 # write pdb file with INVERSED binding energy
+10 # input the time point
 1 # view summary
-[return] # output energy summary with default file name or input your name
 2 # output energy by time
-[return]
 3 # output energy by residue
 1 # write residues within 3 A (also try other options)
-[return]
+... # write residues within 3 A for alanine scanning samples
 4 # output other infomations
 -1 # view pdb file with residue-wised INVERSED binding energy filled in B-factor column
 0 # exit s_mmpbsa program
