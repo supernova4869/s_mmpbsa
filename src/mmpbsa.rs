@@ -312,8 +312,8 @@ fn calc_mm(ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, aps: &AtomPrope
         }
     }
 
-    de_elec.par_iter_mut().for_each(|p| *p *= coeff.kj_elec / (2.0 * coeff.pdie));
-    de_vdw.par_iter_mut().for_each(|p| *p /= 2.0);
+    de_elec = de_elec * coeff.kj_elec / coeff.pdie / 2.0;
+    de_vdw = de_vdw / 2.0;
 
     return (de_elec, de_vdw)
 }
