@@ -78,5 +78,5 @@ Dr. Jiaxing Zhang (Contact: zhangjiaxing7137@tju.edu.cn, Tianjin University)
 If you encountered any difficulty while using s_mmpbsa, or you found any bugs, or you have any suggestion on improving s_mmpbsa, please E-mail me or join my QQ group 864191465 to describe.
 
 ## New Folder (?
-- Add support of other PBSA solvers, e.g., AFMPB, Delphi2, and also built-in LPBE solver
+- Add support of other PBSA solvers, e.g., Delphi2, and also built-in LPBE solver
 - Add figures: plotting data, 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
