@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::parse_pdbqt::PDBQT;
 use crate::settings::Settings;
 use crate::utils::get_input_selection;
-use crate::{convert_cur_dir, confirm_file_validity, check_apbs};
+use crate::{check_apbs, check_delphi, confirm_file_validity, convert_cur_dir};
 use crate::fun_para_system::{set_para_trj, set_para_dock};
 use crate::parse_tpr::TPR;
 
@@ -17,11 +17,19 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
         loop {
             println!("\n                 ************ MM/PB-SA Files ************");
             println!("-10 Exit program");
-            println!(" -2 Toggle whether debug mode, current: {}", settings.debug_mode);
-            println!(" -1 Set apbs path, current: {}", match &settings.apbs {
+            println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
                 Some(s) => s.to_string(),
                 None => String::from("Not set")
             });
+            println!(" -3 Set apbs path, current: {}", match &settings.apbs_path {
+                Some(s) => s.to_string(),
+                None => String::from("Not set")
+            });
+            println!(" -2 Set PBSA kernel, current: {}", match &settings.pbsa_kernel {
+                Some(s) => s.to_string(),
+                None => String::from("Not set")
+            });
+            println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
             println!("  0 Go to next step");
             println!("  1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
                 0 => "undefined",
@@ -33,13 +41,30 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
             });
             let i = get_input_selection();
             match i {
-                -2 => settings.debug_mode = !settings.debug_mode,
-                -1 => {
-                    println!("Input APBS path (if empty, means not to do PBSA calculation):");
+                -1 => settings.debug_mode = !settings.debug_mode,
+                -2 => {
+                    println!("Input PBSA kernel (if empty, means not to do PBSA calculation):");
                     let s: String = get_input_selection();
-                    match check_apbs(Some(s)) {
-                        Some(s) => settings.apbs = Some(s),
-                        None => settings.apbs = None
+                    if s.eq("apbs") || s.eq("delphi") {
+                        settings.pbsa_kernel = Some(s)
+                    } else {
+                        settings.pbsa_kernel = None
+                    }
+                }
+                -3 => {
+                    println!("Input APBS path:");
+                    let s: String = get_input_selection();
+                    match check_apbs(&Some(s)) {
+                        Some(s) => settings.apbs_path = Some(s),
+                        None => settings.apbs_path = None
+                    }
+                }
+                -4 => {
+                    println!("Input Delphi path:");
+                    let s: String = get_input_selection();
+                    match check_delphi(&Some(s)) {
+                        Some(s) => settings.delphi_path = Some(s),
+                        None => settings.delphi_path = None
                     }
                 }
                 0 => {
@@ -78,6 +103,7 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
             };
         }
     } else { // pdbqt
+        // FUCK!!! I will combine it with above sooner or later
         let receptor = PDBQT::new(&infile);
         println!("\nFinished loading receptor pdbqt.");
         println!("{}", receptor);
@@ -87,7 +113,7 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
             println!("\n                 ************ MM/PB-SA Files ************");
             println!("-10 Exit program");
             println!(" -2 Toggle whether debug mode, current: {}", settings.debug_mode);
-            println!(" -1 Set apbs path, current: {}", match &settings.apbs {
+            println!(" -1 Set apbs path, current: {}", match &settings.apbs_path {
                 Some(s) => s.to_string(),
                 None => String::from("Not set")
             });
@@ -103,9 +129,9 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
                 -1 => {
                     println!("Input APBS path (if empty, means not to do PBSA calculation):");
                     let s: String = get_input_selection();
-                    match check_apbs(Some(s)) {
-                        Some(s) => settings.apbs = Some(s),
-                        None => settings.apbs = None
+                    match check_apbs(&Some(s)) {
+                        Some(s) => settings.apbs_path = Some(s),
+                        None => settings.apbs_path = None
                     }
                 }
                 0 => {

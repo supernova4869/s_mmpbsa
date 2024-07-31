@@ -33,7 +33,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
         println!("  0 Start MM/PB-SA calculation");
         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
         println!("  2 Toggle whether to use interaction entropy (IE) method, current: {}", settings.use_ts);
-        println!("  3 Select atom radius type, current: {}", radius_types[settings.rad_type]);
+        println!("  3 Select atom radius type, current: {}", radius_types[settings.radius_type]);
         println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
         println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
@@ -57,7 +57,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                         paras.write_all("Ligand group: None\n".as_bytes()).unwrap();
                     }
                 }
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
                 for ap in &aps.atom_props {
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
@@ -87,7 +87,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
                 paras.write_all(format!("Use Debye-Huckel shielding method: {}\n", settings.use_dh).as_bytes()).unwrap();
                 paras.write_all(format!("Use entropy contribution: {}\n", settings.use_ts).as_bytes()).unwrap();
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
                 paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
                 paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
@@ -97,8 +97,8 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 println!("PBSA parameters have been written to paras_pbsa.txt");
             }
             0 => {
-                println!("Applying {} radius...", radius_types[settings.rad_type]);
-                aps.apply_radius(settings.rad_type, &tpr.get_at_list(), ndx_com.len(), &radius_types);
+                println!("Applying {} radius...", radius_types[settings.radius_type]);
+                aps.apply_radius(settings.radius_type, &tpr.get_at_list(), ndx_com.len(), &radius_types);
 
                 // Temp directory for PBSA
                 let mut sys_name = String::from("_system");
@@ -109,7 +109,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                     sys_name = input.trim().to_string();
                 }
                 let temp_dir = wd.join(&sys_name);
-                if let Some(_) = settings.apbs.as_ref() {
+                if let Some(_) = settings.apbs_path.as_ref() {
                     println!("Temporary files will be placed at {}/", temp_dir.display());
                     if !temp_dir.is_dir() {
                         fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
@@ -161,16 +161,16 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    settings.rad_type = 3;
+                    settings.radius_type = 3;
                 } else {
                     let s = s.trim().parse().expect("Input not valid number.");
                     if s == 0 {
-                        settings.rad_type = 0;
+                        settings.radius_type = 0;
                     } else if s < radius_types.len() {
-                        settings.rad_type = s;
+                        settings.radius_type = s;
                     } else {
                         println!("Radius type {} not supported. Will use mBondi instead.", radius_types[s]);
-                        settings.rad_type = 3;
+                        settings.radius_type = 3;
                     }
                 }
             }
@@ -305,7 +305,7 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, 
                        ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, wd: &Path, residues: &Vec<Residue>, settings: &mut Settings) {
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
-    settings.rad_type = 0;
+    settings.radius_type = 0;
     let mut pbe_set = PBESet::new(temperature);
     let mut pba_set = PBASet::new(temperature);
     let mut ala_list: Vec<i32> = vec![];
@@ -331,7 +331,7 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, 
             -10 => return,
             -1 => {
                 let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
                 for ap in &aps.atom_props {
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
@@ -368,7 +368,7 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, 
                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
                 paras.write_all(format!("Use Debye-Huckel shielding method: {}\n", settings.use_dh).as_bytes()).unwrap();
                 paras.write_all(format!("Use entropy contribution: {}\n", settings.use_ts).as_bytes()).unwrap();
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.rad_type]).as_bytes()).unwrap();
+                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
                 paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
                 paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
@@ -387,7 +387,7 @@ pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, 
                     sys_name = input.trim().to_string();
                 }
                 let temp_dir = wd.join(&sys_name);
-                if let Some(_) = settings.apbs.as_ref() {
+                if let Some(_) = settings.apbs_path.as_ref() {
                     println!("Temporary files will be placed at {}/", temp_dir.display());
                     if !temp_dir.is_dir() {
                         fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());

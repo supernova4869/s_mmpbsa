@@ -35,9 +35,10 @@ fn main() {
             Settings::new()
         }
     };
-    let programs = check_basic_programs(settings.gmx, settings.apbs);
-    settings.gmx = programs.0;
-    settings.apbs = programs.1;
+    let programs = check_basic_programs(&settings);
+    settings.gmx_path = programs.0;
+    settings.apbs_path = programs.1;
+    settings.delphi_path = programs.2;
 
     let args: Vec<String> = env::args().collect();
     let mut infile: String = String::new();
@@ -99,7 +100,7 @@ fn get_dump(infile: &String, settings: &Settings) -> String {
     let tpr_name = match infile.ends_with(".tpr") {
         true => {
             println!("Found tpr file: {}", infile);
-            let gmx = settings.gmx.as_ref().unwrap();
+            let gmx = settings.gmx_path.as_ref().unwrap();
             let dump_to = dump_path.to_str().unwrap().to_string();
             dump_tpr(&infile, &dump_to, gmx);
             dump_to
@@ -189,18 +190,39 @@ fn get_built_in_apbs() -> Option<String> {
     }
 }
 
-fn check_basic_programs(gmx: Option<String>, apbs: Option<String>) -> (Option<String>, Option<String>) {
-    (check_gromacs(gmx), check_apbs(apbs))
+fn get_built_in_delphi() -> Option<String> {
+    if cfg!(windows) {
+        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+            .parent()
+            .expect("Cannot get current s_mmpbsa program directory.")
+            .join("programs").join("delphi")
+            .join("win").join("delphi.exe").to_str()
+            .expect("The built-in delphi not found.").to_string())
+    } else if cfg!(unix) {
+        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+            .parent()
+            .expect("Cannot get current s_mmpbsa program directory.")
+            .join("programs").join("delphi")
+            .join("linux").join("delphi").to_str()
+            .expect("The built-in delphi not found.").to_string())
+    } else {
+        println!("Built-in delphi not found for current system.");
+        None
+    }
 }
 
-fn check_gromacs(gmx: Option<String>) -> Option<String> {
+fn check_basic_programs(settings: &Settings) -> (Option<String>, Option<String>, Option<String>) {
+    (check_gromacs(&settings.gmx_path), check_apbs(&settings.apbs_path), check_delphi(&settings.delphi_path))
+}
+
+fn check_gromacs(gmx: &Option<String>) -> Option<String> {
     match gmx {
         Some(gmx) => {
             let gmx = match gmx.as_str() {
                 "built-in" => {
                     get_built_in_gmx()
                 }
-                _ => Some(gmx)
+                _ => Some(gmx.to_string())
             };
             match gmx {
                 Some(gmx) => {
@@ -242,14 +264,14 @@ fn check_gromacs(gmx: Option<String>) -> Option<String> {
     }
 }
 
-fn check_apbs(apbs: Option<String>) -> Option<String> {
+fn check_apbs(apbs: &Option<String>) -> Option<String> {
     match apbs {
         Some(apbs) => {
             let apbs = match apbs.as_str() {
                 "built-in" => {
                     get_built_in_apbs()
                 }
-                _ => Some(apbs)
+                _ => Some(apbs.to_string())
             };
             match apbs {
                 Some(apbs) => {
@@ -273,6 +295,35 @@ fn check_apbs(apbs: Option<String>) -> Option<String> {
     }
 }
 
+fn check_delphi(delphi: &Option<String>) -> Option<String> {
+    match delphi {
+        Some(delphi) => {
+            let delphi = match delphi.as_str() {
+                "built-in" => {
+                    get_built_in_delphi()
+                }
+                _ => Some(delphi.to_string())
+            };
+            match delphi {
+                Some(delphi) => {
+                    match check_program_validity(delphi.as_str()) {
+                        Ok(p) => {
+                            println!("Using delphi: {}", delphi);
+                            Some(p)
+                        }
+                        Err(_) => {
+                            println!("Warning: no valid Delphi program in use.");
+                            None
+                        }
+                    }
+                }
+                None => None
+            }
+        }
+        None => None
+    }
+}
+
 fn check_program_validity(program: &str) -> Result<String, ()> {
     let output = Command::new(program).arg("--version").output();
     match output {
@@ -280,7 +331,10 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
             match output.status.code() {
                 Some(0) => Ok(program.to_string()),
                 Some(13) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
-                _ => Err(())
+                Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command
+                _ => {
+                    Err(())
+                }
             }
         }
         Err(_) => Err(())

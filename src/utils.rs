@@ -126,13 +126,13 @@ fn gmx_cmd(gmx: &str, cmd1: &mut Child, wd: &Path, args: &[&str], debug_mode: bo
 pub fn convert_tpr(grps: &str, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str, debug_mode: bool) {
     let mut echo_cmd = echo(grps);
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
-    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
+    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
 }
 
 pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str], debug_mode: bool) {
     let mut echo_cmd = echo(grps);
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    gmx_cmd(settings.gmx.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
+    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {

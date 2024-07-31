@@ -166,7 +166,7 @@ impl TPR {
                             } else {
                                 sigma.push(0.0);
                                 epsilon.push(0.0);
-                                radius.push(settings.rad_ff_default);
+                                radius.push(settings.radius_ff_default);
                             }
                         }
                     }

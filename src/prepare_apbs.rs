@@ -1,14 +1,14 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use ndarray::{Array1, Array3, ArrayView2};
+use ndarray::{Array1, ArrayView2};
 use crate::apbs_param::*;
 use crate::atom_property::AtomProperties;
 use crate::settings::Settings;
 
 pub fn prepare_pqr(cur_frm: usize, time_list: &Vec<f32>,
-                   temp_dir: &Path, sys_name: &String, coordinates: &Array3<f64>,
-                   ndx_com_norm: &Vec<usize>, ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
+                   temp_dir: &Path, sys_name: &String, coord: &ArrayView2<f64>,
+                   ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                    aps: &AtomProperties) {
     let f_name = format!("{}_{}ns", sys_name, time_list[cur_frm]);
     let mut pqr_com = match ndx_lig_norm[0] != ndx_rec_norm[0] {
@@ -22,14 +22,14 @@ pub fn prepare_pqr(cur_frm: usize, time_list: &Vec<f32>,
     let mut pqr_rec = File::create(&temp_dir.join(format!("{}_rec.pqr", f_name))).unwrap();
     
     // loop atoms and write pqr information (from pqr)
-    for &at_id in ndx_com_norm {
+    for at_id in 0..aps.atom_props.len() {
         let index = aps.atom_props[at_id].id;
         let at_name = &aps.atom_props[at_id].name;
         let resname = &aps.atom_props[at_id].resname;
         let resnum = aps.atom_props[at_id].resid;
-        let x = coordinates[[cur_frm, at_id, 0]];
-        let y = coordinates[[cur_frm, at_id, 1]];
-        let z = coordinates[[cur_frm, at_id, 2]];
+        let x = coord[[at_id, 0]];
+        let y = coord[[at_id, 1]];
+        let z = coord[[at_id, 2]];
         let q = aps.atom_props[at_id].charge;
         let r = aps.atom_props[at_id].radius;
         let atom_line = format!("ATOM  {:5} {:-4} {:3} X {:3}    {:8.3} {:8.3} {:8.3} {:12.6} {:12.6}\n",
