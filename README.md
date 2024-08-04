@@ -1,7 +1,7 @@
 # s_mmpbsa
 s_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajectory, using molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method.
 
-The s_mmpbsa program can be freely used for both academic and commerical purposes.
+The s_mmpbsa program follows LGPL license, and can be freely used for academic purposes.
 
 ## Introduction
 MM/PB-SA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convinent interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
@@ -12,17 +12,16 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
-- Supports molecular docking results (by vina or DSDP) analysis.
+- Supports molecular docking results (by Autodock vina or DSDP) analysis.
 - Can perform alanine scanning based on both MD and molecular docking results.
 
 ## Usage
 For Ubuntu system, maybe user should run the following commands to avoid `cc` error.
 ```
-sudo apt update
 sudo apt install build-essential
 ```
 
-Currently s_mmpbsa has supported to fix PBC conditions and write trajectory to `MMPBSA_[name].xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+Currently s_mmpbsa has supported fixing PBC conditions and write trajectory to `MMPBSA_[name].xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
 ``` bash
 # Firstly, add s_mmpbsa folder to $PATH.
@@ -46,7 +45,7 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 0 # go to next step (start calculation)
 [return] # use default system name or input your name
 # Wait for calculation finish
--1 # write pdb file with INVERSED binding energy
+-1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
 10 # input the time point
 1 # view summary
 2 # output energy by time
@@ -54,7 +53,6 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 1 # write residues within 3 A (also try other options)
 ... # write residues within 3 A for alanine scanning samples
 4 # output other infomations
--1 # view pdb file with residue-wised INVERSED binding energy filled in B-factor column
 0 # exit s_mmpbsa program
 ```
 
@@ -80,3 +78,4 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 ## New Folder (?
 - Add support of other PBSA solvers, e.g., Delphi2, and also built-in LPBE solver
 - Add figures: plotting data, 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
+- Split analysis module from the main module to restart analyzation
