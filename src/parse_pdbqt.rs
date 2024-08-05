@@ -65,17 +65,12 @@ impl PdbqtAtom {
     pub fn new(line: &str) -> PdbqtAtom {
         // 01234567890123456789012345678901234567890123456789012345678901234567890123456789
         // ATOM      1  N   ALA A   2      26.338 -25.338  11.581  1.00 42.62     0.614 N 
-        // let typ = line[0..6].trim();
-        // let atid: i32 = line[9..11].trim().parse().unwrap();
         let atname = line[12..16].trim();
         let resname = line[17..20].trim();
-        // let chainname = line[21..22].trim();
-        let resid: i32 = line[22..26].trim().parse().unwrap();
+        let resid: i32 = line[22..26].trim().parse().unwrap_or(0);
         let x: f64 = line[30..38].trim().parse().unwrap();
         let y: f64 = line[38..46].trim().parse().unwrap();
         let z: f64 = line[46..54].trim().parse().unwrap();
-        // let occupy: f64 = line[55..60].trim().parse().unwrap();
-        // let bf: f64 = line[61..66].trim().parse().unwrap();
         let charge: f64 = line[70..76].trim().parse().unwrap();
         let attype = line[77..79].trim();
         return PdbqtAtom{
