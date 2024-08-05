@@ -112,11 +112,19 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
         loop {
             println!("\n                 ************ MM/PB-SA Files ************");
             println!("-10 Exit program");
-            println!(" -2 Toggle whether debug mode, current: {}", settings.debug_mode);
-            println!(" -1 Set apbs path, current: {}", match &settings.apbs_path {
+            println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
                 Some(s) => s.to_string(),
                 None => String::from("Not set")
             });
+            println!(" -3 Set apbs path, current: {}", match &settings.apbs_path {
+                Some(s) => s.to_string(),
+                None => String::from("Not set")
+            });
+            println!(" -2 Set PBSA kernel, current: {}", match &settings.pbsa_kernel {
+                Some(s) => s.to_string(),
+                None => String::from("Not set")
+            });
+            println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
             println!("  0 Go to next step");
             println!("  1 Current receptor file: {}", infile);
             println!("  2 Assign ligand file (pdbqt), current: {}", match ligand.len() {
@@ -125,13 +133,30 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
             });
             let i = get_input_selection();
             match i {
-                -2 => settings.debug_mode = !settings.debug_mode,
-                -1 => {
-                    println!("Input APBS path (if empty, means not to do PBSA calculation):");
+                -1 => settings.debug_mode = !settings.debug_mode,
+                -2 => {
+                    println!("Input PBSA kernel (if empty, means not to do PBSA calculation):");
+                    let s: String = get_input_selection();
+                    if s.eq("apbs") || s.eq("delphi") {
+                        settings.pbsa_kernel = Some(s)
+                    } else {
+                        settings.pbsa_kernel = None
+                    }
+                }
+                -3 => {
+                    println!("Input APBS path:");
                     let s: String = get_input_selection();
                     match check_apbs(&Some(s)) {
                         Some(s) => settings.apbs_path = Some(s),
                         None => settings.apbs_path = None
+                    }
+                }
+                -4 => {
+                    println!("Input Delphi path:");
+                    let s: String = get_input_selection();
+                    match check_delphi(&Some(s)) {
+                        Some(s) => settings.delphi_path = Some(s),
+                        None => settings.delphi_path = None
                     }
                 }
                 0 => {
