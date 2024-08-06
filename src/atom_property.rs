@@ -186,14 +186,14 @@ impl AtomProperties {
                     let sigma_heavy_hb = get_ad4_param(&ad4_map, ordered_atom_types[j]).sigma_hb;
                     let eps_heavy_hb = get_ad4_param(&ad4_map, ordered_atom_types[j]).eps_hb;
                     let sigmaij_hb = sigmai / 2.0 + sigma_heavy_hb;
-                    let epsij_hb = epsi * f64::sqrt(eps_heavy_hb) * 0.0974;
+                    let epsij_hb = f64::sqrt(epsi * eps_heavy_hb) * 0.0974;
                     c12[[i, j]] = 5.0 * epsij_hb * sigmaij_hb.powi(12);
                     c10[[i, j]] = 6.0 * epsij_hb * sigmaij_hb.powi(10);
                 } else if hb_h_ids.contains(&j) && hb_a_ids.contains(&i) {
                     let sigma_heavy_hb = get_ad4_param(&ad4_map, ordered_atom_types[i]).sigma_hb;
                     let eps_heavy_hb = get_ad4_param(&ad4_map, ordered_atom_types[i]).eps_hb;
                     let sigmaij_hb = sigmaj / 2.0 + sigma_heavy_hb;
-                    let epsij_hb = epsj * f64::sqrt(eps_heavy_hb) * 0.0974;
+                    let epsij_hb = f64::sqrt(epsj * eps_heavy_hb) * 0.0974;
                     c12[[i, j]] = 5.0 * epsij_hb * sigmaij_hb.powi(12);
                     c10[[i, j]] = 6.0 * epsij_hb * sigmaij_hb.powi(10);
                 }

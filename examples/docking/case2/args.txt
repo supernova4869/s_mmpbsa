@@ -3,8 +3,6 @@ WT_prep.pdbqt
 2
 WT_out.pdbqt
 0
-2
-1
 0
 1
 0
