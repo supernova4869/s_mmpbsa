@@ -255,12 +255,13 @@ fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, bf: usize, 
     println!("MM/PB-SA calculation of {} finished. Total time cost: {} s", sys_name, t_spend as f64 / 1000.0);
     env::remove_var("OMP_NUM_THREADS");
 
+    let fr: Vec<usize> = (bf..=ef).step_by(dframe).collect();
     Results::new(
         aps,
         residues,
         ndx_lig,
         &times,
-        coordinates.clone(),
+        coordinates.select(Axis(0), &fr),
         mutation,
         &elec_atom,
         &vdw_atom,
