@@ -297,7 +297,7 @@ fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coo
                 }; // use A for elec
                 // use nm for vdW
                 let r = r / 10.0;
-                let e_vdw = if aps.c10[[ci, cj]] < 1e-10 {
+                let e_vdw = if aps.c10[[ci, cj]] == 0.0 {
                     (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6)
                 } else {
                     // use 12-10 style to calculate LJ for pdbqt hbond
