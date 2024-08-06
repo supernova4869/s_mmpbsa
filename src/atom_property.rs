@@ -98,6 +98,7 @@ impl AtomProperties {
         let mut atom_type_id: Array1<usize> = Array1::zeros(ndx_com.len());
         let mut index = 0;
         
+        pb.reset();
         for (i, s) in at_list.iter().enumerate() {
             if !at_map.contains_key(s) {
                 // If the string is not in the map, insert it with the current index
@@ -106,7 +107,9 @@ impl AtomProperties {
                 index += 1;
             }
             atom_type_id[i] = at_map[s];
+            pb.inc(1);
         }
+        pb.finish();
 
         AtomProperties {
             c6,
