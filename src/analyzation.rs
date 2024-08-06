@@ -262,10 +262,11 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
 
 fn analyze_res(results: &Results, wd: &Path, sys_name: &String, ts: f64) {
     println!("Determine the residue range to output:");
-    println!(" 1 Ligand and receptor residues within 3 A");
-    println!(" 2 Ligand and receptor residues within 5 A");
-    println!(" 3 Ligand and receptor residues within a specified distance");
-    println!(" 4 Self-defined residue range");
+    println!(" 1 Ligand and receptor residues within 4 A");
+    println!(" 2 Ligand and receptor residues within 6 A");
+    println!(" 3 Ligand and receptor residues within 8 A");
+    println!(" 4 Ligand and receptor residues within a specified distance");
+    println!(" 5 Self-defined residue range");
     // 残基范围确定
     let i: i32 = get_input_selection();
     let mut range_des = String::from("4A");

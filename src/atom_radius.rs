@@ -3,23 +3,16 @@ use std::env::current_exe;
 use std::fs;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::TPR;
-use indicatif::{ProgressBar, ProgressStyle};
 
 impl AtomProperties {
     // ff_radius would not be used
-    pub fn apply_radius(&mut self, radius_type: usize, at_list: &Vec<String>, total_at_num: usize, radius_types: &Vec<&str>) {
-        let pb = ProgressBar::new(total_at_num as u64);
-        pb.set_style(ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
-            .progress_chars("=>-"));
+    pub fn apply_radius(&mut self, radius_type: usize, at_list: &Vec<String>, radius_types: &Vec<&str>) {
         let rad_type = radius_types[radius_type];
         let radii_table = get_radii_map(rad_type);
         for (i, r) in &mut self.atom_props.iter_mut().enumerate() {
             r.radius = get_radii(&radii_table, &at_list[i]);
-            pb.inc(1);
         }
         self.radius_type = rad_type.to_string();
-        pb.finish();
     }
 }
 

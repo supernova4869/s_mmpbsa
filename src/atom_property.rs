@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use ndarray::{Array1, Array2};
 use crate::{atom_radius::{get_ad4_map, get_ad4_param, get_radii, get_radii_map}, parse_pdbqt::PDBQT, parse_tpr::TPR};
-use indicatif::{ProgressBar, ProgressStyle};
 
 #[derive(Clone)]
 pub struct AtomProperties {
@@ -54,11 +53,6 @@ impl AtomProperties {
         let mut cur_atom_id = 0;
         let mut resid_offset = 0;      // residues number that has been overpast
 
-        let pb = ProgressBar::new(tpr.atom_types_num as u64);
-        pb.set_style(ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
-            .progress_chars("=>-"));
-
         let mut at_list = vec![];
         for mol in &tpr.molecules {
             for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
@@ -76,8 +70,6 @@ impl AtomProperties {
                         at_list.push(atom.at_type.to_string());
                     }
                     cur_atom_id += 1;
-                    pb.inc(1);
-                    pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
                 }
                 resid_offset += mol.residues.len();
             }
@@ -89,8 +81,6 @@ impl AtomProperties {
             ap.resid -= first_resid;
         }
 
-        pb.finish();
-        
         // HashMap to store the first occurrence index of each string
         let mut at_map: HashMap<String, usize> = HashMap::new();
         let mut ordered_atom_types = Vec::new();
