@@ -41,7 +41,7 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
     }
                 
     println!("Extracting atoms coordination...");
-    let (mut coordinates, _) = get_atoms_trj(&frames);   // frames x atoms(3x1)
+    let mut coordinates = get_atoms_trj(&frames, aps.atom_props.len());
     let time_list: Vec<f32> = frames.iter().map(|f| f.time / 1000.0).collect();
 
     // calculate MM and PBSA
@@ -165,28 +165,22 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
     (result_wt, result_ala_scan)
 }
 
-fn get_atoms_trj(frames: &Vec<Rc<Frame>>) -> (Array3<f64>, Array3<f64>) {
+fn get_atoms_trj(frames: &Vec<Rc<Frame>>, num_atoms: usize) -> Array3<f64> {
     let num_frames = frames.len();
-    let num_atoms = frames[0].num_atoms();
     let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
-    let mut box_size: Array3<f64> = Array3::zeros((num_frames, 3, 3));
-    let pb = ProgressBar::new(frames.len() as u64);
+
+    let pb = ProgressBar::new(num_frames as u64);
     set_style(&pb);
-    for (idx, frame) in frames.into_iter().enumerate() {
-        for (i, a) in (&frame.coords).into_iter().enumerate() {
-            for j in 0..3 {
-                coord_matrix[[idx, i, j]] = a[j] as f64 * 10.0;
-            }
-        }
-        for (i, b) in (&frame.box_vector).into_iter().enumerate() {
-            for j in 0..3 {
-                box_size[[idx, i, j]] = b[j] as f64 * 10.0;
-            }
+    for (layer_id, frame) in frames.into_iter().enumerate() {
+        for (row_id, a) in (&frame.coords).into_iter().enumerate() {
+            coord_matrix[[layer_id, row_id, 0]] = a[0] as f64 * 10.0;
+            coord_matrix[[layer_id, row_id, 1]] = a[1] as f64 * 10.0;
+            coord_matrix[[layer_id, row_id, 2]] = a[2] as f64 * 10.0;
         }
         pb.inc(1);
     }
     pb.finish();
-    return (coord_matrix, box_size);
+    return coord_matrix;
 }
 
 pub fn set_style(pb: &ProgressBar) {

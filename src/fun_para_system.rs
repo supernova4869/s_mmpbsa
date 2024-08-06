@@ -13,7 +13,6 @@ use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
-use indicatif::{ProgressBar, ProgressStyle};
 use crate::utils::{convert_tpr, trjconv};
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
@@ -75,8 +74,6 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         let residues = get_residues_tpr(tpr, &ndx_com);
 
                         // pre-treat trajectory: fix pbc
-                        println!("Extracting trajectory...");
-
                         let trj_whole = append_new_name(trj, "_1_whole.xtc", "_MMPBSA_"); // get trj output file name
                         let trj_center = append_new_name(trj, "_2_center.xtc", "_MMPBSA_");
                         let trj_cluster = append_new_name(trj, "_3_cluster.xtc", "_MMPBSA_");
@@ -84,6 +81,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         let tpr_name = append_new_name(tpr_name, ".tpr", "");       // fuck the tpr name is dump
                         
                         // add a Complex group to index file
+                        println!("Generating Index...");
                         let com_group = IndexGroup::new("Complex", &ndx_com);
                         let mut new_ndx = ndx.clone();
                         new_ndx.rm_group("Complex");
@@ -91,22 +89,24 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         let ndx_whole = append_new_name(ndx_name, "_whole.ndx", "_MMPBSA_"); // get extracted index file name
                         new_ndx.to_ndx(&ndx_whole);
                         
+                        println!("Extracting trajectory, be patient...");
                         // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
                         trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"], settings.debug_mode);
+                        
                         // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
                         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
                         convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa, settings.debug_mode);
                         if !settings.debug_mode {
                             fs::remove_file(&ndx_whole).unwrap();
                         }
-
+                        
                         // Index normalization
                         let (ndx_com, ndx_rec, ndx_lig) = 
-                            normalize_index(&ndx.groups[receptor_grp].indexes, match ligand_grp {
-                                Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
-                                None => None
-                            });
-
+                        normalize_index(&ndx.groups[receptor_grp].indexes, match ligand_grp {
+                            Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
+                            None => None
+                        });
+                        
                         // extract index file
                         let ndx_mmpbsa = match ligand_grp {
                             Some(ligand_grp) => {
@@ -125,18 +125,17 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
 
                         let trj_mmpbsa = if settings.fix_pbc {
-                            println!("Fixing PBC conditions...");
                             match ligand_grp {
                                 Some(ligand_grp) => {
-                                    println!("Fixing PBC 0/3...");
+                                    println!("Fixing PBC conditions 0/3...");
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
                                     trjconv(&(ndx.groups[ligand_grp].name.to_owned() + " Complex"),
                                         wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"], settings.debug_mode);
-                                    println!("Fixing PBC 1/3...");
+                                    println!("Fixing PBC conditions 1/3...");
                                     // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
                                     trjconv("Complex Complex",
                                         wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"], settings.debug_mode);
-                                    println!("Fixing PBC 2/3...");
+                                    println!("Fixing PBC conditions 2/3...");
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
                                     trjconv("1 0",
                                         wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"], settings.debug_mode);
@@ -147,7 +146,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                                 },
                                 None => {
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
-                                    println!("Fixing PBC 0/1...");
+                                    println!("Fixing PBC conditions 0/1...");
                                     trjconv("0 0 0", 
                                         wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"], settings.debug_mode);
                                 }
@@ -342,10 +341,6 @@ pub fn get_residues_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
     let mut idx = 0;
     let mut resind_offset = 0;
     
-    let pb = ProgressBar::new(tpr.n_atoms as u64);
-    pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:50.cyan/cyan} {percent}% {msg}").unwrap()
-        .progress_chars("=>-"));
     for mol in &tpr.molecules {
         for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
             for atom in &mol.atoms {
@@ -353,13 +348,10 @@ pub fn get_residues_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
                 if ndx_com.contains(&idx) && residues.len() <= atom.resind + resind_offset {
                     residues.push(mol.residues[atom.resind].to_owned());
                 }
-                pb.inc(1);
-                pb.set_message(format!("eta. {} s", pb.eta().as_secs()));
             }
             resind_offset += mol.residues.len();
         }
     }
-    pb.finish();
     residues
 }
 
