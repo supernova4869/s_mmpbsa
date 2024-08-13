@@ -1,18 +1,27 @@
 use std::collections::HashMap;
 use std::env::current_exe;
 use std::fs;
+use std::path::Path;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::TPR;
 
 impl AtomProperties {
     // ff_radius would not be used
-    pub fn apply_radius(&mut self, radius_type: usize, at_list: &Vec<String>, radius_types: &Vec<&str>) {
+    pub fn apply_radius(&mut self, radius_type: usize, at_list: &Vec<String>, radius_types: &Vec<&str>, wd: &Path) {
         let rad_type = radius_types[radius_type];
-        let radii_table = get_radii_map(rad_type);
-        for (i, r) in &mut self.atom_props.iter_mut().enumerate() {
-            r.radius = get_radii(&radii_table, &at_list[i]);
+        if rad_type.ne("ff") {
+            let radii_table = get_radii_map(rad_type);
+            for (i, r) in &mut self.atom_props.iter_mut().enumerate() {
+                r.radius = get_radii(&radii_table, &at_list[i]);
+            }
+            self.radius_type = rad_type.to_string();
+        } else {
+            let radii = fs::read_to_string(wd.join("ff_radius.dat")).unwrap();
+            let radii: Vec<&str> = radii.split("\n").collect();
+            for (i, r) in &mut self.atom_props.iter_mut().enumerate() {
+                r.radius = radii[i].parse().unwrap();
+            }
         }
-        self.radius_type = rad_type.to_string();
     }
 }
 

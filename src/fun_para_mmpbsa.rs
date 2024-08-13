@@ -98,7 +98,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
             }
             0 => {
                 println!("Applying {} radius...", radius_types[settings.radius_type]);
-                aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types);
+                aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
 
                 // Temp directory for PBSA
                 let mut sys_name = String::from("_system");

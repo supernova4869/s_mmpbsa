@@ -1,5 +1,7 @@
 use std::fmt::Formatter;
-use std::fmt;
+use std::path::Path;
+use std::{fmt, fs};
+use std::io::Write;
 use std::io::BufReader;
 use ndarray::Array2;
 use regex::Regex;
@@ -307,10 +309,22 @@ impl TPR {
                 }
             }
         }
+
+        println!("Backup force field radius...");
+        let ff_dat = Path::new(mdp).parent().unwrap().join("ff_radius.dat");
+        if ff_dat.is_file() {
+            fs::remove_file(&ff_dat).unwrap();
+        }
+        let mut ff_dat = File::create(ff_dat).unwrap();
+        for r in atom_radii {
+            writeln!(ff_dat, "{:.2}", r).unwrap();
+        }
+
         println!("System molecular composition:");
         for mol in &molecules {
             println!("Molecule {}: {}", mol.molecule_type_id, mol);
         }
+
         TPR {
             name,
             n_atoms: atoms_num,
