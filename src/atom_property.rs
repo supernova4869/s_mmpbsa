@@ -53,7 +53,9 @@ impl AtomProperties {
         let mut cur_atom_id = 0;
         let mut resid_offset = 0;      // residues number that has been overpast
 
-        let mut at_list = vec![];
+        // HashMap to store the first occurrence index of each string
+        let mut at_map: HashMap<String, usize> = HashMap::new();
+        let mut index = 0;
         for mol in &tpr.molecules {
             for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
                 for atom in &mol.atoms {
@@ -67,7 +69,11 @@ impl AtomProperties {
                             resname: mol.residues[atom.resind].name.to_string(),
                             resid: atom.resind + resid_offset,
                         });
-                        at_list.push(atom.at_type.to_string());
+                        if !at_map.contains_key(&atom.at_type) {
+                            // If the string is not in the map, insert it with the current index
+                            at_map.insert(atom.at_type.to_string(), index);
+                            index += 1;
+                        }
                     }
                     cur_atom_id += 1;
                 }
@@ -79,23 +85,6 @@ impl AtomProperties {
         let first_resid = atom_props[0].resid;
         for ap in atom_props.iter_mut() {
             ap.resid -= first_resid;
-        }
-
-        // HashMap to store the first occurrence index of each string
-        let mut at_map: HashMap<String, usize> = HashMap::new();
-        let mut ordered_atom_types = Vec::new();
-        
-        let mut atom_type_id: Array1<usize> = Array1::zeros(ndx_com.len());
-        let mut index = 0;
-        
-        for (i, s) in at_list.iter().enumerate() {
-            if !at_map.contains_key(s) {
-                // If the string is not in the map, insert it with the current index
-                at_map.insert(s.to_string(), index);
-                ordered_atom_types.push(s);
-                index += 1;
-            }
-            atom_type_id[i] = at_map[s];
         }
 
         AtomProperties {

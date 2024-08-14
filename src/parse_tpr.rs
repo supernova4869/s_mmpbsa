@@ -57,9 +57,9 @@ impl TPR {
         let mut atom_radii: Vec<f64> = vec![];      // atom radius
         let mut atom_charges: Vec<f64> = vec![];    // atom charge
         let mut atom_names: Vec<String> = vec![];   // atom name
-        let mut type_names: Vec<String> = vec![];   // atom name
+        let mut type_names: Vec<String> = vec![];   // atom type name
         
-        let mut coordinates: Vec<f64> = vec![];   // atom name
+        let mut coordinates: Vec<f64> = vec![];   // atom coordinates
 
         let mut molecules: Vec<Molecule> = vec![];
 
