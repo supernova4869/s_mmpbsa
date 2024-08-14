@@ -14,7 +14,7 @@ mod atom_property;
 mod coefficients;
 mod utils;
 
-use std::fs;
+use std::{fs, io};
 use std::env;
 use std::fs::File;
 use std::io::{stdin, Write};
@@ -25,20 +25,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 
 fn main() {
     welcome();
-    // initialize parameters
-    let mut settings = match get_settings_in_use() {
-        Some(settings_file) => {
-            Settings::from(&settings_file)
-        }
-        None => {
-            println!("Note: settings.ini not found, will use 1 kernel.");
-            Settings::new()
-        }
-    };
-    let programs = check_basic_programs(&settings);
-    settings.gmx_path = programs.0;
-    settings.apbs_path = programs.1;
-    settings.delphi_path = programs.2;
+    let mut settings = env_check();
 
     let args: Vec<String> = env::args().collect();
     let mut infile: String = String::new();
@@ -211,10 +198,6 @@ fn get_built_in_delphi() -> Option<String> {
     }
 }
 
-fn check_basic_programs(settings: &Settings) -> (Option<String>, Option<String>, Option<String>) {
-    (check_gromacs(&settings.gmx_path), check_apbs(&settings.apbs_path), check_delphi(&settings.delphi_path))
-}
-
 fn check_gromacs(gmx: &Option<String>) -> Option<String> {
     match gmx {
         Some(gmx) => {
@@ -378,4 +361,27 @@ fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
     let mut outfile = fs::File::create(dump_to).expect("Cannot create md.dump.");
     outfile.write(tpr_dump.as_bytes()).expect("Cannot write md.dump.");
     println!("Dumped tpr file to {}", dump_to);
+}
+
+fn env_check() -> Settings {
+    // initialize parameters
+    let mut settings = match get_settings_in_use() {
+        Some(settings_file) => {
+            Settings::from(&settings_file)
+        }
+        None => {
+            println!("Note: settings.ini not found, will use 1 kernel.");
+            Settings::new()
+        }
+    };
+    // check necessary dat path
+    if !Path::new(env::current_exe().unwrap().parent().unwrap().join("dat/").as_path()).is_dir() {
+        println!("Error: the dat/ folder with atom radius not found, please check and retry.");
+        io::stdin().read_line(&mut String::new()).unwrap();
+        std::process::exit(0);
+    }
+    settings.gmx_path = check_gromacs(&settings.gmx_path);
+    settings.apbs_path = check_apbs(&settings.apbs_path);
+    settings.delphi_path = check_delphi(&settings.delphi_path);
+    settings
 }
