@@ -250,7 +250,7 @@ fn analyze_traj(results: &Results, wd: &Path, sys_name: &String) {
     println!("Writing binding energy terms...");
     let def_name = format!("MMPBSA_{}_traj.csv", sys_name);
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
-    write!(energy_sum, "Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW,(kJ/mol)\n").unwrap();
+    write!(energy_sum, "Time (ns),ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n").unwrap();
     for i in 0..results.times.len() {
         write!(energy_sum, "{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n",
                             results.times[i], results.dh[i],
