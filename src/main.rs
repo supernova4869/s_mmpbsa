@@ -2,6 +2,7 @@ mod index_parser;
 mod mmpbsa;
 mod parse_tpr;
 mod parse_pdbqt;
+mod parse_xvg;
 mod analyzation;
 mod fun_para_basic;
 mod fun_para_system;

@@ -9,11 +9,8 @@ use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::{Residue, TPR};
-use crate::mmpbsa;
+use crate::{mmpbsa, parse_xvg};
 use crate::analyzation;
-use std::rc::Rc;
-use ndarray::Array2;
-use xdrfile::{XTCTrajectory, Frame};
 
 pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
                        ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
@@ -128,14 +125,10 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 
                 // run MM/PB-SA calculations
                 println!("Preparing parameters...");
+                let (time_list, mut coordinates) = parse_xvg::read_coord_xvg(wd, "MMPBSA_coord.xvg");
+                let (bf, ef, dframe, total_frames) = get_frames_range(&time_list, bt, et, dt);
                 
-                println!("Reading trajectory file...");
-                let trj = XTCTrajectory::open_read(trj_mmpbsa).expect("Error reading trajectory");
-                let frames: Vec<Rc<Frame>> = trj.into_iter().map(|p| p.unwrap()).collect();
-
-                let (bf, ef, dframe, total_frames) = get_frames_range(&frames, bt, et, dt);
-                
-                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&frames, &temp_dir, &sys_name, &aps,
+                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&time_list, &mut coordinates, &temp_dir, &sys_name, &aps,
                                                                 &ndx_com, &ndx_rec, &ndx_lig, &ala_list, &residues,
                                                                 bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
                 // Clean trj
@@ -288,11 +281,11 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
     }
 }
 
-fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usize, usize, usize, usize) {
+fn get_frames_range(time_list: &Vec<f64>, bt: f64, et: f64, dt: f64) -> (usize, usize, usize, usize) {
     // decide frame step according to time step
-    let time_step = (frames[1].time - frames[0].time) as f64;
-    let bf = ((bt - frames[0].time as f64) / time_step) as usize;
-    let ef = ((et - frames[0].time as f64) / time_step) as usize;
+    let time_step = time_list[1] - time_list[0];
+    let bf = ((bt - time_list[0]) / time_step) as usize;
+    let ef = ((et - time_list[0]) / time_step) as usize;
     let dframe = match dt.partial_cmp(&time_step).unwrap() {
         Ordering::Less => 1,            // converted trajectory with big time step (e.g., 1 ns)
         _ => (dt / time_step) as usize  // time step partially less than target dt (e.g., initial trajectory)
@@ -301,249 +294,249 @@ fn get_frames_range(frames: &Vec<Rc<Frame>>, bt: f64, et: f64, dt: f64) -> (usiz
     (bf, ef, dframe, total_frames)
 }
 
-pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, bf: usize, ef: usize, dframe: usize, total_frames: usize, temperature: f64,
-                       ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, wd: &Path, residues: &Vec<Residue>, settings: &mut Settings) {
-    // kinds of radius types
-    let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
-    settings.radius_type = 0;
-    let mut pbe_set = PBESet::new(temperature);
-    let mut pba_set = PBASet::new(temperature);
-    let mut ala_list: Vec<i32> = vec![];
-    loop {
-        println!("\n                 ************ MM/PB-SA Parameters ************");
-        println!("-10 Return");
-        println!(" -3 Output PBSA parameters");
-        println!(" -2 Output LJ parameters");
-        println!(" -1 Output structural parameters");
-        println!("  0 Start MM/PB-SA calculation");
-        println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
-        println!("  2 Toggle whether to use interaction entropy (IE) method, current: {}", settings.use_ts);
-        // println!("  3 Select atom radius type, current: {}", radius_types[settings.rad_type]);
-        println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
-        println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
-        println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
-        println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
-        println!("  8 Prepare PB parameters for APBS");
-        println!("  9 Prepare SA parameters for APBS");
-        println!(" 10 Select residues list for alanine scanning, current: {:?}", ala_list);
-        let i = get_input_selection();
-        match i {
-            -10 => return,
-            -1 => {
-                let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
-                paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
-                for ap in &aps.atom_props {
-                    paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
-                        ap.id, ap.name, ap.type_id, ap.charge, ap.radius, ap.resid + 1, ap.resname).as_bytes()).unwrap();
-                }
-                println!("Structural parameters have been written to paras_structure.txt");
-            }
-            -2 => {
-                let mut paras = File::create(wd.join("paras_LJ.txt")).unwrap();
-                paras.write_all("c6:\n".as_bytes()).unwrap();
-                for i in 0..aps.c6.shape()[0] {
-                    for j in 0..aps.c6.shape()[1] {
-                        paras.write_all(format!("{:13.6E} ", aps.c6[[i, j]]).as_bytes()).unwrap();
-                    }
-                    paras.write_all("\n".as_bytes()).unwrap();
-                }
-                paras.write_all("c12:\n".as_bytes()).unwrap();
-                for i in 0..aps.c12.shape()[0] {
-                    for j in 0..aps.c12.shape()[1] {
-                        paras.write_all(format!("{:13.6E} ", aps.c12[[i, j]]).as_bytes()).unwrap();
-                    }
-                    paras.write_all("\n".as_bytes()).unwrap();
-                }
-                paras.write_all("c10:\n".as_bytes()).unwrap();
-                for i in 0..aps.c10.shape()[0] {
-                    for j in 0..aps.c10.shape()[1] {
-                        paras.write_all(format!("{:13.6E} ", aps.c10[[i, j]]).as_bytes()).unwrap();
-                    }
-                    paras.write_all("\n".as_bytes()).unwrap();
-                }
-                println!("Forcefield parameters have been written to paras_LJ.txt");
-            }
-            -3 => {
-                let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
-                paras.write_all(format!("Use Debye-Huckel shielding method: {}\n", settings.use_dh).as_bytes()).unwrap();
-                paras.write_all(format!("Use entropy contribution: {}\n", settings.use_ts).as_bytes()).unwrap();
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
-                paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
-                paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
-                paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
-                paras.write_all(format!("Fine mesh spacing (df): {} A\n\n", settings.df).as_bytes()).unwrap();
-                paras.write_all(format!("PB settings:\n{}\n\n", pbe_set).as_bytes()).unwrap();
-                paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
-                println!("PBSA parameters have been written to paras_pbsa.txt");
-            }
-            0 => {
-                // Temp directory for PBSA
-                let mut sys_name = String::from("_system");
-                println!("Input system name (default: {}):", sys_name);
-                let mut input = String::new();
-                stdin().read_line(&mut input).expect("Error input");
-                if input.trim().len() != 0 {
-                    sys_name = input.trim().to_string();
-                }
-                let temp_dir = wd.join(&sys_name);
-                if let Some(_) = settings.apbs_path.as_ref() {
-                    println!("Temporary files will be placed at {}/", temp_dir.display());
-                    if !temp_dir.is_dir() {
-                        fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
-                    } else {
-                        println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
-                        let mut input = String::from("");
-                        stdin().read_line(&mut input).expect("Get input error");
-                        if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
-                            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-                            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
-                        }
-                    }
-                } else {
-                    println!("Note: Since APBS not found, solvation energy will not be calculated.");
-                };
+// pub fn set_para_mmpbsa_pdbqt(frames: &Vec<Rc<Frame>>, aps: &mut AtomProperties, bf: usize, ef: usize, dframe: usize, total_frames: usize, temperature: f64,
+//                        ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, wd: &Path, residues: &Vec<Residue>, settings: &mut Settings) {
+//     // kinds of radius types
+//     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
+//     settings.radius_type = 0;
+//     let mut pbe_set = PBESet::new(temperature);
+//     let mut pba_set = PBASet::new(temperature);
+//     let mut ala_list: Vec<i32> = vec![];
+//     loop {
+//         println!("\n                 ************ MM/PB-SA Parameters ************");
+//         println!("-10 Return");
+//         println!(" -3 Output PBSA parameters");
+//         println!(" -2 Output LJ parameters");
+//         println!(" -1 Output structural parameters");
+//         println!("  0 Start MM/PB-SA calculation");
+//         println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
+//         println!("  2 Toggle whether to use interaction entropy (IE) method, current: {}", settings.use_ts);
+//         // println!("  3 Select atom radius type, current: {}", radius_types[settings.rad_type]);
+//         println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
+//         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
+//         println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
+//         println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
+//         println!("  8 Prepare PB parameters for APBS");
+//         println!("  9 Prepare SA parameters for APBS");
+//         println!(" 10 Select residues list for alanine scanning, current: {:?}", ala_list);
+//         let i = get_input_selection();
+//         match i {
+//             -10 => return,
+//             -1 => {
+//                 let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
+//                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
+//                 paras.write_all(format!("Atoms:\n     id   name   type   charge   radius   resnum  resname\n").as_bytes()).unwrap();
+//                 for ap in &aps.atom_props {
+//                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
+//                         ap.id, ap.name, ap.type_id, ap.charge, ap.radius, ap.resid + 1, ap.resname).as_bytes()).unwrap();
+//                 }
+//                 println!("Structural parameters have been written to paras_structure.txt");
+//             }
+//             -2 => {
+//                 let mut paras = File::create(wd.join("paras_LJ.txt")).unwrap();
+//                 paras.write_all("c6:\n".as_bytes()).unwrap();
+//                 for i in 0..aps.c6.shape()[0] {
+//                     for j in 0..aps.c6.shape()[1] {
+//                         paras.write_all(format!("{:13.6E} ", aps.c6[[i, j]]).as_bytes()).unwrap();
+//                     }
+//                     paras.write_all("\n".as_bytes()).unwrap();
+//                 }
+//                 paras.write_all("c12:\n".as_bytes()).unwrap();
+//                 for i in 0..aps.c12.shape()[0] {
+//                     for j in 0..aps.c12.shape()[1] {
+//                         paras.write_all(format!("{:13.6E} ", aps.c12[[i, j]]).as_bytes()).unwrap();
+//                     }
+//                     paras.write_all("\n".as_bytes()).unwrap();
+//                 }
+//                 paras.write_all("c10:\n".as_bytes()).unwrap();
+//                 for i in 0..aps.c10.shape()[0] {
+//                     for j in 0..aps.c10.shape()[1] {
+//                         paras.write_all(format!("{:13.6E} ", aps.c10[[i, j]]).as_bytes()).unwrap();
+//                     }
+//                     paras.write_all("\n".as_bytes()).unwrap();
+//                 }
+//                 println!("Forcefield parameters have been written to paras_LJ.txt");
+//             }
+//             -3 => {
+//                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
+//                 paras.write_all(format!("Use Debye-Huckel shielding method: {}\n", settings.use_dh).as_bytes()).unwrap();
+//                 paras.write_all(format!("Use entropy contribution: {}\n", settings.use_ts).as_bytes()).unwrap();
+//                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
+//                 paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
+//                 paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
+//                 paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
+//                 paras.write_all(format!("Fine mesh spacing (df): {} A\n\n", settings.df).as_bytes()).unwrap();
+//                 paras.write_all(format!("PB settings:\n{}\n\n", pbe_set).as_bytes()).unwrap();
+//                 paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
+//                 println!("PBSA parameters have been written to paras_pbsa.txt");
+//             }
+//             0 => {
+//                 // Temp directory for PBSA
+//                 let mut sys_name = String::from("_system");
+//                 println!("Input system name (default: {}):", sys_name);
+//                 let mut input = String::new();
+//                 stdin().read_line(&mut input).expect("Error input");
+//                 if input.trim().len() != 0 {
+//                     sys_name = input.trim().to_string();
+//                 }
+//                 let temp_dir = wd.join(&sys_name);
+//                 if let Some(_) = settings.apbs_path.as_ref() {
+//                     println!("Temporary files will be placed at {}/", temp_dir.display());
+//                     if !temp_dir.is_dir() {
+//                         fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
+//                     } else {
+//                         println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
+//                         let mut input = String::from("");
+//                         stdin().read_line(&mut input).expect("Get input error");
+//                         if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
+//                             fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+//                             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
+//                         }
+//                     }
+//                 } else {
+//                     println!("Note: Since APBS not found, solvation energy will not be calculated.");
+//                 };
                 
-                // run MM/PB-SA calculations
-                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&frames, &temp_dir, &sys_name, &aps,
-                    &ndx_com, &ndx_rec, &ndx_lig, &ala_list, &residues, bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
-                analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
-            }
-            1 => {
-                settings.use_dh = !settings.use_dh;
-            }
-            2 => {
-                settings.use_ts = !settings.use_ts;
-            }
-            // 3 => {
-            //     println!("Input atom radius type (default mBondi), Supported:{}", {
-            //         let mut s = String::new();
-            //         for (k, v) in radius_types.iter().enumerate() {
-            //             s.push_str(format!("\n{}):\t{}", k, v).as_str());
-            //         }
-            //         s
-            //     });
-            //     let mut s = String::new();
-            //     stdin().read_line(&mut s).expect("Input error");
-            //     if s.trim().is_empty() {
-            //         settings.rad_type = 3;
-            //     } else {
-            //         let s = s.trim().parse().expect("Input not valid number.");
-            //         if s == 0 {
-            //             settings.rad_type = 0;
-            //         } else if s < radius_types.len() {
-            //             settings.rad_type = s;
-            //         } else {
-            //             println!("Radius type {} not supported. Will use mBondi instead.", radius_types[s]);
-            //             settings.rad_type = 3;
-            //         }
-            //     }
-            // }
-            4 => {
-                println!("Input cutoff value (A), default 0 (inf):");
-                let mut s = String::new();
-                stdin().read_line(&mut s).expect("Input error");
-                if s.trim().is_empty() {
-                    settings.r_cutoff = f64::INFINITY;
-                } else {
-                    settings.r_cutoff = s.trim().parse().expect("Input not valid number.");
-                    if settings.r_cutoff == 0.0 {
-                        settings.r_cutoff = f64::INFINITY;
-                    }
-                }
-            }
-            5 => {
-                println!("Input coarse grid expand factor, default 3:");
-                let mut s = String::new();
-                stdin().read_line(&mut s).expect("Input error");
-                if s.trim().is_empty() {
-                    settings.cfac = 3.0;
-                } else {
-                    settings.cfac = s.trim().parse().expect("Input not valid number.");
-                }
-            }
-            6 => {
-                println!("Input fine grid expand amount (A), default 10:");
-                let mut s = String::new();
-                stdin().read_line(&mut s).expect("Input error");
-                if s.trim().is_empty() {
-                    settings.fadd = 10.0;
-                } else {
-                    settings.fadd = s.trim().parse().expect("Input not valid number.");
-                }
-            }
-            7 => {
-                println!("Input fine mesh spacing (A), default 0.5:");
-                let mut s = String::new();
-                stdin().read_line(&mut s).expect("Input error");
-                if s.trim().is_empty() {
-                    settings.df = 0.5;
-                } else {
-                    settings.df = s.trim().parse().expect("Input not valid number.");
-                }
-            }
-            8 => {
-                let pb_fpath = wd.join("PB_settings.yaml");
-                pbe_set.save_params(&pb_fpath);
-                println!("PB parameters have been wrote to {0}.\n\
-                    Edit it and input its path to reload (default: {0}).", &pb_fpath.to_str().unwrap());
-                let pb_fpath = get_input(pb_fpath.to_str().unwrap().to_string());
-                pbe_set = PBESet::load_params(pb_fpath);
-            }
-            9 => {
-                let sa_fpath = wd.join("SA_settings.yaml");
-                pba_set.save_params(&sa_fpath);
-                println!("SA parameters have been wrote to {0}.\n\
-                    Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
-                let sa_fpath = get_input(sa_fpath.to_str().unwrap().to_string());
-                pba_set = PBASet::load_params(sa_fpath);
-            }
-            10 => {
-                println!("Select the residues for alanine scanning:");
-                println!(" 1 Select the residues within the first layer (0-4 A)");
-                println!(" 2 Select the residues within the second layer (4-6 A)");
-                println!(" 3 Select the residues within the third layer (6-8 A)");
-                println!(" 4 Select the residues within specific distance");
-                println!(" 5 Directly input the resudues list");
-                let i: i32 = get_input_selection();
-                let receptor_res: Vec<Residue> = residues.iter().filter_map(|r| if r.id != aps.atom_props[ndx_lig[0]].resid {
-                    Some(r.clone())
-                } else {
-                    None
-                }).collect();
+//                 // run MM/PB-SA calculations
+//                 let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&frames, &temp_dir, &sys_name, &aps,
+//                     &ndx_com, &ndx_rec, &ndx_lig, &ala_list, &residues, bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
+//                 analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
+//             }
+//             1 => {
+//                 settings.use_dh = !settings.use_dh;
+//             }
+//             2 => {
+//                 settings.use_ts = !settings.use_ts;
+//             }
+//             // 3 => {
+//             //     println!("Input atom radius type (default mBondi), Supported:{}", {
+//             //         let mut s = String::new();
+//             //         for (k, v) in radius_types.iter().enumerate() {
+//             //             s.push_str(format!("\n{}):\t{}", k, v).as_str());
+//             //         }
+//             //         s
+//             //     });
+//             //     let mut s = String::new();
+//             //     stdin().read_line(&mut s).expect("Input error");
+//             //     if s.trim().is_empty() {
+//             //         settings.rad_type = 3;
+//             //     } else {
+//             //         let s = s.trim().parse().expect("Input not valid number.");
+//             //         if s == 0 {
+//             //             settings.rad_type = 0;
+//             //         } else if s < radius_types.len() {
+//             //             settings.rad_type = s;
+//             //         } else {
+//             //             println!("Radius type {} not supported. Will use mBondi instead.", radius_types[s]);
+//             //             settings.rad_type = 3;
+//             //         }
+//             //     }
+//             // }
+//             4 => {
+//                 println!("Input cutoff value (A), default 0 (inf):");
+//                 let mut s = String::new();
+//                 stdin().read_line(&mut s).expect("Input error");
+//                 if s.trim().is_empty() {
+//                     settings.r_cutoff = f64::INFINITY;
+//                 } else {
+//                     settings.r_cutoff = s.trim().parse().expect("Input not valid number.");
+//                     if settings.r_cutoff == 0.0 {
+//                         settings.r_cutoff = f64::INFINITY;
+//                     }
+//                 }
+//             }
+//             5 => {
+//                 println!("Input coarse grid expand factor, default 3:");
+//                 let mut s = String::new();
+//                 stdin().read_line(&mut s).expect("Input error");
+//                 if s.trim().is_empty() {
+//                     settings.cfac = 3.0;
+//                 } else {
+//                     settings.cfac = s.trim().parse().expect("Input not valid number.");
+//                 }
+//             }
+//             6 => {
+//                 println!("Input fine grid expand amount (A), default 10:");
+//                 let mut s = String::new();
+//                 stdin().read_line(&mut s).expect("Input error");
+//                 if s.trim().is_empty() {
+//                     settings.fadd = 10.0;
+//                 } else {
+//                     settings.fadd = s.trim().parse().expect("Input not valid number.");
+//                 }
+//             }
+//             7 => {
+//                 println!("Input fine mesh spacing (A), default 0.5:");
+//                 let mut s = String::new();
+//                 stdin().read_line(&mut s).expect("Input error");
+//                 if s.trim().is_empty() {
+//                     settings.df = 0.5;
+//                 } else {
+//                     settings.df = s.trim().parse().expect("Input not valid number.");
+//                 }
+//             }
+//             8 => {
+//                 let pb_fpath = wd.join("PB_settings.yaml");
+//                 pbe_set.save_params(&pb_fpath);
+//                 println!("PB parameters have been wrote to {0}.\n\
+//                     Edit it and input its path to reload (default: {0}).", &pb_fpath.to_str().unwrap());
+//                 let pb_fpath = get_input(pb_fpath.to_str().unwrap().to_string());
+//                 pbe_set = PBESet::load_params(pb_fpath);
+//             }
+//             9 => {
+//                 let sa_fpath = wd.join("SA_settings.yaml");
+//                 pba_set.save_params(&sa_fpath);
+//                 println!("SA parameters have been wrote to {0}.\n\
+//                     Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
+//                 let sa_fpath = get_input(sa_fpath.to_str().unwrap().to_string());
+//                 pba_set = PBASet::load_params(sa_fpath);
+//             }
+//             10 => {
+//                 println!("Select the residues for alanine scanning:");
+//                 println!(" 1 Select the residues within the first layer (0-4 A)");
+//                 println!(" 2 Select the residues within the second layer (4-6 A)");
+//                 println!(" 3 Select the residues within the third layer (6-8 A)");
+//                 println!(" 4 Select the residues within specific distance");
+//                 println!(" 5 Directly input the resudues list");
+//                 let i: i32 = get_input_selection();
+//                 let receptor_res: Vec<Residue> = residues.iter().filter_map(|r| if r.id != aps.atom_props[ndx_lig[0]].resid {
+//                     Some(r.clone())
+//                 } else {
+//                     None
+//                 }).collect();
 
-                let coord: Vec<f64> = frames[0].coords.iter()
-                    .flat_map(|arr| arr.iter().map(|&x| x as f64 * 10.0))
-                    .collect();
-                let coord: Array2<f64> = Array2::from_shape_vec((frames[0].coords.len(), 3), coord).unwrap();
-                match i {
-                    1 => {
-                        let rs = get_residue_range_ca(&coord, ndx_lig, 4.0, &aps, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    2 => {
-                        let rs = get_residue_range_ca(&coord, ndx_lig, 6.0, &aps, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    3 => {
-                        let rs = get_residue_range_ca(&coord, ndx_lig, 8.0, &aps, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    4 => {
-                        println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
-                        let cutoff = get_input(4.0);
-                        let rs = get_residue_range_ca(&coord, ndx_lig, cutoff, &aps, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    5 => {
-                        println!("Input the residues list for alanine scanning:");
-                        let rs = get_input("".to_string());
-                        ala_list = utils::range2list(rs.as_str());
-                    },
-                    _ => {}
-                }
-            }
-            _ => println!("Invalid input")
-        }
-    }
-}
+//                 let coord: Vec<f64> = frames[0].coords.iter()
+//                     .flat_map(|arr| arr.iter().map(|&x| x as f64 * 10.0))
+//                     .collect();
+//                 let coord: Array2<f64> = Array2::from_shape_vec((frames[0].coords.len(), 3), coord).unwrap();
+//                 match i {
+//                     1 => {
+//                         let rs = get_residue_range_ca(&coord, ndx_lig, 4.0, &aps, &receptor_res);
+//                         ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+//                     },
+//                     2 => {
+//                         let rs = get_residue_range_ca(&coord, ndx_lig, 6.0, &aps, &receptor_res);
+//                         ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+//                     },
+//                     3 => {
+//                         let rs = get_residue_range_ca(&coord, ndx_lig, 8.0, &aps, &receptor_res);
+//                         ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+//                     },
+//                     4 => {
+//                         println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
+//                         let cutoff = get_input(4.0);
+//                         let rs = get_residue_range_ca(&coord, ndx_lig, cutoff, &aps, &receptor_res);
+//                         ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+//                     },
+//                     5 => {
+//                         println!("Input the residues list for alanine scanning:");
+//                         let rs = get_input("".to_string());
+//                         ala_list = utils::range2list(rs.as_str());
+//                     },
+//                     _ => {}
+//                 }
+//             }
+//             _ => println!("Invalid input")
+//         }
+//     }
+// }

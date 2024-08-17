@@ -6,7 +6,7 @@ use crate::apbs_param::*;
 use crate::atom_property::AtomProperties;
 use crate::settings::Settings;
 
-pub fn prepare_pqr(cur_frm: usize, time_list: &Vec<f32>,
+pub fn prepare_pqr(cur_frm: usize, time_list: &Vec<f64>,
                    temp_dir: &Path, sys_name: &String, coord: &ArrayView2<f64>,
                    ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                    aps: &AtomProperties) {

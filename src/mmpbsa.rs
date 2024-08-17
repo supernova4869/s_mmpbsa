@@ -2,13 +2,13 @@ use std::cmp::Ordering;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use xdrfile::*;
+// use xdrfile::*;
 use crate::settings::Settings;
 use crate::utils::resname_3to1;
 use ndarray::parallel::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
 use std::process::Command;
-use std::rc::Rc;
+// use std::rc::Rc;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
@@ -19,7 +19,7 @@ use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
+pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &mut Array3<f64>, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperties,
                                ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, 
@@ -41,8 +41,8 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
     }
                 
     println!("Extracting atoms coordination...");
-    let mut coordinates = get_atoms_trj(&frames, aps.atom_props.len());
-    let time_list: Vec<f32> = frames.iter().map(|f| f.time / 1000.0).collect();
+    // let mut coordinates = get_atoms_trj(&frames, aps.atom_props.len());
+    // let time_list: Vec<f32> = frames.iter().map(|f| f.time / 1000.0).collect();
 
     // calculate MM and PBSA
     println!("Calculating binding energy for {}...", sys_name);
@@ -165,23 +165,23 @@ pub fn fun_mmpbsa_calculations(frames: &Vec<Rc<Frame>>, temp_dir: &PathBuf,
     (result_wt, result_ala_scan)
 }
 
-fn get_atoms_trj(frames: &Vec<Rc<Frame>>, num_atoms: usize) -> Array3<f64> {
-    let num_frames = frames.len();
-    let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
+// fn get_atoms_trj(frames: &Vec<Rc<Frame>>, num_atoms: usize) -> Array3<f64> {
+//     let num_frames = frames.len();
+//     let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
 
-    let pb = ProgressBar::new(num_frames as u64);
-    set_style(&pb);
-    for (layer_id, frame) in frames.into_iter().enumerate() {
-        for (row_id, a) in (&frame.coords).into_iter().enumerate() {
-            coord_matrix[[layer_id, row_id, 0]] = a[0] as f64 * 10.0;
-            coord_matrix[[layer_id, row_id, 1]] = a[1] as f64 * 10.0;
-            coord_matrix[[layer_id, row_id, 2]] = a[2] as f64 * 10.0;
-        }
-        pb.inc(1);
-    }
-    pb.finish();
-    return coord_matrix;
-}
+//     let pb = ProgressBar::new(num_frames as u64);
+//     set_style(&pb);
+//     for (layer_id, frame) in frames.into_iter().enumerate() {
+//         for (row_id, a) in (&frame.coords).into_iter().enumerate() {
+//             coord_matrix[[layer_id, row_id, 0]] = a[0] as f64 * 10.0;
+//             coord_matrix[[layer_id, row_id, 1]] = a[1] as f64 * 10.0;
+//             coord_matrix[[layer_id, row_id, 2]] = a[2] as f64 * 10.0;
+//         }
+//         pb.inc(1);
+//     }
+//     pb.finish();
+//     return coord_matrix;
+// }
 
 pub fn set_style(pb: &ProgressBar) {
     pb.set_style(ProgressStyle::with_template(
@@ -189,7 +189,7 @@ pub fn set_style(pb: &ProgressBar) {
         .progress_chars("=>-"));
 }
 
-fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, bf: usize, ef: usize, 
+fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, bf: usize, ef: usize, 
                     dframe: usize, total_frames: usize, aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                     residues: &Vec<Residue>, sys_name: &String, mutation: &str,
@@ -203,7 +203,7 @@ fn calculate_mmpbsa(time_list: &Vec<f32>, coordinates: &Array3<f64>, bf: usize, 
     let coeff = Coefficients::new(pbe_set);
 
     // Time list of trajectory
-    let times: Array1<f64> = Array1::from_iter((bf..=ef).into_iter().step_by(dframe).map(|f| time_list[f] as f64));
+    let times: Array1<f64> = Array1::from_iter((bf..=ef).into_iter().step_by(dframe).map(|f| time_list[f]));
 
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
@@ -312,7 +312,7 @@ fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coo
     return (de_elec, de_vdw)
 }
 
-fn calc_pbsa(coord: &ArrayView2<f64>, time_list: &Vec<f32>, 
+fn calc_pbsa(coord: &ArrayView2<f64>, time_list: &Vec<f64>, 
             ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     prepare_pqr(cur_frm, &time_list, &temp_dir, sys_name, coord, &ndx_rec_norm, ndx_lig_norm, aps);

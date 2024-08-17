@@ -135,6 +135,12 @@ pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str,
     gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
 }
 
+pub fn trajectory(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str, debug_mode: bool) {
+    let mut echo_cmd = echo(grps);
+    let args: Vec<&str> = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox].to_vec();
+    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
+}
+
 pub fn resname_3to1(name: &str) -> Option<String> {
     let mut resname_map: HashMap<&str, &str> = HashMap::new();
     resname_map.insert("ALA", "A");

@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 regex = "^1.6.0"
-xdrfile = "^0.3.0"
 toml = "^0.5.2"
 ndarray = { version = "^0.15.6", features = ["rayon"] }
 indicatif = "^0.17.1"
