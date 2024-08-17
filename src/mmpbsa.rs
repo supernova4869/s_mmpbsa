@@ -39,10 +39,6 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &mut Array3<f6
             }).collect();
         println!("Mutations for alanine scanning: {}", as_res.join(", "));
     }
-                
-    println!("Extracting atoms coordination...");
-    // let mut coordinates = get_atoms_trj(&frames, aps.atom_props.len());
-    // let time_list: Vec<f32> = frames.iter().map(|f| f.time / 1000.0).collect();
 
     // calculate MM and PBSA
     println!("Calculating binding energy for {}...", sys_name);

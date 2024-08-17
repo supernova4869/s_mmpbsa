@@ -124,7 +124,7 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 };
                 
                 // run MM/PB-SA calculations
-                println!("Preparing parameters...");
+                println!("Extracting atoms coordination...");
                 let (time_list, mut coordinates) = parse_xvg::read_coord_xvg(wd, "MMPBSA_coord.xvg");
                 let (bf, ef, dframe, total_frames) = get_frames_range(&time_list, bt, et, dt);
                 
