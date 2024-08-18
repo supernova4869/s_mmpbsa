@@ -51,6 +51,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &mut Array3<f6
         // main chain atoms number
         let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
             && r.name.ne("GLY") && r.name.ne("ALA")).collect();     // gly not contain CB, ala no need to mutate
+        let mut new_coordinates = coordinates.clone();
         for asr in as_res {
             let mut new_aps = aps.clone();
             let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
@@ -76,13 +77,13 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &mut Array3<f6
             for xg in xgs.iter() {
                 new_aps.atom_props[xg.id].change_atom(aps.at_map.get("HC"), "HC", &aps.radius_type);
                 // 获取新的HB坐标
-                for layer in 0..coordinates.shape()[0] {
-                    let cb_coords: Array1<f64> = coordinates.slice(s![layer, cb[0].id, ..]).to_owned();
-                    let hg_coords: Array1<f64> = coordinates.slice(s![layer, xg.id, ..]).to_owned();
-                    let new_hg_coord = transform_coordinate(&cb_coords, &hg_coords, 1.09);
-                    coordinates[[layer, xg.id, 0]] = new_hg_coord[0];
-                    coordinates[[layer, xg.id, 1]] = new_hg_coord[1];
-                    coordinates[[layer, xg.id, 2]] = new_hg_coord[2];
+                for layer in 0..new_coordinates.shape()[0] {
+                    let cb_coords: Array1<f64> = new_coordinates.slice(s![layer, cb[0].id, ..]).to_owned();
+                    let hg_coords: Array1<f64> = new_coordinates.slice(s![layer, xg.id, ..]).to_owned();
+                    let new_hg_coord: Array1<f64> = transform_coordinate(&cb_coords, &hg_coords, 1.09);
+                    new_coordinates[[layer, xg.id, 0]] = new_hg_coord[0];
+                    new_coordinates[[layer, xg.id, 1]] = new_hg_coord[1];
+                    new_coordinates[[layer, xg.id, 2]] = new_hg_coord[2];
                 }
             }
             // 脯氨酸需要把CD改成H
@@ -98,13 +99,13 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &mut Array3<f6
                 let cd = as_atoms.iter().find(|&a| a.name == "CD").unwrap();
                 new_aps.atom_props[cd.id].change_atom(aps.at_map.get("H"), "HN", &aps.radius_type);
                 // 获取新的HN坐标
-                for layer in 0..coordinates.shape()[0] {
-                    let n_coords: Array1<f64> = coordinates.slice(s![layer, n[0].id, ..]).to_owned();
-                    let hn_coords: Array1<f64> = coordinates.slice(s![layer, cd.id, ..]).to_owned();
+                for layer in 0..new_coordinates.shape()[0] {
+                    let n_coords: Array1<f64> = new_coordinates.slice(s![layer, n[0].id, ..]).to_owned();
+                    let hn_coords: Array1<f64> = new_coordinates.slice(s![layer, cd.id, ..]).to_owned();
                     let new_hn_coord = transform_coordinate(&n_coords, &hn_coords, 1.07);
-                    coordinates[[layer, cd.id, 0]] = new_hn_coord[0];
-                    coordinates[[layer, cd.id, 1]] = new_hn_coord[1];
-                    coordinates[[layer, cd.id, 2]] = new_hn_coord[2];
+                    new_coordinates[[layer, cd.id, 0]] = new_hn_coord[0];
+                    new_coordinates[[layer, cd.id, 1]] = new_hn_coord[1];
+                    new_coordinates[[layer, cd.id, 2]] = new_hn_coord[2];
                 }
             }
             
@@ -116,7 +117,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &mut Array3<f6
             for (i, ap) in new_aps.atom_props.iter_mut().enumerate() {
                 ap.id = i;
             };
-            let new_coordinates = coordinates.select(Axis(1), &retain_id);
+            let new_coordinates: Array3<f64> = new_coordinates.select(Axis(1), &retain_id);
             let new_ndx_com = Vec::from_iter(0..(ndx_com.len() - (aps.atom_props.len() - new_aps.atom_props.len())));
             let new_ndx_rec = match ndx_rec[0].partial_cmp(&ndx_lig[0]) {
                 Some(Ordering::Less) => Vec::from_iter(0..(ndx_rec.len() - (aps.atom_props.len() - new_aps.atom_props.len()))),
@@ -199,7 +200,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, bf: usize, 
     let coeff = Coefficients::new(pbe_set);
 
     // Time list of trajectory
-    let times: Array1<f64> = Array1::from_iter((bf..=ef).into_iter().step_by(dframe).map(|f| time_list[f]));
+    let times: Array1<f64> = Array1::from_iter((bf..=ef).into_iter().step_by(dframe).map(|f| time_list[f] / 1000.0));
 
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
