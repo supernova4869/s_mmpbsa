@@ -1,9 +1,7 @@
 use std::cmp::Ordering;
-// use std::collections::HashSet;
 use std::path::Path;
 use std::fs;
 
-// use crate::parse_pdbqt::PDBQT;
 use crate::settings::Settings;
 use crate::utils::{get_input_selection, append_new_name, trajectory};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
@@ -89,11 +87,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         
                         println!("Extracting trajectory, be patient...");
                         // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
-                        trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"], settings.debug_mode);
+                        trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"]);
                         
                         // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
                         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
-                        convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa, settings.debug_mode);
+                        convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
                         if !settings.debug_mode {
                             fs::remove_file(&ndx_whole).unwrap();
                         }
@@ -128,15 +126,15 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                                     println!("Fixing PBC conditions 0/3...");
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
                                     trjconv(&(ndx.groups[ligand_grp].name.to_owned() + " Complex"),
-                                        wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"], settings.debug_mode);
+                                        wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"]);
                                     println!("Fixing PBC conditions 1/3...");
                                     // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
                                     trjconv("Complex Complex",
-                                        wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"], settings.debug_mode);
+                                        wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"]);
                                     println!("Fixing PBC conditions 2/3...");
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
                                     trjconv("1 0",
-                                        wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"], settings.debug_mode);
+                                        wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"]);
                                     if !settings.debug_mode {
                                         fs::remove_file(&trj_center).unwrap();
                                         fs::remove_file(&trj_cluster).unwrap();
@@ -146,7 +144,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
                                     println!("Fixing PBC conditions 0/1...");
                                     trjconv("0 0 0", 
-                                        wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"], settings.debug_mode);
+                                        wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"]);
                                 }
                             }
                             if !settings.debug_mode {
@@ -156,13 +154,13 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         } else {
                             trj_whole
                         };
+                        println!("Fixing PBC finished.");
+                        println!("Loading trajectory file...");
+                        trajectory("0", wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
                         if !settings.debug_mode {
                             fs::remove_file(&tpr_mmpbsa).unwrap();
                             fs::remove_file(&ndx_mmpbsa).unwrap();
                         }
-                        println!("Fixing PBC finished.");
-                        println!("Loading trajectory file...");
-                        trajectory("0", wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "MMPBSA_coord.xvg", settings.debug_mode);
 
                         set_para_mmpbsa(&trj_mmpbsa, tpr, &ndx, wd, &mut aps, 
                             &ndx_com,
@@ -237,76 +235,6 @@ fn show_grp(grp: Option<usize>, ndx: &Index) -> String {
     }
 }
 
-// pub fn set_para_dock(receptor: &PDBQT, ligand: &PDBQT, wd: &Path, settings: &mut Settings) {
-//     let mut bf: i32 = 0;
-//     let mut ef: i32 = ligand.models.len() as i32 - 1;
-//     loop {
-//         println!("\n                 ************ Trajectory Parameters ************");
-//         println!("-10 Return");
-//         println!("  0 Go to next step");
-//         println!("  1 Set start model id to analyze, current:      {}", bf + 1);
-//         println!("  2 Set end model id to analyze, current:        {}", ef + 1);
-//         let i = get_input_selection();
-//         match i {
-//             -10 => return,
-//             0 => {
-//                 // 建立frames
-//                 let mut frames: Vec<Rc<Frame>> = vec![];
-//                 for i in 0..ligand.models.len() {
-//                     let mut frame = Frame::with_len(receptor.models[0].atoms.len() + ligand.models[0].atoms.len());
-//                     frame.step = i;
-//                     frame.time = (i + 1) as f32 * 1000.0;
-//                     for (j, aj) in frame.coords.iter_mut().enumerate() {
-//                         if j < receptor.models[0].atoms.len() {
-//                             let cur_atom = &receptor.models[0].atoms[j];
-//                             aj[0] = cur_atom.x as f32 / 10.0;
-//                             aj[1] = cur_atom.y as f32 / 10.0;
-//                             aj[2] = cur_atom.z as f32 / 10.0;
-//                         } else {
-//                             let cur_atom = &ligand.models[i].atoms[j - receptor.models[0].atoms.len()];
-//                             aj[0] = cur_atom.x as f32 / 10.0;
-//                             aj[1] = cur_atom.y as f32 / 10.0;
-//                             aj[2] = cur_atom.z as f32 / 10.0;
-//                         }
-//                     }
-//                     frames.push(Rc::new(frame));
-//                 }
-
-//                 println!("Parsing atom properties...");
-//                 let mut aps = AtomProperties::from_pdbqt(receptor, ligand);
-//                 println!("Collecting residues list...");
-//                 let residues = get_residues_pdbqt(receptor, ligand);
-//                 let ndx_com = Vec::from_iter(0..(receptor.models[0].atoms.len() + ligand.models[0].atoms.len()));
-//                 let ndx_rec = Vec::from_iter(0..receptor.models[0].atoms.len());
-//                 let ndx_lig = Vec::from_iter(ndx_rec.len()..ndx_rec.len() + ligand.models[0].atoms.len());
-//                 set_para_mmpbsa_pdbqt(&frames, &mut aps, bf as usize, ef as usize, 1, (ef - bf) as usize + 1, 298.15, 
-//                     &ndx_com, &ndx_rec, &ndx_lig, wd, &residues, settings);
-//             }
-//             1 => {
-//                 println!("Input start model");
-//                 let mut new_bf = get_input_selection::<i32>() - 1;
-//                 while new_bf < 0 {
-//                     println!("The input {} not a valid model in ligands.", new_bf + 1);
-//                     println!("Input start model");
-//                     new_bf = get_input_selection::<i32>() - 1;
-//                 }
-//                 bf = new_bf as i32;
-//             }
-//             2 => {
-//                 println!("Input end model");
-//                 let mut new_ef = get_input_selection::<i32>() - 1;
-//                 while new_ef >= ligand.models.len() as i32 {
-//                     println!("The input {} not a valid model in ligands.", new_ef + 1);
-//                     println!("Input end model");
-//                     new_ef = get_input_selection::<i32>() - 1;
-//                 }
-//                 ef = new_ef as i32;
-//             }
-//             _ => println!("Invalid input")
-//         }
-//     }
-// }
-
 // convert rec and lig to begin at 0 and continous
 pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     let offset = match ndx_lig {
@@ -354,34 +282,3 @@ pub fn get_residues_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
     }
     residues
 }
-
-// pub fn get_residues_pdbqt(receptor: &PDBQT, ligand: &PDBQT) -> Vec<Residue> {
-//     let mut residues: Vec<Residue> = vec![];
-//     let receptor_resid: HashSet<i32> = HashSet::from_iter(receptor.models[0].atoms.iter().map(|a| a.resid));
-//     let mut receptor_resid: Vec<i32> = receptor_resid.into_iter().collect();
-//     receptor_resid.sort();
-//     let ligand_resid: HashSet<i32> = HashSet::from_iter(ligand.models[0].atoms.iter().map(|a| a.resid));
-//     let mut ligand_resid: Vec<i32> = ligand_resid.into_iter().collect();
-//     ligand_resid.sort();
-//     receptor_resid.extend(ligand_resid);
-//     let resid = receptor_resid;
-//     let mut atoms = receptor.models[0].atoms.to_vec();
-//     atoms.extend(ligand.models[0].atoms.to_vec());
-
-//     // residue names
-//     let mut resnames = Vec::new();
-//     let mut index = 0;
-//     for a in &atoms {
-//         if a.resid == resid[index] {
-//             resnames.push(a.resname.to_string());
-//             index += 1;
-//             if index == resid.len() {
-//                 break;
-//             }
-//         }
-//     }
-//     for (index, resid) in resid.iter().enumerate() {
-//         residues.push(Residue::new(index, resnames[index].to_string(), *resid));
-//     }
-//     residues
-// }

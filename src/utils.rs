@@ -57,16 +57,6 @@ pub fn get_input_selection<T: FromStr>() -> T {
     }
 }
 
-// pub fn get_outfile<T: ToString + std::fmt::Display>(default_name: &T) -> String {
-//     println!("\nInput file name to write (default: {}):", default_name);
-//     let mut temp = String::new();
-//     io::stdin().read_line(&mut temp).unwrap();
-//     match temp.trim().is_empty() {
-//         true => default_name.to_string(),
-//         _ => temp.trim().to_string()
-//     }
-// }
-
 pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> String {
     let file_path = Path::new(origin_name);
     let file_stem = file_path.file_stem().unwrap();
@@ -123,22 +113,22 @@ fn gmx_cmd(gmx: &str, cmd1: &mut Child, wd: &Path, args: &[&str], debug_mode: bo
     
 }
 
-pub fn convert_tpr(grps: &str, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str, debug_mode: bool) {
+pub fn convert_tpr(grps: &str, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str) {
     let mut echo_cmd = echo(grps);
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
-    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
+    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
 }
 
-pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str], debug_mode: bool) {
+pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let mut echo_cmd = echo(grps);
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
+    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
 }
 
-pub fn trajectory(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str, debug_mode: bool) {
+pub fn trajectory(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str) {
     let mut echo_cmd = echo(grps);
-    let args: Vec<&str> = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox].to_vec();
-    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, debug_mode);
+    let args = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox].to_vec();
+    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {

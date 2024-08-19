@@ -74,37 +74,3 @@ pub fn get_radii_map(rad_type: &str) -> HashMap<String, f64> {
     }
     radii_table
 }
-
-#[derive(Clone)]
-pub struct AD4param {
-    pub sigma: f64,
-    pub eps: f64,
-    pub sigma_hb: f64,
-    pub eps_hb: f64
-}
-
-// pub fn get_ad4_map() -> HashMap<String, AD4param> {
-//     let mut ad4_map: HashMap<String, AD4param> = HashMap::new();
-//     let radii_file = current_exe().expect("Cannot get current s_mmpbsa program path.")
-//         .parent().expect("Cannot get current s_mmpbsa program directory.")
-//         .join("dat").join("AD4_parameters.dat")
-//         .to_str().expect("The atom radius data files (dat/) not found.").to_string();
-//     let radii_file_content = fs::read_to_string(radii_file)
-//         .expect("Error reading atom radius data file: AD4_parameters.dat");
-//     for l in radii_file_content.split("\n").filter(|p| !p.trim().starts_with("//") && !p.trim().is_empty()) {
-//         let k_v: Vec<&str> = l.trim().split(" ").filter(|s| !s.is_empty()).collect();
-//         let ad4 = AD4param {
-//             sigma: k_v[1].parse::<f64>().unwrap() / 10.0, // in nm
-//             eps: k_v[2].parse::<f64>().unwrap() * 4.18,    // in kJ/mol
-//             sigma_hb: k_v[3].parse::<f64>().unwrap() / 10.0, // in nm
-//             eps_hb: k_v[4].parse::<f64>().unwrap() * 4.18,    // in kJ/mol
-//         };
-//         ad4_map.insert(k_v[0].to_string(), ad4);
-//     }
-//     ad4_map
-// }
-
-// get param from AD4
-// pub fn get_ad4_param(ad4_map: &HashMap<String, AD4param>, at_type: &str) -> AD4param {
-//     ad4_map.get(at_type).unwrap().clone()
-// }

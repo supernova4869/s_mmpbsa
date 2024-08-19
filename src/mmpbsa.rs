@@ -19,7 +19,7 @@ use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &mut Array3<f64>, temp_dir: &PathBuf,
+pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperties,
                                ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, 

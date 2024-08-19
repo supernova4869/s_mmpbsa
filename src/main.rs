@@ -1,7 +1,6 @@
 mod index_parser;
 mod mmpbsa;
 mod parse_tpr;
-mod parse_pdbqt;
 mod parse_xvg;
 mod analyzation;
 mod fun_para_basic;
@@ -32,14 +31,14 @@ fn main() {
     let mut infile: String = String::new();
     match args.len() {
         1 => {
-            println!("Input path of tpr, dump or pdbqt file, e.g. D:/Shinichi/Shiho.tpr or D:/Conan/Ai.pdbqt");
+            println!("Input path of tpr file, e.g. D:/Conan/Ai.tpr");
             println!("Hint: input \"o\" to simply load last-opened file");
             loop {
                 stdin().read_line(&mut infile).expect("Failed to get input file.");
                 if infile.trim() == "o" {
                     infile = settings.last_opened.to_string();
                     if infile.len() == 0 {
-                        println!("Last-opened tpr or mdp not found.");
+                        println!("Last-opened tpr not found.");
                     }
                 }
                 if !Path::new(infile.trim()).is_file() {
@@ -56,16 +55,14 @@ fn main() {
         _ => {}
     }
 
-    infile = confirm_file_validity(&infile, vec!["tpr", "dump", "pdbqt"], &settings);
+    infile = confirm_file_validity(&infile, vec!["tpr"], &settings);
 
     settings.last_opened = fs::canonicalize(Path::new(&infile))
         .expect("Cannot convert to absolute path.").display().to_string();
     change_settings_last_opened(&infile);
 
-    // dump tpr and do nothing with pdbqt
-    if infile.ends_with("tpr") || infile.ends_with("dump") {
-        infile = get_dump(&infile, &settings);
-    }
+    // dump tpr
+    infile = get_dump(&infile, &settings);
 
     match settings.debug_mode {
         true => println!("Debug mode open."),
@@ -77,28 +74,16 @@ fn main() {
 }
 
 fn get_dump(infile: &String, settings: &Settings) -> String {
-    // get dump file or dumpped tpr
+    // get dumpped tpr
     let tpr_dump_path = fs::canonicalize(Path::new(&infile)).expect("Cannot get absolute tpr path.");
     let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
     let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
     let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
     println!("Currently working at path: {}", Path::new(&tpr_dir).display());
-
-    // It names tpr but exactly dump file _(:qゝ∠)_
-    let tpr_name = match infile.ends_with(".tpr") {
-        true => {
-            println!("Found tpr file: {}", infile);
-            let gmx = settings.gmx_path.as_ref().unwrap();
-            let dump_to = dump_path.to_str().unwrap().to_string();
-            dump_tpr(&infile, &dump_to, gmx);
-            dump_to
-        }
-        false => {
-            println!("Found dump file: {}", infile);
-            infile.to_string()
-        }
-    };
-    tpr_name
+    let gmx = settings.gmx_path.as_ref().unwrap();
+    let dump_to = dump_path.to_str().unwrap().to_string();
+    dump_tpr(&infile, &dump_to, gmx);
+    dump_to
 }
 
 fn welcome() {
@@ -111,9 +96,7 @@ fn welcome() {
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
         Version 0.4, first release: 2022-Oct-17, current release: 2024-Jul-25\n");
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n\
-        Usage 3: run `s_mmpbsa Miyano_Shiho.dump` to load dumped tpr file.\n\
-        Usage 4: run `s_mmpbsa Haibara_Ai.pdbqt` to load receptor pdbqt file.\n");
+        Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n");
 }
 
 // 把ext_list改成enum
