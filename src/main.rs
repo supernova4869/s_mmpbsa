@@ -310,10 +310,8 @@ fn change_settings_last_opened(settings: &mut Settings, tpr: &String) {
         let base_settings = fs::read_to_string(get_base_settings())
             .expect("Cannot read settings.ini.");
         let re = Regex::new("last_opened.*\".*\"").unwrap();
-        let last_opened = fs::canonicalize(Path::new(&tpr))
-            .expect("Cannot convert to absolute path.").display().to_string();
         let settings = re.replace(base_settings.as_str(),
-            format!("last_opened = \"{}\"", &last_opened));
+            format!("last_opened = \"{}\"", &settings.last_opened));
         let mut settings_file = File::create(get_base_settings())
             .expect("Cannot edit settings.ini.");
         settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
