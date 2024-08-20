@@ -81,30 +81,30 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         // gmx make_ndx -f md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
                         let ndx_whole = append_new_name(ndx_name, "_whole.ndx", "_MMPBSA_"); // get extracted index file name
                         if let Some(ligand_grp) = ligand_grp {
-                            make_ndx(&[
+                            make_ndx(&vec![
                                 format!("{} | {}", receptor_grp, ligand_grp).as_str(),
                                 format!("name {} Complex", ndx.groups.len()).as_str(),
                                 format!("name {} Receptor", receptor_grp).as_str(),
                                 format!("name {} Ligand", ligand_grp).as_str(),
                                 "q"
-                            ].to_vec(), wd, settings, &tpr_name, ndx_name, &ndx_whole);
+                            ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
                         } else {
-                            make_ndx(&[
+                            make_ndx(&vec![
                                 format!("{}", receptor_grp).as_str(),
                                 format!("name {} Receptor", receptor_grp).as_str(),
                                 "q"
-                            ].to_vec(), wd, settings, &tpr_name, ndx_name, &ndx_whole);
+                            ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
                         }
                         
                         // step 2: extract new trj with old tpr
                         println!("Extracting trajectory, be patient...");
                         // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
-                        trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"]);
+                        trjconv(&vec!["Complex"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"]);
                         
                         // step 3: extract new tpr with old tpr
                         // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
                         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
-                        convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
+                        convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
                         if !settings.debug_mode {
                             fs::remove_file(&ndx_whole).unwrap();
                         }
@@ -120,11 +120,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         
                         // extract index file
                         let ndx_mmpbsa = match ligand_grp {
-                            Some(ligand_grp) => {
+                            Some(_) => {
                                 Index::new(vec![
                                     IndexGroup::new("Complex", &ndx_com), 
-                                    IndexGroup::new(&ndx.groups[receptor_grp].name, &ndx_rec),
-                                    IndexGroup::new(&ndx.groups[ligand_grp].name, &ndx_lig)
+                                    IndexGroup::new("Receptor", &ndx_rec),
+                                    IndexGroup::new("Ligand", &ndx_lig)
                                 ])
                             },
                             None => {
@@ -137,18 +137,18 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
 
                         let trj_mmpbsa = if settings.fix_pbc {
                             match ligand_grp {
-                                Some(ligand_grp) => {
+                                Some(_) => {
                                     println!("Fixing PBC conditions 0/3...");
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
-                                    trjconv(&(ndx.groups[ligand_grp].name.to_owned() + " Complex"),
+                                    trjconv(&vec!["Ligand", "Complex"],
                                         wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"]);
                                     println!("Fixing PBC conditions 1/3...");
                                     // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
-                                    trjconv("Complex Complex",
+                                    trjconv(&vec!["Complex", "Complex"],
                                         wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"]);
                                     println!("Fixing PBC conditions 2/3...");
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
-                                    trjconv("1 0",
+                                    trjconv(&vec!["Ligand", "Complex"],
                                         wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"]);
                                     if !settings.debug_mode {
                                         fs::remove_file(&trj_center).unwrap();
@@ -158,7 +158,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                                 None => {
                                     // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
                                     println!("Fixing PBC conditions 0/1...");
-                                    trjconv("0 0 0", 
+                                    trjconv(&vec!["Complex", "Complex", "Complex"], 
                                         wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"]);
                                 }
                             }
@@ -171,7 +171,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         };
                         println!("Fixing PBC finished.");
                         println!("Loading trajectory file...");
-                        trajectory("0", wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
+                        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
                         if !settings.debug_mode {
                             fs::remove_file(&tpr_mmpbsa).unwrap();
                             fs::remove_file(&ndx_mmpbsa).unwrap();

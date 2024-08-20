@@ -3,7 +3,7 @@ use std::path::Path;
 use std::io::{self, Write};
 use std::str::FromStr;
 use std::fmt::Debug;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use ndarray::{Array2, Axis};
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
@@ -64,75 +64,10 @@ pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> St
     new_name.to_str().unwrap().to_string()
 }
 
-fn echo(s: &str) -> Child {
-    if cfg!(windows) {
-        Command::new("cmd")
-        .arg("/C")
-        .arg("echo ".to_string() + s)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to execute command")
-    } else if cfg!(unix) {
-        Command::new("echo")
-        .args(&["-e ".to_string() + s])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("Failed to execute command")
-    } else {
-        Command::new("Currently not supported.").spawn().unwrap()
-    }
-}
-
-fn gmx_cmd(gmx: &str, cmd1: &mut Child, wd: &Path, args: &[&str], debug_mode: bool) {
-    match debug_mode {
-        true => {
-            Command::new(gmx)
-                .args(args)
-                .current_dir(wd)
-                .stdin(cmd1.stdout.take().unwrap())
-                .spawn()
-                .expect("Failed to execute command")
-                .wait_with_output()
-                .expect("Failed to wait for command");
-        },
-        false => {
-            Command::new(gmx)
-                .args(args)
-                .current_dir(wd)
-                .stdin(cmd1.stdout.take().unwrap())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .expect("Failed to execute command")
-                .wait_with_output()
-                .expect("Failed to wait for command");
-        }
-    }
-    
-}
-
-pub fn convert_tpr(grps: &str, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str) {
-    let mut echo_cmd = echo(grps);
-    let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
-    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
-}
-
-pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
-    let mut echo_cmd = echo(grps);
-    let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
-}
-
-pub fn make_ndx(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, n: &str, o: &str) {
-    let args = match n.is_empty() {
-        true => ["make_ndx", "-f", f, "-o", o].to_vec(),
-        false => ["make_ndx", "-f", f, "-n", n, "-o", o].to_vec()
-    };
+fn gmx_cmd(settings: &Settings, cmds: &Vec<&str>, args: &[&str], wd: &Path) {
     let mut child = if settings.debug_mode {
         Command::new(settings.gmx_path.as_ref().unwrap())
-            .args(&args)
+            .args(args)
             .current_dir(wd)
             .stdin(Stdio::piped())  // 开启标准输入管道
             .stdout(Stdio::inherit())  // 将标准输出继承自父进程
@@ -140,7 +75,7 @@ pub fn make_ndx(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, n
             .expect("Failed to start process")
     } else {
         Command::new(settings.gmx_path.as_ref().unwrap())
-            .args(&args)
+            .args(args)
             .current_dir(wd)
             .stdin(Stdio::piped())  // 开启标准输入管道
             .stdout(Stdio::null())
@@ -159,10 +94,27 @@ pub fn make_ndx(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, n
     child.wait().expect("Failed to wait on child");
 }
 
-pub fn trajectory(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str) {
-    let mut echo_cmd = echo(grps);
+pub fn convert_tpr(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str) {
+    let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
+    gmx_cmd(settings, cmds, &args, wd);
+}
+
+pub fn trjconv(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
+    let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
+    gmx_cmd(settings, cmds, &args, wd);
+}
+
+pub fn make_ndx(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, n: &str, o: &str) {
+    let args = match n.is_empty() {
+        true => ["make_ndx", "-f", f, "-o", o].to_vec(),
+        false => ["make_ndx", "-f", f, "-n", n, "-o", o].to_vec()
+    };
+    gmx_cmd(settings, cmds, &args, wd);
+}
+
+pub fn trajectory(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str) {
     let args = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox].to_vec();
-    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
+    gmx_cmd(settings, cmds, &args, wd);
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {
