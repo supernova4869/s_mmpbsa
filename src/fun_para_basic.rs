@@ -1,15 +1,15 @@
 use std::io::stdin;
 use std::path::Path;
 use crate::settings::Settings;
-use crate::utils::get_input_selection;
+use crate::utils::{append_new_name, get_input_selection, make_ndx};
 use crate::{check_apbs, check_delphi, confirm_file_validity, convert_cur_dir};
 use crate::fun_para_system::set_para_trj;
 use crate::parse_tpr::TPR;
 
-pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
+pub fn set_para_basic(tpr_path: &String, wd: &Path, settings: &mut Settings) {
     let mut trj = String::new();
     let mut ndx = String::new();
-    let mut tpr = TPR::new(&infile, &settings);
+    let mut tpr = TPR::new(&tpr_path, &settings);
     println!("\nFinished loading tpr.");
 
     loop {
@@ -69,11 +69,10 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
                 if trj.len() == 0 {
                     println!("Trajectory file not assigned.");
                 } else if ndx.len() == 0 {
-                    // 可能要改, 以后不需要index也能算
                     println!("Index file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj(&trj, &mut tpr, &ndx, &wd, &infile, settings);
+                    set_para_trj(&trj, &mut tpr, &ndx, &wd, &tpr_path, settings);
                 }
             }
             1 => {
@@ -83,18 +82,23 @@ pub fn set_para_basic(infile: &String, wd: &Path, settings: &mut Settings) {
                 if trj.trim().is_empty() {
                     trj = "?md.xtc".to_string();
                 }
-                trj = convert_cur_dir(&trj, &settings);
-                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"], &settings);
+                trj = convert_cur_dir(&trj, tpr_path);
+                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr"], tpr_path);
             }
             2 => {
                 println!("Input index file path, default: ?index.ndx (\"?\" means the same directory as tpr):");
+                println!("Note: if no index file prepared, the default index.ndx will be generated according to tpr.");
                 ndx.clear();
                 stdin().read_line(&mut ndx).expect("Failed while reading index file");
                 if ndx.trim().is_empty() {
                     ndx = "?index.ndx".to_string();
                 }
-                ndx = convert_cur_dir(&ndx, &settings);
-                ndx = confirm_file_validity(&mut ndx, vec!["ndx"], &settings);
+                ndx = convert_cur_dir(&ndx, tpr_path);
+                if !Path::new(&ndx).is_file() {
+                    let tpr_path = append_new_name(tpr_path, ".tpr", "");
+                    make_ndx("q", wd, settings, &tpr_path, &ndx);
+                }
+                ndx = confirm_file_validity(&mut ndx, vec!["ndx"], tpr_path);
             }
             -10 => break,
             _ => println!("Error input.")

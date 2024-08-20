@@ -28,41 +28,39 @@ fn main() {
     let mut settings = env_check();
 
     let args: Vec<String> = env::args().collect();
-    let mut infile: String = String::new();
+    let mut tpr_path: String = String::new();
     match args.len() {
         1 => {
             println!("Input path of tpr file, e.g. D:/Conan/Ai.tpr");
             println!("Hint: input \"o\" to simply load last-opened file");
             loop {
-                stdin().read_line(&mut infile).expect("Failed to get input file.");
-                if infile.trim() == "o" {
-                    infile = settings.last_opened.to_string();
-                    if infile.len() == 0 {
+                stdin().read_line(&mut tpr_path).expect("Failed to get input file.");
+                if tpr_path.trim() == "o" {
+                    tpr_path = settings.last_opened.to_string();
+                    if tpr_path.len() == 0 {
                         println!("Last-opened tpr not found.");
                     }
                 }
-                if !Path::new(infile.trim()).is_file() {
-                    println!("Not file: {}, input again:", infile.trim());
-                    infile.clear();
+                if !Path::new(tpr_path.trim()).is_file() {
+                    println!("Not file: {}, input again:", tpr_path.trim());
+                    tpr_path.clear();
                 } else {
                     break;
                 }
             }
         }
         2 => {
-            infile = args[1].to_string()
+            tpr_path = args[1].to_string()
         }
         _ => {}
     }
 
-    infile = confirm_file_validity(&infile, vec!["tpr"], &settings);
+    tpr_path = confirm_file_validity(&tpr_path, vec!["tpr"], &tpr_path);
 
-    settings.last_opened = fs::canonicalize(Path::new(&infile))
-        .expect("Cannot convert to absolute path.").display().to_string();
-    change_settings_last_opened(&infile);
+    change_settings_last_opened(&mut settings, &tpr_path);
 
     // dump tpr
-    infile = get_dump(&infile, &settings);
+    tpr_path = get_dump(&tpr_path, &settings);
 
     match settings.debug_mode {
         true => println!("Debug mode open."),
@@ -70,20 +68,7 @@ fn main() {
     }
 
     // go to next step
-    fun_para_basic::set_para_basic(&infile, &Path::new(&infile).parent().unwrap(), &mut settings);
-}
-
-fn get_dump(infile: &String, settings: &Settings) -> String {
-    // get dumpped tpr
-    let tpr_dump_path = fs::canonicalize(Path::new(&infile)).expect("Cannot get absolute tpr path.");
-    let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
-    let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
-    let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
-    println!("Currently working at path: {}", Path::new(&tpr_dir).display());
-    let gmx = settings.gmx_path.as_ref().unwrap();
-    let dump_to = dump_path.to_str().unwrap().to_string();
-    dump_tpr(&infile, &dump_to, gmx);
-    dump_to
+    fun_para_basic::set_para_basic(&tpr_path, &Path::new(&tpr_path).parent().unwrap(), &mut settings);
 }
 
 fn welcome() {
@@ -99,11 +84,10 @@ fn welcome() {
         Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n");
 }
 
-// 把ext_list改成enum
-pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, settings: &Settings) -> String {
+pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
     let mut f_name = String::from(file_name);
     loop {
-        f_name = convert_cur_dir(&f_name, &settings).trim().to_string();
+        f_name = convert_cur_dir(&f_name, &tpr_path).trim().to_string();
         if !Path::new(&f_name).is_file() {
             println!("Not valid file: {}. Input file path again.", f_name);
             f_name.clear();
@@ -308,28 +292,25 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
     }
 }
 
-pub fn convert_cur_dir(p: &String, settings: &Settings) -> String {
+pub fn convert_cur_dir(p: &String, tpr_path: &str) -> String {
     if p.starts_with('?') {
-        let last_opened = &settings.last_opened;
-        if last_opened.len() != 0 {
-            Path::new(last_opened).parent()
-                .expect("Cannot get path of last-opened file.")
-                .join(p[1..].to_string()).to_str()
-                .expect("Path of last-opened file not valid unicode.").to_string()
-        } else {
-            p.to_string()
-        }
+        Path::new(tpr_path).parent()
+            .expect("Cannot get path of tpr file.")
+            .join(p[1..].to_string()).to_str()
+            .expect("Path of tpr file not valid unicode.").to_string()
     } else {
         p.to_string()
     }
 }
 
-fn change_settings_last_opened(tpr_mdp: &String) {
+fn change_settings_last_opened(settings: &mut Settings, tpr: &String) {
+    settings.last_opened = fs::canonicalize(Path::new(&tpr))
+        .expect("Cannot convert to absolute path.").display().to_string();
     if get_base_settings().is_file() {
         let base_settings = fs::read_to_string(get_base_settings())
             .expect("Cannot read settings.ini.");
         let re = Regex::new("last_opened.*\".*\"").unwrap();
-        let last_opened = fs::canonicalize(Path::new(&tpr_mdp))
+        let last_opened = fs::canonicalize(Path::new(&tpr))
             .expect("Cannot convert to absolute path.").display().to_string();
         let settings = re.replace(base_settings.as_str(),
             format!("last_opened = \"{}\"", &last_opened));
@@ -337,6 +318,19 @@ fn change_settings_last_opened(tpr_mdp: &String) {
             .expect("Cannot edit settings.ini.");
         settings_file.write_all(settings.as_bytes()).expect("Cannot write to settings.ini.");
     }
+}
+
+fn get_dump(tpr_path: &String, settings: &Settings) -> String {
+    // get dumpped tpr
+    let tpr_dump_path = fs::canonicalize(Path::new(&tpr_path)).expect("Cannot get absolute tpr path.");
+    let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
+    let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
+    let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
+    println!("Currently working at path: {}", Path::new(&tpr_dir).display());
+    let gmx = settings.gmx_path.as_ref().unwrap();
+    let dump_to = dump_path.to_str().unwrap().to_string();
+    dump_tpr(&tpr_path, &dump_to, gmx);
+    dump_to
 }
 
 fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {

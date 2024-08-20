@@ -125,6 +125,12 @@ pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str,
     gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
 }
 
+pub fn make_ndx(grps: &str, wd: &Path, settings: &mut Settings, f: &str, o: &str) {
+    let mut echo_cmd = echo(grps);
+    let args = ["make_ndx", "-f", f, "-o", o];
+    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
+}
+
 pub fn trajectory(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str) {
     let mut echo_cmd = echo(grps);
     let args = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox].to_vec();
