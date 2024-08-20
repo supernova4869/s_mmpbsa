@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::io;
+use std::io::{self, Write};
 use std::str::FromStr;
 use std::fmt::Debug;
 use std::process::{Child, Command, Stdio};
@@ -75,7 +75,7 @@ fn echo(s: &str) -> Child {
         .expect("Failed to execute command")
     } else if cfg!(unix) {
         Command::new("echo")
-        .args(&[s])
+        .args(&["-e ".to_string() + s])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
@@ -125,10 +125,38 @@ pub fn trjconv(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str,
     gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
 }
 
-pub fn make_ndx(grps: &str, wd: &Path, settings: &mut Settings, f: &str, o: &str) {
-    let mut echo_cmd = echo(grps);
-    let args = ["make_ndx", "-f", f, "-o", o];
-    gmx_cmd(settings.gmx_path.as_ref().unwrap(), &mut echo_cmd, wd, &args, settings.debug_mode);
+pub fn make_ndx(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, n: &str, o: &str) {
+    let args = match n.is_empty() {
+        true => ["make_ndx", "-f", f, "-o", o].to_vec(),
+        false => ["make_ndx", "-f", f, "-n", n, "-o", o].to_vec()
+    };
+    let mut child = if settings.debug_mode {
+        Command::new(settings.gmx_path.as_ref().unwrap())
+            .args(&args)
+            .current_dir(wd)
+            .stdin(Stdio::piped())  // 开启标准输入管道
+            .stdout(Stdio::inherit())  // 将标准输出继承自父进程
+            .spawn()
+            .expect("Failed to start process")
+    } else {
+        Command::new(settings.gmx_path.as_ref().unwrap())
+            .args(&args)
+            .current_dir(wd)
+            .stdin(Stdio::piped())  // 开启标准输入管道
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("Failed to start process")
+    };
+
+    // 获取stdin的可写句柄
+    if let Some(stdin) = child.stdin.as_mut() {
+        // 向子进程写入数据，写入换行符
+        cmds.iter().for_each(|s| writeln!(stdin, "{}", s).unwrap());
+    }
+
+    // 等待子进程完成
+    child.wait().expect("Failed to wait on child");
 }
 
 pub fn trajectory(grps: &str, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str) {

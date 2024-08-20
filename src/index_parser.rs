@@ -63,9 +63,9 @@ impl Index {
         }
     }
 
-    pub fn push(&mut self, ng: &IndexGroup) {
-        self.groups.push(ng.to_owned());
-    }
+    // pub fn push(&mut self, ng: &IndexGroup) {
+    //     self.groups.push(ng.to_owned());
+    // }
 
     pub fn to_ndx(&self, file_name: &str) {
         let mut f = File::create(file_name).unwrap();
@@ -84,7 +84,7 @@ impl Index {
         }
     }
 
-    pub fn rm_group(&mut self, name: &str) {
-        self.groups.retain(|g| g.name.ne(name));
-    }
+    // pub fn rm_group(&mut self, name: &str) {
+    //     self.groups.retain(|g| g.name.ne(name));
+    // }
 }

@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 // use xdrfile::*;
 use crate::settings::Settings;
 use crate::utils::resname_3to1;
@@ -22,7 +22,7 @@ use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperties,
                                ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
-                               ala_list: &Vec<i32>, residues: &Vec<Residue>, 
+                               ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path,
                                bf: usize, ef: usize, dframe: usize, total_frames: usize,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> (Results, Vec<Results>) {
@@ -157,6 +157,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
         if settings.apbs_path.is_some() {
             fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
         }
+        fs::remove_file(wd.join("_MMPBSA_coord.xvg")).unwrap();
     }
 
     (result_wt, result_ala_scan)

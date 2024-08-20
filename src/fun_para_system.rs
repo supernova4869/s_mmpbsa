@@ -3,7 +3,7 @@ use std::path::Path;
 use std::fs;
 
 use crate::settings::Settings;
-use crate::utils::{get_input_selection, append_new_name, trajectory};
+use crate::utils::{append_new_name, get_input_selection, make_ndx, trajectory};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
@@ -76,19 +76,32 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         let trj_mmpbsa = append_new_name(trj, "_4_pbc.xtc", "_MMPBSA_");
                         let tpr_name = append_new_name(tpr_name, ".tpr", "");       // fuck the tpr name is dump
                         
-                        // add a Complex group to index file
+                        // step 1: generate new index
                         println!("Generating Index...");
-                        let com_group = IndexGroup::new("Complex", &ndx_com);
-                        let mut new_ndx = ndx.clone();
-                        new_ndx.rm_group("Complex");
-                        new_ndx.push(&com_group);
+                        // gmx make_ndx -f md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
                         let ndx_whole = append_new_name(ndx_name, "_whole.ndx", "_MMPBSA_"); // get extracted index file name
-                        new_ndx.to_ndx(&ndx_whole);
+                        if let Some(ligand_grp) = ligand_grp {
+                            make_ndx(&[
+                                format!("{} | {}", receptor_grp, ligand_grp).as_str(),
+                                format!("name {} Complex", ndx.groups.len()).as_str(),
+                                format!("name {} Receptor", receptor_grp).as_str(),
+                                format!("name {} Ligand", ligand_grp).as_str(),
+                                "q"
+                            ].to_vec(), wd, settings, &tpr_name, ndx_name, &ndx_whole);
+                        } else {
+                            make_ndx(&[
+                                format!("{}", receptor_grp).as_str(),
+                                format!("name {} Receptor", receptor_grp).as_str(),
+                                "q"
+                            ].to_vec(), wd, settings, &tpr_name, ndx_name, &ndx_whole);
+                        }
                         
+                        // step 2: extract new trj with old tpr
                         println!("Extracting trajectory, be patient...");
                         // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
                         trjconv("Complex", wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"]);
                         
+                        // step 3: extract new tpr with old tpr
                         // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
                         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
                         convert_tpr("Complex", wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
@@ -96,7 +109,9 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                             fs::remove_file(&ndx_whole).unwrap();
                         }
                         
-                        // Index normalization
+                        // step 4: generate new index with new tpr
+                        // make_ndx("q", wd, settings, &tpr_mmpbsa, "", "_MMPBSA_index.ndx");
+                        // fuck this index, I will find a way to restrain groups in tpr
                         let (ndx_com, ndx_rec, ndx_lig) = 
                         normalize_index(&ndx.groups[receptor_grp].indexes, match ligand_grp {
                             Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),

@@ -96,7 +96,7 @@ pub fn set_para_basic(tpr_path: &String, wd: &Path, settings: &mut Settings) {
                 ndx = convert_cur_dir(&ndx, tpr_path);
                 if !Path::new(&ndx).is_file() {
                     let tpr_path = append_new_name(tpr_path, ".tpr", "");
-                    make_ndx("q", wd, settings, &tpr_path, &ndx);
+                    make_ndx(&["q"].to_vec(), wd, settings, &tpr_path, "", &ndx);
                 }
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx"], tpr_path);
             }
