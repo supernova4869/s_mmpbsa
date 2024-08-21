@@ -7,7 +7,6 @@ use crate::{atom_radius::{get_radii, get_radii_map}, parse_tpr::TPR};
 pub struct AtomProperties {
     pub c6: Array2<f64>,
     pub c12: Array2<f64>,
-    pub c10: Array2<f64>,
     pub at_map: HashMap<String, usize>,
     pub radius_type: String,
     pub atom_props: Vec<AtomProperty>
@@ -40,7 +39,6 @@ impl AtomProperties {
         // c6 and c12
         let mut c6: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
         let mut c12: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
-        let c10: Array2<f64> = Array2::zeros((tpr.atom_types_num, tpr.atom_types_num));
         for i in 0..tpr.atom_types_num {
             for j in 0..tpr.atom_types_num {
                 c6[[i, j]] = tpr.lj_sr_params[i * tpr.atom_types_num + j].c6;
@@ -90,7 +88,6 @@ impl AtomProperties {
         AtomProperties {
             c6,
             c12,
-            c10,
             at_map,
             radius_type: "ff".to_string(),
             atom_props

@@ -43,6 +43,7 @@ impl Index {
                     // gromacs index file starts at 1, but we need 0 as index slice
                     at_list.push(at - 1);
                 }
+                at_list.sort();
                 group_atoms.push(at_list);
             }
         }

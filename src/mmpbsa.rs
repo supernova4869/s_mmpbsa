@@ -1,7 +1,7 @@
-use std::cmp::Ordering;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use crate::fun_para_system::normalize_index;
 // use xdrfile::*;
 use crate::settings::Settings;
 use crate::utils::resname_3to1;
@@ -21,7 +21,7 @@ use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, temp_dir: &PathBuf,
                                sys_name: &String, aps: &AtomProperties,
-                               ndx_com: &Vec<usize>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
+                               ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path,
                                bf: usize, ef: usize, dframe: usize, total_frames: usize,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
@@ -52,6 +52,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
         let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
             && r.name.ne("GLY") && r.name.ne("ALA")).collect();     // gly not contain CB, ala no need to mutate
         let mut new_coordinates = coordinates.clone();
+        let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
         for asr in as_res {
             let mut new_aps = aps.clone();
             let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
@@ -59,7 +60,6 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
             } else {
                 None
             }).collect();
-            let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
             let mut sc_out: Vec<&AtomProperty> = as_atoms.iter().filter(|&a| !exclude_list.contains(&a.name.as_str())).collect();
             let xgs: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
                 if a.name.eq("CG") || a.name.eq("CG1") || a.name.eq("CG2") || a.name.eq("SG") || a.name.eq("OG") || a.name.eq("OG1") {
@@ -114,23 +114,14 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
             let xg_list: Vec<usize> = xgs.iter().map(|a| a.id).collect();
             new_aps.atom_props.retain(|a| !del_list.contains(&a.id) || xg_list.contains(&a.id));
             let retain_id: Vec<usize> = new_aps.atom_props.iter().map(|a| a.id).collect();
+            // 每次删除原子后重新排序剩余原子id
             for (i, ap) in new_aps.atom_props.iter_mut().enumerate() {
                 ap.id = i;
             };
             let new_coordinates: Array3<f64> = new_coordinates.select(Axis(1), &retain_id);
-            let new_ndx_com = Vec::from_iter(0..(ndx_com.len() - (aps.atom_props.len() - new_aps.atom_props.len())));
-            let new_ndx_rec = match ndx_rec[0].partial_cmp(&ndx_lig[0]) {
-                Some(Ordering::Less) => Vec::from_iter(0..(ndx_rec.len() - (aps.atom_props.len() - new_aps.atom_props.len()))),
-                Some(Ordering::Greater) => Vec::from_iter(ndx_lig.len()..(ndx_com.len() - (aps.atom_props.len() - new_aps.atom_props.len()))),
-                Some(Ordering::Equal) => new_ndx_com.to_vec(),
-                None => vec![]
-            };
-            let new_ndx_lig = match ndx_rec[0].partial_cmp(&ndx_lig[0]) {
-                Some(Ordering::Less) => Vec::from_iter(new_ndx_rec.len()..new_ndx_com.len()),
-                Some(Ordering::Greater) => Vec::from_iter(0..ndx_lig.len()),
-                Some(Ordering::Equal) => new_ndx_com.to_vec(),
-                None => vec![]
-            };
+            let mut new_ndx_rec = ndx_rec.clone();
+            new_ndx_rec.retain(|&x| !del_list.contains(&x) || xg_list.contains(&x));
+            let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, Some(ndx_lig));
 
             // After alanine mutation
             let mutation = match resname_3to1(&asr.name) {
@@ -162,24 +153,6 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
 
     (result_wt, result_ala_scan)
 }
-
-// fn get_atoms_trj(frames: &Vec<Rc<Frame>>, num_atoms: usize) -> Array3<f64> {
-//     let num_frames = frames.len();
-//     let mut coord_matrix: Array3<f64> = Array3::zeros((num_frames, num_atoms, 3));
-
-//     let pb = ProgressBar::new(num_frames as u64);
-//     set_style(&pb);
-//     for (layer_id, frame) in frames.into_iter().enumerate() {
-//         for (row_id, a) in (&frame.coords).into_iter().enumerate() {
-//             coord_matrix[[layer_id, row_id, 0]] = a[0] as f64 * 10.0;
-//             coord_matrix[[layer_id, row_id, 1]] = a[1] as f64 * 10.0;
-//             coord_matrix[[layer_id, row_id, 2]] = a[2] as f64 * 10.0;
-//         }
-//         pb.inc(1);
-//     }
-//     pb.finish();
-//     return coord_matrix;
-// }
 
 pub fn set_style(pb: &ProgressBar) {
     pb.set_style(ProgressStyle::with_template(
@@ -290,16 +263,11 @@ fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coo
                 }; // use A for elec
                 // use nm for vdW
                 let r = r / 10.0;
-                let e_vdw = if aps.c10[[ci, cj]] == 0.0 {
-                    (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6)
-                } else {
-                    // use 12-10 style to calculate LJ for pdbqt hbond
-                    aps.c12[[ci, cj]] / r.powi(12) - aps.c10[[ci, cj]] / r.powi(10)
-                };
-                de_elec[aps.atom_props[i].id] += e_elec;
-                de_elec[aps.atom_props[j].id] += e_elec;
-                de_vdw[aps.atom_props[i].id] += e_vdw;
-                de_vdw[aps.atom_props[j].id] += e_vdw;
+                let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);
+                de_elec[i] += e_elec;
+                de_elec[j] += e_elec;
+                de_vdw[i] += e_vdw;
+                de_vdw[j] += e_vdw;
             }
         }
     }

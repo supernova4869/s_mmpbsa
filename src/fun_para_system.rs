@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::path::Path;
 use std::fs;
 
@@ -110,25 +109,26 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         }
                         
                         // step 4: generate new index with new tpr
-                        // make_ndx("q", wd, settings, &tpr_mmpbsa, "", "_MMPBSA_index.ndx");
-                        // fuck this index, I will find a way to restrain groups in tpr
-                        let (ndx_com, ndx_rec, ndx_lig) = 
-                        normalize_index(&ndx.groups[receptor_grp].indexes, match ligand_grp {
-                            Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
-                            None => None
-                        });
+                        println!("Normalizing index...");
+                        let (ndx_rec, ndx_lig) = 
+                            normalize_index(&ndx.groups[receptor_grp].indexes, match ligand_grp {
+                                Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
+                                None => None
+                            });
+                        // 需要处理一下atom_properties的id
+                        aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
                         
                         // extract index file
                         let ndx_mmpbsa = match ligand_grp {
                             Some(_) => {
                                 Index::new(vec![
-                                    IndexGroup::new("Complex", &ndx_com), 
+                                    IndexGroup::new("Complex", &ndx_rec.iter().chain(ndx_lig.iter()).cloned().collect()), 
                                     IndexGroup::new("Receptor", &ndx_rec),
                                     IndexGroup::new("Ligand", &ndx_lig)
                                 ])
                             },
                             None => {
-                                Index::new(vec![IndexGroup::new("Receptor", &ndx_com)])
+                                Index::new(vec![IndexGroup::new("Receptor", &ndx_rec)])
                             }
                         };
                         ndx_mmpbsa.to_ndx(Path::new(wd).join("_MMPBSA_index.ndx").to_str().unwrap());
@@ -178,7 +178,6 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         }
 
                         set_para_mmpbsa(&trj_mmpbsa, tpr, &ndx, wd, &mut aps, 
-                            &ndx_com,
                             &ndx_rec,
                             &ndx_lig,
                             receptor_grp,
@@ -251,32 +250,26 @@ fn show_grp(grp: Option<usize>, ndx: &Index) -> String {
 }
 
 // convert rec and lig to begin at 0 and continous
-pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
-    let offset = match ndx_lig {
-        Some(ndx_lig) => ndx_lig[0].min(ndx_rec[0]),
-        None => ndx_rec[0]
-    };
-    let mut ndx_rec: Vec<usize> = ndx_rec.iter().map(|p| p - offset).collect();
-    let mut ndx_lig = match ndx_lig {
-        Some(ndx_lig) => ndx_lig.iter().map(|p| p - offset).collect(),
-        None => ndx_rec.clone()
-    };
-    let ndx_com = match ndx_lig[0].cmp(&ndx_rec[0]) {
-        Ordering::Greater => {
-            ndx_lig = ndx_lig.iter().map(|p| p - ndx_lig[0] + ndx_rec.len()).collect();
-            let mut ndx_com = ndx_rec.to_vec();
-            ndx_com.extend(&ndx_lig);
-            ndx_com
+pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (Vec<usize>, Vec<usize>) {
+    if let Some(ndx_lig) = ndx_lig {
+        let mut ndx_rec_norm = ndx_rec.clone();
+        let mut ndx_lig_norm = ndx_lig.clone();
+        let last_atom = ndx_rec.len() + ndx_lig.len() - 1;
+        for cur_atom_id in 0..=last_atom {
+            if !ndx_lig_norm.contains(&cur_atom_id) && !ndx_rec_norm.contains(&cur_atom_id) {
+                let ndx_lig_norm2 = ndx_lig_norm.clone();
+                let ndx_rec_norm2 = ndx_rec_norm.clone();
+                let next_edge_id = ndx_lig_norm2.iter().find(|&&i| i > cur_atom_id).unwrap_or(&last_atom);
+                let next_edge_id = next_edge_id.min(ndx_rec_norm2.iter().find(|&&i| i > cur_atom_id).unwrap_or(&last_atom));
+                let offset = next_edge_id - cur_atom_id;
+                ndx_lig_norm.iter_mut().for_each(|i| if *i > cur_atom_id { *i -= offset } );
+                ndx_rec_norm.iter_mut().for_each(|i| if *i > cur_atom_id { *i -= offset } );
+            }
         }
-        Ordering::Less => {
-            ndx_rec = ndx_rec.iter().map(|p| p - ndx_rec[0] + ndx_lig.len()).collect();
-            let mut ndx_com = ndx_lig.to_vec();
-            ndx_com.extend(&ndx_rec);
-            ndx_com
-        }
-        Ordering::Equal => Vec::from_iter(0..ndx_rec.len())
-    };
-    (ndx_com, ndx_rec, ndx_lig)
+        (ndx_rec_norm, ndx_lig_norm)
+    } else {
+        ((0..ndx_rec.len()).collect(), (0..ndx_rec.len()).collect())
+    }
 }
 
 pub fn get_residues_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
