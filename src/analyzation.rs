@@ -338,32 +338,32 @@ fn write_res_csv(results: &Results, ts_id: usize, wd: &Path, target_res: &Vec<us
         write!(energy_res, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
             res.nr, res.name,
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.dh_atom[[ts_id, a.resid]])
+                Some(results.dh_atom[[ts_id, a.id]])
             } else {
                 None
             } ).sum::<f64>(),
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.mm_atom[[ts_id, a.resid]])
+                Some(results.mm_atom[[ts_id, a.id]])
             } else {
                 None
             } ).sum::<f64>(),
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.pb_atom[[ts_id, a.resid]])
+                Some(results.pb_atom[[ts_id, a.id]])
             } else {
                 None
             } ).sum::<f64>(),
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.sa_atom[[ts_id, a.resid]])
+                Some(results.sa_atom[[ts_id, a.id]])
             } else {
                 None
             } ).sum::<f64>(),
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.elec_atom[[ts_id, a.resid]])
+                Some(results.elec_atom[[ts_id, a.id]])
             } else {
                 None
             } ).sum::<f64>(),
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.vdw_atom[[ts_id, a.resid]])
+                Some(results.vdw_atom[[ts_id, a.id]])
             } else {
                 None
             } ).sum::<f64>())
@@ -381,32 +381,32 @@ fn write_res_avg_csv(results: &Results, wd: &Path, target_res: &Vec<usize>, def_
         write!(energy_res, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
             res.nr, res.name, 
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.dh_atom.column(a.resid).sum())
+                Some(results.dh_atom.column(a.id).sum())
             } else {
                 None
             } ).sum::<f64>() / results.times.len() as f64,
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.mm_atom.column(a.resid).sum())
+                Some(results.mm_atom.column(a.id).sum())
             } else {
                 None
             } ).sum::<f64>() / results.times.len() as f64,
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.pb_atom.column(a.resid).sum())
+                Some(results.pb_atom.column(a.id).sum())
             } else {
                 None
             } ).sum::<f64>() / results.times.len() as f64,
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.sa_atom.column(a.resid).sum())
+                Some(results.sa_atom.column(a.id).sum())
             } else {
                 None
             } ).sum::<f64>() / results.times.len() as f64,
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.elec_atom.column(a.resid).sum())
+                Some(results.elec_atom.column(a.id).sum())
             } else {
                 None
             } ).sum::<f64>() / results.times.len() as f64,
             results.aps.atom_props.iter().filter_map(|a| if a.resid == res.id {
-                Some(results.vdw_atom.column(a.resid).sum())
+                Some(results.vdw_atom.column(a.id).sum())
             } else {
                 None
             } ).sum::<f64>() / results.times.len() as f64)
