@@ -174,7 +174,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, bf: usize, 
     let coeff = Coefficients::new(pbe_set);
 
     // Time list of trajectory
-    let times: Array1<f64> = Array1::from_iter((bf..=ef).into_iter().step_by(dframe).map(|f| time_list[f] / 1000.0));
+    let times: Vec<f64> = (bf..=ef).into_iter().step_by(dframe).map(|f| time_list[f] / 1000.0).collect();
 
     // start calculation
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
@@ -226,7 +226,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, bf: usize, 
         residues,
         ndx_lig,
         &times,
-        coordinates.select(Axis(0), &fr),
+        &coordinates.select(Axis(0), &fr),
         mutation,
         &elec_atom,
         &vdw_atom,

@@ -12,7 +12,7 @@ use crate::parse_tpr::{Residue, TPR};
 use crate::{mmpbsa, parse_xvg};
 use crate::analyzation;
 
-pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
+pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
                        ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        bt: f64, et: f64, dt: f64, residues: &Vec<Residue>, settings: &mut Settings) {
@@ -125,15 +125,15 @@ pub fn set_para_mmpbsa(trj_mmpbsa: &String, tpr: &mut TPR, ndx: &Index, wd: &Pat
                 
                 // run MM/PB-SA calculations
                 println!("Extracting atoms coordination...");
-                let (time_list, coordinates) = parse_xvg::read_coord_xvg(wd, "_MMPBSA_coord.xvg");
+                let (time_list, coordinates) = parse_xvg::read_coord_xvg(wd.join("_MMPBSA_coord.xvg").to_str().unwrap());
                 let (bf, ef, dframe, total_frames) = get_frames_range(&time_list, bt, et, dt);
                 
                 let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&time_list, &coordinates, &temp_dir, &sys_name, &aps,
                                                                 &ndx_rec, &ndx_lig, &ala_list, &residues, wd,
                                                                 bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
-                // Clean trj
-                if !settings.debug_mode {
-                    fs::remove_file(&trj_mmpbsa).unwrap();
+                result_wt.precipitate(&sys_name);
+                for r in &result_as {
+                    r.precipitate((sys_name.to_string() + "-" + &r.mutation).as_str())
                 }
                 analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
             }

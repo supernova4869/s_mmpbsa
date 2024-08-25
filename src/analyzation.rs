@@ -5,19 +5,22 @@ use std::process::exit;
 use indicatif::ProgressBar;
 use ndarray::{s, Array1, Array2, Array3};
 use crate::atom_property::{AtomProperties, AtomProperty};
+use crate::{dump_tpr, parse_xvg};
+use crate::fun_para_system::get_residues_tpr;
+use crate::index_parser::Index;
 use crate::mmpbsa::set_style;
-use crate::parse_tpr::Residue;
+use crate::parse_tpr::{Residue, TPR};
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
 
 #[derive(Clone)]
 pub struct Results {
+    pub mutation: String,
     pub aps: AtomProperties,
     pub residues: Vec<Residue>,
     pub ndx_lig: Vec<usize>,
-    pub times: Array1<f64>,
+    pub times: Vec<f64>,
     pub coord: Array3<f64>,
-    pub mutation: String,
     pub dh: Array1<f64>,
     pub mm: Array1<f64>,
     pub pb: Array1<f64>,
@@ -34,8 +37,8 @@ pub struct Results {
 
 impl Results {
     pub fn new(aps: &AtomProperties, residues: &Vec<Residue>,
-               ndx_lig: &Vec<usize>, times: &Array1<f64>, 
-               coord: Array3<f64>, mutation: &str,
+               ndx_lig: &Vec<usize>, 
+               times: &Vec<f64>, coord: &Array3<f64>, mutation: &str,
                elec_atom: &Array2<f64>, vdw_atom: &Array2<f64>, 
                pb_atom: &Array2<f64>, sa_atom: &Array2<f64>) -> Results {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
@@ -44,25 +47,25 @@ impl Results {
         let mut sa: Array1<f64> = Array1::zeros(times.len());
         let mut elec: Array1<f64> = Array1::zeros(times.len());
         let mut vdw: Array1<f64> = Array1::zeros(times.len());
-        for idx in 0..times.len() {
-            elec[idx] = elec_atom.row(idx).sum();
-            vdw[idx] = vdw_atom.row(idx).sum();
-            mm[idx] = elec[idx] + vdw[idx];
-            pb[idx] = pb_atom.row(idx).iter().sum();
-            sa[idx] = sa_atom.row(idx).iter().sum();
-            dh[idx] = mm[idx] + pb[idx] + sa[idx];
+        for t in 0..times.len() {
+            elec[t] = elec_atom.row(t).sum();
+            vdw[t] = vdw_atom.row(t).sum();
+            mm[t] = elec[t] + vdw[t];
+            pb[t] = pb_atom.row(t).sum();
+            sa[t] = sa_atom.row(t).sum();
+            dh[t] = mm[t] + pb[t] + sa[t];
         }
 
         let mm_atom: Array2<f64> = elec_atom + vdw_atom;
         let dh_atom: Array2<f64> = &mm_atom + pb_atom + sa_atom;
 
         Results {
+            mutation: mutation.to_string(),
             aps: aps.to_owned(),
             residues: residues.to_owned(),
             ndx_lig: ndx_lig.to_owned(),
             times: times.to_owned(),
             coord: coord.to_owned(),
-            mutation: mutation.to_string(),
             dh,
             mm,
             pb,
@@ -78,31 +81,42 @@ impl Results {
         }
     }
 
-    // totally time average and ts
-    pub fn summary(&self, temperature: f64, settings: &Settings) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64) {
-        let rt2kj = 8.314462618 * temperature / 1e3;
-
-        let dh_avg = self.dh.iter().sum::<f64>() / self.dh.len() as f64;
-        let mm_avg = self.mm.iter().sum::<f64>() / self.mm.len() as f64;
-        let elec_avg = self.elec.iter().sum::<f64>() / self.elec.len() as f64;
-        let vdw_avg = self.vdw.iter().sum::<f64>() / self.vdw.len() as f64;
-        let pb_avg = self.pb.iter().sum::<f64>() / self.pb.len() as f64;
-        let sa_avg = self.sa.iter().sum::<f64>() / self.sa.len() as f64;
-
-        let tds = match settings.use_ts {
-            true => {
-                -rt2kj * (self.mm.iter().map(|&p| f64::exp((p - mm_avg) / rt2kj)).sum::<f64>() / self.mm.len() as f64).ln()
-            }
-            false => 0.0
-        };
-        let dg = dh_avg - tds;
-        let ki = if dg < 0.0 {
-            f64::exp(dg / rt2kj) * 1e9    // nM
-        } else {
-            0.0
-        };
-        return (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg, vdw_avg, tds, dg, ki);
+    pub fn precipitate(&self, name: &str) {
+        println!("Saving {} to {}", self.mutation, name);
+        println!("Precipitate Result to a file with {} and analyze in the next run.", name);
+        // save mutation
+        // save times
+        // save pb_atom
+        // save sa_atom
+        // save elec_atom
+        // save vdw_atom
     }
+
+    pub fn load(precipitation: &str, trj: &str, tpr: &str, ndx: &str, settings: &Settings) -> Results {
+        let tpr_dump_path = fs::canonicalize(Path::new(tpr)).expect("Cannot get absolute tpr path.");
+        let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
+        let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
+        let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
+        println!("Currently working at path: {}", Path::new(&tpr_dir).display());
+        let gmx = settings.gmx_path.as_ref().unwrap();
+        let dump_to = dump_path.to_str().unwrap().to_string();
+        dump_tpr(&tpr.to_string(), &dump_to, gmx);
+        let tpr = TPR::new(&dump_to, settings);
+        let ndx_com: Vec<usize> = (0..tpr.n_atoms).collect();
+        let aps = AtomProperties::from_tpr(&tpr, &ndx_com);
+        let residues = &get_residues_tpr(&tpr, &ndx_com);
+        let ndx_lig = Index::from(&ndx.to_string());
+        let ndx_lig = ndx_lig.groups.iter().find(|&g| g.name.eq("Ligand")).unwrap();
+        let ndx_lig = &ndx_lig.indexes;
+        // 前面的坐标输出文件改成直接提取吧, 不再人工处理了
+        let (times, coord) = parse_xvg::read_coord_xvg(trj);
+        let (mutation, elec_atom, vdw_atom, pb_atom, sa_atom) = dissolve(precipitation);
+        Results::new(&aps, residues, ndx_lig, &times, &coord, &mutation, &elec_atom, &vdw_atom, &pb_atom, &sa_atom)
+    }
+}
+
+pub fn dissolve(precipitation: &str) -> (String, Array2<f64>, Array2<f64>, Array2<f64>, Array2<f64>) {
+    ("".to_string(), Array2::zeros((2, 2)), Array2::zeros((2, 2)), Array2::zeros((2, 2)), Array2::zeros((2, 2)))
 }
 
 pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
@@ -205,8 +219,28 @@ fn write_atom_line(results: &Results, atom: &AtomProperty, ts_id: usize, x: f64,
 }
 
 fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
-    let (dh_avg, mm_avg, pb_avg, sa_avg, elec_avg,
-        vdw_avg, tds, dg, ki) = results.summary(temperature, settings);
+    let rt2kj = 8.314462618 * temperature / 1e3;
+
+    let dh_avg = results.dh.mean().unwrap();
+    let mm_avg = results.mm.mean().unwrap();
+    let elec_avg = results.elec.mean().unwrap();
+    let vdw_avg = results.vdw.mean().unwrap();
+    let pb_avg = results.pb.mean().unwrap();
+    let sa_avg = results.sa.mean().unwrap();
+
+    let tds = match settings.use_ts {
+        true => {
+            -rt2kj * (results.mm.iter().map(|&p| f64::exp((p - mm_avg) / rt2kj)).sum::<f64>() / results.mm.len() as f64).ln()
+        }
+        false => 0.0
+    };
+    let dg = dh_avg - tds;
+    let ki = if dg < 0.0 {
+        f64::exp(dg / rt2kj) * 1e9    // nM
+    } else {
+        0.0
+    };
+
     println!("\nEnergy terms summary:");
     println!("ΔH: {:.3} kJ/mol", dh_avg);
     println!("ΔMM: {:.3} kJ/mol", mm_avg);
@@ -218,7 +252,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     println!();
     println!("TΔS: {:.3} kJ/mol", tds);
     println!("ΔG: {:.3} kJ/mol", dg);
-    if dg <= 0.0 {
+    if ki != 0.0 {
         println!("Ki: {:.3} nM", ki);
     } else {
         println!("Ki: Unavailable");
@@ -238,7 +272,7 @@ fn analyze_summary(results: &Results, temperature: f64, wd: &Path, sys_name: &St
     write!(energy_sum, "\n").unwrap();
     write!(energy_sum, "TΔS,{:.3},(kJ/mol)\n", tds).unwrap();
     write!(energy_sum, "ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
-    if dg <= 0.0 {
+    if ki != 0.0 {
         write!(energy_sum, "Ki,{:.3e},Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
     } else {
         write!(energy_sum, "Ki,Unavailable,Ki=exp(ΔG/RT) (nM)\n").unwrap();

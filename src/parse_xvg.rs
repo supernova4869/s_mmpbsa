@@ -1,9 +1,8 @@
-use std::path::Path;
 use std::fs;
 use ndarray::Array3;
 
-pub fn read_coord_xvg(wd: &Path, coord_fname: &str) -> (Vec<f64>, Array3<f64>) {
-    let xvg = fs::read_to_string(wd.join(coord_fname).to_str().unwrap()).unwrap();
+pub fn read_coord_xvg(coord_fname: &str) -> (Vec<f64>, Array3<f64>) {
+    let xvg = fs::read_to_string(coord_fname).unwrap();
     let xvg: Vec<&str> = xvg.split("\n").filter_map(|s| 
         if !s.is_empty() && !s.trim().starts_with("@") && !s.trim().starts_with("#") { 
             Some(s)

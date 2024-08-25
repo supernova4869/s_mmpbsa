@@ -76,8 +76,7 @@ impl PBESet {
 
     pub fn save_params<T: AsRef<Path>>(&self, file: T) {
         let mut f = File::create(&file).expect("Save SA parameters error.");
-        f.write_all(serde_yaml::to_string(self).unwrap().as_bytes())
-            .expect("Save PB parameters error.");
+        f.write_all(serde_yaml::to_string(self).unwrap().as_bytes()).expect("Save PB parameters error.");
     }
 }
 

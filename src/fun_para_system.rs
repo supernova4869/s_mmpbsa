@@ -172,12 +172,8 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         println!("Fixing PBC finished.");
                         println!("Loading trajectory file...");
                         trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
-                        if !settings.debug_mode {
-                            fs::remove_file(&tpr_mmpbsa).unwrap();
-                            fs::remove_file(&ndx_mmpbsa).unwrap();
-                        }
 
-                        set_para_mmpbsa(&trj_mmpbsa, tpr, &ndx, wd, &mut aps, 
+                        set_para_mmpbsa(tpr, &ndx, wd, &mut aps, 
                             &ndx_rec,
                             &ndx_lig,
                             receptor_grp,
