@@ -221,8 +221,11 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, bf: usize, 
     env::remove_var("OMP_NUM_THREADS");
 
     let fr: Vec<usize> = (bf..=ef).step_by(dframe).collect();
+    let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
+    let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
     Results::new(
-        aps,
+        atom_names,
+        atom_res,
         residues,
         ndx_lig,
         &times,

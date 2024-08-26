@@ -239,14 +239,19 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                 } else {
                     None
                 }).collect();
+                let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
+                let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
                 match i {
                     1 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, &aps, &receptor_res);
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
+                            &atom_res, &atom_names, &receptor_res);
                         ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
                     },
                     2 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, &aps, &receptor_res);
-                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, &aps, &receptor_res);
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
+                            &atom_res, &atom_names, &receptor_res);
+                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
+                            &atom_res, &atom_names, &receptor_res);
                         ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
                             Some(residues[i].nr)
                         } else {
@@ -254,8 +259,10 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                         } ).collect();
                     },
                     3 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, &aps, &receptor_res);
-                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, &aps, &receptor_res);
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, 
+                            &atom_res, &atom_names, &receptor_res);
+                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
+                            &atom_res, &atom_names, &receptor_res);
                         ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
                             Some(residues[i].nr)
                         } else {
@@ -265,7 +272,8 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                     4 => {
                         println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
                         let cutoff = get_input(4.0);
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, &aps, &receptor_res);
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, 
+                            &atom_res, &atom_names, &receptor_res);
                         ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
                     },
                     5 => {

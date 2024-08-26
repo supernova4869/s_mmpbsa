@@ -5,7 +5,6 @@ use std::str::FromStr;
 use std::fmt::Debug;
 use std::process::{Command, Stdio};
 use ndarray::{Array2, Axis};
-use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 
@@ -151,13 +150,14 @@ pub fn resname_3to1(name: &str) -> Option<String> {
     }
 }
 
-pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &Vec<usize>, cutoff: f64, aps: &AtomProperties, residues: &Vec<Residue>) -> Vec<usize> {
+pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &Vec<usize>, cutoff: f64, 
+        atom_res: &Vec<usize>, atom_names: &Vec<String>, residues: &Vec<Residue>) -> Vec<usize> {
     let mut res_range: Vec<usize> = vec![];
     let ligand_coord = coord.select(Axis(0), ref_ids);
     for res in residues {
-        let cur_res_ca_id: Vec<usize> = aps.atom_props.iter()
-            .filter_map(|a| if a.resid == res.id && a.name.eq("CA") {
-                Some(a.id)
+        let cur_res_ca_id: Vec<usize> = atom_names.iter().enumerate()
+            .filter_map(|(id, name)| if atom_res[id] == res.id && name.eq("CA") {
+                Some(id)
             } else {
                 None
             })
