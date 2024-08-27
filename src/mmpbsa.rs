@@ -45,6 +45,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
     let result_wt = calculate_mmpbsa(&time_list, &coordinates, bf, ef, dframe, 
         total_frames, aps, &temp_dir, &ndx_rec, &ndx_lig, residues,
         sys_name, "WT", pbe_set, pba_set, settings);
+    result_wt.to_bin(format!("_MMPBSA_{}_{}.sm", sys_name, "WT").as_str());
 
     let mut result_ala_scan: Vec<Results> = vec![];
     if ala_list.len() > 0 {
@@ -139,6 +140,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
                 bf, ef, dframe, total_frames, &new_aps, &temp_dir, 
                 &new_ndx_rec, &new_ndx_lig, &new_residues,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
+            result_as.to_bin(format!("_MMPBSA_{}_{}.sm", sys_name, mutation).as_str());
             result_ala_scan.push(result_as);
         }
     };

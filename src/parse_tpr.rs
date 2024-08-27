@@ -5,6 +5,7 @@ use std::io::Write;
 use std::io::BufReader;
 use ndarray::Array2;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufRead;
 
@@ -439,7 +440,7 @@ impl Atom {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Residue {
     pub id: usize,
     pub name: String,

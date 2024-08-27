@@ -131,10 +131,6 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                 let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&time_list, &coordinates, &temp_dir, &sys_name, &aps,
                                                                 &ndx_rec, &ndx_lig, &ala_list, &residues, wd,
                                                                 bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
-                result_wt.precipitate(&sys_name);
-                for r in &result_as {
-                    r.precipitate((sys_name.to_string() + "-" + &r.mutation).as_str())
-                }
                 analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
             }
             1 => {

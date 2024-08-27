@@ -4,16 +4,13 @@ use std::path::Path;
 use std::process::exit;
 use indicatif::ProgressBar;
 use ndarray::{s, Array1, Array2, Array3};
-use crate::atom_property::{AtomProperties, AtomProperty};
-use crate::{dump_tpr, parse_xvg};
-use crate::fun_para_system::get_residues_tpr;
-use crate::index_parser::Index;
+use serde::{Deserialize, Serialize};
 use crate::mmpbsa::set_style;
-use crate::parse_tpr::{Residue, TPR};
+use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Results {
     pub mutation: String,
     pub atom_names: Vec<String>,
@@ -83,43 +80,16 @@ impl Results {
         }
     }
 
-    pub fn precipitate(&self, name: &str) {
-        println!("Saving {} to {}", self.mutation, name);
-        println!("Precipitate Result to a file with {} and analyze in the next run.", name);
-        // save mutation
-        // save times
-        // save pb_atom
-        // save sa_atom
-        // save elec_atom
-        // save vdw_atom
+    pub fn to_bin(&self, target: &str) {
+        println!("Saving results to {}", target);
+        let mut result_as_serialize = std::fs::File::create(target).unwrap();
+        serde_pickle::to_writer(&mut result_as_serialize, self, serde_pickle::SerOptions::new()).unwrap();
     }
 
-    // pub fn load(precipitation: &str, trj: &str, tpr: &str, ndx: &str, settings: &Settings) -> Results {
-    //     // 这里不能这样处理, 得在AS之后专门输出每个体系的坐标, aps, ndx
-    //     let tpr_dump_path = fs::canonicalize(Path::new(tpr)).expect("Cannot get absolute tpr path.");
-    //     let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
-    //     let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
-    //     let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
-    //     println!("Currently working at path: {}", Path::new(&tpr_dir).display());
-    //     let gmx = settings.gmx_path.as_ref().unwrap();
-    //     let dump_to = dump_path.to_str().unwrap().to_string();
-    //     dump_tpr(&tpr.to_string(), &dump_to, gmx);
-    //     let tpr = TPR::new(&dump_to, settings);
-    //     let ndx_com: Vec<usize> = (0..tpr.n_atoms).collect();
-    //     let aps = AtomProperties::from_tpr(&tpr, &ndx_com);
-    //     let residues = &get_residues_tpr(&tpr, &ndx_com);
-    //     let ndx_lig = Index::from(&ndx.to_string());
-    //     let ndx_lig = ndx_lig.groups.iter().find(|&g| g.name.eq("Ligand")).unwrap();
-    //     let ndx_lig = &ndx_lig.indexes;
-    //     // 前面的坐标输出文件改成直接提取吧, 不再人工处理了
-    //     let (times, coord) = parse_xvg::read_coord_xvg(trj);
-    //     let (mutation, elec_atom, vdw_atom, pb_atom, sa_atom) = dissolve(precipitation);
-    //     Results::new(&aps, residues, ndx_lig, &times, &coord, &mutation, &elec_atom, &vdw_atom, &pb_atom, &sa_atom)
-    // }
-}
-
-pub fn dissolve(precipitation: &str) -> (String, Array2<f64>, Array2<f64>, Array2<f64>, Array2<f64>) {
-    ("".to_string(), Array2::zeros((2, 2)), Array2::zeros((2, 2)), Array2::zeros((2, 2)), Array2::zeros((2, 2)))
+    pub fn from(result_serialize: &str) -> Results {
+        let result_deserialize = std::fs::File::open(result_serialize).unwrap();
+        serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new()).unwrap()
+    }
 }
 
 pub fn analyze_controller(result_wt: &Results, result_as: &Vec<Results>, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
