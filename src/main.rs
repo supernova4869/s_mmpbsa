@@ -19,7 +19,7 @@ use std::env;
 use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::Path;
-use std::process::Command;
+use std::process::{exit, Command};
 use analyzation::Results;
 use regex::Regex;
 use settings::{Settings, get_base_settings, get_settings_in_use};
@@ -76,14 +76,23 @@ fn main() {
             }
         }).collect();
         if !sm_list.is_empty() {
-            println!("Loading MM/PB-SA results...");
-            let result_wt = sm_list.iter().find(|f| f.ends_with("_WT.sm")).unwrap();
-            let result_wt = Results::from(result_wt);
-            let result_as: Vec<Results> = sm_list.iter().filter(|&f| !f.ends_with("_WT.sm")).map(|f| Results::from(f)).collect();
             println!("Please input MD temperature (default: 298.15):");
             let temperature = get_input(298.15);
             println!("Please input system name (default: _system):");
             let sys_name = get_input("_system".to_string());
+            println!("Loading MM/PB-SA results...");
+            let result_wt = sm_list.iter().find(|f| {
+                let f_name = Path::new(f).file_name().unwrap().to_str().unwrap();
+                f_name.starts_with(&format!("_MMPBSA_{}", sys_name)) && f_name.ends_with("_WT.sm")
+            }).ok_or_else(|| {
+                println!("The required _MMPBSA_{}_WT.sm file not found. Please check.", sys_name);
+                exit(0);
+            });
+            let result_wt = Results::from(result_wt.unwrap());
+            let result_as: Vec<Results> = sm_list.iter().filter(|&f| {
+                let f_name = Path::new(f).file_name().unwrap().to_str().unwrap();
+                f_name.starts_with(&format!("_MMPBSA_{}", sys_name)) && !f_name.ends_with("_WT.sm")
+            }).map(|f| Results::from(f)).collect();
             analyzation::analyze_controller(&result_wt, &result_as, temperature, &sys_name, wd, &settings);
         } else {
             println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
@@ -100,7 +109,7 @@ fn welcome(cur_rel: &str) {
         | molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method |\n\
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
-        Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
+        Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
         Version 0.4, first release: 2022-Oct-17, current release: {}\n", cur_rel);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
         Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n");
