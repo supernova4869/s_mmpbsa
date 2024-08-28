@@ -14,6 +14,7 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
 - Supports molecular docking results (by Autodock vina or DSDP) analysis.
 - Can perform alanine scanning based on both MD and molecular docking results.
+- Provided multiple functions to analyze previous results.
 
 ## Usage
 For Ubuntu system, maybe user should run the following commands to avoid `cc` error.
@@ -21,11 +22,12 @@ For Ubuntu system, maybe user should run the following commands to avoid `cc` er
 sudo apt install build-essential
 ```
 
-Currently s_mmpbsa has supported fixing PBC conditions and write trajectory to `MMPBSA_[name].xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+Currently s_mmpbsa has supported fixing PBC conditions and write trajectory to `_MMPBSA_[name]_4_pbc.xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
 ``` bash
+# Typical calculation mode
 # Firstly, add s_mmpbsa folder to $PATH.
-# Start s_mmpbsa, and input as follow (support # comments, but not recommended to input comments)
+# Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
 md.tpr
 1 # load xtc file
 md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
@@ -45,6 +47,25 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 0 # go to next step (start calculation)
 [return] # use default system name or input your name
 # Wait for calculation finish
+-1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
+10 # input the time point
+1 # view summary
+2 # output energy by time
+3 # output energy by residue
+1 # write residues within 3 A (also try other options)
+... # write residues within 3 A for alanine scanning samples
+4 # output other infomations
+0 # exit s_mmpbsa program
+```
+
+```bash
+# Analyzation mode
+# Firstly, add s_mmpbsa folder to $PATH.
+# Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
+a # analyzation mode
+[return] # same path as last opened tpr file
+[return] # set temperature 298.15 K
+[return] # set system name, same as the previous run
 -1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
 10 # input the time point
 1 # view summary
@@ -78,4 +99,3 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 ## New Folder (?
 - Add support of other PBSA solvers, e.g., Delphi2, and also built-in LPBE solver
 - Add figures: plotting data, 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
-- Split analysis module from the main module to restart analyzation
