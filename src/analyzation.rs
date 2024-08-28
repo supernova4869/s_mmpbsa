@@ -80,8 +80,8 @@ impl Results {
         }
     }
 
-    pub fn to_bin(&self, target: &str) {
-        println!("Saving results to {}", target);
+    pub fn to_bin(&self, target: &Path) {
+        println!("Saving results to {}", target.to_str().unwrap());
         let mut result_as_serialize = std::fs::File::create(target).unwrap();
         serde_pickle::to_writer(&mut result_as_serialize, self, serde_pickle::SerOptions::new()).unwrap();
     }

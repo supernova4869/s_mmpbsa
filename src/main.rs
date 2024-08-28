@@ -20,58 +20,80 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::Path;
 use std::process::Command;
+use analyzation::Results;
 use regex::Regex;
 use settings::{Settings, get_base_settings, get_settings_in_use};
+use utils::get_input;
 
 fn main() {
-    welcome();
+    welcome("2024-Aug-28");
     let mut settings = env_check();
+    match settings.debug_mode {
+        true => println!("Debug mode open.\n"),
+        false => println!("Debug mode closed.\n"),
+    }
 
     let args: Vec<String> = env::args().collect();
-    let mut tpr_path: String = String::new();
+    let mut input: String = String::new();
     match args.len() {
         1 => {
             println!("Input path of tpr file, e.g. D:/Conan/Ai.tpr");
-            println!("Hint: input \"o\" to simply load last-opened file");
-            loop {
-                stdin().read_line(&mut tpr_path).expect("Failed to get input file.");
-                if tpr_path.trim() == "o" {
-                    tpr_path = settings.last_opened.to_string();
-                    if tpr_path.len() == 0 {
-                        println!("Last-opened tpr not found.");
-                    }
+            println!("Hint: input \"o\" to simply load last-opened file; input \"a\" to start analyzation.");
+            stdin().read_line(&mut input).expect("Failed to get input file.");
+            if input.trim().eq("o") {
+                input = settings.last_opened.to_string();
+                if input.len() == 0 {
+                    println!("Last-opened tpr not found.");
                 }
-                if !Path::new(tpr_path.trim()).is_file() {
-                    println!("Not file: {}, input again:", tpr_path.trim());
-                    tpr_path.clear();
-                } else {
-                    break;
+            } else if input.trim().eq("a") {
+                input = Path::new(&settings.last_opened).parent().unwrap().to_str().unwrap().to_string();
+                println!("Input path of working dir with .sm results (default: {}):", input);
+                let temp = get_input("".to_string());
+                if temp.len() != 0 {
+                    input = temp;
                 }
             }
         }
         2 => {
-            tpr_path = args[1].to_string()
+            input = args[1].to_string()
         }
         _ => {}
     }
 
-    tpr_path = confirm_file_validity(&tpr_path, vec!["tpr"], &tpr_path);
-
-    change_settings_last_opened(&mut settings, &tpr_path);
-
-    // dump tpr
-    tpr_path = get_dump(&tpr_path, &settings);
-
-    match settings.debug_mode {
-        true => println!("Debug mode open."),
-        false => println!("Debug mode closed."),
+    if Path::new(&input).is_file() {
+        let tpr_file = confirm_file_validity(&input, vec!["tpr"], &input);
+        change_settings_last_opened(&mut settings, &tpr_file);
+        let tpr_file = get_dump(&tpr_file, &settings);
+        fun_para_basic::set_para_basic(&tpr_file, &Path::new(&tpr_file).parent().unwrap(), &mut settings);
+    } else if Path::new(&input).is_dir() {
+        let wd = Path::new(&input);
+        let sm_list: Vec<String> = fs::read_dir(wd).unwrap().into_iter().filter_map(|f| {
+            let f = f.unwrap().path();
+            if f.extension().unwrap().to_str().unwrap().eq("sm") {
+                Some(f.to_str().unwrap().to_string())
+            } else {
+                None
+            }
+        }).collect();
+        if !sm_list.is_empty() {
+            println!("Loading MM/PB-SA results...");
+            let result_wt = sm_list.iter().find(|f| f.ends_with("_WT.sm")).unwrap();
+            let result_wt = Results::from(result_wt);
+            let result_as: Vec<Results> = sm_list.iter().filter(|&f| !f.ends_with("_WT.sm")).map(|f| Results::from(f)).collect();
+            println!("Please input MD temperature (default: 298.15):");
+            let temperature = get_input(298.15);
+            println!("Please input system name (default: _system):");
+            let sys_name = get_input("_system".to_string());
+            analyzation::analyze_controller(&result_wt, &result_as, temperature, &sys_name, wd, &settings);
+        } else {
+            println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
+        }
+    } else {
+        println!("Input not file or directory. Please check.");
     }
-
-    // go to next step
-    fun_para_basic::set_para_basic(&tpr_path, &Path::new(&tpr_path).parent().unwrap(), &mut settings);
 }
 
-fn welcome() {
+fn welcome(cur_rel: &str) {
     println!("\
         ========================================================================\n\
         | s_mmpbsa: Supernova's tool of calculating binding free energy using  |\n\
@@ -79,7 +101,7 @@ fn welcome() {
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
         Developed by Jiaxing Zhang (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
-        Version 0.4, first release: 2022-Oct-17, current release: 2024-Jul-25\n");
+        Version 0.4, first release: 2022-Oct-17, current release: {}\n", cur_rel);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
         Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n");
 }

@@ -2,4 +2,4 @@
 /target
 /examples/*/_system/
 /examples/*/*MMPBSA*
-/*.sm
+/examples/*/*.sm
