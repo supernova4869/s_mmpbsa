@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::io::stdin;
 use std::path::Path;
 use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca};
@@ -15,7 +14,7 @@ use crate::analyzation;
 pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
                        ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
-                       bt: f64, et: f64, dt: f64, residues: &Vec<Residue>, settings: &mut Settings) {
+                       residues: &Vec<Residue>, settings: &mut Settings) {
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
     let mut pbe_set = PBESet::new(tpr.temp);
@@ -126,11 +125,10 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                 // run MM/PB-SA calculations
                 println!("Extracting atoms coordination...");
                 let (time_list, coordinates) = parse_xvg::read_coord_xvg(wd.join("_MMPBSA_coord.xvg").to_str().unwrap());
-                let (bf, ef, dframe, total_frames) = get_frames_range(&time_list, bt, et, dt);
                 
                 let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&time_list, &coordinates, &temp_dir, &sys_name, &aps,
                                                                 &ndx_rec, &ndx_lig, &ala_list, &residues, wd,
-                                                                bf, ef, dframe, total_frames, &pbe_set, &pba_set, settings);
+                                                                &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
             }
             1 => {
@@ -283,17 +281,4 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
             _ => println!("Invalid input")
         }
     }
-}
-
-fn get_frames_range(time_list: &Vec<f64>, bt: f64, et: f64, dt: f64) -> (usize, usize, usize, usize) {
-    // decide frame step according to time step
-    let time_step = time_list[1] - time_list[0];
-    let bf = ((bt - time_list[0]) / time_step) as usize;
-    let ef = ((et - time_list[0]) / time_step) as usize;
-    let dframe = match dt.partial_cmp(&time_step).unwrap() {
-        Ordering::Less => 1,            // converted trajectory with big time step (e.g., 1 ns)
-        _ => (dt / time_step) as usize  // time step partially less than target dt (e.g., initial trajectory)
-    };
-    let total_frames = (ef - bf) / dframe + 1;
-    (bf, ef, dframe, total_frames)
 }

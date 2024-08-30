@@ -8,14 +8,14 @@ use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
-use crate::utils::{convert_tpr, trjconv};
+use crate::utils::{convert_tpr, convert_trj};
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
     let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
-    let mut dt = 1000.0;          // ps
+    let mut dt = 1000.0;                               // ps
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
     let ndx = Index::from(ndx_name);
     loop {
@@ -69,11 +69,8 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         let residues = get_residues_tpr(tpr, &ndx_com);
 
                         // pre-treat trajectory: fix pbc
-                        let trj_whole = append_new_name(trj, "_1_whole.xtc", "_MMPBSA_"); // get trj output file name
-                        let trj_center = append_new_name(trj, "_2_center.xtc", "_MMPBSA_");
-                        let trj_cluster = append_new_name(trj, "_3_cluster.xtc", "_MMPBSA_");
-                        let trj_mmpbsa = append_new_name(trj, "_4_pbc.xtc", "_MMPBSA_");
-                        let tpr_name = append_new_name(tpr_name, ".tpr", "");       // fuck the tpr name is dump
+                        let trj_mmpbsa = append_new_name(trj, ".xtc", "_MMPBSA_"); // get trj output file name
+                        let tpr_name = append_new_name(tpr_name, ".tpr", ""); // fuck the passed tpr name is dump
                         
                         // step 1: generate new index
                         println!("Generating Index...");
@@ -89,19 +86,36 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                             ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
                         } else {
                             make_ndx(&vec![
-                                format!("{}", receptor_grp).as_str(),
+                                // format!("{}", receptor_grp).as_str(),
                                 format!("name {} Receptor", receptor_grp).as_str(),
                                 "q"
                             ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
                         }
                         
-                        // step 2: extract new trj with old tpr
+                        // step 2: extract new trj with old tpr and new index, and remove pbc
                         println!("Extracting trajectory, be patient...");
-                        // echo "Complex" | gmx trjconv -f md.xtc -s md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
-                        trjconv(&vec!["Complex"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_whole, &["-pbc", "whole"]);
+                        let (bt, et, dt) = (bt.to_string(), et.to_string(), dt.to_string());
+                        let mut other_params = vec![
+                            "-b", &bt,
+                            "-e", &et,
+                            "-dt", &dt
+                        ];
+                        if settings.fix_pbc {
+                            other_params.push("-rmpbc");
+                            match ligand_grp {
+                                Some(_) => {
+                                    other_params.push("-select");
+                                    other_params.push("Complex");
+                                },
+                                None => {
+                                    other_params.push("-select");
+                                    other_params.push("Receptor");
+                                }
+                            };
+                        };
+                        convert_trj(&vec![], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
                         
-                        // step 3: extract new tpr with old tpr
-                        // echo "Complex" | gmx convert-tpr -s md.tpr -n index.idx -o md_trj_com.tpr
+                        // step 3: extract new tpr from old tpr
                         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
                         convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
                         if !settings.debug_mode {
@@ -135,42 +149,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         let ndx_mmpbsa = Path::new(wd).join("_MMPBSA_index.ndx");
                         let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
 
-                        let trj_mmpbsa = if settings.fix_pbc {
-                            match ligand_grp {
-                                Some(_) => {
-                                    println!("Fixing PBC conditions 0/3...");
-                                    // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $pdb    &>>$err -pbc mol -center
-                                    trjconv(&vec!["Ligand", "Complex"],
-                                        wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_center, &["-pbc", "mol", "-center"]);
-                                    println!("Fixing PBC conditions 1/3...");
-                                    // echo -e "$com\n$com" | $trjconv  -s $tpx -n $idx -f $trjcnt -o $trjcls &>>$err -pbc cluster
-                                    trjconv(&vec!["Complex", "Complex"],
-                                        wd, settings, &trj_center, &tpr_mmpbsa, &ndx_mmpbsa, &trj_cluster, &["-pbc", "cluster"]);
-                                    println!("Fixing PBC conditions 2/3...");
-                                    // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjcls -o $pdb    &>>$err -fit rot+trans
-                                    trjconv(&vec!["Ligand", "Complex"],
-                                        wd, settings, &trj_cluster, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-fit", "rot+trans"]);
-                                    if !settings.debug_mode {
-                                        fs::remove_file(&trj_center).unwrap();
-                                        fs::remove_file(&trj_cluster).unwrap();
-                                    }
-                                },
-                                None => {
-                                    // echo -e "$lig\n$com" | $trjconv  -s $tpx -n $idx -f $trjwho -o $trjcnt &>>$err -pbc mol -center
-                                    println!("Fixing PBC conditions 0/1...");
-                                    trjconv(&vec!["Complex", "Complex", "Complex"], 
-                                        wd, settings, &trj_whole, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, &["-pbc", "mol", "-center", "-fit", "rot+trans"]);
-                                }
-                            }
-                            if !settings.debug_mode {
-                                fs::remove_file(&trj_whole).unwrap();
-                            }
-                            trj_mmpbsa
-                        } else {
-                            trj_whole
-                        };
-                        println!("Fixing PBC finished.");
-                        println!("Loading trajectory file...");
+                        println!("Loading trajectory coordinates...");
                         trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
 
                         set_para_mmpbsa(tpr, &ndx, wd, &mut aps, 
@@ -178,7 +157,6 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                             &ndx_lig,
                             receptor_grp,
                             ligand_grp,
-                            bt, et, dt,
                             &residues,
                             settings);
                     }
