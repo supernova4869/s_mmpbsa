@@ -13,7 +13,7 @@ use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
 use crate::coefficients::Coefficients;
-use crate::analyzation::Results;
+use crate::analyzation::SMResult;
 use crate::parse_tpr::Residue;
 use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
@@ -25,7 +25,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path,
                                bf: usize, ef: usize, dframe: usize, total_frames: usize,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
-                               -> (Results, Vec<Results>) {
+                               -> (SMResult, Vec<SMResult>) {
     println!("Running MM/PB-SA calculations of {}...", sys_name);
     if ala_list.len() > 0 {
         let as_res: Vec<String> = residues.iter().filter_map(
@@ -47,7 +47,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
         sys_name, "WT", pbe_set, pba_set, settings);
     result_wt.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, "WT").as_str()));
 
-    let mut result_ala_scan: Vec<Results> = vec![];
+    let mut result_ala_scan: Vec<SMResult> = vec![];
     if ala_list.len() > 0 {
         // main chain atoms number
         let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
@@ -166,7 +166,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, bf: usize, 
                     dframe: usize, total_frames: usize, aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                     residues: &Vec<Residue>, sys_name: &String, mutation: &str,
-                    pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Results {
+                    pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> SMResult {
     let mut elec_atom: Array2<f64> = Array2::zeros((total_frames, aps.atom_props.len()));
     let mut vdw_atom: Array2<f64> = Array2::zeros((total_frames, aps.atom_props.len()));
     let mut pb_atom: Array2<f64> = Array2::zeros((total_frames, aps.atom_props.len()));
@@ -225,7 +225,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, bf: usize, 
     let fr: Vec<usize> = (bf..=ef).step_by(dframe).collect();
     let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
     let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
-    Results::new(
+    SMResult::new(
         atom_names,
         atom_res,
         residues,

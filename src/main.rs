@@ -20,7 +20,7 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::Path;
 use std::process::{exit, Command};
-use analyzation::Results;
+use analyzation::SMResult;
 use regex::Regex;
 use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
@@ -88,11 +88,11 @@ fn main() {
                 println!("The required _MMPBSA_{}_WT.sm file not found. Please check.", sys_name);
                 exit(0);
             });
-            let result_wt = Results::from(result_wt.unwrap());
-            let result_as: Vec<Results> = sm_list.iter().filter(|&f| {
+            let result_wt = SMResult::from(result_wt.unwrap());
+            let result_as: Vec<SMResult> = sm_list.iter().filter(|&f| {
                 let f_name = Path::new(f).file_name().unwrap().to_str().unwrap();
                 f_name.starts_with(&format!("_MMPBSA_{}", sys_name)) && !f_name.ends_with("_WT.sm")
-            }).map(|f| Results::from(f)).collect();
+            }).map(|f| SMResult::from(f)).collect();
             analyzation::analyze_controller(&result_wt, &result_as, temperature, &sys_name, wd, &settings);
         } else {
             println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
