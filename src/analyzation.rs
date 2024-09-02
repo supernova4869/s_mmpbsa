@@ -364,7 +364,7 @@ fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts: f64) {
             let def_name = format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id]);
             let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_data(results, ts_id, &target_res);
             write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
-            plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
+            plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}_{}ns.png", sys_name, range_des, results.times[ts_id]));
         } else {
             println!("Error input: {} ns", ts);
             return;
@@ -373,7 +373,7 @@ fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts: f64) {
         let def_name = format!("MMPBSA_{}_res_{}.csv", sys_name, range_des);
         let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_avg_data(results, &target_res);
         write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
-        plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
+        plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}.png", sys_name, range_des));
     }
 
     println!("Finished writing residue-wised binding energy file(s).");
@@ -518,16 +518,17 @@ fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, tar_res_energ
     if cfg!(windows) {
         plot.set_python_exe("python");
     }
-    let def_name = format!("MMPBSA_{}_ΔH_res.png", def_name);
     let xticks: Vec<usize> = (0..tar_res_nr.len()).collect();
     let xtick_labels: Vec<String> = tar_res_nr.iter().enumerate().map(|(i, r)| format!("{}{}", tar_res_name[i], r)).collect();
-    plot.add(&bar)
-        .set_figure_size_inches(tar_res_nr.len() as f64 * 0.64, 4.8)
-        .set_ticks_x_labels(&xticks, &xtick_labels)
-        .set_rotation_ticks_x(45.0)
-        .grid_and_labels("Residue", "Binding Energy (kJ/mol)")
-        .save(&wd.join(&def_name)).unwrap();
-    println!("Residue-wised binding energy terms writen to {}", &def_name);
+    match plot.add(&bar)
+            .set_figure_size_inches(tar_res_nr.len() as f64 * 0.64, 4.8)
+            .set_ticks_x_labels(&xticks, &xtick_labels)
+            .set_rotation_ticks_x(45.0)
+            .grid_and_labels("Residue", "Binding Energy (kJ/mol)")
+            .save(&wd.join(&def_name)).ok() {
+        Some(_) => println!("Residue-wised binding energy terms writen to {}", &def_name),
+        None => println!("Not drawn due to the matplotlib error.")
+    }
 }
 
 fn get_residue_range_from_results(results: &SMResult, cutoff: f64) -> Vec<usize> {

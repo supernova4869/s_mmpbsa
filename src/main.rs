@@ -52,6 +52,8 @@ fn main() {
                 if temp.len() != 0 {
                     input = temp;
                 }
+            } else {
+                input = input.trim().to_string();
             }
         }
         2 => {
@@ -98,7 +100,7 @@ fn main() {
             println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
         }
     } else {
-        println!("Input not file or directory. Please check.");
+        println!("Input {} not file or directory. Please check.", Path::new(&input).to_str().unwrap());
     }
 }
 
