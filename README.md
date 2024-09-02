@@ -22,7 +22,7 @@ For Ubuntu system, maybe user should run the following commands to avoid `cc` er
 sudo apt install build-essential
 ```
 
-Currently s_mmpbsa has supported fixing PBC conditions and write trajectory to `_MMPBSA_[name]_4_pbc.xtc`. However, it is still better to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+Currently s_mmpbsa has supported fixing PBC conditions and write trajectory to `_MMPBSA_[name].xtc`. However, it is still recommended to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
 ``` bash
 # Typical calculation mode
@@ -98,4 +98,4 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 
 ## New Folder (?
 - Add support of other PBSA solvers, e.g., Delphi2, and also built-in LPBE solver
-- Add figures: plotting data, 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
+- Add figures: 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
