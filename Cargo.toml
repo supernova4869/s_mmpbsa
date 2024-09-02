@@ -1,6 +1,6 @@
 [package]
 name = "s_mmpbsa"
-version = "0.4.3"
+version = "0.5.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -16,3 +16,4 @@ serde = { version = "1.0.152", features = ["derive"] }
 serde_yaml = "0.9"
 serde-pickle = "1.1.1"
 rayon = "1.7.0"
+plotpy = "*"
