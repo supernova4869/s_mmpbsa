@@ -26,7 +26,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("2024-Sep-2");
+    welcome("2024-Sep-3");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode open.\n"),
@@ -104,7 +104,7 @@ fn main() {
     }
 }
 
-fn welcome(cur_rel: &str) {
+fn welcome(today: &str) {
     println!("\
         ========================================================================\n\
         | s_mmpbsa: Supernova's tool of calculating binding free energy using  |\n\
@@ -112,7 +112,7 @@ fn welcome(cur_rel: &str) {
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
         Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
-        Version 0.4, first release: 2022-Oct-17, current release: {}\n", cur_rel);
+        Version 0.4, first release: 2022-Oct-17, current release: {}\n", today);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
         Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n");
 }
@@ -199,112 +199,35 @@ fn get_built_in_delphi() -> Option<String> {
     }
 }
 
-fn check_gromacs(gmx: &Option<String>) -> Option<String> {
-    match gmx {
-        Some(gmx) => {
-            let gmx = match gmx.as_str() {
-                "built-in" => {
-                    get_built_in_gmx()
-                }
-                _ => Some(gmx.to_string())
-            };
-            match gmx {
-                Some(gmx) => {
-                    match check_program_validity(gmx.as_str()) {
-                        Ok(p) => {
-                            println!("Using Gromacs: {}", gmx);
-                            Some(p)
-                        }
-                        Err(_) => {
-                            println!("Note: {} not valid. Will try built-in gmx.", gmx);
-                            match get_built_in_gmx() {
-                                Some(gmx) => {
-                                    match check_program_validity(gmx.as_str()) {
-                                        Ok(p) => {
-                                            println!("Using Gromacs: {}", gmx);
-                                            Some(p)
-                                        }
-                                        Err(_) => {
-                                            println!("Warning: no valid Gromacs program in use.");
-                                            None
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    println!("Warning: no valid Gromacs program in use.");
-                                    None
-                                }
-                            }
-                        }
-                    }
-                }
-                None => None
+fn set_program(p: &Option<String>, name: &str) -> Option<String> {
+    if let Some(p) = p {
+        let p = if p.eq("built-in") {
+            match name {
+                "gromacs" => get_built_in_gmx(),
+                "apbs" => get_built_in_apbs(),
+                "delphi" => get_built_in_delphi(),
+                _ => None
             }
-        }
-        _ => {
-            println!("Warning: no valid Gromacs program in use.");
+        } else {
+            Some(p.to_string())
+        };
+        if let Some(p) = p {
+            match check_program_validity(p.as_str()) {
+                Ok(p) => {
+                    println!("Using {}: {}", name, p);
+                    Some(p)
+                }
+                Err(_) => {
+                    println!("Warning: no valid {} program in use.", name);
+                    None
+                }
+            }
+        } else {
             None
         }
     }
-}
-
-fn check_apbs(apbs: &Option<String>) -> Option<String> {
-    match apbs {
-        Some(apbs) => {
-            let apbs = match apbs.as_str() {
-                "built-in" => {
-                    get_built_in_apbs()
-                }
-                _ => Some(apbs.to_string())
-            };
-            match apbs {
-                Some(apbs) => {
-                    match check_program_validity(apbs.as_str()) {
-                        Ok(p) => {
-                            println!("Using APBS: {}", apbs);
-                            match fs::remove_file(Path::new("io.mc")) {
-                                _ => Some(p)
-                            }
-                        }
-                        Err(_) => {
-                            println!("Warning: no valid APBS program in use.");
-                            None
-                        }
-                    }
-                }
-                None => None
-            }
-        }
-        None => None
-    }
-}
-
-fn check_delphi(delphi: &Option<String>) -> Option<String> {
-    match delphi {
-        Some(delphi) => {
-            let delphi = match delphi.as_str() {
-                "built-in" => {
-                    get_built_in_delphi()
-                }
-                _ => Some(delphi.to_string())
-            };
-            match delphi {
-                Some(delphi) => {
-                    match check_program_validity(delphi.as_str()) {
-                        Ok(p) => {
-                            println!("Using delphi: {}", delphi);
-                            Some(p)
-                        }
-                        Err(_) => {
-                            println!("Warning: no valid Delphi program in use.");
-                            None
-                        }
-                    }
-                }
-                None => None
-            }
-        }
-        None => None
+    else {
+        None
     }
 }
 
@@ -389,8 +312,9 @@ fn env_check() -> Settings {
         io::stdin().read_line(&mut String::new()).unwrap();
         std::process::exit(0);
     }
-    settings.gmx_path = check_gromacs(&settings.gmx_path);
-    settings.apbs_path = check_apbs(&settings.apbs_path);
-    settings.delphi_path = check_delphi(&settings.delphi_path);
+    settings.gmx_path = set_program(&settings.gmx_path, "gromacs");
+    settings.apbs_path = set_program(&settings.apbs_path, "apbs");
+    fs::remove_file("io.mc").ok();
+    settings.delphi_path = set_program(&settings.delphi_path, "delphi");
     settings
 }

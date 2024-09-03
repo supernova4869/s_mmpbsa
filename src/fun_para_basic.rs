@@ -2,7 +2,7 @@ use std::io::stdin;
 use std::path::Path;
 use crate::settings::Settings;
 use crate::utils::{append_new_name, get_input_selection, make_ndx};
-use crate::{check_apbs, check_delphi, confirm_file_validity, convert_cur_dir};
+use crate::{confirm_file_validity, convert_cur_dir, set_program};
 use crate::fun_para_system::set_para_trj;
 use crate::parse_tpr::TPR;
 
@@ -52,7 +52,7 @@ pub fn set_para_basic(tpr_path: &String, wd: &Path, settings: &mut Settings) {
             -3 => {
                 println!("Input APBS path:");
                 let s: String = get_input_selection();
-                match check_apbs(&Some(s)) {
+                match set_program(&Some(s), "apbs") {
                     Some(s) => settings.apbs_path = Some(s),
                     None => settings.apbs_path = None
                 }
@@ -60,7 +60,7 @@ pub fn set_para_basic(tpr_path: &String, wd: &Path, settings: &mut Settings) {
             -4 => {
                 println!("Input Delphi path:");
                 let s: String = get_input_selection();
-                match check_delphi(&Some(s)) {
+                match set_program(&Some(s), "delphi") {
                     Some(s) => settings.delphi_path = Some(s),
                     None => settings.delphi_path = None
                 }
