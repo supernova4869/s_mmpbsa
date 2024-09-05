@@ -26,7 +26,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("2024-Sep-5");
+    welcome("2024-Sep-6");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -71,8 +71,12 @@ fn main() {
         let wd = Path::new(&input);
         let sm_list: Vec<String> = fs::read_dir(wd).unwrap().into_iter().filter_map(|f| {
             let f = f.unwrap().path();
-            if f.extension().unwrap().to_str().unwrap().eq("sm") {
-                Some(f.to_str().unwrap().to_string())
+            if let Some(ext) = f.extension() {
+                if ext.to_str().unwrap().eq("sm") {
+                    Some(f.to_str().unwrap().to_string())
+                } else {
+                    None
+                }
             } else {
                 None
             }

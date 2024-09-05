@@ -297,6 +297,10 @@ fn analyze_traj(results: &SMResult, wd: &Path, sys_name: &String) {
     let def_name = format!("MMPBSA_{}_ΔH_traj.png", sys_name);
     plot.add(&curve)
         .grid_and_labels("Time (ns)", "Binding Energy (kJ/mol)")
+        .set_label_x_fontsize(20.0)
+        .set_label_y_fontsize(20.0)
+        .set_ticks_x_fontsize(16.0)
+        .set_ticks_y_fontsize(16.0)
         .save(&wd.join(&def_name)).unwrap();
     println!("Binding energy terms writen to {}", &def_name);
 }
