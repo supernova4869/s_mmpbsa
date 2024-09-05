@@ -48,12 +48,12 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 [return] # use default system name or input your name
 # Wait for calculation finish
 -1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
-10 # input the time point
+ # input the time point (default average)
 1 # view summary
 2 # output energy by time
 3 # output energy by residue
+ # input the time point (default average)
 1 # write residues within 3 A (also try other options)
-... # write residues within 3 A for alanine scanning samples
 4 # output energy by ligand atoms
 0 # exit s_mmpbsa program
 ```
@@ -67,12 +67,12 @@ a # analyzation mode
 [return] # set temperature 298.15 K
 [return] # set system name, same as the previous run
 -1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
-10 # input the time point
+ # input the time point (default average)
 1 # view summary
 2 # output energy by time
 3 # output energy by residue
+ # input the time point (default average)
 1 # write residues within 3 A (also try other options)
-... # write residues within 3 A for alanine scanning samples
 4 # output energy by ligand atoms
 0 # exit s_mmpbsa program
 ```
@@ -98,4 +98,4 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 
 ## New Folder (?
 - Add support of other PBSA solvers, e.g., Delphi2, and also built-in LPBE solver
-- Add figures: 2D interaction plots like Ligplot+, 3D plots scripts with PyMOL
+- Add figures: 3D plots scripts with PyMOL
