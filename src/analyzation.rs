@@ -2,11 +2,9 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::exit;
-use indicatif::ProgressBar;
 use ndarray::{s, Array1, Array2, Array3, Axis};
 use serde::{Deserialize, Serialize};
 use plotpy::{Barplot, Curve, Plot};
-use crate::mmpbsa::set_style;
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
@@ -113,17 +111,18 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
         let sel_fun: i32 = get_input_selection();
         match sel_fun {
             -1 => {
-                let ts_ids = get_time_points(result_wt);
-                let pb = ProgressBar::new((results.len() * ts_ids.len()) as u64);
-                set_style(&pb);
+                println!("Input the time point (in ns) to output (default: average):");
+                let ts_id = get_time_points(result_wt);
+                println!("Writing pdb file(s)...");
                 for result in &results {
-                    for ts_id in &ts_ids {
-                        let def_name = format!("MMPBSA_binding_energy_{}_{}ns.pdb", sys_name, result.times[*ts_id]);
-                        write_pdb_with_bf(result, &def_name, *ts_id, wd, &(0..result.atom_names.len()).collect(), true, true);
-                        pb.inc(1);
+                    if let Some(ts_id) = ts_id {
+                        let def_name = format!("MMPBSA_binding_energy_{}_{}ns.pdb", sys_name, result.times[ts_id]);
+                        write_pdb_with_bf(result, &def_name, ts_id, wd, &(0..result.atom_names.len()).collect(), true, true);
+                    } else {
+                        let def_name = format!("MMPBSA_binding_energy_{}_avg.pdb", sys_name);
+                        write_pdb_with_bf(result, &def_name, 0, wd, &(0..result.atom_names.len()).collect(), false, true);
                     }
                 }
-                pb.finish();
                 println!("Finished writing pdb file(s) with binding energy information.");
             },
             0 => exit(0),
@@ -139,9 +138,11 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             },
             3 => {
                 println!("Input the time point (in ns) to output (default: average):");
-                let ts = get_input(-1.0);
+                let ts_id = get_time_points(result_wt);
+                let (range_des, target_res) = select_res_by_range(result_wt);
+                println!("Writing energy file(s)...");
                 for result in &results {
-                    analyze_res(result, wd, &format!("{}-{}", sys_name, result.mutation), ts)
+                    analyze_res(result, wd, &format!("{}-{}", sys_name, result.mutation), ts_id, &range_des, &target_res);
                 }
             },
             4 => {
@@ -160,19 +161,12 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
     }
 }
 
-fn get_time_points(result: &SMResult) -> Vec<usize> {
-    println!("Input the time point (in ns) to write pdb (default: all):");
+fn get_time_points(result: &SMResult) -> Option<usize> {
     let ts = get_input(-1.0);
-    println!("Writing pdb file(s)...");
     if ts != -1.0 {
-        if let Some(ts_id) = get_time_index(ts, result) {
-            vec![ts_id]
-        } else {
-            println!("Error input: {} ns", ts);
-            vec![]
-        }
+        get_time_index(ts, result)
     } else {
-        Vec::from_iter(0..result.times.len())
+        None
     }
 }
 
@@ -307,7 +301,7 @@ fn analyze_traj(results: &SMResult, wd: &Path, sys_name: &String) {
     println!("Binding energy terms writen to {}", &def_name);
 }
 
-fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts: f64) {
+fn select_res_by_range(result_wt: &SMResult) -> (String, Vec<usize>) {
     println!("Determine the residue range to output:");
     println!(" 1 Ligand and receptor residues by: CA within 4 A");
     println!(" 2 Ligand and receptor residues by: CA within 6 A");
@@ -319,21 +313,21 @@ fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts: f64) {
     let mut range_des = String::from("4A");
     let target_res = match i {
         1 => {
-            get_residue_range_from_results(results, 4.0)
+            get_residue_range_from_results(result_wt, 4.0)
         },
         2 => {
             range_des = String::from("6A");
-            get_residue_range_from_results(results, 6.0)
+            get_residue_range_from_results(result_wt, 6.0)
         },
         3 => {
             range_des = String::from("8A");
-            get_residue_range_from_results(results, 8.0)
+            get_residue_range_from_results(result_wt, 8.0)
         },
         4 => {
             println!("Input the cut-off distance you want to expand from ligand, default: 4");
             let cutoff = get_input(4.0);
             range_des = format!("{:.1}A", cutoff);
-            get_residue_range_from_results(results, cutoff)
+            get_residue_range_from_results(result_wt, cutoff)
         },
         5 => {
             println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
@@ -342,38 +336,35 @@ fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts: f64) {
             let res_range: Vec<i32> = match res_range.len() {
                 0 => {
                     range_des = "all".to_string();
-                    results.residues.iter().map(|r| r.nr).collect()
+                    result_wt.residues.iter().map(|r| r.nr).collect()
                 },
                 _ => range2list(&res_range)
             };
-            results.atom_res
+            result_wt.atom_res
                 .iter()
-                .filter(|&&i| res_range.contains(&(results.residues[i].nr)))    // 用户筛选用nr
-                .map(|&i| results.residues[i].id)     // 索引用id
+                .filter(|&&i| res_range.contains(&(result_wt.residues[i].nr)))    // 用户筛选用nr
+                .map(|&i| result_wt.residues[i].id)     // 索引用id
                 .collect()
         },
         _ => {
             println!("Invalid selection");
-            return
+            vec![]
         }
     };
-    
-    println!("Writing energy file(s)...");
-    if ts != -1.0 {
-        if let Some(ts_id) = get_time_index(ts, results) {
-            let def_name = format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id]);
-            let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_data(results, ts_id, &target_res);
-            write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
-            plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}_{}ns.png", sys_name, range_des, results.times[ts_id]));
-        } else {
-            println!("Error input: {} ns", ts);
-            return;
-        }
-    } else {
-        let def_name = format!("MMPBSA_{}_res_{}.csv", sys_name, range_des);
-        let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_avg_data(results, &target_res);
+    (range_des, target_res)
+}
+
+fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts_id: Option<usize>, range_des: &String, target_res: &Vec<usize>) {
+    if let Some(ts_id) = ts_id {
+        let def_name = format!("MMPBSA_{}_res_{}_{}ns.csv", sys_name, range_des, results.times[ts_id]);
+        let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_data(results, ts_id, target_res);
         write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
-        plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}.png", sys_name, range_des));
+        plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}_{}ns.png", sys_name, range_des, results.times[ts_id]));
+    } else {
+        let def_name = format!("MMPBSA_{}_res_{}_avg.csv", sys_name, range_des);
+        let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_avg_data(results, target_res);
+        write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
+        plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}_avg.png", sys_name, range_des));
     }
 
     println!("Finished writing residue-wised binding energy file(s).");
@@ -532,8 +523,8 @@ fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, tar_res_energ
 }
 
 fn get_residue_range_from_results(results: &SMResult, cutoff: f64) -> Vec<usize> {
-    let total_frames = results.times.len() - 1;
-    get_residue_range_ca(&results.coord.slice(s![total_frames, .., ..]).to_owned(), 
+    let last_frame = results.times.len() - 1;
+    get_residue_range_ca(&results.coord.slice(s![last_frame, .., ..]).to_owned(), 
         &results.ndx_lig, cutoff, &results.atom_res, &results.atom_names, &results.residues)
 }
 

@@ -29,8 +29,8 @@ fn main() {
     welcome("2024-Sep-3");
     let mut settings = env_check();
     match settings.debug_mode {
-        true => println!("Debug mode open.\n"),
-        false => println!("Debug mode closed.\n"),
+        true => println!("Debug mode on.\n"),
+        false => println!("Debug mode off.\n"),
     }
 
     let args: Vec<String> = env::args().collect();
