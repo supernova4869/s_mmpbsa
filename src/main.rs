@@ -26,7 +26,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("2024-Sep-3");
+    welcome("2024-Sep-5");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -46,8 +46,8 @@ fn main() {
                     println!("Last-opened tpr not found.");
                 }
             } else if input.trim().eq("a") {
-                input = Path::new(&settings.last_opened).parent().unwrap().to_str().unwrap().to_string();
-                println!("Input path of working dir with .sm results (default: {}):", input);
+                input = env::current_dir().unwrap().to_str().unwrap().to_string();
+                println!("Input path of working dir with .sm results (default: current dir):");
                 let temp = get_input("".to_string());
                 if temp.len() != 0 {
                     input = temp;
