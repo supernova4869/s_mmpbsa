@@ -113,17 +113,20 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             -1 => {
                 println!("Input the time point (in ns) to output (default: average):");
                 let ts_id = get_time_points(result_wt);
-                println!("Writing pdb file(s)...");
+                println!("Writing pdb and pml file(s)...");
                 for result in &results {
                     if let Some(ts_id) = ts_id {
                         let def_name = format!("MMPBSA_binding_energy_{}_{}ns.pdb", sys_name, result.times[ts_id]);
                         write_pdb_with_bf(result, &def_name, ts_id, wd, &(0..result.atom_names.len()).collect(), true, true);
+                        write_pml(&format!("MMPBSA_binding_energy_{}_{}ns.pml", sys_name, result.times[ts_id]), &def_name, wd);
                     } else {
                         let def_name = format!("MMPBSA_binding_energy_{}_avg.pdb", sys_name);
                         write_pdb_with_bf(result, &def_name, 0, wd, &(0..result.atom_names.len()).collect(), false, true);
+                        write_pml(&format!("MMPBSA_binding_energy_{}_avg.pml", sys_name), &def_name, wd);
                     }
                 }
                 println!("Finished writing pdb file(s) with binding energy information.");
+                println!("The pml file(s) could be loaded by PyMOL.");
             },
             0 => exit(0),
             1 => {
@@ -144,6 +147,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                 for result in &results {
                     analyze_res(result, wd, &format!("{}-{}", sys_name, result.mutation), ts_id, &range_des, &target_res);
                 }
+                println!("Finished writing residue-wised binding energy file(s).");
             },
             4 => {
                 for result in &results {
@@ -180,6 +184,17 @@ fn get_time_index(ts: f64, results: &SMResult) -> Option<usize> {
             None
         }
     }
+}
+
+fn write_pml(pml_name: &String, def_name: &String, wd: &Path) {
+    let mut pml_file = fs::File::create(wd.join(pml_name)).unwrap();
+    writeln!(pml_file, "cmd.load(\"{}\", \"complex\")", def_name).unwrap();
+    writeln!(pml_file, "select protein, polymer.protein").unwrap();
+    writeln!(pml_file, "preset.b_factor_putty(\"protein\", _self=cmd)").unwrap();
+    writeln!(pml_file, "select ligand, not polymer.protein and not solvent and not name \"NA\" and not name \"CL\"").unwrap();
+    writeln!(pml_file, "cmd.spectrum(\"b\", selection=(\"ligand\"), quiet=0)").unwrap();
+    writeln!(pml_file, "zoom ligand, 2.5").unwrap();
+    writeln!(pml_file, "cmd.disable(\"ligand\")").unwrap();
 }
 
 fn write_pdb_with_bf(result: &SMResult, def_name: &String, ts_id: usize, wd: &Path, atom_range: &Vec<usize>, by_frame: bool, reverse: bool) {
@@ -370,8 +385,6 @@ fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts_id: Option<u
         write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
         plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}_avg.png", sys_name, range_des));
     }
-
-    println!("Finished writing residue-wised binding energy file(s).");
 }
 
 fn analyze_atom(results: &SMResult, wd: &Path, sys_name: &String) {
