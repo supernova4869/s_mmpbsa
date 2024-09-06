@@ -87,6 +87,11 @@ a # analyzation mode
 0 # exit s_mmpbsa program
 ```
 
+The data was generated with .csv format and the pml files could be loaded by PyMOL.
+```bash
+pymol MMPBSA_binding_energy__system_avg.pml
+```
+
 ## Download
 Release file: https://github.com/supernova4869/s_mmpbsa/releases, where "s_mmpbsa.exe" and "s_mmpbsa" are s_mmpbsa executable files on Windows and Linux operation systems, respectively.
 
@@ -108,4 +113,3 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 
 ## New Folder (?
 - Add support of other PBSA solvers, e.g., Delphi2, and also built-in LPBE solver
-- Add figures: 3D plots scripts with PyMOL
