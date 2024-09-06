@@ -219,6 +219,11 @@ fn set_program(p: &Option<String>, name: &str) -> Option<String> {
             match check_program_validity(p.as_str()) {
                 Ok(p) => {
                     println!("Using {}: {}", name, p);
+                    if name.eq("apbs") {
+                        if Path::new("io.mc").is_file() {
+                            fs::remove_file("io.mc").ok();
+                        }
+                    }
                     Some(p)
                 }
                 Err(_) => {
@@ -318,7 +323,6 @@ fn env_check() -> Settings {
     }
     settings.gmx_path = set_program(&settings.gmx_path, "gromacs");
     settings.apbs_path = set_program(&settings.apbs_path, "apbs");
-    fs::remove_file("io.mc").ok();
     settings.delphi_path = set_program(&settings.delphi_path, "delphi");
     settings
 }
