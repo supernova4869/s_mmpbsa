@@ -8,21 +8,31 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 
 ## Features of s_mmpbsa
 - Open source and freely available.
-- No need for preparing running environment (e.g., for Python), only needs Gromacs program when running on linux system. (In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust).
+- Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting. (In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust).
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
-- Supports molecular docking results (by Autodock vina or DSDP) analysis.
+- Supports molecular docking results (by Autodock vina or DSDP) analysis (next small version).
 - Can perform alanine scanning based on both MD and molecular docking results.
 - Could store analyzation results for further analyzation for multiple times.
 
-## Usage
+## Requirement
+The matplotlib python package is essential during analyzation if plotting figures.
+On Debian/Ubuntu/Linux, run:
+```
+sudo apt install python3-matplotlib
+```
+On CentOS/Rocky, run:
+```
+sudo dnf install python3-matplotlib
+```
 For Ubuntu system, maybe user should run the following commands to avoid `cc` error.
 ```
 sudo apt install build-essential
 ```
 
-Currently s_mmpbsa has supported fixing PBC conditions and write trajectory to `_MMPBSA_[name].xtc`. However, it is still recommended to re-check if the trajectory PBC has been totally fixed by xtc visualization software, such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+## Usage
+Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
 ``` bash
 # Typical calculation mode
