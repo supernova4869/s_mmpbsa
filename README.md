@@ -11,24 +11,21 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting. (In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust).
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Very fast. Due to the efficency of rust program.
-- Considers electric screening effect, as "CHIN. PHYS. LETT. 2021, 38(1), 018701" describes.
+- Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
+- Considers interaction entropy, as "J. Chem. Phys. 2017, 146, 124124".
 - Supports molecular docking results (by Autodock vina or DSDP) analysis (next small version).
-- Can perform alanine scanning based on both MD and molecular docking results.
-- Could store analyzation results for further analyzation for multiple times.
+- Can perform alanine scanning based on both MD and molecular docking results (next small version).
+- Could store analyzation results for further reproducable analyzation.
 
 ## Requirement
 The matplotlib python package is essential during analyzation if plotting figures.
 On Debian/Ubuntu/Linux, run:
 ```
-sudo apt install python3-matplotlib
+sudo apt -y install python3-matplotlib build-essential
 ```
 On CentOS/Rocky, run:
 ```
-sudo dnf install python3-matplotlib
-```
-For Ubuntu system, maybe user should run the following commands to avoid `cc` error.
-```
-sudo apt install build-essential
+sudo dnf -y install python3-matplotlib
 ```
 
 ## Usage
@@ -101,7 +98,7 @@ The `s_mmpbsa` program should be properly cited if the work will be published.
 Currently, s_mmpbsa is still in-develop. If you want to utilize s_mmpbsa in your work, please cite the program as following:
 
 ```
-Jiaxing Zhang, s_mmpbsa, Version [current version], https://github.com/supernova4869/s_mmpbsa (accessed on yy-mm-dd)
+Jiaxing Zhang, s_mmpbsa, Version [your version], https://github.com/supernova4869/s_mmpbsa (accessed on yy-mm-dd)
 ```
 
 After the detailed paper about s_mmpbsa is published (if fortunately), please cite the corresponding paper instead of the web page here.
