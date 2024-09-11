@@ -27,6 +27,7 @@ On CentOS/Rocky, run:
 ```
 sudo dnf -y install python3-matplotlib
 ```
+PyMOL is also needed if plot the B-factor colored structure.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
