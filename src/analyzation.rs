@@ -201,6 +201,7 @@ fn write_pml(pml_name: &String, def_name: &String, png_name: &String, wd: &Path,
     writeln!(pml_file, "cmd.disable(\"ligand\")").unwrap();
     writeln!(pml_file, "ray 1920, 1080, async=1").unwrap();
     writeln!(pml_file, "png {}", png_name).unwrap();
+    writeln!(pml_file, "quit").unwrap();
     let result = Command::new(settings.pymol_path.as_ref().unwrap())
         .args(wd.join(pml_name).as_os_str().to_str())
         .stdout(Stdio::null())
