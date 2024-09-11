@@ -27,8 +27,12 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
         println!(" -2 Output LJ parameters");
         println!(" -1 Output structural parameters");
         println!("  0 Start MM/PB-SA calculation");
-        println!("  1 Toggle whether to use Debye-Huckel shielding method, current: {}", settings.use_dh);
-        println!("  2 Toggle whether to use interaction entropy (IE) method, current: {}", settings.use_ts);
+        println!("  1 Choose electrostatic screening method, current: {}", match settings.elec_screen {
+            1 => "Ding's method",
+            2 => "Supernova's method",
+            _ => "None"
+        });
+        println!("  2 Select residues list for alanine scanning, current: {:?}", ala_list);
         println!("  3 Select atom radius type, current: {}", radius_types[settings.radius_type]);
         println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
@@ -36,7 +40,6 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
         println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
         println!("  8 Prepare PB parameters for APBS");
         println!("  9 Prepare SA parameters for APBS");
-        println!(" 10 Select residues list for alanine scanning, current: {:?}", ala_list);
         let i = get_input_selection();
         match i {
             -10 => return,
@@ -81,8 +84,7 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
             }
             -3 => {
                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
-                paras.write_all(format!("Use Debye-Huckel shielding method: {}\n", settings.use_dh).as_bytes()).unwrap();
-                paras.write_all(format!("Use entropy contribution: {}\n", settings.use_ts).as_bytes()).unwrap();
+                paras.write_all(format!("Electrostatic screening method: {}\n", settings.elec_screen).as_bytes()).unwrap();
                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                 paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
                 paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
@@ -132,10 +134,67 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                 analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
             }
             1 => {
-                settings.use_dh = !settings.use_dh;
+                println!("Input the electrostatic screening method:");
+                println!("0: no screening\n1: Ding's method\n2: Supernova's method");
+                settings.elec_screen = get_input(1);
             }
             2 => {
-                settings.use_ts = !settings.use_ts;
+                println!("Select the residues for alanine scanning:");
+                println!(" 1 Select the residues within the first layer (0-4 A)");
+                println!(" 2 Select the residues within the second layer (4-6 A)");
+                println!(" 3 Select the residues within the third layer (6-8 A)");
+                println!(" 4 Select the residues within specific distance");
+                println!(" 5 Directly input the resudues list");
+                let i: i32 = get_input_selection();
+                let receptor_res: Vec<Residue> = residues.iter().filter_map(|r| if r.id != aps.atom_props[ndx_lig[0]].resid {
+                    Some(r.clone())
+                } else {
+                    None
+                }).collect();
+                let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
+                let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
+                match i {
+                    1 => {
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
+                            &atom_res, &atom_names, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                    },
+                    2 => {
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
+                            &atom_res, &atom_names, &receptor_res);
+                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
+                            &atom_res, &atom_names, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
+                            Some(residues[i].nr)
+                        } else {
+                            None
+                        } ).collect();
+                    },
+                    3 => {
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, 
+                            &atom_res, &atom_names, &receptor_res);
+                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
+                            &atom_res, &atom_names, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
+                            Some(residues[i].nr)
+                        } else {
+                            None
+                        } ).collect();
+                    },
+                    4 => {
+                        println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
+                        let cutoff = get_input(4.0);
+                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, 
+                            &atom_res, &atom_names, &receptor_res);
+                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                    },
+                    5 => {
+                        println!("Input the residues list for alanine scanning:");
+                        let rs = get_input("".to_string());
+                        ala_list = utils::range2list(rs.as_str());
+                    },
+                    _ => {}
+                }
             }
             3 => {
                 println!("Input atom radius type (default mBondi), Supported:{}", {
@@ -219,64 +278,6 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                     Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
                 let sa_fpath = get_input(sa_fpath.to_str().unwrap().to_string());
                 pba_set = PBASet::load_params(sa_fpath);
-            }
-            10 => {
-                println!("Select the residues for alanine scanning:");
-                println!(" 1 Select the residues within the first layer (0-4 A)");
-                println!(" 2 Select the residues within the second layer (4-6 A)");
-                println!(" 3 Select the residues within the third layer (6-8 A)");
-                println!(" 4 Select the residues within specific distance");
-                println!(" 5 Directly input the resudues list");
-                let i: i32 = get_input_selection();
-                let receptor_res: Vec<Residue> = residues.iter().filter_map(|r| if r.id != aps.atom_props[ndx_lig[0]].resid {
-                    Some(r.clone())
-                } else {
-                    None
-                }).collect();
-                let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
-                let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
-                match i {
-                    1 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    2 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
-                            Some(residues[i].nr)
-                        } else {
-                            None
-                        } ).collect();
-                    },
-                    3 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
-                            Some(residues[i].nr)
-                        } else {
-                            None
-                        } ).collect();
-                    },
-                    4 => {
-                        println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
-                        let cutoff = get_input(4.0);
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    5 => {
-                        println!("Input the residues list for alanine scanning:");
-                        let rs = get_input("".to_string());
-                        ala_list = utils::range2list(rs.as_str());
-                    },
-                    _ => {}
-                }
             }
             _ => println!("Invalid input")
         }

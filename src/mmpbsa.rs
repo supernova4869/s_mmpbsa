@@ -2,17 +2,15 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use crate::fun_para_system::normalize_index;
-// use xdrfile::*;
 use crate::settings::Settings;
 use crate::utils::resname_3to1;
 use ndarray::parallel::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
 use std::process::Command;
-// use std::rc::Rc;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
-use crate::coefficients::Coefficients;
+use crate::coefficients::{self, Coefficients};
 use crate::analyzation::SMResult;
 use crate::parse_tpr::Residue;
 use crate::apbs_param::{PBASet, PBESet};
@@ -258,12 +256,8 @@ fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coo
             let zj = coord[[j, 2]];
             let r = ((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2)).sqrt();
             if r <= settings.r_cutoff {
-                let e_elec = match settings.use_dh {
-                    false => qi * qj / r,
-                    true => qi * qj / r * (-coeff.kap * r).exp()   // doi: 10.1088/0256-307X/38/1/018701
-                }; // use A for elec
-                // use nm for vdW
-                let r = r / 10.0;
+                let r = r / 10.0;   // The fucking unit system
+                let e_elec = qi * qj / r * coefficients::screening_method(r, coeff, settings.elec_screen);
                 let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);
                 de_elec[i] += e_elec;
                 de_elec[j] += e_elec;
@@ -273,7 +267,7 @@ fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coo
         }
     }
 
-    de_elec = de_elec * coeff.kj_elec / coeff.pdie / 2.0;
+    de_elec = de_elec * coeff.f / coeff.pdie / 2.0;
     de_vdw = de_vdw / 2.0;
 
     return (de_elec, de_vdw)

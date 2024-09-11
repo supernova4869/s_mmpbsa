@@ -9,15 +9,15 @@ pub struct Settings {
     pub radius_ff_default: f64,
     pub r_cutoff: f64,
     pub fix_pbc: bool,
-    pub use_dh: bool,
-    pub use_ts: bool,
+    pub elec_screen: usize,
     pub gmx_path: Option<String>,
-    pub pbsa_kernel: Option<String>,
-    pub apbs_path: Option<String>,
     pub cfac: f64,
     pub fadd: f64,
     pub df: f64,
+    pub pbsa_kernel: Option<String>,
+    pub apbs_path: Option<String>,
     pub delphi_path: Option<String>,
+    pub pymol_path: Option<String>,
     pub nkernels: i32,
     pub debug_mode: bool,
     pub last_opened: String,
@@ -26,19 +26,19 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Settings {
         Settings {
+            elec_screen: 1,
             radius_type: 3,
             radius_ff_default: 1.5,
             r_cutoff: 0.0,
             fix_pbc: true,
-            use_dh: true,
-            use_ts: true,
             gmx_path: Some("gmx".to_string()),
-            pbsa_kernel: None,
-            apbs_path: None,
             cfac: 3.0,
             fadd: 10.0,
             df: 0.5,
+            pbsa_kernel: None,
+            apbs_path: None,
             delphi_path: None,
+            pymol_path: None,
             nkernels: 1,
             debug_mode: false,
             last_opened: String::new(),
@@ -52,6 +52,7 @@ impl Settings {
         let default_settings = Settings::new();
         
         // Read settings
+        let elec_screen = parse_param(&setting_values, "screen_method", default_settings.elec_screen);
         let radius_type = parse_param(&setting_values, "radius_type", default_settings.radius_type);
         let radius_ff_default = parse_param(&setting_values, "radius_default", default_settings.radius_ff_default);
         let r_cutoff = parse_param(&setting_values, "r_cutoff", default_settings.r_cutoff);
@@ -68,15 +69,17 @@ impl Settings {
         };
         let gmx_path = parse_param(&setting_values, "gmx_path", "gmx".to_string());
         let gmx_path = Some(gmx_path[1..gmx_path.len() - 1].to_string());
+        let cfac = parse_param(&setting_values, "cfac", default_settings.cfac);
+        let fadd = parse_param(&setting_values, "fadd", default_settings.fadd);
+        let df = parse_param(&setting_values, "df", default_settings.df);
         let pbsa_kernel = parse_param(&setting_values, "pbsa_kernel", "".to_string());
         let pbsa_kernel = Some(pbsa_kernel[1..pbsa_kernel.len() - 1].to_string());
         let apbs_path = parse_param(&setting_values, "apbs_path", "".to_string());
         let apbs_path = Some(apbs_path[1..apbs_path.len() - 1].to_string());
-        let cfac = parse_param(&setting_values, "cfac", default_settings.cfac);
-        let fadd = parse_param(&setting_values, "fadd", default_settings.fadd);
-        let df = parse_param(&setting_values, "df", default_settings.df);
         let delphi_path = parse_param(&setting_values, "delphi_path", "".to_string());
         let delphi_path = Some(delphi_path[1..delphi_path.len() - 1].to_string());
+        let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
+        let pymol_path = Some(pymol_path[1..pymol_path.len() - 1].to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
         let debug_mode = match debug_mode[1..2].to_string().as_str() {
@@ -90,19 +93,19 @@ impl Settings {
         println!("Note: found settings.ini, will use {} kernels.", nkernels);
 
         Settings {
+            elec_screen,
             radius_type,
             radius_ff_default,
             r_cutoff,
             fix_pbc,
-            use_dh: true,
-            use_ts: true,
             gmx_path,
-            pbsa_kernel,
-            apbs_path,
             cfac,
             fadd,
             df,
+            pbsa_kernel,
+            apbs_path,
             delphi_path,
+            pymol_path,
             nkernels,
             debug_mode,
             last_opened,

@@ -1,7 +1,7 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
-use std::process::exit;
+use std::process::{exit, Command, Stdio};
 use ndarray::{s, Array1, Array2, Array3, Axis};
 use serde::{Deserialize, Serialize};
 use plotpy::{Barplot, Curve, Plot};
@@ -118,11 +118,15 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                     if let Some(ts_id) = ts_id {
                         let def_name = format!("MMPBSA_binding_energy_{}_{}ns.pdb", sys_name, result.times[ts_id]);
                         write_pdb_with_bf(result, &def_name, ts_id, wd, &(0..result.atom_names.len()).collect(), true, true);
-                        write_pml(&format!("MMPBSA_binding_energy_{}_{}ns.pml", sys_name, result.times[ts_id]), &def_name, wd);
+                        let pml_name = format!("MMPBSA_binding_energy_{}_{}ns.pml", sys_name, result.times[ts_id]);
+                        let png_name = format!("MMPBSA_binding_energy_{}_{}ns", sys_name, result.times[ts_id]);
+                        write_pml(&pml_name, &def_name, &png_name, wd, settings);
                     } else {
                         let def_name = format!("MMPBSA_binding_energy_{}_avg.pdb", sys_name);
                         write_pdb_with_bf(result, &def_name, 0, wd, &(0..result.atom_names.len()).collect(), false, true);
-                        write_pml(&format!("MMPBSA_binding_energy_{}_avg.pml", sys_name), &def_name, wd);
+                        let pml_name = format!("MMPBSA_binding_energy_{}_avg.pml", sys_name);
+                        let png_name = format!("MMPBSA_binding_energy_{}_avg", sys_name);
+                        write_pml(&pml_name, &def_name, &png_name, wd, settings);
                     }
                 }
                 println!("Finished writing pdb file(s) with binding energy information.");
@@ -131,7 +135,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             0 => exit(0),
             1 => {
                 for result in &results {
-                    analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation), settings)
+                    analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation))
                 }
             },
             2 => {
@@ -186,7 +190,7 @@ fn get_time_index(ts: f64, results: &SMResult) -> Option<usize> {
     }
 }
 
-fn write_pml(pml_name: &String, def_name: &String, wd: &Path) {
+fn write_pml(pml_name: &String, def_name: &String, png_name: &String, wd: &Path, settings: &Settings) {
     let mut pml_file = fs::File::create(wd.join(pml_name)).unwrap();
     writeln!(pml_file, "cmd.load(\"{}\", \"complex\")", def_name).unwrap();
     writeln!(pml_file, "select protein, polymer.protein").unwrap();
@@ -195,6 +199,13 @@ fn write_pml(pml_name: &String, def_name: &String, wd: &Path) {
     writeln!(pml_file, "cmd.spectrum(\"b\", selection=(\"ligand\"), quiet=0)").unwrap();
     writeln!(pml_file, "zoom ligand, 2.5").unwrap();
     writeln!(pml_file, "cmd.disable(\"ligand\")").unwrap();
+    writeln!(pml_file, "ray 1920, 1080, async=1").unwrap();
+    writeln!(pml_file, "png {}", png_name).unwrap();
+    Command::new(settings.pymol_path.as_ref().unwrap())
+            .args(wd.join(pml_name).as_os_str().to_str())
+            .stdout(Stdio::null())
+            .spawn()
+            .expect("Failed to start process");
 }
 
 fn write_pdb_with_bf(result: &SMResult, def_name: &String, ts_id: usize, wd: &Path, atom_range: &Vec<usize>, by_frame: bool, reverse: bool) {
@@ -225,9 +236,8 @@ fn write_atom_line(result: &SMResult, id: usize, name: &String, res_id: usize, t
     }
 }
 
-fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &String, settings: &Settings) {
-    let rt2kj = 8.314462618 * temperature / 1e3;
-
+fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &String) {
+    let beta_kj = 1000.0 / 8.314462618 / temperature;
     let dh_avg = results.dh.mean().unwrap();
     let mm_avg = results.mm.mean().unwrap();
     let elec_avg = results.elec.mean().unwrap();
@@ -235,18 +245,10 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     let pb_avg = results.pb.mean().unwrap();
     let sa_avg = results.sa.mean().unwrap();
 
-    let tds = match settings.use_ts {
-        true => {
-            -rt2kj * (results.mm.iter().map(|&p| f64::exp((p - mm_avg) / rt2kj)).sum::<f64>() / results.mm.len() as f64).ln()
-        }
-        false => 0.0
-    };
+    let mm_sum: f64 = results.mm.iter().map(|&mm| f64::exp((mm - mm_avg) * beta_kj)).sum();
+    let tds = -(mm_sum / results.mm.len() as f64).ln() / beta_kj;
     let dg = dh_avg - tds;
-    let ki = if dg < 0.0 {
-        f64::exp(dg / rt2kj) * 1e9    // nM
-    } else {
-        0.0
-    };
+    let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
 
     println!("\nEnergy terms summary:");
     println!("ΔH: {:.3} kJ/mol", dh_avg);
@@ -259,11 +261,7 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     println!();
     println!("TΔS: {:.3} kJ/mol", tds);
     println!("ΔG: {:.3} kJ/mol", dg);
-    if ki != 0.0 {
-        println!("Ki: {:.3} nM", ki);
-    } else {
-        println!("Ki: Unavailable");
-    }
+    println!("Ki: {:.9e} nM", ki);
 
     let def_name = format!("MMPBSA_{}.csv", sys_name);
     println!("Writing binding energy terms...");
@@ -279,11 +277,7 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     write!(energy_sum, "\n").unwrap();
     write!(energy_sum, "TΔS,{:.3},(kJ/mol)\n", tds).unwrap();
     write!(energy_sum, "ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
-    if ki != 0.0 {
-        write!(energy_sum, "Ki,{:.3e},Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
-    } else {
-        write!(energy_sum, "Ki,Unavailable,Ki=exp(ΔG/RT) (nM)\n").unwrap();
-    }
+    write!(energy_sum, "Ki,{:.9e},Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
     println!("Binding energy terms have been writen to {}", &def_name);
 }
 
