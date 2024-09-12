@@ -32,8 +32,8 @@ PyMOL is also needed if plot the B-factor colored structure.
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
+### Typical calculation mode:
 ``` bash
-# Typical calculation mode
 # Firstly, add s_mmpbsa folder to $PATH.
 # Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
 md.tpr
@@ -66,8 +66,8 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 0 # exit s_mmpbsa program
 ```
 
+### Use Analyzation mode:
 ```bash
-# Analyzation mode
 # Firstly, add s_mmpbsa folder to $PATH.
 # Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
 a # analyzation mode
@@ -85,10 +85,7 @@ a # analyzation mode
 0 # exit s_mmpbsa program
 ```
 
-The data was generated with .csv format and the pml files could be loaded by PyMOL.
-```bash
-pymol MMPBSA_binding_energy__system_avg.pml
-```
+The data was generated with .csv format and plotted as figures; The pdb files with inversed binding energy filled in B-factors column are drawn as png figures by PyMOL (if usable).
 
 ## Download
 Release file: https://github.com/supernova4869/s_mmpbsa/releases, where "s_mmpbsa.exe" and "s_mmpbsa" are s_mmpbsa executable files on Windows and Linux operation systems, respectively.
