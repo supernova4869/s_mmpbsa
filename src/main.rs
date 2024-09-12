@@ -26,7 +26,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("2024-Sep-6");
+    welcome("0.5", "2024-Sep-6");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -38,7 +38,8 @@ fn main() {
     match args.len() {
         1 => {
             println!("Input path of tpr file, e.g. D:/Conan/Ai.tpr");
-            println!("Hint: input \"o\" to simply load last-opened file; input \"a\" to start analyzation.");
+            println!("Hint: input \"o\" to simply load last-opened file");
+            println!("Hint: input \"a\" to start analyzation mode.");
             stdin().read_line(&mut input).expect("Failed to get input file.");
             if input.trim().eq("o") {
                 input = settings.last_opened.to_string();
@@ -108,7 +109,7 @@ fn main() {
     }
 }
 
-fn welcome(today: &str) {
+fn welcome(version: &str, today: &str) {
     println!("\
         ========================================================================\n\
         | s_mmpbsa: Supernova's tool of calculating binding free energy using  |\n\
@@ -116,7 +117,7 @@ fn welcome(today: &str) {
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
         Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
-        Version 0.4, first release: 2022-Oct-17, current release: {}\n", today);
+        Version {}, first release: 2022-Oct-17, current release: {}\n", version, today);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
         Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n");
 }
