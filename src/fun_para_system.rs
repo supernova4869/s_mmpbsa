@@ -86,8 +86,8 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                             ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
                         } else {
                             make_ndx(&vec![
-                                // format!("{}", receptor_grp).as_str(),
-                                format!("name {} Receptor", receptor_grp).as_str(),
+                                // complex is receptor
+                                format!("name {} Complex", receptor_grp).as_str(),
                                 "q"
                             ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
                         }
@@ -102,17 +102,9 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         ];
                         if settings.fix_pbc {
                             other_params.push("-rmpbc");
-                            match ligand_grp {
-                                Some(_) => {
-                                    other_params.push("-select");
-                                    other_params.push("Complex");
-                                },
-                                None => {
-                                    other_params.push("-select");
-                                    other_params.push("Receptor");
-                                }
-                            };
                         };
+                        other_params.push("-select");
+                        other_params.push("Complex");
                         convert_trj(&vec![], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
                         
                         // step 3: extract new tpr from old tpr
@@ -142,7 +134,9 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                                 ])
                             },
                             None => {
-                                Index::new(vec![IndexGroup::new("Receptor", &ndx_rec)])
+                                Index::new(vec![
+                                    IndexGroup::new("Complex", &ndx_rec)
+                                ])
                             }
                         };
                         ndx_mmpbsa.to_ndx(Path::new(wd).join("_MMPBSA_index.ndx").to_str().unwrap());

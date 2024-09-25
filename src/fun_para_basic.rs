@@ -10,7 +10,7 @@ pub fn set_para_basic(tpr_path: &String, wd: &Path, settings: &mut Settings) {
     let mut trj = String::new();
     let mut ndx = String::new();
     let mut tpr = TPR::new(&tpr_path, &settings);
-    println!("\nFinished loading tpr.");
+    println!("\nFinished loading input file.");
 
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
