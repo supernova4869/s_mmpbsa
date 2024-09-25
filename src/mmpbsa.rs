@@ -286,6 +286,9 @@ fn calc_pbsa(coord: &ArrayView2<f64>, time_list: &Vec<f64>,
     let f_name = format!("{}_{}ns", sys_name, time_list[cur_frm]);
     if let Some(pbsa_kernel) = &settings.pbsa_kernel {
         if pbsa_kernel.eq("apbs") {
+            if settings.apbs_path.as_ref().is_none() {
+                return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
+            }
             let apbs = settings.apbs_path.as_ref().unwrap();
             write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
                     pbe_set, pba_set, temp_dir, &f_name, settings);

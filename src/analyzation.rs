@@ -322,7 +322,7 @@ fn analyze_traj(results: &SMResult, wd: &Path, sys_name: &String) {
     println!("Binding energy terms writen to {}", &def_name);
 }
 
-fn select_res_by_range(result_wt: &SMResult) -> (String, Vec<usize>) {
+fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
     println!("Determine the residue range to output:");
     println!(" 1 Ligand and receptor residues by: CA within 4 A");
     println!(" 2 Ligand and receptor residues by: CA within 6 A");
@@ -334,37 +334,52 @@ fn select_res_by_range(result_wt: &SMResult) -> (String, Vec<usize>) {
     let mut range_des = String::from("4A");
     let target_res = match i {
         1 => {
-            get_residue_range_from_results(result_wt, 4.0)
+            get_residue_range_from_results(results, 4.0)
         },
         2 => {
             range_des = String::from("6A");
-            get_residue_range_from_results(result_wt, 6.0)
+            get_residue_range_from_results(results, 6.0)
         },
         3 => {
             range_des = String::from("8A");
-            get_residue_range_from_results(result_wt, 8.0)
+            get_residue_range_from_results(results, 8.0)
         },
         4 => {
             println!("Input the cut-off distance you want to expand from ligand, default: 4");
             let cutoff = get_input(4.0);
             range_des = format!("{:.1}A", cutoff);
-            get_residue_range_from_results(result_wt, cutoff)
+            get_residue_range_from_results(results, cutoff)
         },
         5 => {
-            println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
-            let res_range = get_input(String::new());
+            let mut res_range = String::new();
+            loop {
+                println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
+                println!("Input \"?\" to view the residues list");
+                res_range = get_input(res_range);
+                if res_range.eq("?") {
+                    results.residues.iter().enumerate().for_each(|(i, r)| {
+                        print!("{}{}, ", r.nr, r.name);
+                        if (i + 1) % 5 == 0 {
+                            println!();
+                        }
+                    });
+                    println!();
+                } else {
+                    break;
+                }
+            }
             range_des = res_range.to_string();
             let res_range: Vec<i32> = match res_range.len() {
                 0 => {
                     range_des = "all".to_string();
-                    result_wt.residues.iter().map(|r| r.nr).collect()
+                    results.residues.iter().map(|r| r.nr).collect()
                 },
                 _ => range2list(&res_range)
             };
-            result_wt.atom_res
+            results.atom_res
                 .iter()
-                .filter(|&&i| res_range.contains(&(result_wt.residues[i].nr)))    // 用户筛选用nr
-                .map(|&i| result_wt.residues[i].id)     // 索引用id
+                .filter(|&&i| res_range.contains(&(results.residues[i].nr)))    // 用户筛选用nr
+                .map(|&i| results.residues[i].id)     // 索引用id
                 .collect()
         },
         _ => {
