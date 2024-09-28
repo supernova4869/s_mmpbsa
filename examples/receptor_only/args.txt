@@ -14,7 +14,7 @@ WT_2PET_md_dt1000_50ns.xtc
 50
 0
 0
-
+TH
 
 1
 0

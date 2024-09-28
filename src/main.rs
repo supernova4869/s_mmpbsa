@@ -26,7 +26,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("0.5", "2024-Sep-27");
+    welcome("0.5", "2024-Sep-29");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
