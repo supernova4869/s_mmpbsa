@@ -8,7 +8,8 @@ use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
-use crate::utils::{convert_tpr, convert_trj};
+use crate::{mmpbsa, parse_xvg};
+use crate::utils::{convert_tpr, convert_trj, trjconv};
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
@@ -102,10 +103,12 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         ];
                         if settings.fix_pbc {
                             other_params.push("-rmpbc");
-                        };
-                        other_params.push("-select");
-                        other_params.push("Complex");
-                        convert_trj(&vec![], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
+                            other_params.push("-select");
+                            other_params.push("Complex");
+                            convert_trj(&vec![], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
+                        } else {
+                            trjconv(&vec!["Complex"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
+                        }
                         
                         // step 3: extract new tpr from old tpr
                         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
@@ -207,6 +210,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
     }
 }
 
+pub fn set_para_trj_pdbqt(receptor: &String, ligand: &String, wd: &Path, settings: &mut Settings) {
+    // 走mmpbsa参数
+    println!("不干了");
+}
+
 fn show_grp(grp: Option<usize>, ndx: &Index) -> String {
     match grp {
         None => String::from("undefined"),
@@ -227,9 +235,21 @@ pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (V
             if !ndx_lig_norm.contains(&cur_atom_id) && !ndx_rec_norm.contains(&cur_atom_id) {
                 let ndx_lig_norm2 = ndx_lig_norm.clone();
                 let ndx_rec_norm2 = ndx_rec_norm.clone();
-                let next_edge_id = ndx_lig_norm2.iter().find(|&&i| i > cur_atom_id).unwrap_or(&last_atom);
-                let next_edge_id = next_edge_id.min(ndx_rec_norm2.iter().find(|&&i| i > cur_atom_id).unwrap_or(&last_atom));
-                let offset = next_edge_id - cur_atom_id;
+                let next_edge_lig = ndx_lig_norm2.iter().find(|&&i| i > cur_atom_id);
+                let next_edge_rec = ndx_rec_norm2.iter().find(|&&i| i > cur_atom_id);
+                let offset = if next_edge_lig.is_none() {
+                    if next_edge_rec.is_none() {
+                        0
+                    } else {
+                        next_edge_rec.unwrap() - cur_atom_id
+                    }
+                } else {
+                    if next_edge_rec.is_none() {
+                        next_edge_lig.unwrap() - cur_atom_id
+                    } else {
+                        next_edge_lig.unwrap().min(next_edge_rec.unwrap()) - cur_atom_id
+                    }
+                };
                 ndx_lig_norm.iter_mut().for_each(|i| if *i > cur_atom_id { *i -= offset } );
                 ndx_rec_norm.iter_mut().for_each(|i| if *i > cur_atom_id { *i -= offset } );
             }

@@ -103,10 +103,10 @@ pub fn convert_trj(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str
     gmx_cmd(settings, cmds, &args, wd);
 }
 
-// pub fn trjconv(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
-//     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-//     gmx_cmd(settings, cmds, &args, wd);
-// }
+pub fn trjconv(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
+    let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
+    gmx_cmd(settings, cmds, &args, wd);
+}
 
 pub fn make_ndx(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, n: &str, o: &str) {
     let args = match n.is_empty() {

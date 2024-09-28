@@ -44,7 +44,7 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
         match i {
             -10 => return,
             -1 => {
-                let mut paras = File::create(wd.join("paras_structure.txt")).unwrap();
+                let mut paras = File::create(wd.join("paras_atom_properties.txt")).unwrap();
                 paras.write_all(format!("Receptor group: {}\n", 
                     ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
                 match ligand_grp {
@@ -62,7 +62,7 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
                         ap.id, ap.name, ap.type_id, ap.charge, ap.radius, ap.resid + 1, ap.resname).as_bytes()).unwrap();
                 }
-                println!("Structural parameters have been written to paras_structure.txt");
+                println!("Structural parameters have been written to paras_atom_properties.txt");
             }
             -2 => {
                 let mut paras = File::create(wd.join("paras_LJ.txt")).unwrap();

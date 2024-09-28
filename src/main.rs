@@ -26,7 +26,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("0.5", "2024-Sep-25");
+    welcome("0.5", "2024-Sep-27");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -64,14 +64,14 @@ fn main() {
     }
 
     if Path::new(&input).is_file() {
-        let in_file = confirm_file_validity(&input, vec!["tpr", "pdb"], &input);
+        let in_file = confirm_file_validity(&input, vec!["tpr", "pdbqt"], &input);
         change_settings_last_opened(&mut settings, &in_file);
-        let in_file = if in_file.ends_with("tpr") {
-            get_dump(&in_file, &settings)
+        if in_file.ends_with("tpr") {
+            let in_file = get_dump(&in_file, &settings);
+            fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
         } else { // pdb
-            pdbqt2pdb(&in_file, &settings)
+            fun_para_basic::set_para_basic_pdbqt(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
         };
-        fun_para_basic::set_para_basic(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
     } else if Path::new(&input).is_dir() {
         let wd = Path::new(&input);
         let sm_list: Vec<String> = fs::read_dir(wd).unwrap().into_iter().filter_map(|f| {
@@ -307,11 +307,6 @@ fn dump_tpr(tpr: &String, dump_to: &String, gmx: &str) {
     let mut outfile = fs::File::create(dump_to).expect("Cannot create md.dump.");
     outfile.write(tpr_dump.as_bytes()).expect("Cannot write md.dump.");
     println!("Dumped tpr file to {}", dump_to);
-}
-
-fn pdbqt2pdb(tpr_path: &String, settings: &Settings) -> String {
-    println!("Hello");
-    return "Hello".to_string()
 }
 
 fn env_check() -> Settings {

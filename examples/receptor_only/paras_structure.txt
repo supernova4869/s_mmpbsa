@@ -1,0 +1,36 @@
+Receptor group: r_153
+Ligand group: r_207
+Atom radius type: mBondi
+Atoms:
+     id   name   type   charge   radius   resnum  resname
+      0      N      0    -0.42     1.62        1      THR
+      1     HN      1     0.27     0.53        1      THR
+      2     CA      2    -0.04     1.70        1      THR
+      3    HCA      4     0.10     1.24        1      THR
+      4     CB      2     0.37     1.70        1      THR
+      5    HCB      4     0.00     1.24        1      THR
+      6    CG2      2    -0.24     1.70        1      THR
+      7   HCG2      9     0.06     1.32        1      THR
+      8   HCG2      9     0.06     1.32        1      THR
+      9   HCG2      9     0.06     1.32        1      THR
+     10    OG1      5    -0.68     1.53        1      THR
+     11   HOG1      6     0.41     1.50        1      THR
+     12      C      7     0.60     1.70        1      THR
+     13      O      8    -0.57     1.48        1      THR
+     14      N      0    -0.42     1.62       55      HID
+     15     HN      1     0.27     0.53       55      HID
+     16     CA      2     0.02     1.70       55      HID
+     17    HCA      4     0.09     1.24       55      HID
+     18     CB      2    -0.05     1.70       55      HID
+     19    HCB      9     0.04     1.32       55      HID
+     20    HCB      9     0.04     1.32       55      HID
+     21     CG      7    -0.03     1.70       55      HID
+     22    ND1      0    -0.38     1.62       55      HID
+     23   HND1      1     0.36     0.53       55      HID
+     24    CE1      7     0.21     1.70       55      HID
+     25   HCE1     13     0.14     1.21       55      HID
+     26    NE2      0    -0.57     1.62       55      HID
+     27    CD2      7     0.13     1.70       55      HID
+     28   HCD2     12     0.11     1.26       55      HID
+     29      C      7     0.60     1.70       55      HID
+     30      O      8    -0.57     1.48       55      HID
