@@ -96,19 +96,12 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         // step 2: extract new trj with old tpr and new index, and remove pbc
                         println!("Extracting trajectory, be patient...");
                         let (bt, et, dt) = (bt.to_string(), et.to_string(), dt.to_string());
-                        let mut other_params = vec![
+                        let other_params = vec![
                             "-b", &bt,
                             "-e", &et,
                             "-dt", &dt
                         ];
-                        if settings.fix_pbc {
-                            other_params.push("-rmpbc");
-                            other_params.push("-select");
-                            other_params.push("Complex");
-                            convert_trj(&vec![], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
-                        } else {
-                            trjconv(&vec!["Complex"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
-                        }
+                        trjconv(&vec!["Complex"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
                         
                         // step 3: extract new tpr from old tpr
                         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
@@ -145,6 +138,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                         ndx_mmpbsa.to_ndx(Path::new(wd).join("_MMPBSA_index.ndx").to_str().unwrap());
                         let ndx_mmpbsa = Path::new(wd).join("_MMPBSA_index.ndx");
                         let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
+                        // convert-trj有bug, 不能处理不完整蛋白, 故先trjconv再convert-trj
+                        if settings.fix_pbc {
+                            let other_params = vec!["-rmpbc", "-select", "Complex"];
+                            convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, &other_params);
+                        }
 
                         println!("Loading trajectory coordinates...");
                         trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
