@@ -89,8 +89,8 @@ fn main() {
         if !sm_list.is_empty() {
             println!("Please input MD temperature (default: 298.15):");
             let temperature = get_input(298.15);
-            println!("Please input system name (default: _system):");
-            let sys_name = get_input("_system".to_string());
+            println!("Please input system name (default: system):");
+            let sys_name = get_input("system".to_string());
             println!("Loading MM/PB-SA results...");
             let result_wt = sm_list.iter().find(|f| {
                 let f_name = Path::new(f).file_name().unwrap().to_str().unwrap();

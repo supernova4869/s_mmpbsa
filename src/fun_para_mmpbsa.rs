@@ -99,7 +99,7 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                 aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
 
                 // Temp directory for PBSA
-                let mut sys_name = String::from("_system");
+                let mut sys_name = String::from("system");
                 println!("Input system name (default: {}):", sys_name);
                 let mut input = String::new();
                 stdin().read_line(&mut input).expect("Error input");
