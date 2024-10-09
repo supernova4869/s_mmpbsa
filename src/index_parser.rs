@@ -1,5 +1,7 @@
 use std::{fs::{self, File}, io::Write};
 use regex::Regex;
+use std::fmt::Formatter;
+use std::fmt;
 
 #[derive(Clone)]
 pub struct IndexGroup {
@@ -10,6 +12,14 @@ pub struct IndexGroup {
 impl IndexGroup {
     pub fn new(name: &str, list: &Vec<usize>) -> IndexGroup {
         IndexGroup { name: name.to_string(), indexes: list.to_owned() }
+    }
+}
+
+impl fmt::Display for IndexGroup {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}, {} atoms", 
+            self.name,
+            self.indexes.len())
     }
 }
 

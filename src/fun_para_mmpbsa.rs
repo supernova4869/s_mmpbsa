@@ -1,5 +1,7 @@
 use std::io::stdin;
 use std::path::Path;
+use ndarray::Array3;
+
 use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca};
 use crate::index_parser::Index;
 use crate::settings::Settings;
@@ -8,10 +10,11 @@ use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::{Residue, TPR};
-use crate::{mmpbsa, parse_xvg};
+use crate::mmpbsa;
 use crate::analyzation;
 
-pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
+pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
+                       tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
                        ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        residues: &Vec<Residue>, settings: &mut Settings) {
@@ -95,6 +98,7 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                 println!("PBSA parameters have been written to paras_pbsa.txt");
             }
             0 => {
+                // Apply atom radius
                 println!("Applying {} radius...", radius_types[settings.radius_type]);
                 aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
 
@@ -125,9 +129,6 @@ pub fn set_para_mmpbsa(tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProp
                 };
                 
                 // run MM/PB-SA calculations
-                println!("Extracting atoms coordination...");
-                let (time_list, coordinates) = parse_xvg::read_coord_xvg(wd.join("_MMPBSA_coord.xvg").to_str().unwrap());
-                
                 let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&time_list, &coordinates, &temp_dir, &sys_name, &aps,
                                                                 &ndx_rec, &ndx_lig, &ala_list, &residues, wd,
                                                                 &pbe_set, &pba_set, settings);

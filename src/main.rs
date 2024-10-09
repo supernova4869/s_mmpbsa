@@ -2,6 +2,8 @@ mod index_parser;
 mod mmpbsa;
 mod parse_tpr;
 mod parse_xvg;
+mod parse_pdbqt;
+mod parse_pdb;
 mod analyzation;
 mod fun_para_basic;
 mod fun_para_system;
@@ -69,8 +71,9 @@ fn main() {
         if in_file.ends_with("tpr") {
             let in_file = get_dump(&in_file, &settings);
             fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
-        } else { // pdb
-            fun_para_basic::set_para_basic_pdbqt(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
+        } else { // pdbqt
+            let wd = fs::canonicalize(Path::new(&in_file)).unwrap();
+            fun_para_basic::set_para_basic_pdbqt(&in_file, &wd.parent().unwrap(), &mut settings);
         };
     } else if Path::new(&input).is_dir() {
         let wd = Path::new(&input);

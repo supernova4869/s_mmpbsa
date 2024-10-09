@@ -12,7 +12,7 @@ use crate::parse_tpr::TPR;
 pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings) {
     let mut trj = String::new();
     let mut ndx = String::new();
-    let mut tpr = TPR::new(&tpr_path, &settings);
+    let mut tpr = TPR::from(&tpr_path, &settings);
     println!("\nFinished loading input file.");
 
     loop {
@@ -99,7 +99,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                 ndx = convert_cur_dir(&ndx, tpr_path);
                 if !Path::new(&ndx).is_file() {
                     let tpr_path = append_new_name(tpr_path, ".tpr", "");
-                    make_ndx(&["q"].to_vec(), wd, settings, &tpr_path, "", &ndx);
+                    make_ndx(&vec!["q"], wd, settings, &tpr_path, "", &ndx);
                 }
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_path);
             }
@@ -172,9 +172,11 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                     println!("Receptor file not assigned.");
                 } else {
                     // prepare pdbqt files
-                    pdbqt2pdb(&receptor_path, &ligand_path, wd, settings);
+                    let complex_path = pdbqt2pdb(&receptor_path, &ligand_path, wd, settings);
+                    // prepare index file
+                    make_ndx(&vec!["q"], wd, settings, &complex_path, "", "MMPBSA_index.ndx");
                     // go to next step
-                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &wd, settings);
+                    set_para_trj_pdbqt(&complex_path, &wd, settings);
                 }
             }
             1 => {
@@ -192,7 +194,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                 ligand_path.clear();
                 stdin().read_line(&mut ligand_path).expect("Failed while reading ligand file");
                 if ligand_path.trim().is_empty() {
-                    ligand_path = "?ligand.pdbqt".to_string();
+                    ligand_path = "?DSDP_out.pdbqt".to_string();
                 }
                 ligand_path = convert_cur_dir(&ligand_path, &init_receptor_path);
                 ligand_path = confirm_file_validity(&mut ligand_path, vec!["pdbqt"], &init_receptor_path);
@@ -204,16 +206,23 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
 }
 
 fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, wd: &Path, settings: &Settings) -> String {
-    let pdbqt_file_path = Path::new(receptor_path);
-    let pdbqt_file_stem = pdbqt_file_path.file_stem().unwrap().to_str().unwrap();
-    let mut pml_file = fs::File::create(wd.join(pdbqt_file_stem.to_string() + ".pml")).unwrap();
-    writeln!(pml_file, "cmd.load(\"{}\", \"Protein\")", pdbqt_file_path.to_str().unwrap()).unwrap();
-    writeln!(pml_file, "cmd.load(\"{}\", \"Ligand\")", ligand_path).unwrap();
+    let receptor_file_path = Path::new(receptor_path);
+    let receptor_file_stem = receptor_file_path.file_stem().unwrap().to_str().unwrap();
+    let ligand_file_path = Path::new(ligand_path);
+    let ligand_file_stem = ligand_file_path.file_stem().unwrap().to_str().unwrap();
+    let out_file_stem = format!("{}_{}", receptor_file_stem, ligand_file_stem);
+    let out_file_name = append_new_name(&out_file_stem, ".pdb", "MMPBSA_");
+    let out_file_path = wd.join(out_file_name);
+    let out_file_path = out_file_path.to_str().unwrap();
+    let mut pml_file = fs::File::create(wd.join(String::from(&out_file_stem) + ".pml")).unwrap();
+    writeln!(pml_file, "cmd.load(r\"{}\", \"Protein\")", receptor_file_path.to_str().unwrap()).unwrap();
+    writeln!(pml_file, "cmd.load(r\"{}\", \"Ligand\")", ligand_path).unwrap();
     writeln!(pml_file, "cmd.h_add(\"all\")").unwrap();
-    writeln!(pml_file, "cmd.save(r\"{}.pdb\", selection=\"(all)\", state=0)", wd.join(pdbqt_file_stem).to_str().unwrap()).unwrap();
+    writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(all)\", state=0)", out_file_path).unwrap();
     writeln!(pml_file, "quit").unwrap();
+    println!("\nLoading docking results files with PyMOL...");
     let result = Command::new(settings.pymol_path.as_ref().unwrap())
-        .args(wd.join(pdbqt_file_stem.to_string() + ".pml").as_os_str().to_str())
+        .args(vec!["-cq", wd.join(String::from(out_file_stem).to_string() + ".pml").as_os_str().to_str().unwrap()])
         .stdout(Stdio::null())
         .spawn();
     match result {
@@ -224,6 +233,6 @@ fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, wd: &Path, settings: 
             eprintln!("The configured PyMOL '{}' not found.", settings.pymol_path.as_ref().unwrap());
         }
     }
-    println!("\nFinished loading docking results file.");
-    return Path::new(receptor_path).to_str().unwrap().to_string()
+    println!("Finished loading docking results files.");
+    return out_file_path.to_string()
 }
