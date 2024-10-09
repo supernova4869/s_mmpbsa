@@ -130,7 +130,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                     }
                 }
                 println!("Finished writing pdb file(s) with binding energy information.");
-                println!("The pml file(s) could be loaded by PyMOL.");
+                println!("Finished drawing figures with pml file(s) by PyMOL.");
             },
             0 => exit(0),
             1 => {
@@ -203,7 +203,7 @@ fn write_pml(pml_name: &String, def_name: &String, png_name: &String, wd: &Path,
     writeln!(pml_file, "png {}, 1920, 1080, 300, 1, 1", png_name).unwrap();
     writeln!(pml_file, "quit").unwrap();
     let result = Command::new(settings.pymol_path.as_ref().unwrap())
-        .args(wd.join(pml_name).as_os_str().to_str())
+        .args(vec!["-cq", wd.join(pml_name).as_os_str().to_str().unwrap()])
         .stdout(Stdio::null())
         .spawn();
     match result {
