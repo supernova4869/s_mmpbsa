@@ -13,8 +13,8 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
 - Considers interaction entropy, as "J. Chem. Phys. 2017, 146, 124124".
-- Supports molecular docking results (by Autodock vina or DSDP) analysis (next small version).
-- Can perform alanine scanning based on both MD and molecular docking results (next small version).
+- Supports molecular docking results (from [Autodock vina](https://vina.scripps.edu/) or [DSDP](https://spongemm.cn/en/DSDP/home)) re-scoring.
+- Can perform alanine scanning based on both MD and molecular docking results.
 - Could store analyzation results for further reproducable analyzation.
 
 ## Requirement
