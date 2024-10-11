@@ -13,7 +13,6 @@ impl fmt::Display for PDB {
     }
 }
 
-#[allow(dead_code)]
 impl PDB {
     pub fn new(models: &Vec<PDBModel>) -> PDB {
         PDB { models: models.to_vec() }

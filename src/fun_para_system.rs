@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::fs::{self, File};
 
+use crate::dump_tpr;
 use crate::parse_pdb::{PDBModel, PDB};
 use crate::settings::Settings;
 use crate::utils::{append_new_name, get_input_selection, make_ndx, sobtop, trajectory};
@@ -95,42 +96,48 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
     }
 }
 
-fn prepare_pymol_complex_pdb(complex_path: &String, rec_name: &String, lig_name: &String) -> PDB {
-    let complex_pdb = fs::read_to_string(complex_path).unwrap();
-    let complex_pdb: Vec<&str> = complex_pdb.split("\n").collect();
-    let model_start_ln: Vec<usize> = complex_pdb.iter().enumerate().filter_map(|(i, &line)| match line.starts_with("MODEL") {
-        true => Some(i),
-        false => None
-    }).collect();
-    let first_model_ter: Vec<usize> = complex_pdb.iter().enumerate().filter_map(|(i, &line)| match line.starts_with("TER") {
-        true => Some(i),
-        false => None
-    }).collect();
-    let first_model_ter = first_model_ter[0];
-    let receptor = PDBModel::from(complex_pdb[model_start_ln[0]..first_model_ter].join("\n").as_str());
-    let ligand = PDBModel::from(complex_pdb[first_model_ter..model_start_ln[1]].join("\n").as_str());
-    PDB::new(&vec![receptor.clone()]).to_pdb(&format!("MMPBSA_docking_{}.pdb", rec_name));
-    PDB::new(&vec![ligand.clone()]).to_pdb(&format!("MMPBSA_docking_{}.pdb", lig_name));
-    let first_model = PDBModel::from(complex_pdb[model_start_ln[0]..model_start_ln[1]].join("\n").as_str());
-    let mut pdb: Vec<PDBModel> = vec![first_model];
-    PDB::new(&pdb).to_pdb(&format!("MMPBSA_docking_{}_{}.pdb", rec_name, lig_name));
-    for i in 1..model_start_ln.len() {
-        let ligand_model = if i != model_start_ln.len() - 1 {
-            PDBModel::from(complex_pdb[model_start_ln[i]..model_start_ln[i + 1]].join("\n").as_str())
-        } else {
-            PDBModel::from(complex_pdb[model_start_ln[i]..].join("\n").as_str())
-        };
-        let mut rec = receptor.clone();
-        rec.push_atoms(&ligand_model.atoms);
+fn prepare_pymol_complex_pdb(rec_name: &String, lig_name: &String, wd: &Path) -> (PDB, usize, usize) {
+    println!("Preparing complex structures...");
+    let rec_path = wd.join(format!("MMPBSA_docking_{}.pdb", rec_name));
+    let lig_path = wd.join(format!("MMPBSA_docking_{}.pdb", lig_name));
+    let rec_pdb = PDB::from(rec_path.to_str().unwrap());
+    let lig_pdb = PDB::from(lig_path.to_str().unwrap());
+    let rec_atoms_num = rec_pdb.models[0].atoms.len();
+    let lig_atoms_num = lig_pdb.models[0].atoms.len();
+    let mut pdb: Vec<PDBModel> = vec![];
+    for m in lig_pdb.models {
+        let mut rec = rec_pdb.models[0].clone();
+        rec.push_atoms(&m.atoms);
         pdb.push(rec);
     }
-    PDB::new(&pdb)
+    (PDB::new(&pdb), rec_atoms_num, lig_atoms_num)
 }
 
-pub fn set_para_trj_pdbqt(complex_path: &String, rec_name: &String, lig_name: &String, wd: &Path, settings: &mut Settings) {
-    let pdb = prepare_pymol_complex_pdb(complex_path, rec_name, lig_name);
-    prepare_system_tpr_pdb(rec_name, lig_name, wd, settings);
-    let ndx = Index::from(&wd.join("MMPBSA_index.ndx").to_str().unwrap().to_string());
+pub fn set_para_trj_pdbqt(rec_name: &String, lig_name: &String, wd: &Path, settings: &mut Settings) {
+    // fake tpr
+    let tpr_path = prepare_system_tpr_pdb(rec_name, lig_name, wd, settings);
+    let dump_path = append_new_name(&tpr_path, ".dump", "");
+    let tpr = TPR::from(&dump_path, settings);
+
+    // fake trj
+    let (pdb, rec_atoms_num, lig_atoms_num) = prepare_pymol_complex_pdb(rec_name, lig_name, wd);
+    println!("Preparing docking multi comformations...");
+    let trj_path = format!("MMPBSA_{}_{}.pdb", rec_name, lig_name);
+    pdb.to_pdb(&trj_path);
+    trajectory(&vec!["0"], wd, settings, &trj_path, &tpr_path, &wd.join("MMPBSA_index.ndx").to_str().unwrap(), "_MMPBSA_coord.xvg");
+    let (_, coordinates) = read_coord_xvg("_MMPBSA_coord.xvg");
+    let time_list = (0..coordinates.shape()[0]).map(|t| (t + 1) as f64 * 1000.0).collect();
+
+    // fake ndx
+    let ndx_com = (0..(rec_atoms_num + lig_atoms_num)).collect();
+    let ndx_rec: Vec<usize> = (0..rec_atoms_num).collect();
+    let ndx_lig: Vec<usize> = (rec_atoms_num..(rec_atoms_num + lig_atoms_num)).collect();
+    let ndx = Index::new(vec![IndexGroup::new("Receptor", &ndx_rec), IndexGroup::new("Ligand", &ndx_lig)]);
+    
+    println!("Parsing atom properties...");
+    let mut aps = AtomProperties::from_tpr(&tpr, &ndx_com);
+    println!("Collecting residues list...");
+    let residues = get_residues_tpr(&tpr, &ndx_com);
 
     let mut bt: usize = 0;
     let mut et: usize = pdb.models.len() - 1;
@@ -147,8 +154,8 @@ pub fn set_para_trj_pdbqt(complex_path: &String, rec_name: &String, lig_name: &S
                 settings.fix_pbc = !settings.fix_pbc;
             }
             0 => {
-                println!("{}", ndx.groups.len());
-                println!("不干了");
+                set_para_mmpbsa(&time_list, &coordinates, &tpr, &ndx, wd, 
+                    &mut aps, &ndx_rec, &ndx_lig, 0, Some(1), &residues, settings);
             }
             1 => {
                 println!("Input start pose, should be integer:");
@@ -359,7 +366,8 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     set_para_mmpbsa(&time_list, &coordinates, tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
 }
 
-fn prepare_system_tpr_pdb(rec_name: &String, lig_name: &String, wd: &Path, settings: &Settings) {
+fn prepare_system_tpr_pdb(rec_name: &String, lig_name: &String, wd: &Path, settings: &Settings) -> String {
+    println!("Preparing docking parameters...");
     // prepare ligand top
     let ligand_name = "LIG.mol2";
     let ligand_path = wd.join(&ligand_name);
@@ -375,7 +383,9 @@ fn prepare_system_tpr_pdb(rec_name: &String, lig_name: &String, wd: &Path, setti
     // prepare protein top
     let protein_name = format!("MMPBSA_docking_{}.pdb", rec_name);
     let protein_out = append_new_name(&protein_name, ".gro", "");
+    let protein_out_pdb = append_new_name(&protein_name, ".pdb", "");
     pdb2gmx(&vec![], wd, settings, &protein_name, &protein_out, "amber14sb", "tip3p");
+    pdb2gmx(&vec![], wd, settings, &protein_name, &protein_out_pdb, "amber14sb", "tip3p");
 
     // include ligand top into protein
     let protein_top = wd.join("topol.top").display().to_string();
@@ -407,10 +417,16 @@ fn prepare_system_tpr_pdb(rec_name: &String, lig_name: &String, wd: &Path, setti
     struct_contents[1] = total_atoms_num.as_str();
     let new_gro = struct_contents.join("\n");
     let complex_gro_name = format!("MMPBSA_{}_{}.gro", rec_name, lig_name);
-    let mut new_gro_file = File::create(wd.join(&complex_gro_name)).unwrap();
+    let complex_gro_path = wd.join(complex_gro_name);
+    let mut new_gro_file = File::create(&complex_gro_path).unwrap();
     File::write_all(&mut new_gro_file, new_gro.as_bytes()).unwrap();
 
+    // make complex ndx
+    make_ndx(&vec!["q"], wd, settings, complex_gro_path.to_str().unwrap(), "", "MMPBSA_index.ndx");
+
     // grompp
-    let mdp = current_exe().unwrap().parent().unwrap().join("include").join("em.mdp");
-    grompp(&vec![], wd, settings, mdp.to_str().unwrap(), wd.join(&complex_gro_name).to_str().unwrap(), "em.tpr");
+    let mdp = current_exe().unwrap().parent().unwrap().join("include").join("md.mdp");
+    grompp(&vec![], wd, settings, mdp.to_str().unwrap(), complex_gro_path.to_str().unwrap(), "md.tpr");
+    dump_tpr(&wd.join("md.tpr").display().to_string(), &wd.join("md.dump").display().to_string(), settings.gmx_path.as_ref().unwrap());
+    wd.join("md.tpr").display().to_string()
 }

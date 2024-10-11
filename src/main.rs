@@ -2,7 +2,6 @@ mod index_parser;
 mod mmpbsa;
 mod parse_tpr;
 mod parse_xvg;
-mod parse_pdbqt;
 mod parse_pdb;
 mod analyzation;
 mod fun_para_basic;
@@ -28,7 +27,7 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("0.5", "2024-Oct-10");
+    welcome("0.5", "2024-Oct-11");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),

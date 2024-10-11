@@ -14,7 +14,7 @@ use crate::mmpbsa;
 use crate::analyzation;
 
 pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
-                       tpr: &mut TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
+                       tpr: &TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
                        ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        residues: &Vec<Residue>, settings: &mut Settings) {
