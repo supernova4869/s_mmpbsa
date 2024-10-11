@@ -37,25 +37,6 @@ impl fmt::Display for TPR {
 }
 
 impl TPR {
-    pub fn new(name: &str, n_atoms: usize, molecule_types_num: usize, molecule_types: Vec<MolType>, 
-        atom_types_num: usize, lj_sr_params: Vec<LJType>, molecules: Vec<Molecule>, dt: f64, nsteps: u64,
-        nstxout: u32, temp: f64, coordinates: Array2<f64>) -> TPR {
-            TPR {
-                name: name.to_string(),
-                n_atoms,
-                molecule_types_num,
-                molecule_types,
-                atom_types_num,
-                lj_sr_params,
-                molecules,
-                dt,
-                nsteps,
-                nstxout,
-                temp,
-                coordinates,
-            }
-    }
-
     pub fn from(mdp: &str, settings: &Settings) -> TPR {
         let mut name = String::new();
         let mut atoms_num = 0;

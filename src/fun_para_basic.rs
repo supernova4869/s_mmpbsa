@@ -172,11 +172,11 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                     println!("Receptor file not assigned.");
                 } else {
                     // prepare pdbqt files
-                    let complex_path = pdbqt2pdb(&receptor_path, &ligand_path, wd, settings);
+                    let (complex_path, rec_name, lig_name) = pdbqt2pdb(&receptor_path, &ligand_path, wd, settings);
                     // prepare index file
                     make_ndx(&vec!["q"], wd, settings, &complex_path, "", "MMPBSA_index.ndx");
                     // go to next step
-                    set_para_trj_pdbqt(&complex_path, &wd, settings);
+                    set_para_trj_pdbqt(&complex_path, &rec_name, &lig_name, &wd, settings);
                 }
             }
             1 => {
@@ -205,7 +205,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
     }
 }
 
-fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, wd: &Path, settings: &Settings) -> String {
+fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, wd: &Path, settings: &Settings) -> (String, String, String) {
     let receptor_file_path = Path::new(receptor_path);
     let receptor_file_stem = receptor_file_path.file_stem().unwrap().to_str().unwrap();
     let ligand_file_path = Path::new(ligand_path);
@@ -218,6 +218,7 @@ fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, wd: &Path, settings: 
     writeln!(pml_file, "cmd.load(r\"{}\", \"Protein\")", receptor_file_path.to_str().unwrap()).unwrap();
     writeln!(pml_file, "cmd.load(r\"{}\", \"Ligand\")", ligand_path).unwrap();
     writeln!(pml_file, "cmd.h_add(\"all\")").unwrap();
+    writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(Ligand)\", state=1)", wd.join("LIG.mol2").to_str().unwrap()).unwrap();
     writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(all)\", state=0)", out_file_path).unwrap();
     writeln!(pml_file, "quit").unwrap();
     println!("\nLoading docking results files with PyMOL...");
@@ -234,5 +235,5 @@ fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, wd: &Path, settings: 
         }
     }
     println!("Finished loading docking results files.");
-    return out_file_path.to_string()
+    return (out_file_path.to_string(), receptor_file_stem.to_string(), ligand_file_stem.to_string())
 }

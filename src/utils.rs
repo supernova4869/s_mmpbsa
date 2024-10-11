@@ -63,9 +63,9 @@ pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> St
     new_name.to_str().unwrap().to_string()
 }
 
-fn gmx_cmd(settings: &Settings, cmds: &Vec<&str>, args: &[&str], wd: &Path) {
+fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str], wd: &Path) {
     let mut child = if settings.debug_mode {
-        Command::new(settings.gmx_path.as_ref().unwrap())
+        Command::new(cmd)
             .args(args)
             .current_dir(wd)
             .stdin(Stdio::piped())  // 开启标准输入管道
@@ -73,7 +73,7 @@ fn gmx_cmd(settings: &Settings, cmds: &Vec<&str>, args: &[&str], wd: &Path) {
             .spawn()
             .expect("Failed to start process")
     } else {
-        Command::new(settings.gmx_path.as_ref().unwrap())
+        Command::new(cmd)
             .args(args)
             .current_dir(wd)
             .stdin(Stdio::piped())  // 开启标准输入管道
@@ -86,39 +86,56 @@ fn gmx_cmd(settings: &Settings, cmds: &Vec<&str>, args: &[&str], wd: &Path) {
     // 获取stdin的可写句柄
     if let Some(stdin) = child.stdin.as_mut() {
         // 向子进程写入数据，写入换行符
-        cmds.iter().for_each(|s| writeln!(stdin, "{}", s).unwrap());
+        options.iter().for_each(|s| writeln!(stdin, "{}", s).unwrap());
     }
 
     // 等待子进程完成
     child.wait().expect("Failed to wait on child");
 }
 
-pub fn convert_tpr(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, s: &str, n: &str, o: &str) {
+pub fn pdb2gmx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, o: &str, ff: &str, water: &str) {
+    let args = ["pdb2gmx", "-f", f, "-o", o, "-ff", ff, "-water", water, "-ignh"];
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+}
+
+pub fn grompp(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, c: &str, o: &str) {
+    let args = ["grompp", "-f", f, "-c", c, "-o", o, "-maxwarn", "10"];
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+}
+
+pub fn convert_tpr(options: &Vec<&str>, wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
-    gmx_cmd(settings, cmds, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
 }
 
-pub fn convert_trj(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
+pub fn convert_trj(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let args: Vec<&str> = ["convert-trj", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    gmx_cmd(settings, cmds, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
 }
 
-pub fn trjconv(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
+pub fn trjconv(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    gmx_cmd(settings, cmds, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
 }
 
-pub fn make_ndx(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, n: &str, o: &str) {
+pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n: &str, o: &str) {
     let args = match n.is_empty() {
         true => ["make_ndx", "-f", f, "-o", o].to_vec(),
         false => ["make_ndx", "-f", f, "-n", n, "-o", o].to_vec()
     };
-    gmx_cmd(settings, cmds, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
 }
 
-pub fn trajectory(cmds: &Vec<&str>, wd: &Path, settings: &mut Settings, f: &str, s: &str, n: &str, ox: &str) {
+pub fn trajectory(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, ox: &str) {
     let args = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox].to_vec();
-    gmx_cmd(settings, cmds, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+}
+
+pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) {
+    let args = vec![infile];
+    let sobtop_dir = Path::new(settings.sobtop_dir.as_ref().unwrap());
+    // fuck, sobtop must be used at its own directory
+    cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir);
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {

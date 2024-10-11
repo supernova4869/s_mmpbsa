@@ -1,0 +1,14 @@
+; Created by Sobtop (http://sobereva.com/soft/sobtop) Version 1.0(dev5) on 2024-10-11
+
+[ defaults ]
+; nbfunc        comb-rule       gen-pairs       fudgeLJ    fudgeQQ
+     1              2              yes            0.5       0.8333
+
+#include "\\?\F:\Programming\Rust\Projects\s_mmpbsa\examples\docking\LIG.itp"
+
+[ system ]
+LIG
+
+[ molecules ]
+; Molecule      nmols
+LIG     1
