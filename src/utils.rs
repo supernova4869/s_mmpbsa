@@ -64,29 +64,25 @@ pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> St
 }
 
 fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str], wd: &Path) {
-    let mut child = if settings.debug_mode {
-        Command::new(cmd)
-            .args(args)
-            .current_dir(wd)
-            .stdin(Stdio::piped())  // 开启标准输入管道
-            .stdout(Stdio::inherit())  // 将标准输出继承自父进程
-            .spawn()
-            .expect("Failed to start process")
-    } else {
-        Command::new(cmd)
-            .args(args)
-            .current_dir(wd)
-            .stdin(Stdio::piped())  // 开启标准输入管道
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("Failed to start process")
-    };
+    println!("CMD: {} {}", cmd.to_string(), args.join(" "));
+    let mut child = 
+    Command::new(cmd)
+        .args(args)
+        .current_dir(wd)
+        .stdin(Stdio::piped())  // 开启标准输入管道
+        .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })  // 将标准输出继承自父进程
+        .stderr(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })  // 将标准输出继承自父进程
+        .spawn()
+        .expect("Failed to start process");
 
     // 获取stdin的可写句柄
     if let Some(stdin) = child.stdin.as_mut() {
-        // 向子进程写入数据，写入换行符
-        options.iter().for_each(|s| writeln!(stdin, "{}", s).unwrap());
+        options.iter().for_each(|s| {
+            if settings.debug_mode {
+                println!("Input: {}", s);
+            }
+            writeln!(stdin, "{}", s).unwrap()
+        });
     }
 
     // 等待子进程完成
@@ -138,11 +134,10 @@ pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) {
     cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir);
 }
 
-pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str) {
+pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str, wd: &Path) {
     let args = vec![infile];
     let multiwfn_dir = Path::new(settings.multiwfn_dir.as_ref().unwrap());
-    // fuck, multiwfn must be used at its own directory
-    cmd_options(settings, multiwfn_dir.join("multiwfn").to_str().unwrap(), options, &args, &multiwfn_dir);
+    cmd_options(settings, multiwfn_dir.join("Multiwfn").to_str().unwrap(), options, &args, wd);
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {

@@ -1,4 +1,4 @@
-use std::process::{Command, Stdio};use std::env::{self, current_exe};
+use std::process::{exit, Command, Stdio};use std::env::{self, current_exe};
 use std::path::Path;
 use std::fs::{self, File};
 use std::io::Write;
@@ -422,11 +422,12 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, setti
     // prepare ligand top
     let lig_gro_path = temp_dir.join(append_new_name(&ligand_name, ".gro", ""));
     let lig_gro_path = lig_gro_path.to_str().unwrap();
+    println!("{}", lig_gro_path);
     let itp_path = temp_dir.join(append_new_name(&ligand_name, ".itp", ""));
     let itp_path = itp_path.to_str().unwrap();
     let top_path = temp_dir.join(append_new_name(&ligand_name, ".top", ""));
     let top_path = top_path.to_str().unwrap();
-    sobtop(&vec!["7", "10", temp_dir.join("LIG.chg").to_str().unwrap(), 
+    sobtop(&vec!["7", "10", temp_dir.join("LIG.chg").to_str().unwrap(), "0", 
         "2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path);
     
     // prepare protein top
@@ -479,7 +480,7 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, setti
 }
 
 fn calc_charge(lig_name: &str, temp_dir: &Path, total_charge: i32, multiplicity: usize, settings: &Settings) {
-    let level = "PM6";
+    let level = "B3LYP/def2SVP em=GD3BJ";
     let lig_file = format!("MMPBSA_docking_{}.pdb", lig_name) ;
     let lig_pdb = PDB::from(temp_dir.join(&lig_file).to_str().unwrap());
     let elements = lig_pdb.models[0].get_elements();
@@ -487,7 +488,7 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, total_charge: i32, multiplicity:
 
     // write gjf file
     let mut gjf = File::create(temp_dir.join("LIG.gjf")).unwrap();
-    writeln!(&mut gjf, "%nproc={}", settings.nkernels).unwrap();
+    writeln!(&mut gjf, "%nproc={}", settings.nkernels * 2).unwrap();
     writeln!(&mut gjf, "%chk=LIG.chk").unwrap();
     writeln!(&mut gjf, "# {}", level).unwrap();
     writeln!(&mut gjf, "").unwrap();
@@ -508,24 +509,28 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, total_charge: i32, multiplicity:
     let path = env::var("PATH").unwrap();
     env::set_var("PATH", format!("{}:{}", path, gauss_dir));
 
-    Command::new(Path::new(gauss_dir).join("g16").to_str().unwrap())
-            .current_dir(temp_dir)
-            .stdin(Stdio::from(infile))
-            .stdout(Stdio::from(outfile))
-            .stderr(Stdio::inherit())
-            .status()
-            .expect("Failed to start process");
+    let gaussian_status = Command::new(Path::new(gauss_dir).join("g16").to_str().unwrap())
+        .current_dir(temp_dir)
+        .stdin(Stdio::from(infile))
+        .stdout(Stdio::from(outfile))
+        .stderr(Stdio::inherit())
+        .status()
+        .expect("Failed to start process");
+    if gaussian_status.code() != Some(0) {
+        println!("Gaussian not normally exited. Change calculation level.");
+        exit(1);
+    }
     Command::new(Path::new(gauss_dir).join("formchk").to_str().unwrap())
-            .current_dir(temp_dir)
-            .arg("LIG.chk")
-            .stdout(Stdio::null())
-            .stderr(Stdio::inherit())
-            .status()
-            .expect("Failed to start process");
+        .current_dir(temp_dir)
+        .arg("LIG.chk")
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .status()
+        .expect("Failed to start process");
     let fchk_path = if temp_dir.join("LIG.fchk").is_file() {
         temp_dir.join("LIG.fchk")
     } else {
         temp_dir.join("LIG.fch")
     };
-    multiwfn(&vec!["", "7", "18", "1", "y", "0", "0", "q"], settings, fchk_path.to_str().unwrap());
+    multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, fchk_path.to_str().unwrap(), temp_dir);
 }
