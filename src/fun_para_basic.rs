@@ -1,6 +1,3 @@
-use std::fs;
-use std::io::Write;
-use std::process::{Command, Stdio};
 use std::io::stdin;
 use std::path::Path;
 use crate::settings::Settings;
@@ -171,10 +168,8 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                 } else if receptor_path.len() == 0 {
                     println!("Receptor file not assigned.");
                 } else {
-                    // prepare pdbqt files
-                    let (rec_name, lig_name) = pdbqt2pdb(&receptor_path, &ligand_path, wd, settings);
                     // go to next step
-                    set_para_trj_pdbqt(&rec_name, &lig_name, &wd, settings);
+                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &wd, settings);
                 }
             }
             1 => {
@@ -201,39 +196,4 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
             _ => println!("Error input.")
         };
     }
-}
-
-fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, wd: &Path, settings: &Settings) -> (String, String) {
-    let receptor_file_path = Path::new(receptor_path);
-    let receptor_file_stem = receptor_file_path.file_stem().unwrap().to_str().unwrap();
-    let ligand_file_path = Path::new(ligand_path);
-    let ligand_file_stem = ligand_file_path.file_stem().unwrap().to_str().unwrap();
-    let out_rec_name = append_new_name(receptor_file_stem, ".pdb", "MMPBSA_docking_");
-    let out_rec_path = wd.join(out_rec_name);
-    let out_lig_name = append_new_name(ligand_file_stem, ".pdb", "MMPBSA_docking_");
-    let out_lig_path = wd.join(out_lig_name);
-    let pml_path = wd.join("MMPBSA_docking.pml");
-    let mut pml_file = fs::File::create(&pml_path).unwrap();
-    writeln!(pml_file, "cmd.load(r\"{}\", \"Protein\")", receptor_file_path.to_str().unwrap()).unwrap();
-    writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(Protein)\", state=1)", out_rec_path.to_str().unwrap()).unwrap();
-    writeln!(pml_file, "cmd.load(r\"{}\", \"Ligand\")", ligand_path).unwrap();
-    writeln!(pml_file, "cmd.h_add(\"all\")").unwrap();
-    writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(Ligand)\", state=1)", wd.join("LIG.mol2").to_str().unwrap()).unwrap();
-    writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(Ligand)\", state=0)", out_lig_path.to_str().unwrap()).unwrap();
-    writeln!(pml_file, "quit").unwrap();
-    println!("\nLoading docking results files with PyMOL...");
-    let result = Command::new(settings.pymol_path.as_ref().unwrap())
-        .args(vec!["-cq", pml_path.to_str().unwrap()])
-        .stdout(Stdio::null())
-        .spawn();
-    match result {
-        Ok(mut child) => {
-            child.wait().ok();
-        }
-        Err(_) => {
-            eprintln!("The configured PyMOL '{}' not found.", settings.pymol_path.as_ref().unwrap());
-        }
-    }
-    // println!("Finished loading docking results files.");
-    return (receptor_file_stem.to_string(), ligand_file_stem.to_string())
 }
