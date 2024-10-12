@@ -129,11 +129,10 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, wd: &Pat
 
     // fake tpr
     prepare_system_tpr_pdb(rec_name, lig_name, temp_dir, settings);
-    dump_tpr(&temp_dir.join("md.tpr").display().to_string(), 
+    dump_tpr(&wd.join("md.tpr").display().to_string(), 
         &wd.join("md.dump").display().to_string(), 
         settings.gmx_path.as_ref().unwrap());
-    let dump_path = "md.dump";
-    let tpr = TPR::from(wd.join(&dump_path).to_str().unwrap(), settings);
+    let tpr = TPR::from(wd.join("md.dump").to_str().unwrap(), settings);
 
     // fake trj
     let (pdb, rec_atoms_num, lig_atoms_num) = prepare_pymol_complex_pdb(rec_name, lig_name, temp_dir);
