@@ -1,4 +1,4 @@
-use std::process::{Command, Stdio};use std::env::current_exe;
+use std::process::{Command, Stdio};use std::env::{self, current_exe};
 use std::path::Path;
 use std::fs::{self, File};
 use std::io::Write;
@@ -6,7 +6,7 @@ use std::io::Write;
 use crate::dump_tpr;
 use crate::parse_pdb::{PDBModel, PDB};
 use crate::settings::Settings;
-use crate::utils::{append_new_name, get_input_selection, make_ndx, sobtop, trajectory};
+use crate::utils::{append_new_name, get_input_selection, make_ndx, multiwfn, sobtop, trajectory};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
@@ -412,18 +412,22 @@ fn pdbqt2pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, settings: &Setting
 }
 
 fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, settings: &Settings) {
-    println!("Preparing docking parameters...");
-    // prepare ligand top
+    println!("Calculating ligand charge, be patient...");
     let ligand_name = "LIG.mol2";
     let ligand_path = temp_dir.join(&ligand_name);
     let ligand_path = ligand_path.to_str().unwrap().trim_start_matches(r"\\?\");
+    calc_charge(lig_name, temp_dir, 0, 1, settings);
+
+    println!("Preparing docking parameters...");
+    // prepare ligand top
     let lig_gro_path = temp_dir.join(append_new_name(&ligand_name, ".gro", ""));
     let lig_gro_path = lig_gro_path.to_str().unwrap();
     let itp_path = temp_dir.join(append_new_name(&ligand_name, ".itp", ""));
     let itp_path = itp_path.to_str().unwrap();
     let top_path = temp_dir.join(append_new_name(&ligand_name, ".top", ""));
     let top_path = top_path.to_str().unwrap();
-    sobtop(&vec!["2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path);
+    sobtop(&vec!["7", "10", temp_dir.join("LIG.chg").to_str().unwrap(), 
+        "2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path);
     
     // prepare protein top
     let protein_name = format!("MMPBSA_docking_{}.pdb", rec_name);
@@ -472,4 +476,56 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, setti
     // grompp
     let mdp = current_exe().unwrap().parent().unwrap().join("include").join("md.mdp");
     grompp(&vec![], temp_dir, settings, mdp.to_str().unwrap(), complex_gro_path.to_str().unwrap(), "../md.tpr");
+}
+
+fn calc_charge(lig_name: &str, temp_dir: &Path, total_charge: i32, multiplicity: usize, settings: &Settings) {
+    let level = "PM6";
+    let lig_file = format!("MMPBSA_docking_{}.pdb", lig_name) ;
+    let lig_pdb = PDB::from(temp_dir.join(&lig_file).to_str().unwrap());
+    let elements = lig_pdb.models[0].get_elements();
+    let coord = lig_pdb.models[0].get_coordinates();
+
+    // write gjf file
+    let mut gjf = File::create(temp_dir.join("LIG.gjf")).unwrap();
+    writeln!(&mut gjf, "%nproc={}", settings.nkernels).unwrap();
+    writeln!(&mut gjf, "%chk=LIG.chk").unwrap();
+    writeln!(&mut gjf, "# {}", level).unwrap();
+    writeln!(&mut gjf, "").unwrap();
+    writeln!(&mut gjf, "{}", &lig_file).unwrap();
+    writeln!(&mut gjf, "").unwrap();
+    writeln!(&mut gjf, "{} {}", total_charge, multiplicity).unwrap();
+    for (i, a) in coord.rows().into_iter().enumerate() {
+        writeln!(&mut gjf, " {:2}{:27.8}{:14.8}{:14.8}", elements[i], a[0], a[1], a[2]).unwrap();
+    }
+    writeln!(&mut gjf, "").unwrap();
+
+    let infile = File::open(temp_dir.join("LIG.gjf")).unwrap();
+    let outfile = File::create(temp_dir.join("LIG.out")).unwrap();
+    let gauss_dir = settings.gaussian_dir.as_ref().unwrap();
+    // Add ENV Var
+    env::set_var("GAUSS_EXEDIR", gauss_dir);
+    // Add PATH
+    let path = env::var("PATH").unwrap();
+    env::set_var("PATH", format!("{}:{}", path, gauss_dir));
+
+    Command::new(Path::new(gauss_dir).join("g16").to_str().unwrap())
+            .current_dir(temp_dir)
+            .stdin(Stdio::from(infile))
+            .stdout(Stdio::from(outfile))
+            .stderr(Stdio::inherit())
+            .status()
+            .expect("Failed to start process");
+    Command::new(Path::new(gauss_dir).join("formchk").to_str().unwrap())
+            .current_dir(temp_dir)
+            .arg("LIG.chk")
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .status()
+            .expect("Failed to start process");
+    let fchk_path = if temp_dir.join("LIG.fchk").is_file() {
+        temp_dir.join("LIG.fchk")
+    } else {
+        temp_dir.join("LIG.fch")
+    };
+    multiwfn(&vec!["", "7", "18", "1", "y", "0", "0", "q"], settings, fchk_path.to_str().unwrap());
 }

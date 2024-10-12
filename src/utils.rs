@@ -138,6 +138,13 @@ pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) {
     cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir);
 }
 
+pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str) {
+    let args = vec![infile];
+    let multiwfn_dir = Path::new(settings.multiwfn_dir.as_ref().unwrap());
+    // fuck, multiwfn must be used at its own directory
+    cmd_options(settings, multiwfn_dir.join("multiwfn").to_str().unwrap(), options, &args, &multiwfn_dir);
+}
+
 pub fn resname_3to1(name: &str) -> Option<String> {
     let mut resname_map: HashMap<&str, &str> = HashMap::new();
     resname_map.insert("ALA", "A");

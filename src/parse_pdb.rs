@@ -4,6 +4,7 @@ use std::fmt::Formatter;
 use std::fmt;
 
 use indicatif::ProgressBar;
+use ndarray::Array2;
 
 use crate::mmpbsa::set_style;
 
@@ -73,6 +74,16 @@ impl PDBModel {
             modelid,
             atoms
         }
+    }
+
+    pub fn get_elements(&self) -> Vec<String> {
+        self.atoms.iter().map(|a| a.element.to_string()).collect()
+    }
+
+    pub fn get_coordinates(&self) -> Array2<f64> {
+        let coord: Vec<[f64; 3]> = self.atoms.iter().map(|a| [a.x, a.y, a.z]).collect();
+        let coord: Vec<f64> = coord.into_iter().flatten().collect();
+        Array2::from_shape_vec((self.atoms.len(), 3), coord).unwrap()
     }
 
     pub fn push_atoms(&mut self, new_atoms: &Vec<PDBAtom>) {

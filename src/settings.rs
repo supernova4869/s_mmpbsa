@@ -18,7 +18,9 @@ pub struct Settings {
     pub apbs_path: Option<String>,
     pub delphi_path: Option<String>,
     pub pymol_path: Option<String>,
+    pub gaussian_dir: Option<String>,
     pub sobtop_dir: Option<String>,
+    pub multiwfn_dir: Option<String>,
     pub nkernels: i32,
     pub debug_mode: bool,
     pub last_opened: String,
@@ -40,7 +42,9 @@ impl Settings {
             apbs_path: None,
             delphi_path: None,
             pymol_path: None,
+            gaussian_dir: None,
             sobtop_dir: None,
+            multiwfn_dir: None,
             nkernels: 1,
             debug_mode: false,
             last_opened: String::new(),
@@ -82,8 +86,12 @@ impl Settings {
         let delphi_path = Some(delphi_path[1..delphi_path.len() - 1].to_string());
         let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
         let pymol_path = Some(pymol_path[1..pymol_path.len() - 1].to_string());
+        let gaussian_dir = parse_param(&setting_values, "gaussian_dir", "".to_string());
+        let gaussian_dir = Some(gaussian_dir[1..gaussian_dir.len() - 1].to_string());
         let sobtop_dir = parse_param(&setting_values, "sobtop_dir", "".to_string());
         let sobtop_dir = Some(sobtop_dir[1..sobtop_dir.len() - 1].to_string());
+        let multiwfn_dir = parse_param(&setting_values, "multiwfn_dir", "".to_string());
+        let multiwfn_dir = Some(multiwfn_dir[1..multiwfn_dir.len() - 1].to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
         let debug_mode = match debug_mode[1..2].to_string().as_str() {
@@ -110,7 +118,9 @@ impl Settings {
             apbs_path,
             delphi_path,
             pymol_path,
+            gaussian_dir,
             sobtop_dir,
+            multiwfn_dir,
             nkernels,
             debug_mode,
             last_opened,
