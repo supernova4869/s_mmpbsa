@@ -109,6 +109,8 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
 pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &mut Settings) {
     let mut receptor_path = String::from(init_receptor_path);
     let mut ligand_path = String::new();
+    let mut total_charge = 0;
+    let mut multiplicity = 1;
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
@@ -134,6 +136,8 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
             0 => "undefined",
             _ => ligand_path.as_str()
         });
+        println!("  3 Set ligand total charge, current:         {}", total_charge);
+        println!("  4 Set ligand spin multiplicity, current:    {}", multiplicity);
         let i = get_input_selection();
         match i {
             -1 => settings.debug_mode = !settings.debug_mode,
@@ -169,7 +173,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                     println!("Receptor file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &wd, settings);
+                    set_para_trj_pdbqt(&receptor_path, &ligand_path, total_charge, multiplicity, &wd, settings);
                 }
             }
             1 => {
@@ -191,6 +195,14 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                 }
                 ligand_path = convert_cur_dir(&ligand_path, &init_receptor_path);
                 ligand_path = confirm_file_validity(&mut ligand_path, vec!["pdbqt"], &init_receptor_path);
+            }
+            3 => {
+                println!("Input total charge of the ligand, should be integer:");
+                total_charge = get_input_selection::<i32>();
+            }
+            4 => {
+                println!("Input spin multiplicity of the ligand, should be integer:");
+                multiplicity = get_input_selection::<usize>();
             }
             -10 => break,
             _ => println!("Error input.")

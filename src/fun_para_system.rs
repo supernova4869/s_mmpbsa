@@ -113,7 +113,7 @@ fn prepare_pymol_complex_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path) ->
     (PDB::new(&pdb), rec_atoms_num, lig_atoms_num)
 }
 
-pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, wd: &Path, settings: &mut Settings) {
+pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, total_charge: i32, multiplicity: usize, wd: &Path, settings: &mut Settings) {
     let receptor_file_path = Path::new(receptor_path);
     let rec_name = receptor_file_path.file_stem().unwrap().to_str().unwrap();
     let ligand_file_path = Path::new(ligand_path);
@@ -128,7 +128,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, wd: &Pat
     pdbqt2pdb(rec_name, lig_name, temp_dir, settings);
 
     // fake tpr
-    prepare_system_tpr_pdb(rec_name, lig_name, temp_dir, settings);
+    prepare_system_tpr_pdb(rec_name, lig_name, total_charge, multiplicity, temp_dir, settings);
     dump_tpr(&wd.join("md.tpr").display().to_string(), 
         &wd.join("md.dump").display().to_string(), 
         settings.gmx_path.as_ref().unwrap());
@@ -411,12 +411,12 @@ fn pdbqt2pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, settings: &Setting
     }
 }
 
-fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, settings: &Settings) {
+fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, total_charge: i32, multiplicity: usize, temp_dir: &Path, settings: &Settings) {
     println!("Calculating ligand charge, be patient...");
     let ligand_name = "LIG.mol2";
     let ligand_path = temp_dir.join(&ligand_name);
     let ligand_path = ligand_path.to_str().unwrap().trim_start_matches(r"\\?\");
-    calc_charge(lig_name, temp_dir, 0, 1, settings);
+    calc_charge(lig_name, temp_dir, total_charge, multiplicity, settings);
 
     println!("Preparing docking parameters...");
     // prepare ligand top
