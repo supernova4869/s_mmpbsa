@@ -140,9 +140,9 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
         });
         println!("  3 Set ligand atom charge calculation method, current: {}", settings.chg_m.as_ref().unwrap());
         println!("  4 Set theoretical method, current: {}", method);
-        println!("  4 Set basis, current: {}", basis);
-        println!("  5 Set ligand total charge, current: {}", total_charge);
-        println!("  6 Set ligand spin multiplicity, current: {}", multiplicity);
+        println!("  5 Set basis, current: {}", basis);
+        println!("  6 Set ligand total charge, current: {}", total_charge);
+        println!("  7 Set ligand spin multiplicity, current: {}", multiplicity);
         let i = get_input_selection();
         match i {
             -1 => settings.debug_mode = !settings.debug_mode,

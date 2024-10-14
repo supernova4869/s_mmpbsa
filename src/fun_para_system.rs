@@ -3,7 +3,7 @@ use std::path::Path;
 use std::fs::{self, File};
 use std::io::Write;
 
-use crate::dump_tpr;
+use crate::{dump_tpr, parse_mol2::MOL2};
 use crate::parse_pdb::{PDBModel, PDB};
 use crate::settings::Settings;
 use crate::utils::{append_new_name, get_input_selection, make_ndx, multiwfn, sobtop, trajectory};
@@ -517,7 +517,10 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
             .stderr(Stdio::inherit())
             .status()
             .expect("Failed to start process");
-        exit(0);
+        // multiwfn(&vec!["100", "2", "3", "LIG.chg", "0", "q"], settings, "LIG_c.mol2", temp_dir);
+        // fuck Multiwfn outputs chg with mass
+        let new_lig = MOL2::from(temp_dir.join("LIG_c.mol2").to_str().unwrap());
+        new_lig.to_chg(temp_dir.join("LIG.chg").to_str().unwrap());
     } else if settings.chg_m.as_ref().unwrap().eq("gaussian") {
         // write gjf file
         let level = format!("{}/{} em=GD3BJ", method, basis);
