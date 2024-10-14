@@ -499,14 +499,17 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
             .args(vec!["-i", "LIG.mol2", 
                        "-fi", "mol2", 
                        "-o", "LIG_c.mol2", 
-                       "-fo", "LIG_c.mol2", 
+                       "-fo", "mol2", 
                        "-nc", total_charge.to_string().as_str(), 
                        "-m", multiplicity.to_string().as_str(), 
                        "-s", "2", 
                        "-df", "2", 
                        "-at", "amber", 
+                       "-c", "bcc", 
+                       "-ek", "maxcyc=0", 
                        "-pf", "y", 
-                       "-gn", settings.nkernels.to_string().as_str()
+                       "-gn", settings.nkernels.to_string().as_str(),
+                       "-dr", if settings.debug_mode {"y"} else {"n"}
             ])
             .current_dir(temp_dir)
             .stdin(Stdio::inherit())
