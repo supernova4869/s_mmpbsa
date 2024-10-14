@@ -376,11 +376,15 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     // 在这里 remove pbc, convert-trj有bug, 不能处理不完整蛋白, 故先trjconv再convert-trj
     if settings.fix_pbc {
         let other_params = vec!["-rmpbc", "-select", "Complex"];
-        convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, &other_params);
+        let pbc_name = append_new_name(&trj_mmpbsa, "_pbc.xtc", "");
+        convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &pbc_name, &other_params);
+        println!("Loading trajectory coordinates...");
+        trajectory(&vec!["Complex"], wd, settings, &pbc_name, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
+    } else {
+        println!("Loading trajectory coordinates...");
+        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
     }
 
-    println!("Loading trajectory coordinates...");
-    trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
     let (time_list, coordinates) = read_coord_xvg(wd.join("_MMPBSA_coord.xvg").to_str().unwrap());
 
     set_para_mmpbsa(&time_list, &coordinates, tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
