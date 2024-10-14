@@ -202,7 +202,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                 ligand_path = confirm_file_validity(&mut ligand_path, vec!["pdbqt"], &init_receptor_path);
             }
             3 => {
-                println!("Input ligand atom charge calculation method:");
+                println!("Input ligand atom charge calculation method (acpype currently not available on windows):");
                 println!("1: acpype (quick)");
                 println!("2: gaussian (accurate)");
                 let chg_m = get_input_selection::<i32>();
