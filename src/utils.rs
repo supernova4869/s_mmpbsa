@@ -64,7 +64,9 @@ pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> St
 }
 
 fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str], wd: &Path) {
-    println!("CMD: {} {}", cmd.to_string(), args.join(" "));
+    if settings.debug_mode {
+        println!("CMD: {} {}", cmd.to_string(), args.join(" "));
+    }
     let mut child = 
     Command::new(cmd)
         .args(args)
