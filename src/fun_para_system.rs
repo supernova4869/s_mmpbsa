@@ -113,7 +113,10 @@ fn prepare_pymol_complex_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path) ->
     (PDB::new(&pdb), rec_atoms_num, lig_atoms_num)
 }
 
-pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, total_charge: i32, multiplicity: usize, wd: &Path, settings: &mut Settings) {
+pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, 
+                          method: &String, basis: &String, 
+                          total_charge: i32, multiplicity: usize, 
+                          wd: &Path, settings: &mut Settings) {
     let receptor_file_path = Path::new(receptor_path);
     let rec_name = receptor_file_path.file_stem().unwrap().to_str().unwrap();
     let ligand_file_path = Path::new(ligand_path);
@@ -128,7 +131,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, total_ch
     pdbqt2pdb(rec_name, lig_name, temp_dir, settings);
 
     // fake tpr
-    prepare_system_tpr_pdb(rec_name, lig_name, total_charge, multiplicity, temp_dir, settings);
+    prepare_system_tpr_pdb(rec_name, lig_name, method, basis,  total_charge, multiplicity, temp_dir, settings);
     dump_tpr(&wd.join("md.tpr").display().to_string(), 
         &wd.join("md.dump").display().to_string(), 
         settings.gmx_path.as_ref().unwrap());
@@ -411,12 +414,12 @@ fn pdbqt2pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, settings: &Setting
     }
 }
 
-fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, total_charge: i32, multiplicity: usize, temp_dir: &Path, settings: &Settings) {
+fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, method: &String, basis: &String, total_charge: i32, multiplicity: usize, temp_dir: &Path, settings: &Settings) {
     println!("Calculating ligand charge, be patient...");
     let ligand_name = "LIG.mol2";
     let ligand_path = temp_dir.join(&ligand_name);
     let ligand_path = ligand_path.to_str().unwrap().trim_start_matches(r"\\?\");
-    calc_charge(lig_name, temp_dir, total_charge, multiplicity, settings);
+    calc_charge(lig_name, temp_dir, method, basis, total_charge, multiplicity, settings);
 
     println!("Preparing docking parameters...");
     // prepare ligand top
@@ -479,58 +482,87 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, total_charge: i32, mul
     grompp(&vec![], temp_dir, settings, mdp.to_str().unwrap(), complex_gro_path.to_str().unwrap(), "../md.tpr");
 }
 
-fn calc_charge(lig_name: &str, temp_dir: &Path, total_charge: i32, multiplicity: usize, settings: &Settings) {
-    let level = "B3LYP/def2SVP em=GD3BJ";
+fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String, total_charge: i32, multiplicity: usize, settings: &Settings) {
     let lig_file = format!("MMPBSA_docking_{}.pdb", lig_name) ;
     let lig_pdb = PDB::from(temp_dir.join(&lig_file).to_str().unwrap());
     let elements = lig_pdb.models[0].get_elements();
     let coord = lig_pdb.models[0].get_coordinates();
+    
+    if settings.chg_m.as_ref().unwrap().eq("acpype") {
+        let amber_home = settings.amber_dir.as_ref().unwrap();
+        // Add ENV Var
+        env::set_var("AMBERHOME", amber_home);
+        // Add PATH
+        let path = env::var("PATH").unwrap();
+        env::set_var("PATH", format!("{}:{}", path, Path::new(amber_home).join("bin").to_str().unwrap()));
+        Command::new(Path::new(amber_home).join("bin").join("antechamber"))
+            .args(vec!["-i", "LIG.mol2", 
+                       "-fi", "mol2", 
+                       "-o", "LIG_c.mol2", 
+                       "-fo", "LIG_c.mol2", 
+                       "-nc", total_charge.to_string().as_str(), 
+                       "-m", multiplicity.to_string().as_str(), 
+                       "-s", "2", 
+                       "-df", "2", 
+                       "-at", "amber", 
+                       "-pf", "y", 
+                       "-gn", settings.nkernels.to_string().as_str()
+            ])
+            .current_dir(temp_dir)
+            .stdin(Stdio::inherit())
+            .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })
+            .stderr(Stdio::inherit())
+            .status()
+            .expect("Failed to start process");
+        exit(0);
+    } else if settings.chg_m.as_ref().unwrap().eq("gaussian") {
+        // write gjf file
+        let level = format!("{}/{} em=GD3BJ", method, basis);
+        let mut gjf = File::create(temp_dir.join("LIG.gjf")).unwrap();
+        writeln!(&mut gjf, "%nproc={}", settings.nkernels * 2).unwrap();
+        writeln!(&mut gjf, "%chk=LIG.chk").unwrap();
+        writeln!(&mut gjf, "# {}", level).unwrap();
+        writeln!(&mut gjf, "").unwrap();
+        writeln!(&mut gjf, "{}", &lig_file).unwrap();
+        writeln!(&mut gjf, "").unwrap();
+        writeln!(&mut gjf, "{} {}", total_charge, multiplicity).unwrap();
+        for (i, a) in coord.rows().into_iter().enumerate() {
+            writeln!(&mut gjf, " {:2}{:27.8}{:14.8}{:14.8}", elements[i], a[0], a[1], a[2]).unwrap();
+        }
+        writeln!(&mut gjf, "").unwrap();
 
-    // write gjf file
-    let mut gjf = File::create(temp_dir.join("LIG.gjf")).unwrap();
-    writeln!(&mut gjf, "%nproc={}", settings.nkernels * 2).unwrap();
-    writeln!(&mut gjf, "%chk=LIG.chk").unwrap();
-    writeln!(&mut gjf, "# {}", level).unwrap();
-    writeln!(&mut gjf, "").unwrap();
-    writeln!(&mut gjf, "{}", &lig_file).unwrap();
-    writeln!(&mut gjf, "").unwrap();
-    writeln!(&mut gjf, "{} {}", total_charge, multiplicity).unwrap();
-    for (i, a) in coord.rows().into_iter().enumerate() {
-        writeln!(&mut gjf, " {:2}{:27.8}{:14.8}{:14.8}", elements[i], a[0], a[1], a[2]).unwrap();
+        let infile = File::open(temp_dir.join("LIG.gjf")).unwrap();
+        let outfile = File::create(temp_dir.join("LIG.out")).unwrap();
+        let gauss_dir = settings.gaussian_dir.as_ref().unwrap();
+        // Add ENV Var
+        env::set_var("GAUSS_EXEDIR", gauss_dir);
+        // Add PATH
+        let path = env::var("PATH").unwrap();
+        env::set_var("PATH", format!("{}:{}", path, gauss_dir));
+
+        let gaussian_status = Command::new(Path::new(gauss_dir).join(settings.gaussian_exe.as_ref().unwrap()).to_str().unwrap())
+            .current_dir(temp_dir)
+            .stdin(Stdio::from(infile))
+            .stdout(Stdio::from(outfile))
+            .stderr(Stdio::inherit())
+            .status()
+            .expect("Failed to start process");
+        if gaussian_status.code() != Some(0) {
+            println!("Gaussian not normally exited. Change calculation level.");
+            exit(1);
+        }
+        Command::new(Path::new(gauss_dir).join("formchk").to_str().unwrap())
+            .current_dir(temp_dir)
+            .arg("LIG.chk")
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .status()
+            .expect("Failed to start process");
+        let fchk_path = if temp_dir.join("LIG.fchk").is_file() {
+            temp_dir.join("LIG.fchk")
+        } else {
+            temp_dir.join("LIG.fch")
+        };
+        multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, fchk_path.to_str().unwrap(), temp_dir);
     }
-    writeln!(&mut gjf, "").unwrap();
-
-    let infile = File::open(temp_dir.join("LIG.gjf")).unwrap();
-    let outfile = File::create(temp_dir.join("LIG.out")).unwrap();
-    let gauss_dir = settings.gaussian_dir.as_ref().unwrap();
-    // Add ENV Var
-    env::set_var("GAUSS_EXEDIR", gauss_dir);
-    // Add PATH
-    let path = env::var("PATH").unwrap();
-    env::set_var("PATH", format!("{}:{}", path, gauss_dir));
-
-    let gaussian_status = Command::new(Path::new(gauss_dir).join("g16").to_str().unwrap())
-        .current_dir(temp_dir)
-        .stdin(Stdio::from(infile))
-        .stdout(Stdio::from(outfile))
-        .stderr(Stdio::inherit())
-        .status()
-        .expect("Failed to start process");
-    if gaussian_status.code() != Some(0) {
-        println!("Gaussian not normally exited. Change calculation level.");
-        exit(1);
-    }
-    Command::new(Path::new(gauss_dir).join("formchk").to_str().unwrap())
-        .current_dir(temp_dir)
-        .arg("LIG.chk")
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .status()
-        .expect("Failed to start process");
-    let fchk_path = if temp_dir.join("LIG.fchk").is_file() {
-        temp_dir.join("LIG.fchk")
-    } else {
-        temp_dir.join("LIG.fch")
-    };
-    multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, fchk_path.to_str().unwrap(), temp_dir);
 }

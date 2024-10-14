@@ -1,7 +1,7 @@
 use std::io::stdin;
 use std::path::Path;
 use crate::settings::Settings;
-use crate::utils::{append_new_name, get_input_selection, make_ndx};
+use crate::utils::{append_new_name, get_input, get_input_selection, make_ndx};
 use crate::{confirm_file_validity, convert_cur_dir, set_program};
 use crate::fun_para_system::{set_para_trj, set_para_trj_pdbqt};
 use crate::parse_tpr::TPR;
@@ -109,6 +109,8 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
 pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &mut Settings) {
     let mut receptor_path = String::from(init_receptor_path);
     let mut ligand_path = String::new();
+    let mut method = String::from("B3LYP");
+    let mut basis = String::from("def2SVP");
     let mut total_charge = 0;
     let mut multiplicity = 1;
     loop {
@@ -136,8 +138,11 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
             0 => "undefined",
             _ => ligand_path.as_str()
         });
-        println!("  3 Set ligand total charge, current:         {}", total_charge);
-        println!("  4 Set ligand spin multiplicity, current:    {}", multiplicity);
+        println!("  3 Set ligand atom charge calculation method, current: {}", settings.chg_m.as_ref().unwrap());
+        println!("  4 Set theoretical method, current: {}", method);
+        println!("  4 Set basis, current: {}", basis);
+        println!("  5 Set ligand total charge, current: {}", total_charge);
+        println!("  6 Set ligand spin multiplicity, current: {}", multiplicity);
         let i = get_input_selection();
         match i {
             -1 => settings.debug_mode = !settings.debug_mode,
@@ -173,7 +178,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                     println!("Receptor file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj_pdbqt(&receptor_path, &ligand_path, total_charge, multiplicity, &wd, settings);
+                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &method, &basis, total_charge, multiplicity, &wd, settings);
                 }
             }
             1 => {
@@ -197,10 +202,29 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                 ligand_path = confirm_file_validity(&mut ligand_path, vec!["pdbqt"], &init_receptor_path);
             }
             3 => {
+                println!("Input ligand atom charge calculation method:");
+                println!("1: acpype (quick)");
+                println!("2: gaussian (accurate)");
+                let chg_m = get_input_selection::<i32>();
+                if chg_m == 1 {
+                    settings.chg_m = Some("acpype".to_string());
+                } else if chg_m == 2 {
+                    settings.chg_m = Some("gaussian".to_string());
+                }
+            }
+            4 => {
+                println!("Input calculation method, default: B3LYP");
+                method = get_input("B3LYP".to_string());
+            }
+            5 => {
+                println!("Input basis, default: def2SVP");
+                basis = get_input("def2SVP".to_string());
+            }
+            6 => {
                 println!("Input total charge of the ligand, should be integer:");
                 total_charge = get_input_selection::<i32>();
             }
-            4 => {
+            7 => {
                 println!("Input spin multiplicity of the ligand, should be integer:");
                 multiplicity = get_input_selection::<usize>();
             }
