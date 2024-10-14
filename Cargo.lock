@@ -474,7 +474,7 @@ checksum = "7b4b9743ed687d4b4bcedf9ff5eaa7398495ae14e61cba0a295704edbc7decde"
 
 [[package]]
 name = "s_mmpbsa"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "chrono",
  "indicatif",
