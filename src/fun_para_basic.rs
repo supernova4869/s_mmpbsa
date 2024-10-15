@@ -113,6 +113,10 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
     let mut basis = String::from("def2SVP");
     let mut total_charge = 0;
     let mut multiplicity = 1;
+    // Windows cannot use antechamber
+    if cfg!(windows) {
+        settings.chg_m = Some("gaussian".to_string());
+    }
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
