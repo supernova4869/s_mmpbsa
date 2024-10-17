@@ -1,4 +1,5 @@
 WT_rigid.pdbqt
+-1
 -2
 
 2

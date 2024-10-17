@@ -94,6 +94,15 @@ impl PDBModel {
     pub fn push_atoms(&mut self, new_atoms: &Vec<PDBAtom>) {
         self.atoms.extend(new_atoms.clone());
     }
+
+    pub fn to_pdb(&self, out_file_path: &str) {
+        let mut pdb_file = File::create(out_file_path).unwrap();
+        writeln!(pdb_file, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
+        for atom in self.atoms.iter() {
+            writeln!(pdb_file, "{}", atom).unwrap();
+        }
+        writeln!(pdb_file, "END").unwrap();
+    }
 }
 
 impl fmt::Display for PDBModel {

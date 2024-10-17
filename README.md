@@ -8,17 +8,26 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 
 ## Features of s_mmpbsa
 - Open source and freely available.
-- Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting. (In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust).
+- Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting.
+- In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust.
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Very fast. Due to the efficency of rust program.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
 - Considers interaction entropy, as "J. Chem. Phys. 2017, 146, 124124".
-- Supports molecular docking results (from [Autodock vina](https://vina.scripps.edu/) or [DSDP](https://spongemm.cn/en/DSDP/home)) re-scoring.
-- Can perform alanine scanning based on both MD and molecular docking results.
 - Could store analyzation results for further reproducable analyzation.
 
+## Main function
+- Binding energy calculation from MD simulation.
+- Molecular docking results rescoring.
+- Alanine scanning of protein-ligand complex.
+
 ## Requirement
-The matplotlib python package is essential during analyzation if plotting figures.
+
+### Basic requirements
+- Gromacs: The gromacs program is needed.
+- Matplotlib: (Optional) The matplotlib python package is essential during analyzation if plotting figures.
+- APBS: (Optional) The default PBSA kernel (already built-in, but the parallel version APBS on linux should be conpiled for higher performance).
+
 On Debian/Ubuntu/Linux, run:
 ```
 sudo apt -y install python3-matplotlib build-essential
@@ -27,12 +36,18 @@ On CentOS/Rocky, run:
 ```
 sudo dnf -y install python3-matplotlib
 ```
-PyMOL is also needed if plot the B-factor colored structure.
+
+### Special requirements of molecular docking rescoring:
+- PyMOL to prepare structures (also when plotting the B-factor colored structure).
+- AmberTools (antechamber) to calculate AM1-BCC atom charge.
+- Gaussian is another way to do DFT calculations.
+- Multiwfn is used to fit RESP atom charge.
+- Sobtop is used to generate atom topology.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
 
-### Typical calculation mode:
+### MD Binding energy calculation:
 ``` bash
 # Firstly, add s_mmpbsa folder to $PATH.
 # Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
@@ -49,8 +64,6 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 5 # set time interval, usually analysis per 1 ns
 1
 0 # go to next step (MM/PB-SA Parameters)
-10 # Do Alanine scanning
-1 # select residues within 4 A
 # Other options usually no need to change. The PB and SA parameters could be modified by 8 and 9
 0 # go to next step (start calculation)
 [return] # use default system name or input your name
@@ -65,6 +78,46 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 4 # output energy by ligand atoms
 0 # exit s_mmpbsa program
 ```
+
+### Docking Rescoring function:
+``` bash
+receptor.pdbqt
+2 # load ligand file
+[return] # default DSDP.pdbqt
+3 # load flexible residues file
+[flexible residues file name]
+# other functions are used to prepare the complex system
+# if the ligand is charged, do NOT forget to change option 8
+0 # go to next step
+1 # select start model
+[start model number]
+2 # select end model
+[end model number]
+0 # go to next step (MM/PB-SA Parameters)
+# Other options usually no need to change. The PB and SA parameters could be modified by 8 and 9
+0 # go to next step (start calculation)
+[return] # use default system name or input your name
+# Wait for calculation finish
+-1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
+ # input the time point (default average)
+1 # view summary (Here the ΔG and TΔS values are useless)
+2 # output energy by time
+3 # output energy by residue
+ # input the time point (default average)
+1 # write residues within 3 A (also try other options)
+4 # output energy by ligand atoms
+0 # exit s_mmpbsa program
+```
+
+### Alanine scanning:
+```bash
+# At MM/PB-SA Parameters page
+2 # Do alanine scanning
+1 # Select mutation residues by layers (ACS Catal. 2024, 14, 15, 11447–11456)
+0 # Start calculation
+...
+```
+The results will contain energy terms of both wild type and mutants.
 
 ### Use Analyzation mode:
 ```bash
@@ -107,5 +160,4 @@ Dr. Jiaxing Zhang (Contact: zhangjiaxing7137@tju.edu.cn, Tianjin University)
 If you encountered any difficulty while using s_mmpbsa, or you found any bugs, or you have any suggestion on improving s_mmpbsa, please E-mail me or join my QQ group 864191465 to describe.
 
 ## New Folder (?
-- Support analyzation of flexible docking from [DSDPFlex](https://github.com/PKUGaoGroup/DSDPFlex);
 - Add support of other PBSA solvers, e.g., Delphi2, and also built-in LPBE solver
