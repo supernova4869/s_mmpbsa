@@ -42,7 +42,7 @@ sudo dnf -y install python3-matplotlib
 - AmberTools (antechamber) to calculate AM1-BCC atom charge.
 - Gaussian is another way to do DFT calculations.
 - Multiwfn is used to fit RESP atom charge.
-- Sobtop is used to generate atom topology (already built-in).
+- Sobtop is used to generate atom topology.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
