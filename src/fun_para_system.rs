@@ -114,7 +114,7 @@ fn prepare_pymol_complex_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path) ->
 }
 
 pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_path: &Option<String>,
-                          method: &String, basis: &String, 
+                          ff: &String, method: &String, basis: &String, 
                           total_charge: i32, multiplicity: usize, 
                           wd: &Path, settings: &mut Settings) {
     let receptor_file_path = Path::new(receptor_path);
@@ -137,7 +137,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     pdbqt2pdb(rec_name, lig_name, &flex_name, temp_dir, settings);
 
     // fake tpr
-    prepare_system_tpr_pdb(rec_name, lig_name, &flex_name, method, basis, total_charge, multiplicity, temp_dir, settings);
+    prepare_system_tpr_pdb(rec_name, lig_name, &flex_name, ff, method, basis, total_charge, multiplicity, temp_dir, settings);
     dump_tpr(&wd.join("md.tpr").display().to_string(), 
         &wd.join("md.dump").display().to_string(), 
         settings.gmx_path.as_ref().unwrap());
@@ -433,7 +433,7 @@ fn pdbqt2pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, temp_dir:
     }
 }
 
-fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, method: &String, basis: &String, 
+fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, ff: &String, method: &String, basis: &String, 
                           total_charge: i32, multiplicity: usize, temp_dir: &Path, settings: &Settings) {
     // prepare protein top
     let protein_name = format!("MMPBSA_docking_{}.pdb", rec_name);
@@ -459,13 +459,13 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
         println!("Preparing flexible residues...");
         total_pdb.to_pdb(temp_dir.join(&protein_out_pdb).to_str().unwrap());
         let protein_out = append_new_name(&protein_name, ".gro", "");
-        pdb2gmx(&vec![], temp_dir, settings, temp_dir.join(&protein_out_pdb).to_str().unwrap(), &protein_out, "amber14sb", "tip3p");
+        pdb2gmx(&vec![], temp_dir, settings, temp_dir.join(&protein_out_pdb).to_str().unwrap(), &protein_out, ff, "tip3p");
         protein_out
     } else {
         let protein_out = append_new_name(&protein_name, ".gro", "");
-        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out, "amber14sb", "tip3p");
+        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out, ff, "tip3p");
         let protein_out_pdb = append_new_name(&protein_name, "_addH.pdb", "");
-        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out_pdb, "amber14sb", "tip3p");
+        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out_pdb, ff, "tip3p");
         protein_out
     };
 
