@@ -1,0 +1,13 @@
+WT_rigid.pdbqt
+-2
+
+2
+
+3
+DSDP_out_flex.pdbqt
+0
+0
+0
+
+2
+0

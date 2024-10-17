@@ -8,6 +8,7 @@ use ndarray::Array2;
 
 use crate::mmpbsa::set_style;
 
+#[derive(Clone)]
 pub struct PDB {
     pub models: Vec<PDBModel>
 }
@@ -86,6 +87,10 @@ impl PDBModel {
         Array2::from_shape_vec((self.atoms.len(), 3), coord).unwrap()
     }
 
+    pub fn insert_atoms(&mut self, pos: usize, new_atom: &PDBAtom) {
+        self.atoms.insert(pos, new_atom.clone());
+    }
+
     pub fn push_atoms(&mut self, new_atoms: &Vec<PDBAtom>) {
         self.atoms.extend(new_atoms.clone());
     }
@@ -103,7 +108,7 @@ pub struct PDBAtom {
     atid: i32,
     pub atname: String,
     pub resname: String,
-    chainname: String,
+    pub chainname: String,
     pub resid: i32,
     pub x: f64,
     pub y: f64,

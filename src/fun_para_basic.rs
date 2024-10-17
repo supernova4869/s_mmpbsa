@@ -109,6 +109,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
 pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &mut Settings) {
     let mut receptor_path = String::from(init_receptor_path);
     let mut ligand_path = String::new();
+    let mut flex_path: Option<String> = None;
     let mut method = String::from("B3LYP");
     let mut basis = String::from("def2SVP");
     let mut total_charge = 0;
@@ -142,11 +143,15 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
             0 => "undefined",
             _ => ligand_path.as_str()
         });
-        println!("  3 Set ligand atom charge calculation method, current: {}", settings.chg_m.as_ref().unwrap());
-        println!("  4 Set theoretical method, current: {}", method);
-        println!("  5 Set basis, current: {}", basis);
-        println!("  6 Set ligand total charge, current: {}", total_charge);
-        println!("  7 Set ligand spin multiplicity, current: {}", multiplicity);
+        println!("  3 Assign docking flexible residues file, current: {}", match flex_path.as_ref() {
+            None => "undefined",
+            Some(p) => p.as_str()
+        });
+        println!("  4 Set ligand atom charge calculation method, current: {}", settings.chg_m.as_ref().unwrap());
+        println!("  5 Set theoretical method, current: {}", method);
+        println!("  6 Set basis, current: {}", basis);
+        println!("  7 Set ligand total charge, current: {}", total_charge);
+        println!("  8 Set ligand spin multiplicity, current: {}", multiplicity);
         let i = get_input_selection();
         match i {
             -1 => settings.debug_mode = !settings.debug_mode,
@@ -182,7 +187,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                     println!("Receptor file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &method, &basis, total_charge, multiplicity, &wd, settings);
+                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &flex_path, &method, &basis, total_charge, multiplicity, &wd, settings);
                 }
             }
             1 => {
@@ -206,6 +211,18 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                 ligand_path = confirm_file_validity(&mut ligand_path, vec!["pdbqt"], &init_receptor_path);
             }
             3 => {
+                println!("Input docking flexible residues file path, default: None:");
+                let mut s = String::new();
+                stdin().read_line(&mut s).expect("Failed while reading ligand file");
+                if s.trim().is_empty() {
+                    flex_path = None;
+                } else {
+                    s = convert_cur_dir(&s, &init_receptor_path);
+                    s = confirm_file_validity(&mut s, vec!["pdbqt"], &init_receptor_path);
+                    flex_path = Some(s);
+                };
+            }
+            4 => {
                 println!("Input ligand atom charge calculation method (acpype currently not available on windows):");
                 println!("1: acpype (quick)");
                 println!("2: gaussian (accurate)");
@@ -216,19 +233,19 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                     settings.chg_m = Some("gaussian".to_string());
                 }
             }
-            4 => {
+            5 => {
                 println!("Input calculation method, default: B3LYP");
                 method = get_input("B3LYP".to_string());
             }
-            5 => {
+            6 => {
                 println!("Input basis, default: def2SVP");
                 basis = get_input("def2SVP".to_string());
             }
-            6 => {
+            7 => {
                 println!("Input total charge of the ligand, should be integer:");
                 total_charge = get_input_selection::<i32>();
             }
-            7 => {
+            8 => {
                 println!("Input spin multiplicity of the ligand, should be integer:");
                 multiplicity = get_input_selection::<usize>();
             }
