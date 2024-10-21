@@ -542,10 +542,10 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
         // Add PATH
         let path = env::var("PATH").unwrap();
         env::set_var("PATH", format!("{}:{}", path, Path::new(amber_home).join("bin").to_str().unwrap()));
-        match Command::new(Path::new(amber_home).join("bin").join("antechamber"))
-            .args(vec!["-i", "LIG.mol2", 
+        Command::new(Path::new(amber_home).join("bin").join("antechamber"))
+            .args(vec!["-i", temp_dir.join("LIG.mol2").to_str().unwrap(), 
                        "-fi", "mol2", 
-                       "-o", "LIG_c.mol2", 
+                       "-o", temp_dir.join("LIG_c.mol2").to_str().unwrap(), 
                        "-fo", "mol2", 
                        "-nc", total_charge.to_string().as_str(), 
                        "-m", multiplicity.to_string().as_str(), 
@@ -558,23 +558,12 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
                        "-gn", settings.nkernels.to_string().as_str(),
                        "-dr", if settings.debug_mode {"y"} else {"n"}
             ])
-            .current_dir(temp_dir)
+            .current_dir(Path::new(amber_home).join("bin"))
             .stdin(Stdio::inherit())
             .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })
             .stderr(Stdio::inherit())
-            .status() {
-                Ok(_) => {}
-                Err(_) => {
-                    Command::new(Path::new(amber_home).join("bin").join("bondtype"))
-                        .args(["-j", "full", "-i", "ANTECHAMBER_BOND_TYPE.AC0", "-o", "ANTECHAMBER_BOND_TYPE.AC", "-f", "ac"])
-                        .current_dir(temp_dir)
-                        .stdin(Stdio::inherit())
-                        .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })
-                        .stderr(Stdio::inherit())
-                        .status()
-                        .unwrap();
-                }
-            };
+            .status()
+            .unwrap();
         // multiwfn(&vec!["100", "2", "3", "LIG.chg", "0", "q"], settings, "LIG_c.mol2", temp_dir);
         // fuck Multiwfn outputs chg with mass
         let new_lig = MOL2::from(temp_dir.join("LIG_c.mol2").to_str().unwrap());
