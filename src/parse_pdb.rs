@@ -5,6 +5,7 @@ use std::fmt;
 
 use indicatif::ProgressBar;
 use ndarray::Array2;
+use regex::Regex;
 
 use crate::mmpbsa::set_style;
 
@@ -68,8 +69,9 @@ impl PDBModel {
         let modelid = f[0].trim().parse().unwrap_or(1);
         f.retain(|&l| l.starts_with("ATOM") || l.starts_with("HETATM"));
         let mut atoms: Vec<PDBAtom> = vec![];
+        let re_atname = Regex::new(r"[1-9][A-Z][ABGDEZH0-9][1-9']").unwrap();
         for line in f {
-            atoms.push(PDBAtom::from(line));
+            atoms.push(PDBAtom::from(line, &re_atname));
         }
         PDBModel {
             modelid,
@@ -132,7 +134,11 @@ impl fmt::Display for PDBAtom {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if self.typ.eq("ATOM") || self.typ.eq("HETATM") {
             write!(f, "{:6}{:5} {:4} {:3} {:1}{:4}    {:8.3}{:8.3}{:8.3}{:6.2}{:6.2}          {:>2}{:2}",
-                    self.typ, self.atid, self.atname, self.resname, self.chainname, self.resid, 
+                    self.typ, self.atid, if self.atname.len() == 4 {
+                        self.atname.to_string()
+                    } else {
+                        " ".to_string() + &self.atname
+                    }, self.resname, self.chainname, self.resid, 
                     self.x, self.y, self.z, self.occupy, self.bf, self.element, self.charge)
         }
         else {
@@ -142,12 +148,24 @@ impl fmt::Display for PDBAtom {
 }
 
 impl PDBAtom {
-    pub fn from(line: &str) -> PDBAtom {
+    fn atname_for_pdb(re_atname: &Regex, atname: &str) -> String {
+        if atname.len() == 4 {
+            if !re_atname.is_match(&atname) {
+                format!("{}{}", &atname[3..], &atname[..3])
+            } else {
+                atname.to_string()
+            }
+        } else {
+            format!(" {:3}", atname.to_string())
+        }
+    }
+
+    pub fn from(line: &str, re_atname_pdb: &Regex) -> PDBAtom {
         // 01234567890123456789012345678901234567890123456789012345678901234567890123456789
         // ATOM     69  OE2 GLU A   6      29.520 -25.258   3.929  1.00 19.99           O1-
         let typ = line[0..6].trim();
         let atid: i32 = line[9..11].trim().parse().unwrap();
-        let atname = line[12..16].trim();
+        let atname = PDBAtom::atname_for_pdb(&re_atname_pdb, line[12..16].trim());
         let resname = line[17..20].trim();
         let chainname = line[21..22].trim();
         let resid: i32 = line[22..26].trim().parse().unwrap();
@@ -157,6 +175,11 @@ impl PDBAtom {
         let occupy: f64 = line[55..60].trim().parse().unwrap();
         let bf: f64 = line[61..66].trim().parse().unwrap();
         let element = line[70..78].trim();
+        let element = if element.is_empty() {
+            atname[1..2].to_string()
+        } else {
+            element.to_string()
+        };
         let charge = line.get(78..).unwrap_or("  ");
         let charge = if charge.ne("  ") {
             charge.trim()
