@@ -1,910 +1,780 @@
 MODEL 0
-REMARK DSDP RESULT:      -5.309132
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.921856
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      13.868   5.542 -54.134  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      14.551   5.923 -53.191  0.00  0.00    -0.261 OA
+HETATM    1  O           0      14.304   5.514 -56.659  0.00  0.00    -0.266 OA
+HETATM    2  C           0      16.533   5.859 -57.527  0.00  0.00     0.126 C 
+HETATM    3  C           0      15.288   5.104 -57.221  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      15.270   6.677 -58.071  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      13.890   6.673 -57.788  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      13.408   6.227 -56.540  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      14.305   5.755 -55.562  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      15.668   5.655 -55.889  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      16.149   6.130 -57.121  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      15.776   7.328 -59.328  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      16.953   7.585 -59.493  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      14.865   7.278 -60.354  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      14.674   8.434 -61.205  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      13.846   9.540 -60.499  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      14.673  10.707 -60.342  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      14.242  12.092 -58.593  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      16.305  10.866 -58.526  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      14.966  11.281 -59.130  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      12.534   5.269 -54.021  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0      15.189   3.769 -57.614  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0      13.925   3.087 -57.721  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0      13.568   2.432 -56.391  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      12.167   2.030 -56.378  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      11.737   1.160 -57.364  0.00  0.00     0.293 C 
+HETATM    9  O           0      12.357   0.158 -57.632  0.00  0.00    -0.259 OA
+HETATM   10  C           0      10.465   1.656 -57.951  0.00  0.00     0.039 A 
+HETATM   11  C           0      10.023   2.966 -57.720  0.00  0.00     0.018 A 
+HETATM   12  C           0       9.718   0.777 -58.750  0.00  0.00     0.018 A 
+HETATM   13  C           0       8.823   3.400 -58.287  0.00  0.00     0.018 A 
+HETATM   14  C           0       8.072   2.518 -59.079  0.00  0.00     0.039 A 
+HETATM   15  C           0       8.517   1.210 -59.316  0.00  0.00     0.018 A 
+HETATM   16  C           0       6.801   3.014 -59.674  0.00  0.00     0.293 C 
+HETATM   17  O           0       6.401   4.153 -59.746  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0       6.072   1.954 -60.166  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1      12.109   4.193 -53.171  0.00  0.00    +0.200 C 
+HETATM   19  C           0       4.699   1.796 -59.713  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      10.973   3.415 -53.896  0.00  0.00    +0.200 C 
+HETATM   20  C           0       4.551   0.611 -58.766  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1      11.144   3.513 -55.332  0.00  0.00    -0.310 OA
+HETATM   21  O           0       4.924   0.959 -57.405  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1      11.601   2.422 -56.031  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1      11.330   1.272 -55.721  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      12.602   2.755 -57.104  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      13.966   2.439 -56.954  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      14.864   2.699 -57.995  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      14.414   3.241 -59.220  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      13.065   3.601 -59.351  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      12.161   3.364 -58.289  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      15.387   3.392 -60.353  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      16.498   2.907 -60.328  0.00  0.00    -0.261 OA
+HETATM   22  C           0       5.907   0.212 -56.789  0.00  0.00     0.293 C 
+HETATM   23  O           0       5.978  -0.986 -56.938  0.00  0.00    -0.259 OA
+HETATM   24  C           0       6.784   1.098 -55.977  0.00  0.00     0.039 A 
+HETATM   25  C           0       6.458   2.446 -55.768  0.00  0.00     0.018 A 
+HETATM   26  C           0       7.945   0.545 -55.417  0.00  0.00     0.018 A 
+HETATM   27  C           0       7.299   3.246 -54.994  0.00  0.00     0.018 A 
+HETATM   28  C           0       8.461   2.694 -54.433  0.00  0.00     0.039 A 
+HETATM   29  C           0       8.786   1.347 -54.642  0.00  0.00     0.018 A 
+HETATM   30  C           0       9.330   3.582 -53.612  0.00  0.00     0.292 C 
+HETATM   31  O           0       9.161   4.747 -53.339  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      14.824   3.954 -61.469  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      15.725   4.544 -62.433  0.00  0.00    +0.207 C 
+HETATM   32  O           0      10.430   2.884 -53.164  0.00  0.00    -0.323 OA
+HETATM   33  C           0      11.516   3.670 -52.601  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 1
-REMARK DSDP RESULT:      -5.046564
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.847892
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      13.867   5.552 -54.126  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      14.526   5.944 -53.171  0.00  0.00    -0.261 OA
+HETATM    1  O           0       6.746   1.239 -49.584  0.00  0.00    -0.266 OA
+HETATM    2  C           0       5.660  -0.866 -50.062  0.00  0.00     0.126 C 
+HETATM    3  C           0       6.200   0.489 -50.353  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      15.340   6.643 -58.050  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      13.953   6.558 -57.816  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      13.454   6.123 -56.570  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      14.343   5.745 -55.545  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      15.721   5.724 -55.820  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      16.216   6.188 -57.050  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      15.849   7.284 -59.311  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      17.029   7.525 -59.481  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      14.934   7.243 -60.334  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      14.726   8.412 -61.162  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      13.854   9.478 -60.447  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      14.663  10.640 -60.189  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      14.159  12.152 -58.571  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      15.920  10.592 -58.090  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      14.816  11.206 -58.949  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      12.529   5.283 -54.046  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0       6.096   0.998 -51.647  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0       5.904   0.151 -52.797  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0       7.250  -0.339 -53.319  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0       8.116   0.789 -53.640  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0       9.063   0.613 -54.633  0.00  0.00     0.293 C 
+HETATM    9  O           0       8.991  -0.307 -55.414  0.00  0.00    -0.259 OA
+HETATM   10  C           0      10.076   1.697 -54.558  0.00  0.00     0.039 A 
+HETATM   11  C           0      10.169   2.527 -53.431  0.00  0.00     0.018 A 
+HETATM   12  C           0      10.945   1.867 -55.648  0.00  0.00     0.018 A 
+HETATM   13  C           0      11.132   3.536 -53.395  0.00  0.00     0.018 A 
+HETATM   14  C           0      11.995   3.711 -54.487  0.00  0.00     0.039 A 
+HETATM   15  C           0      11.907   2.878 -55.611  0.00  0.00     0.018 A 
+HETATM   16  C           0      13.015   4.792 -54.413  0.00  0.00     0.293 C 
+HETATM   17  O           0      13.358   5.436 -53.448  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      13.565   5.000 -55.659  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1      12.083   4.195 -53.222  0.00  0.00    +0.200 C 
+HETATM   19  C           0      14.457   6.136 -55.835  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      10.874   3.513 -53.924  0.00  0.00    +0.200 C 
+HETATM   20  C           0      15.921   5.715 -55.790  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1      11.152   3.344 -55.337  0.00  0.00    -0.310 OA
+HETATM   21  O           0      16.666   6.231 -56.926  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1      11.100   2.086 -55.886  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1      10.256   1.259 -55.579  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      12.273   1.752 -56.768  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      12.220   0.681 -57.681  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      13.299   0.434 -58.536  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      14.435   1.274 -58.527  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      14.510   2.309 -57.585  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      13.430   2.543 -56.701  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      15.518   1.048 -59.542  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      15.375   0.316 -60.498  0.00  0.00    -0.261 OA
+HETATM   22  C           0      17.911   6.777 -56.694  0.00  0.00     0.293 C 
+HETATM   23  O           0      18.758   6.180 -56.072  0.00  0.00    -0.259 OA
+HETATM   24  C           0      17.995   8.130 -57.309  0.00  0.00     0.039 A 
+HETATM   25  C           0      16.859   8.753 -57.846  0.00  0.00     0.018 A 
+HETATM   26  C           0      19.242   8.771 -57.329  0.00  0.00     0.018 A 
+HETATM   27  C           0      16.972  10.025 -58.408  0.00  0.00     0.018 A 
+HETATM   28  C           0      18.220  10.668 -58.428  0.00  0.00     0.039 A 
+HETATM   29  C           0      19.354  10.044 -57.891  0.00  0.00     0.018 A 
+HETATM   30  C           0      18.297  12.026 -59.035  0.00  0.00     0.292 C 
+HETATM   31  O           0      17.401  12.681 -59.515  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      16.585   1.893 -59.381  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      17.843   1.479 -59.961  0.00  0.00    +0.207 C 
+HETATM   32  O           0      19.593  12.491 -58.990  0.00  0.00    -0.323 OA
+HETATM   33  C           0      19.910  13.432 -57.929  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 2
-REMARK DSDP RESULT:      -4.743476
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.482782
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      12.825   4.777 -54.076  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      13.294   5.123 -52.999  0.00  0.00    -0.261 OA
+HETATM    1  O           0      12.064   2.264 -56.191  0.00  0.00    -0.266 OA
+HETATM    2  C           0      12.946   4.178 -55.008  0.00  0.00     0.126 C 
+HETATM    3  C           0      12.965   3.027 -55.951  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1       9.594   1.943 -54.612  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1       9.803   2.545 -53.355  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      10.899   3.405 -53.137  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      11.818   3.659 -54.176  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      11.669   2.969 -55.391  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      10.559   2.138 -55.616  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1       8.325   1.184 -54.878  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1       8.004   0.212 -54.220  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1       7.445   1.880 -55.669  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1       6.569   2.868 -55.077  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1       5.117   2.748 -55.611  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1       4.424   3.981 -55.348  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1       3.023   5.011 -56.810  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1       2.010   3.687 -55.082  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1       3.185   4.285 -55.852  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      13.422   5.063 -55.272  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0      14.128   2.760 -56.672  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0      14.240   3.024 -58.084  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0      15.200   4.183 -58.327  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      14.974   5.247 -57.357  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      16.024   6.106 -57.085  0.00  0.00     0.293 C 
+HETATM    9  O           0      17.033   5.714 -56.548  0.00  0.00    -0.259 OA
+HETATM   10  C           0      15.692   7.473 -57.565  0.00  0.00     0.039 A 
+HETATM   11  C           0      14.379   7.818 -57.918  0.00  0.00     0.018 A 
+HETATM   12  C           0      16.730   8.413 -57.652  0.00  0.00     0.018 A 
+HETATM   13  C           0      14.103   9.111 -58.366  0.00  0.00     0.018 A 
+HETATM   14  C           0      15.142  10.049 -58.461  0.00  0.00     0.039 A 
+HETATM   15  C           0      16.453   9.706 -58.102  0.00  0.00     0.018 A 
+HETATM   16  C           0      14.811  11.420 -58.935  0.00  0.00     0.293 C 
+HETATM   17  O           0      13.720  11.926 -59.068  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      15.970  12.101 -59.235  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1      14.618   5.857 -55.284  0.00  0.00    +0.200 C 
+HETATM   19  C           0      16.246  12.407 -60.630  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      14.685   6.622 -56.637  0.00  0.00    +0.200 C 
+HETATM   20  C           0      17.633  11.933 -61.047  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1      13.534   6.286 -57.453  0.00  0.00    -0.310 OA
+HETATM   21  O           0      17.565  10.858 -62.022  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1      13.728   5.693 -58.677  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1      13.921   6.328 -59.702  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      13.510   4.204 -58.679  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      14.494   3.320 -58.196  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      14.239   1.945 -58.148  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      12.984   1.429 -58.541  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      12.022   2.303 -59.068  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      12.289   3.690 -59.143  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      12.707  -0.036 -58.360  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      11.812  -0.448 -57.653  0.00  0.00    -0.261 OA
+HETATM   22  C           0      17.864   9.579 -61.602  0.00  0.00     0.293 C 
+HETATM   23  O           0      18.979   9.273 -61.247  0.00  0.00    -0.259 OA
+HETATM   24  C           0      16.647   8.726 -61.667  0.00  0.00     0.039 A 
+HETATM   25  C           0      15.469   9.189 -62.271  0.00  0.00     0.018 A 
+HETATM   26  C           0      16.711   7.438 -61.114  0.00  0.00     0.018 A 
+HETATM   27  C           0      14.348   8.360 -62.322  0.00  0.00     0.018 A 
+HETATM   28  C           0      14.411   7.071 -61.769  0.00  0.00     0.039 A 
+HETATM   29  C           0      15.588   6.609 -61.165  0.00  0.00     0.018 A 
+HETATM   30  C           0      13.193   6.217 -61.845  0.00  0.00     0.292 C 
+HETATM   31  O           0      12.127   6.482 -62.349  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      13.431  -0.826 -59.215  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      14.365  -1.754 -58.619  0.00  0.00    +0.207 C 
+HETATM   32  O           0      13.427   5.004 -61.236  0.00  0.00    -0.323 OA
+HETATM   33  C           0      13.395   3.829 -62.091  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 3
-REMARK DSDP RESULT:      -4.530030
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.478883
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      15.519   6.516 -56.658  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      16.734   6.366 -56.708  0.00  0.00    -0.261 OA
+HETATM    1  O           0      14.377   5.561 -53.401  0.00  0.00    -0.266 OA
+HETATM    2  C           0      13.831   5.759 -55.747  0.00  0.00     0.126 C 
+HETATM    3  C           0      13.574   5.532 -54.299  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      12.577   4.230 -54.452  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      13.361   5.195 -53.789  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      14.382   5.891 -54.471  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      14.646   5.611 -55.826  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      13.938   4.569 -56.450  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      12.901   3.901 -55.779  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      11.378   3.638 -53.764  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      11.010   4.017 -52.669  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      10.584   2.911 -54.616  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      10.366   1.501 -54.372  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      10.534   0.659 -55.664  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      10.499   1.541 -56.800  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      10.577   1.365 -59.063  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      12.586   0.833 -57.862  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      11.133   1.284 -57.989  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      14.818   7.211 -57.604  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0      12.274   5.258 -53.876  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0      11.930   4.049 -53.170  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0      10.761   3.354 -53.860  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      11.245   2.418 -54.868  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      10.949   2.687 -56.192  0.00  0.00     0.293 C 
+HETATM    9  O           0       9.810   2.842 -56.562  0.00  0.00    -0.259 OA
+HETATM   10  C           0      12.206   2.760 -56.983  0.00  0.00     0.039 A 
+HETATM   11  C           0      13.419   2.290 -56.460  0.00  0.00     0.018 A 
+HETATM   12  C           0      12.145   3.310 -58.272  0.00  0.00     0.018 A 
+HETATM   13  C           0      14.581   2.374 -57.229  0.00  0.00     0.018 A 
+HETATM   14  C           0      14.521   2.931 -58.516  0.00  0.00     0.039 A 
+HETATM   15  C           0      13.307   3.396 -59.041  0.00  0.00     0.018 A 
+HETATM   16  C           0      15.777   3.000 -59.312  0.00  0.00     0.293 C 
+HETATM   17  O           0      16.834   2.453 -59.095  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      15.592   3.819 -60.404  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1      15.003   8.630 -57.712  0.00  0.00    +0.200 C 
+HETATM   19  C           0      16.047   3.346 -61.702  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      13.925   9.193 -58.681  0.00  0.00    +0.200 C 
+HETATM   20  C           0      14.908   3.292 -62.714  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1      14.519  10.176 -59.566  0.00  0.00    -0.310 OA
+HETATM   21  O           0      13.776   4.102 -62.295  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1      14.091  11.480 -59.508  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1      14.253  12.191 -58.528  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      13.253  11.904 -60.684  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      13.836  12.500 -61.819  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      13.043  12.824 -62.926  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      11.663  12.523 -62.939  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      11.074  11.975 -61.790  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      11.869  11.672 -60.660  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      10.872  12.775 -64.190  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      10.717  11.929 -65.045  0.00  0.00    -0.261 OA
+HETATM   22  C           0      13.370   5.129 -63.121  0.00  0.00     0.293 C 
+HETATM   23  O           0      13.125   4.941 -64.291  0.00  0.00    -0.259 OA
+HETATM   24  C           0      13.299   6.401 -62.354  0.00  0.00     0.039 A 
+HETATM   25  C           0      13.788   6.484 -61.042  0.00  0.00     0.018 A 
+HETATM   26  C           0      12.737   7.522 -62.982  0.00  0.00     0.018 A 
+HETATM   27  C           0      13.713   7.695 -60.353  0.00  0.00     0.018 A 
+HETATM   28  C           0      13.151   8.818 -60.981  0.00  0.00     0.039 A 
+HETATM   29  C           0      12.663   8.734 -62.292  0.00  0.00     0.018 A 
+HETATM   30  C           0      13.092  10.092 -60.212  0.00  0.00     0.292 C 
+HETATM   31  O           0      13.489  10.306 -59.091  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      10.197  13.967 -64.164  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      10.295  14.803 -65.339  0.00  0.00    +0.207 C 
+HETATM   32  O           0      12.492  11.074 -60.970  0.00  0.00    -0.323 OA
+HETATM   33  C           0      11.278  11.664 -60.430  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 4
-REMARK DSDP RESULT:      -4.494799
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.451834
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      11.772   4.066 -53.101  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      12.061   3.925 -51.920  0.00  0.00    -0.261 OA
+HETATM    1  O           0       8.949   4.596 -53.565  0.00  0.00    -0.266 OA
+HETATM    2  C           0      10.842   3.330 -52.757  0.00  0.00     0.126 C 
+HETATM    3  C           0       9.453   3.551 -53.242  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      14.857   5.422 -55.822  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      14.778   5.960 -54.521  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      13.731   5.594 -53.650  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      12.733   4.697 -54.079  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      12.753   4.252 -55.412  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      13.814   4.592 -56.267  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      16.075   5.677 -56.665  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      16.014   6.274 -57.723  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      17.247   5.483 -55.977  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      18.332   6.431 -56.119  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      19.453   5.891 -57.045  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      19.575   6.765 -58.181  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      18.289   8.578 -58.649  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      20.350   8.980 -57.486  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      19.288   8.107 -58.150  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      10.484   4.049 -53.557  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0       8.595   2.458 -53.363  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0       8.738   1.475 -54.406  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0       9.027   2.160 -55.737  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      10.265   1.653 -56.317  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      10.747   2.277 -57.453  0.00  0.00     0.293 C 
+HETATM    9  O           0      10.265   2.063 -58.540  0.00  0.00    -0.259 OA
+HETATM   10  C           0      11.860   3.193 -57.089  0.00  0.00     0.039 A 
+HETATM   11  C           0      12.474   3.122 -55.831  0.00  0.00     0.018 A 
+HETATM   12  C           0      12.284   4.130 -58.043  0.00  0.00     0.018 A 
+HETATM   13  C           0      13.517   3.998 -55.521  0.00  0.00     0.018 A 
+HETATM   14  C           0      13.935   4.940 -56.473  0.00  0.00     0.039 A 
+HETATM   15  C           0      13.325   5.007 -57.733  0.00  0.00     0.018 A 
+HETATM   16  C           0      15.053   5.855 -56.113  0.00  0.00     0.293 C 
+HETATM   17  O           0      15.812   5.779 -55.175  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      15.132   6.877 -57.032  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1       9.705   2.852 -53.410  0.00  0.00    +0.200 C 
+HETATM   19  C           0      16.448   7.261 -57.521  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      10.471   1.682 -54.093  0.00  0.00    +0.200 C 
+HETATM   20  C           0      16.355   8.093 -58.795  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1       9.559   0.899 -54.903  0.00  0.00    -0.310 OA
+HETATM   21  O           0      14.992   8.517 -59.065  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1       9.209   1.353 -56.152  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1       8.057   1.366 -56.557  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      10.381   1.670 -57.040  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      11.473   0.787 -57.154  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      12.518   1.073 -58.038  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      12.478   2.225 -58.855  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      11.417   3.130 -58.707  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      10.372   2.854 -57.793  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      13.559   2.434 -59.876  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      13.482   1.999 -61.005  0.00  0.00    -0.261 OA
+HETATM   22  C           0      14.413   8.129 -60.255  0.00  0.00     0.293 C 
+HETATM   23  O           0      14.681   7.070 -60.773  0.00  0.00    -0.259 OA
+HETATM   24  C           0      13.476   9.182 -60.730  0.00  0.00     0.039 A 
+HETATM   25  C           0      13.411  10.433 -60.100  0.00  0.00     0.018 A 
+HETATM   26  C           0      12.661   8.892 -61.835  0.00  0.00     0.018 A 
+HETATM   27  C           0      12.526  11.400 -60.578  0.00  0.00     0.018 A 
+HETATM   28  C           0      11.711  11.111 -61.683  0.00  0.00     0.039 A 
+HETATM   29  C           0      11.776   9.861 -62.312  0.00  0.00     0.018 A 
+HETATM   30  C           0      10.781  12.172 -62.163  0.00  0.00     0.292 C 
+HETATM   31  O           0      10.637  13.290 -61.728  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      14.522   3.317 -59.461  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      15.755   2.754 -58.960  0.00  0.00    +0.207 C 
+HETATM   32  O           0      10.047  11.709 -63.233  0.00  0.00    -0.323 OA
+HETATM   33  C           0      10.309  12.332 -64.520  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 5
-REMARK DSDP RESULT:      -4.476821
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.378751
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      11.790   4.079 -53.112  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      12.079   3.971 -51.927  0.00  0.00    -0.261 OA
+HETATM    1  O           0       9.996   1.213 -56.374  0.00  0.00    -0.266 OA
+HETATM    2  C           0      10.145  -0.659 -54.853  0.00  0.00     0.126 C 
+HETATM    3  C           0       9.821   0.727 -55.286  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      14.882   5.341 -55.870  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      14.802   5.920 -54.587  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      13.753   5.584 -53.706  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      12.754   4.676 -54.108  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      12.776   4.188 -55.426  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      13.839   4.499 -56.290  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      16.102   5.566 -56.718  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      16.026   5.960 -57.866  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      17.260   5.614 -55.981  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      18.298   6.560 -56.330  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      19.489   5.873 -57.049  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      19.421   6.181 -58.453  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      20.183   5.504 -60.483  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      18.960   3.893 -59.189  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      19.600   5.255 -59.450  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      10.502   4.055 -53.568  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0       9.241   1.605 -54.371  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0      10.020   2.360 -53.423  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0      10.207   3.790 -53.917  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      11.492   3.936 -54.588  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      12.533   4.499 -53.872  0.00  0.00     0.293 C 
+HETATM    9  O           0      12.567   4.446 -52.665  0.00  0.00    -0.259 OA
+HETATM   10  C           0      13.517   5.104 -54.807  0.00  0.00     0.039 A 
+HETATM   11  C           0      13.198   5.318 -56.156  0.00  0.00     0.018 A 
+HETATM   12  C           0      14.777   5.460 -54.303  0.00  0.00     0.018 A 
+HETATM   13  C           0      14.146   5.888 -57.007  0.00  0.00     0.018 A 
+HETATM   14  C           0      15.408   6.237 -56.504  0.00  0.00     0.039 A 
+HETATM   15  C           0      15.726   6.028 -55.155  0.00  0.00     0.018 A 
+HETATM   16  C           0      16.393   6.849 -57.437  0.00  0.00     0.293 C 
+HETATM   17  O           0      16.203   7.288 -58.548  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      17.642   6.857 -56.856  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1       9.708   2.877 -53.362  0.00  0.00    +0.200 C 
+HETATM   19  C           0      18.741   7.456 -57.599  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      10.425   1.678 -54.048  0.00  0.00    +0.200 C 
+HETATM   20  C           0      19.838   7.964 -56.670  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1       9.462   0.876 -54.777  0.00  0.00    -0.310 OA
+HETATM   21  O           0      20.247   9.317 -57.009  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1       9.083   1.263 -56.039  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1       7.925   1.232 -56.427  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      10.235   1.563 -56.961  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      11.271   0.630 -57.164  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      12.294   0.906 -58.076  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      12.284   2.099 -58.834  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      11.281   3.050 -58.596  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      10.260   2.783 -57.653  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      13.333   2.303 -59.889  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      13.205   1.896 -61.024  0.00  0.00    -0.261 OA
+HETATM   22  C           0      19.937  10.331 -56.128  0.00  0.00     0.293 C 
+HETATM   23  O           0      19.714  10.108 -54.960  0.00  0.00    -0.259 OA
+HETATM   24  C           0      19.933  11.638 -56.838  0.00  0.00     0.039 A 
+HETATM   25  C           0      20.040  11.704 -58.235  0.00  0.00     0.018 A 
+HETATM   26  C           0      19.811  12.807 -56.072  0.00  0.00     0.018 A 
+HETATM   27  C           0      20.024  12.946 -58.869  0.00  0.00     0.018 A 
+HETATM   28  C           0      19.902  14.117 -58.104  0.00  0.00     0.039 A 
+HETATM   29  C           0      19.795  14.050 -56.708  0.00  0.00     0.018 A 
+HETATM   30  C           0      19.887  15.423 -58.820  0.00  0.00     0.292 C 
+HETATM   31  O           0      19.953  15.621 -60.010  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      14.334   3.151 -59.490  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      15.528   2.545 -58.945  0.00  0.00    +0.207 C 
+HETATM   32  O           0      19.785  16.457 -57.915  0.00  0.00    -0.323 OA
+HETATM   33  C           0      20.468  17.693 -58.260  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 6
-REMARK DSDP RESULT:      -4.440142
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.377789
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      11.789   4.074 -53.125  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      12.119   3.947 -51.953  0.00  0.00    -0.261 OA
+HETATM    1  O           0      13.942   5.232 -53.119  0.00  0.00    -0.266 OA
+HETATM    2  C           0      13.575   5.619 -55.476  0.00  0.00     0.126 C 
+HETATM    3  C           0      13.212   5.268 -54.076  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      14.852   5.281 -55.938  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      14.717   5.957 -54.709  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      13.674   5.635 -53.817  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      12.734   4.642 -54.154  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      12.806   4.050 -55.427  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      13.864   4.349 -56.301  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      16.072   5.505 -56.788  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      16.948   6.285 -56.466  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      16.245   4.526 -57.735  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      17.118   4.764 -58.866  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      16.318   4.977 -60.178  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      15.646   6.247 -60.109  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      13.556   5.541 -59.565  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      13.735   7.678 -60.645  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      14.283   6.390 -60.036  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      10.483   4.101 -53.530  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0      11.888   4.945 -53.780  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0      11.516   3.691 -53.175  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0      10.313   3.096 -53.900  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      10.748   2.237 -54.994  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      10.555   2.691 -56.286  0.00  0.00     0.293 C 
+HETATM    9  O           0       9.448   2.917 -56.714  0.00  0.00    -0.259 OA
+HETATM   10  C           0      11.868   2.848 -56.964  0.00  0.00     0.039 A 
+HETATM   11  C           0      13.034   2.287 -56.424  0.00  0.00     0.018 A 
+HETATM   12  C           0      11.909   3.572 -58.166  0.00  0.00     0.018 A 
+HETATM   13  C           0      14.251   2.455 -57.087  0.00  0.00     0.018 A 
+HETATM   14  C           0      14.294   3.185 -58.285  0.00  0.00     0.039 A 
+HETATM   15  C           0      13.127   3.741 -58.828  0.00  0.00     0.018 A 
+HETATM   16  C           0      15.607   3.339 -58.969  0.00  0.00     0.293 C 
+HETATM   17  O           0      16.640   2.748 -58.754  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      15.511   4.304 -59.947  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1       9.641   2.973 -53.250  0.00  0.00    +0.200 C 
+HETATM   19  C           0      15.896   3.947 -61.304  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      10.216   1.735 -53.996  0.00  0.00    +0.200 C 
+HETATM   20  C           0      14.828   4.344 -62.316  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1       9.203   1.164 -54.863  0.00  0.00    -0.310 OA
+HETATM   21  O           0      13.833   5.228 -61.732  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1       8.918   1.777 -56.058  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1       7.816   2.229 -56.329  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      10.026   1.691 -57.072  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      10.625   0.459 -57.398  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      11.607   0.397 -58.392  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      11.983   1.555 -59.109  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      11.424   2.791 -58.751  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      10.450   2.858 -57.727  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      12.951   1.427 -60.250  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      12.661   0.882 -61.293  0.00  0.00    -0.261 OA
+HETATM   22  C           0      13.629   6.458 -62.321  0.00  0.00     0.293 C 
+HETATM   23  O           0      13.332   6.559 -63.489  0.00  0.00    -0.259 OA
+HETATM   24  C           0      13.831   7.541 -61.321  0.00  0.00     0.039 A 
+HETATM   25  C           0      14.348   7.263 -60.047  0.00  0.00     0.018 A 
+HETATM   26  C           0      13.497   8.852 -61.689  0.00  0.00     0.018 A 
+HETATM   27  C           0      14.533   8.303 -59.136  0.00  0.00     0.018 A 
+HETATM   28  C           0      14.199   9.616 -59.504  0.00  0.00     0.039 A 
+HETATM   29  C           0      13.682   9.893 -60.777  0.00  0.00     0.018 A 
+HETATM   30  C           0      14.412  10.698 -58.502  0.00  0.00     0.292 C 
+HETATM   31  O           0      14.863  10.603 -57.385  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      14.101   2.149 -60.058  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      15.089   1.585 -59.168  0.00  0.00    +0.207 C 
+HETATM   32  O           0      14.011  11.910 -59.023  0.00  0.00    -0.323 OA
+HETATM   33  C           0      14.803  12.442 -60.119  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 7
-REMARK DSDP RESULT:      -4.215688
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.329665
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      13.451   5.193 -54.083  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      14.267   5.522 -53.231  0.00  0.00    -0.261 OA
+HETATM    1  O           0      14.525  11.940 -58.482  0.00  0.00    -0.266 OA
+HETATM    2  C           0      13.203  11.296 -60.399  0.00  0.00     0.126 C 
+HETATM    3  C           0      14.061  11.092 -59.201  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      14.368   5.815 -58.270  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      14.925   6.664 -57.292  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      14.574   6.531 -55.933  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      13.638   5.555 -55.535  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      13.001   4.788 -56.526  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      13.377   4.900 -57.875  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      14.893   5.848 -59.678  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      15.312   4.850 -60.234  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      14.539   6.991 -60.349  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      15.481   8.084 -60.459  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      14.788   9.464 -60.305  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      15.630  10.319 -59.513  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      14.820  10.473 -57.396  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      17.132   9.871 -57.634  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      15.741  10.235 -58.148  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      12.164   4.843 -53.783  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0      14.391   9.793 -58.814  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0      15.642   9.471 -58.178  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0      15.639   8.015 -57.722  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      14.280   7.571 -57.437  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      14.123   6.409 -56.704  0.00  0.00     0.293 C 
+HETATM    9  O           0      14.428   6.356 -55.536  0.00  0.00    -0.259 OA
+HETATM   10  C           0      13.536   5.348 -57.564  0.00  0.00     0.039 A 
+HETATM   11  C           0      13.494   5.487 -58.959  0.00  0.00     0.018 A 
+HETATM   12  C           0      13.027   4.198 -56.941  0.00  0.00     0.018 A 
+HETATM   13  C           0      12.935   4.472 -59.737  0.00  0.00     0.018 A 
+HETATM   14  C           0      12.420   3.325 -59.114  0.00  0.00     0.039 A 
+HETATM   15  C           0      12.467   3.183 -57.720  0.00  0.00     0.018 A 
+HETATM   16  C           0      11.837   2.259 -59.973  0.00  0.00     0.293 C 
+HETATM   17  O           0      11.920   2.133 -61.173  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      11.136   1.364 -59.195  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1      11.927   3.834 -52.790  0.00  0.00    +0.200 C 
+HETATM   19  C           0      10.734   0.101 -59.793  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      10.576   3.135 -53.116  0.00  0.00    +0.200 C 
+HETATM   20  C           0       9.219  -0.010 -59.912  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1      10.393   3.056 -54.552  0.00  0.00    -0.310 OA
+HETATM   21  O           0       8.579  -0.090 -58.609  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1      10.561   1.849 -55.187  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1      10.585   0.782 -54.592  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      10.885   1.965 -56.651  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      11.972   1.270 -57.216  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      12.212   1.343 -58.593  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      11.350   2.076 -59.438  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      10.298   2.809 -58.870  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      10.070   2.758 -57.474  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      11.570   2.031 -60.923  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      12.265   1.191 -61.454  0.00  0.00    -0.261 OA
+HETATM   22  C           0       9.334  -0.523 -57.540  0.00  0.00     0.293 C 
+HETATM   23  O           0       9.761  -1.654 -57.482  0.00  0.00    -0.259 OA
+HETATM   24  C           0       9.504   0.581 -56.558  0.00  0.00     0.039 A 
+HETATM   25  C           0       8.795   1.784 -56.690  0.00  0.00     0.018 A 
+HETATM   26  C           0      10.389   0.384 -55.487  0.00  0.00     0.018 A 
+HETATM   27  C           0       8.972   2.796 -55.745  0.00  0.00     0.018 A 
+HETATM   28  C           0       9.858   2.599 -54.674  0.00  0.00     0.039 A 
+HETATM   29  C           0      10.566   1.397 -54.543  0.00  0.00     0.018 A 
+HETATM   30  C           0      10.017   3.704 -53.687  0.00  0.00     0.292 C 
+HETATM   31  O           0       9.459   4.776 -53.671  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      10.761   2.898 -61.610  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      11.200   3.302 -62.926  0.00  0.00    +0.207 C 
+HETATM   32  O           0      10.936   3.348 -52.724  0.00  0.00    -0.323 OA
+HETATM   33  C           0      12.154   4.139 -52.663  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 8
-REMARK DSDP RESULT:      -4.169563
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.216435
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      11.479   3.504 -53.162  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      11.261   4.047 -52.085  0.00  0.00    -0.261 OA
+HETATM    1  O           0      12.702   5.369 -54.781  0.00  0.00    -0.266 OA
+HETATM    2  C           0      14.494   5.974 -53.277  0.00  0.00     0.126 C 
+HETATM    3  C           0      13.866   5.595 -54.572  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      14.011   5.541 -56.025  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      13.212   4.456 -56.437  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      12.445   3.726 -55.504  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      12.485   4.063 -54.137  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      13.369   5.072 -53.716  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      14.106   5.817 -54.650  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      14.670   6.419 -57.052  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      14.068   7.307 -57.623  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      16.040   6.340 -57.016  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      16.750   5.645 -58.068  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      18.275   5.930 -58.022  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      18.831   5.282 -56.864  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      20.780   5.202 -55.699  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      19.577   7.280 -55.665  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      19.814   5.829 -56.078  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      10.605   2.628 -53.742  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0      14.668   5.483 -55.708  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0      14.116   5.355 -57.033  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0      14.634   4.084 -57.696  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0      13.602   3.055 -57.707  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0      12.402   3.352 -58.329  0.00  0.00     0.293 C 
+HETATM    9  O           0      12.372   3.876 -59.417  0.00  0.00    -0.259 OA
+HETATM   10  C           0      11.270   2.914 -57.471  0.00  0.00     0.039 A 
+HETATM   11  C           0      11.470   2.573 -56.126  0.00  0.00     0.018 A 
+HETATM   12  C           0       9.990   2.855 -58.045  0.00  0.00     0.018 A 
+HETATM   13  C           0      10.384   2.165 -55.349  0.00  0.00     0.018 A 
+HETATM   14  C           0       9.106   2.099 -55.924  0.00  0.00     0.039 A 
+HETATM   15  C           0       8.905   2.445 -57.268  0.00  0.00     0.018 A 
+HETATM   16  C           0       7.969   1.666 -55.066  0.00  0.00     0.293 C 
+HETATM   17  O           0       7.939   1.550 -53.863  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0       6.873   1.387 -55.852  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1       9.252   2.570 -53.265  0.00  0.00    +0.200 C 
+HETATM   19  C           0       6.263   0.071 -55.737  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1       8.411   3.622 -54.045  0.00  0.00    +0.200 C 
+HETATM   20  C           0       6.130  -0.609 -57.095  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1       8.454   3.334 -55.465  0.00  0.00    -0.310 OA
+HETATM   21  O           0       7.395  -1.161 -57.548  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1       8.078   2.090 -55.911  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1       8.856   1.308 -56.437  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1       6.595   1.840 -55.856  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1       5.671   2.848 -56.194  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1       4.300   2.569 -56.199  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1       3.826   1.270 -55.907  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1       4.742   0.281 -55.522  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1       6.127   0.569 -55.490  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1       2.359   0.981 -56.041  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1       1.871  -0.080 -55.715  0.00  0.00    -0.261 OA
+HETATM   22  C           0       7.805  -0.879 -58.834  0.00  0.00     0.293 C 
+HETATM   23  O           0       7.017  -0.813 -59.750  0.00  0.00    -0.259 OA
+HETATM   24  C           0       9.280  -0.689 -58.867  0.00  0.00     0.039 A 
+HETATM   25  C           0      10.073  -0.976 -57.746  0.00  0.00     0.018 A 
+HETATM   26  C           0       9.860  -0.223 -60.056  0.00  0.00     0.018 A 
+HETATM   27  C           0      11.454  -0.795 -57.815  0.00  0.00     0.018 A 
+HETATM   28  C           0      12.036  -0.328 -59.004  0.00  0.00     0.039 A 
+HETATM   29  C           0      11.243  -0.041 -60.123  0.00  0.00     0.018 A 
+HETATM   30  C           0      13.515  -0.149 -59.035  0.00  0.00     0.292 C 
+HETATM   31  O           0      14.312  -0.373 -58.155  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1       1.624   2.089 -56.375  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1       0.690   2.580 -55.387  0.00  0.00    +0.207 C 
+HETATM   32  O           0      13.906   0.335 -60.265  0.00  0.00    -0.323 OA
+HETATM   33  C           0      15.232   0.925 -60.340  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
 MODEL 9
-REMARK DSDP RESULT:      -4.153836
-REMARK  Name = 2HEMT
-REMARK  17 active torsions:
+REMARK DSDP RESULT:      -4.188193
+REMARK  11 active torsions:
 REMARK  status: ('A' for Active; 'I' for Inactive)
-REMARK    1  A    between atoms: C8_2  and  C14_3
-REMARK    2  A    between atoms: C14_3  and  O16_4
-REMARK    3  A    between atoms: O16_4  and  C27_5
-REMARK    4  A    between atoms: C27_5  and  C25_6
-REMARK    5  A    between atoms: C25_6  and  O15_7
-REMARK    6  A    between atoms: O15_7  and  C26_8
-REMARK    7  A    between atoms: C26_8  and  C19_10
-REMARK    8  A    between atoms: C22_13  and  C28_16
-REMARK    9  A    between atoms: C28_16  and  O30_18
-REMARK   10  A    between atoms: O30_18  and  C41_19
-REMARK   11  A    between atoms: C41_19  and  C39_20
-REMARK   12  A    between atoms: C39_20  and  O29_21
-REMARK   13  A    between atoms: O29_21  and  C40_22
-REMARK   14  A    between atoms: C40_22  and  C33_24
-REMARK   15  A    between atoms: C36_27  and  C42_30
-REMARK   16  A    between atoms: C42_30  and  O44_32
-REMARK   17  A    between atoms: O44_32  and  C56_33
-REMARK                            x       y       z     vdW  Elec       q    Type
-REMARK                         _______ _______ _______ _____ _____    ______ ____
+REMARK    1  A    between atoms: C_3  and  O_5 
+REMARK    2  A    between atoms: O_4  and  C_14 
+REMARK    3  A    between atoms: O_4  and  C_15 
+REMARK    4  A    between atoms: O_5  and  C_16 
+REMARK       I    between atoms: C_8  and  C_15 
+REMARK       I    between atoms: C_11  and  C_17 
+REMARK    5  A    between atoms: C_14  and  C_16 
+REMARK    6  A    between atoms: C_17  and  O_19 
+REMARK    7  A    between atoms: O_18  and  C_28 
+REMARK    8  A    between atoms: O_18  and  C_29 
+REMARK    9  A    between atoms: O_19  and  C_30 
+REMARK       I    between atoms: C_22  and  C_29 
+REMARK       I    between atoms: C_25  and  C_31 
+REMARK   10  A    between atoms: C_28  and  C_30 
+REMARK   11  A    between atoms: C_31  and  O_32 
 ROOT
-ATOM      1  C28 HMT A   1      13.868   5.519 -54.121  0.00  0.00    +0.293 C 
-ATOM      2  O18 HMT A   1      14.520   5.845 -53.136  0.00  0.00    -0.261 OA
+HETATM    1  O           0       6.242   1.863 -58.339  0.00  0.00    -0.266 OA
+HETATM    2  C           0       4.066   2.537 -57.532  0.00  0.00     0.126 C 
+HETATM    3  C           0       5.485   2.101 -57.432  0.00  0.00     0.254 C 
 ENDROOT
-BRANCH   1   6
-ATOM      3  C19 HMT A   1      15.434   6.794 -57.951  0.00  0.00    +0.047 A 
-ATOM      4  C21 HMT A   1      14.043   6.777 -57.728  0.00  0.00    +0.015 A 
-ATOM      5  C24 HMT A   1      13.509   6.286 -56.519  0.00  0.00    +0.015 A 
-ATOM      6  C22 HMT A   1      14.365   5.783 -55.520  0.00  0.00    +0.047 A 
-ATOM      7  C23 HMT A   1      15.742   5.697 -55.791  0.00  0.00    +0.015 A 
-ATOM      8  C20 HMT A   1      16.273   6.217 -56.983  0.00  0.00    +0.015 A 
-BRANCH   3   9
-ATOM      9  C26 HMT A   1      15.991   7.490 -59.162  0.00  0.00    +0.293 C 
-ATOM     10  O17 HMT A   1      17.166   7.790 -59.250  0.00  0.00    -0.261 OA
-BRANCH   9  11
-ATOM     11  O15 HMT A   1      15.145   7.434 -60.242  0.00  0.00    -0.310 OA
-BRANCH  11  12
-ATOM     12  C25 HMT A   1      14.612   8.657 -60.803  0.00  0.00    +0.200 C 
-BRANCH  12  13
-ATOM     13  C27 HMT A   1      15.431   9.134 -62.032  0.00  0.00    +0.200 C 
-BRANCH  13  14
-ATOM     14  O16 HMT A   1      14.588   9.088 -63.196  0.00  0.00    -0.314 OA
-BRANCH  14  17
-ATOM     15  O4  HMT A   1      15.759   8.633 -65.089  0.00  0.00    -0.267 OA
-ATOM     16  C8  HMT A   1      13.940   7.159 -64.556  0.00  0.00    +0.123 C 
-ATOM     17  C14 HMT A   1      14.869   8.347 -64.317  0.00  0.00    +0.258 C 
-ENDBRANCH  14  17
-ENDBRANCH  13  14
-ENDBRANCH  12  13
-ENDBRANCH  11  12
-ENDBRANCH   9  11
-ENDBRANCH   3   9
-ENDBRANCH   1   6
-BRANCH   1  18
-ATOM     18  O30 HMT A   1      12.525   5.269 -54.071  0.00  0.00    -0.310 OA
+BRANCH   3   4
+HETATM    4  O           0       6.059   1.942 -56.171  0.00  0.00    -0.320 OA
+BRANCH   4   5
+HETATM    5  C           0       7.232   1.133 -55.952  0.00  0.00     0.205 C 
+BRANCH   5   6
+HETATM    6  C           0       7.211   0.551 -54.543  0.00  0.00     0.206 C 
+BRANCH   6   7
+HETATM    7  O           0       8.569   0.310 -54.069  0.00  0.00    -0.315 OA
+BRANCH   7   8
+HETATM    8  C           0       9.586   0.296 -55.006  0.00  0.00     0.293 C 
+HETATM    9  O           0       9.697  -0.610 -55.799  0.00  0.00    -0.259 OA
+HETATM   10  C           0      10.418   1.519 -54.863  0.00  0.00     0.039 A 
+HETATM   11  C           0      10.321   2.332 -53.725  0.00  0.00     0.018 A 
+HETATM   12  C           0      11.311   1.836 -55.898  0.00  0.00     0.018 A 
+HETATM   13  C           0      11.117   3.474 -53.623  0.00  0.00     0.018 A 
+HETATM   14  C           0      12.004   3.796 -54.661  0.00  0.00     0.039 A 
+HETATM   15  C           0      12.106   2.979 -55.796  0.00  0.00     0.018 A 
+HETATM   16  C           0      12.843   5.016 -54.517  0.00  0.00     0.293 C 
+HETATM   17  O           0      13.031   5.687 -53.528  0.00  0.00    -0.259 OA
+BRANCH  16  18
+HETATM   18  O           0      13.425   5.327 -55.727  0.00  0.00    -0.315 OA
 BRANCH  18  19
-ATOM     19  C41 HMT A   1      12.041   4.203 -53.240  0.00  0.00    +0.200 C 
+HETATM   19  C           0      14.838   5.030 -55.905  0.00  0.00     0.206 C 
 BRANCH  19  20
-ATOM     20  C39 HMT A   1      10.952   3.421 -54.029  0.00  0.00    +0.200 C 
+HETATM   20  C           0      15.555   6.139 -56.667  0.00  0.00     0.206 C 
 BRANCH  20  21
-ATOM     21  O29 HMT A   1      11.195   3.536 -55.454  0.00  0.00    -0.310 OA
+HETATM   21  O           0      14.636   7.181 -57.095  0.00  0.00    -0.315 OA
 BRANCH  21  22
-ATOM     22  C40 HMT A   1      11.709   2.461 -56.138  0.00  0.00    +0.293 C 
-ATOM     23  O31 HMT A   1      11.469   1.303 -55.835  0.00  0.00    -0.261 OA
-BRANCH  22  24
-ATOM     24  C33 HMT A   1      12.729   2.828 -57.182  0.00  0.00    +0.047 A 
-ATOM     25  C34 HMT A   1      14.092   2.514 -57.014  0.00  0.00    +0.015 A 
-ATOM     26  C37 HMT A   1      15.009   2.807 -58.029  0.00  0.00    +0.015 A 
-ATOM     27  C36 HMT A   1      14.580   3.380 -59.247  0.00  0.00    +0.047 A 
-ATOM     28  C38 HMT A   1      13.232   3.739 -59.395  0.00  0.00    +0.015 A 
-ATOM     29  C35 HMT A   1      12.308   3.468 -58.358  0.00  0.00    +0.015 A 
-BRANCH  27  30
-ATOM     30  C42 HMT A   1      15.574   3.567 -60.357  0.00  0.00    +0.292 C 
-ATOM     31  O32 HMT A   1      16.687   3.087 -60.323  0.00  0.00    -0.261 OA
+HETATM   22  C           0      14.266   7.216 -58.423  0.00  0.00     0.293 C 
+HETATM   23  O           0      13.837   6.236 -58.987  0.00  0.00    -0.259 OA
+HETATM   24  C           0      14.480   8.581 -58.973  0.00  0.00     0.039 A 
+HETATM   25  C           0      15.153   9.564 -58.233  0.00  0.00     0.018 A 
+HETATM   26  C           0      13.997   8.858 -60.261  0.00  0.00     0.018 A 
+HETATM   27  C           0      15.344  10.832 -58.784  0.00  0.00     0.018 A 
+HETATM   28  C           0      14.861  11.110 -60.072  0.00  0.00     0.039 A 
+HETATM   29  C           0      14.189  10.128 -60.811  0.00  0.00     0.018 A 
+HETATM   30  C           0      15.087  12.475 -60.623  0.00  0.00     0.292 C 
+HETATM   31  O           0      15.662  13.404 -60.105  0.00  0.00    -0.259 OA
 BRANCH  30  32
-ATOM     32  O44 HMT A   1      15.029   4.156 -61.468  0.00  0.00    -0.316 OA
-ATOM     33  C56 HMT A   1      15.944   4.798 -62.385  0.00  0.00    +0.207 C 
+HETATM   32  O           0      14.530  12.576 -61.880  0.00  0.00    -0.323 OA
+HETATM   33  C           0      14.124  13.904 -62.307  0.00  0.00     0.213 C 
 ENDBRANCH  30  32
-ENDBRANCH  27  30
-ENDBRANCH  22  24
 ENDBRANCH  21  22
 ENDBRANCH  20  21
 ENDBRANCH  19  20
 ENDBRANCH  18  19
-ENDBRANCH   1  18
+ENDBRANCH  16  18
+ENDBRANCH   7   8
+ENDBRANCH   6   7
+ENDBRANCH   5   6
+ENDBRANCH   4   5
+ENDBRANCH   3   4
 TORSDOF 15
 ENDMDL
