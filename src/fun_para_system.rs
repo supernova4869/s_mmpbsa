@@ -167,6 +167,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
 
     if !settings.debug_mode {
         fs::remove_dir_all(temp_dir).unwrap();
+        println!("Removed temp directory.");
     }
 
     let mut bt: usize = 0;
