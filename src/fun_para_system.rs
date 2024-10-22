@@ -165,6 +165,10 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     println!("Collecting residues list...");
     let residues = get_residues_tpr(&tpr, &ndx_com);
 
+    if !settings.debug_mode {
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+
     let mut bt: usize = 0;
     let mut et: usize = pdb.models.len() - 1;
     loop {
@@ -563,7 +567,7 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
             .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })
             .stderr(Stdio::inherit())
             .status()
-            .unwrap();
+            .expect("Cannot properly run antechamber");
         // multiwfn(&vec!["100", "2", "3", "LIG.chg", "0", "q"], settings, "LIG_c.mol2", temp_dir);
         // fuck Multiwfn outputs chg with mass
         let new_lig = MOL2::from(temp_dir.join("LIG_c.mol2").to_str().unwrap());
