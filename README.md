@@ -11,7 +11,7 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting.
 - In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust.
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
-- Very fast. Due to the efficency of rust program.
+- Very fast. Due to the efficency of Rust program.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
 - Considers interaction entropy, as "J. Chem. Phys. 2017, 146, 124124".
 - Could store analyzation results for further reproducable analyzation.
@@ -84,7 +84,7 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 receptor.pdbqt
 2 # load ligand file
 [return] # default DSDP.pdbqt
-3 # load flexible residues file
+3 # load flexible residues file (flexible docking only)
 [flexible residues file name]
 # other functions are used to prepare the complex system
 # if the ligand is charged, do NOT forget to change option 8
