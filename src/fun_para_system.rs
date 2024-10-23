@@ -535,7 +535,7 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
     } else {
         None
     }).unwrap();
-    let itp_line = format!("#include \"{}\"", itp_path);
+    let itp_line = format!("#include \"{}\"", itp_path.trim_start_matches(r"\\?\"));
     top_contents.insert(ln + 1, itp_line.as_str());
     top_contents.insert(top_contents.len() - 1, "LIG                 1");
     let new_top = top_contents.join("\n");
@@ -650,12 +650,14 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
             .stderr(Stdio::inherit())
             .status()
             .expect("Failed to start process");
-        let fchk_path = if temp_dir.join("LIG.fchk").is_file() {
-            temp_dir.join("LIG.fchk")
-        } else {
+        let fchk_path = if cfg!(windows) {
             temp_dir.join("LIG.fch")
+        } else {
+            temp_dir.join("LIG.fchk")
         };
-        multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, fchk_path.to_str().unwrap(), temp_dir);
+        multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, 
+                fchk_path.to_str().unwrap().trim_start_matches(r"\\?\"), 
+                Path::new(temp_dir.to_str().unwrap().trim_start_matches(r"\\?\"))).unwrap();
     }
 }
 

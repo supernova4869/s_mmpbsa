@@ -3,7 +3,7 @@ use std::path::Path;
 use std::io::{self, Write};
 use std::str::FromStr;
 use std::fmt::Debug;
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use ndarray::{Array2, Axis};
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
@@ -63,12 +63,11 @@ pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> St
     new_name.to_str().unwrap().to_string()
 }
 
-fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str], wd: &Path) {
+fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str], wd: &Path) -> Result<ExitStatus, std::io::Error> {
     if settings.debug_mode {
         println!("CMD: {} {}", cmd.to_string(), args.join(" "));
     }
-    let mut child = 
-    Command::new(cmd)
+    let mut child = Command::new(cmd)
         .args(args)
         .current_dir(wd)
         .stdin(Stdio::piped())  // 开启标准输入管道
@@ -88,32 +87,32 @@ fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str
     }
 
     // 等待子进程完成
-    child.wait().expect("Failed to wait on child");
+    child.wait()
 }
 
 pub fn pdb2gmx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, o: &str, ff: &str, water: &str) {
     let args = ["pdb2gmx", "-f", f, "-o", o, "-ff", ff, "-water", water, "-ignh"];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn grompp(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, c: &str, o: &str) {
     let args = ["grompp", "-f", f, "-c", c, "-o", o, "-maxwarn", "10"];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn convert_tpr(options: &Vec<&str>, wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn convert_trj(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let args: Vec<&str> = ["convert-trj", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn trjconv(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o].iter().chain(others.iter()).cloned().collect();
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n: &str, o: &str) {
@@ -121,25 +120,25 @@ pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n:
         true => ["make_ndx", "-f", f, "-o", o].to_vec(),
         false => ["make_ndx", "-f", f, "-n", n, "-o", o].to_vec()
     };
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn trajectory(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, ox: &str) {
     let args = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox].to_vec();
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd);
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) {
     let args = vec![infile];
     let sobtop_dir = Path::new(settings.sobtop_dir.as_ref().unwrap());
     // fuck, sobtop must be used at its own directory
-    cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir);
+    cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir).unwrap();
 }
 
-pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str, wd: &Path) {
+pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str, wd: &Path) -> Result<ExitStatus, std::io::Error> {
     let args = vec![infile];
     let multiwfn_dir = Path::new(settings.multiwfn_dir.as_ref().unwrap());
-    cmd_options(settings, multiwfn_dir.join("Multiwfn").to_str().unwrap(), options, &args, wd);
+    cmd_options(settings, multiwfn_dir.join("Multiwfn").to_str().unwrap(), options, &args, wd)
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {
