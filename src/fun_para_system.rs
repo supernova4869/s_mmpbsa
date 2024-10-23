@@ -535,7 +535,7 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
     } else {
         None
     }).unwrap();
-    let itp_line = format!("#include <{}>", itp_path);
+    let itp_line = format!("#include \"{}\"", itp_path);
     top_contents.insert(ln + 1, itp_line.as_str());
     top_contents.insert(top_contents.len() - 1, "LIG                 1");
     let new_top = top_contents.join("\n");
