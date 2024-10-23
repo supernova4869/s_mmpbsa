@@ -438,10 +438,44 @@ fn pdbqt2pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, temp_dir:
     }
 }
 
+fn copy_dir(src: &Path, dest: &Path) {
+    if !dest.is_dir() {
+        fs::create_dir_all(dest).unwrap();
+    }
+
+    // 读取源目录中的所有条目
+    for entry in fs::read_dir(src).unwrap() {
+        let entry = entry.unwrap();
+        let src_path = entry.path();
+        let dest_path = dest.join(entry.file_name());
+
+        if src_path.is_dir() {
+            // 递归复制子目录
+            copy_dir(&src_path, &dest_path);
+        } else {
+            // 复制文件
+            fs::copy(&src_path, &dest_path).unwrap();
+        }
+    }
+}
+
 fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, ff: &String, method: &String, basis: &String, 
                           total_charge: i32, multiplicity: usize, temp_dir: &Path, settings: &Settings) {
     // prepare protein top
     let protein_name = format!("MMPBSA_docking_{}.pdb", rec_name);
+    let ff_dir = env::current_exe().unwrap().parent().unwrap().join("include").join(ff.to_string() + &".ff/");
+    let dest = temp_dir.join(ff.to_string() + &".ff/");
+    fs::copy(env::current_exe().unwrap().parent().unwrap().join("include").join("residuetypes.dat"), 
+        temp_dir.join("residuetypes.dat")).unwrap();
+    fs::copy(env::current_exe().unwrap().parent().unwrap().join("include").join("elements.dat"), 
+        temp_dir.join("elements.dat")).unwrap();
+    fs::copy(env::current_exe().unwrap().parent().unwrap().join("include").join("xlateat.dat"), 
+        temp_dir.join("xlateat.dat")).unwrap();
+    fs::copy(env::current_exe().unwrap().parent().unwrap().join("include").join("specbond.dat"), 
+        temp_dir.join("specbond.dat")).unwrap();
+    println!("Copying {} to {}...", ff_dir.display(), dest.display());
+    copy_dir(&ff_dir, &dest);
+
     let protein_out = if let Some(flex_name) = flex_name {
         // prepare protein
         let flex_name = format!("MMPBSA_docking_{}.pdb", flex_name);
@@ -453,7 +487,7 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
             let complete_protein_name = temp_dir.join(&complete_protein_name);
             let complete_protein_name = complete_protein_name.to_str().unwrap();
             new_pdb.models[i].to_pdb(complete_protein_name);
-            pdb2gmx(&vec![], temp_dir, settings, &complete_protein_name, &complete_protein_name, "amber14sb", "tip3p");
+            pdb2gmx(&vec![], temp_dir, settings, &complete_protein_name, &complete_protein_name, ff, "spc");
             let mut complete_mdl = PDBModel::from(&fs::read_to_string(complete_protein_name).unwrap());
             complete_mdl.modelid = i as i32 + 1;
             total_pdb.push(complete_mdl);
@@ -464,13 +498,13 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
         println!("Preparing flexible residues...");
         total_pdb.to_pdb(temp_dir.join(&protein_out_pdb).to_str().unwrap());
         let protein_out = append_new_name(&protein_name, ".gro", "");
-        pdb2gmx(&vec![], temp_dir, settings, temp_dir.join(&protein_out_pdb).to_str().unwrap(), &protein_out, ff, "tip3p");
+        pdb2gmx(&vec![], temp_dir, settings, temp_dir.join(&protein_out_pdb).to_str().unwrap(), &protein_out, ff, "spc");
         protein_out
     } else {
         let protein_out = append_new_name(&protein_name, ".gro", "");
-        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out, ff, "tip3p");
+        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out, ff, "spc");
         let protein_out_pdb = append_new_name(&protein_name, "_addH.pdb", "");
-        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out_pdb, ff, "tip3p");
+        pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out_pdb, ff, "spc");
         protein_out
     };
 
