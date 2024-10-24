@@ -30,13 +30,21 @@ pub fn range2list(range_str: &str) -> Vec<i32> {
 }
 
 pub fn get_input<T: FromStr>(default: T) -> T where <T as FromStr>::Err: Debug {
-    let mut inp: String = String::new();
-    io::stdin().read_line(&mut inp).expect("Failed to read line");
-    let inp: Vec<&str> = inp.split("#").collect();
-    let inp = inp[0].trim();
-    match inp.is_empty() {
-        true => default,
-        false => inp.parse().expect("Failed to parse input")
+    loop {
+        let mut inp: String = String::new();
+        io::stdin().read_line(&mut inp).expect("Failed to read line");
+        let inp: Vec<&str> = inp.split("#").collect();
+        let inp = inp[0].trim();
+        match inp.is_empty() {
+            true => return default,
+            false => match inp.parse() {
+                Ok(a) => return a,
+                Err(_) => {
+                    println!("Error input, input again");
+                    continue
+                }
+            }
+        }
     }
 }
 

@@ -37,6 +37,7 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
     let mut input: String = String::new();
+    let mut ligand = String::new();
     match args.len() {
         1 => {
             println!("Input path of tpr file, e.g. D:/Conan/Ai.tpr");
@@ -60,7 +61,11 @@ fn main() {
             }
         }
         2 => {
-            input = args[1].to_string()
+            input = args[1].to_string();
+        }
+        3 => {
+            input = args[1].to_string();
+            ligand = args[1].to_string();
         }
         _ => {}
     }
@@ -73,7 +78,7 @@ fn main() {
             fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
         } else { // pdbqt
             let wd = fs::canonicalize(Path::new(&in_file)).unwrap();
-            fun_para_basic::set_para_basic_pdbqt(&in_file, &wd.parent().unwrap(), &mut settings);
+            fun_para_basic::set_para_basic_pdbqt(&in_file, &ligand, &wd.parent().unwrap(), &mut settings);
         };
     } else if Path::new(&input).is_dir() {
         let wd = Path::new(&input);

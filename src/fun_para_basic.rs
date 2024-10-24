@@ -15,6 +15,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
+        println!(" -5 Set number of parallel kernels, current: {}", settings.nkernels);
         println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
             Some(s) => s.to_string(),
             None => String::from("Not set")
@@ -65,6 +66,10 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                     None => settings.delphi_path = None
                 }
             }
+            -5 => {
+                println!("Input number of parallel kernels (default: 16):");
+                settings.nkernels = get_input(16);
+            }
             0 => {
                 if trj.len() == 0 {
                     println!("Trajectory file not assigned.");
@@ -106,9 +111,9 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
     }
 }
 
-pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &mut Settings) {
+pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &String, wd: &Path, settings: &mut Settings) {
     let mut receptor_path = String::from(init_receptor_path);
-    let mut ligand_path = String::new();
+    let mut ligand_path = String::from(init_ligand_path);
     let mut flex_path: Option<String> = None;
     let mut ff = String::from("amber14sb");
     let mut method = String::from("B3LYP");
@@ -122,6 +127,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
+        println!(" -5 Set number of parallel kernels, current: {}", settings.nkernels);
         println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
             Some(s) => s.to_string(),
             None => String::from("Not set")
@@ -182,6 +188,10 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                     None => settings.delphi_path = None
                 }
             }
+            -5 => {
+                println!("Input number of parallel kernels (default: 16):");
+                settings.nkernels = get_input(16);
+            }
             0 => {
                 if ligand_path.len() == 0 {
                     println!("Ligand file not assigned.");
@@ -193,17 +203,17 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, wd: &Path, settings: &m
                 }
             }
             1 => {
-                println!("Input docking receptor file path, default: ?receptor.pdbqt (\"?\" means the same directory as initial input):");
+                println!("Input docking receptor file path, default: ?protein.pdbqt (\"?\" means the same directory as initial input):");
                 receptor_path.clear();
                 stdin().read_line(&mut receptor_path).expect("Failed while reading receptor file");
                 if receptor_path.trim().is_empty() {
-                    receptor_path = "?receptor.pdbqt".to_string();
+                    receptor_path = "?protein.pdbqt".to_string();
                 }
                 receptor_path = convert_cur_dir(&receptor_path, &init_receptor_path);
                 receptor_path = confirm_file_validity(&mut receptor_path, vec!["pdbqt"], &init_receptor_path);
             }
             2 => {
-                println!("Input docking ligand file path, default: ?ligand.pdbqt (\"?\" means the same directory as initial input):");
+                println!("Input docking ligand file path, default: ?DSDP_out.pdbqt (\"?\" means the same directory as initial input):");
                 ligand_path.clear();
                 stdin().read_line(&mut ligand_path).expect("Failed while reading ligand file");
                 if ligand_path.trim().is_empty() {
