@@ -301,13 +301,16 @@ fn analyze_traj(results: &SMResult, wd: &Path, sys_name: &String) {
         plot.set_python_exe("python");
     }
     let def_name = format!("MMPBSA_{}_ΔH_traj.png", sys_name);
-    plot.add(&curve)
+    match plot.add(&curve)
         .grid_and_labels("Time (ns)", "Binding Energy (kJ/mol)")
         .set_label_x_fontsize(18.0)
         .set_label_y_fontsize(18.0)
         .set_ticks_x_fontsize(14.0)
         .set_ticks_y_fontsize(14.0)
-        .save(&wd.join(&def_name)).unwrap();
+        .save(&wd.join(&def_name)).ok() {
+            Some(_) => println!("Figure drawn to {}", &def_name),
+            None => println!("Not drawn due to the matplotlib error.")
+        };
     println!("Binding energy terms writen to {}", &def_name);
 }
 
@@ -465,7 +468,7 @@ fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, tar_res_energ
             .set_ticks_x_fontsize(14.0)
             .set_ticks_y_fontsize(14.0)
             .save(&wd.join(&def_name)).ok() {
-        Some(_) => println!("Residue-wised binding energy terms writen to {}", &def_name),
+        Some(_) => println!("Figure drawn to {}", &def_name),
         None => println!("Not drawn due to the matplotlib error.")
     }
 }
