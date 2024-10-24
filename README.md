@@ -30,11 +30,13 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 
 On Debian/Ubuntu/Linux, run:
 ```
-sudo apt -y install python3-matplotlib build-essential
+sudo apt -y install python3-matplotlib build-essential python-pip
+pip install opencv-python-headless
 ```
 On CentOS/Rocky, run:
 ```
-sudo dnf -y install python3-matplotlib
+sudo dnf -y install python3-matplotlib python-pip
+pip install opencv-python-headless
 ```
 
 ### Special requirements of molecular docking rescoring:
