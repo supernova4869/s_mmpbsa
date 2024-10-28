@@ -116,7 +116,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                 println!("Writing pdb and pml file(s)...");
                 for result in &results {
                     let def_name = format!("MMPBSA_binding_energy_{}.pdb", sys_name);
-                    write_pdb_with_bf(result, &def_name, &ts_ids, wd, &ts_ids, true);
+                    write_pdb_with_bf(result, &def_name, &ts_ids, wd, &(0..result.atom_res.len()).collect(), true);
                     let pml_name = format!("MMPBSA_binding_energy_{}.pml", sys_name);
                     let png_name = format!("MMPBSA_binding_energy_{}", sys_name);
                     write_pml(&pml_name, &def_name, &png_name, wd, settings);
