@@ -40,7 +40,6 @@ pub fn get_input<T: FromStr>(default: T) -> T where <T as FromStr>::Err: Debug {
             false => match inp.parse() {
                 Ok(a) => return a,
                 Err(_) => {
-                    println!("Error input, input again");
                     continue
                 }
             }
@@ -57,7 +56,6 @@ pub fn get_input_selection<T: FromStr>() -> T {
         match input.parse() {
             Ok(num) => return num,
             Err(_) => {
-                println!("Error input, input again.");
                 continue;
             }
         };
