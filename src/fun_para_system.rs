@@ -108,6 +108,7 @@ fn prepare_pymol_complex_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path) ->
     for (i, m) in lig_pdb.models.iter().enumerate() {
         let mut rec = rec_pdb.models.get(i).unwrap_or(&rec_pdb.models[0]).clone();
         rec.push_atoms(&m.atoms);
+        rec.modelid = i as i32 + 1;
         pdb.push(rec);
     }
     (PDB::new(&pdb), rec_atoms_num, lig_atoms_num)

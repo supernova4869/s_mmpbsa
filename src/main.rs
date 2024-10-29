@@ -65,7 +65,7 @@ fn main() {
         }
         3 => {
             input = args[1].to_string();
-            ligand = args[1].to_string();
+            ligand = args[2].to_string();
         }
         _ => {}
     }
