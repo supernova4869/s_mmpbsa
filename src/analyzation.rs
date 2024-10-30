@@ -113,6 +113,10 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             -1 => {
                 println!("Input the time point (in ns) to output (default: average):");
                 let ts_ids = get_time_range(result_wt);
+                if ts_ids.is_empty() {
+                    println!("Not valid time.");
+                    continue;
+                }
                 println!("Writing pdb and pml file(s)...");
                 for result in &results {
                     let def_name = format!("MMPBSA_binding_energy_{}.pdb", sys_name);
@@ -126,8 +130,14 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             },
             0 => exit(0),
             1 => {
+                println!("Input the time point (in ns) to output (default: average):");
+                let ts_ids = get_time_range(result_wt);
+                if ts_ids.is_empty() {
+                    println!("Not valid time.");
+                    continue;
+                }
                 for result in &results {
-                    analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation))
+                    analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation), &ts_ids)
                 }
             },
             2 => {
@@ -137,11 +147,15 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             },
             3 => {
                 println!("Input the time point (in ns) to output (default: average):");
-                let ts_id = get_time_range(result_wt);
+                let ts_ids = get_time_range(result_wt);
+                if ts_ids.is_empty() {
+                    println!("Not valid time.");
+                    continue;
+                }
                 let (range_des, target_res) = select_res_by_range(result_wt);
                 println!("Writing energy file(s)...");
                 for result in &results {
-                    analyze_res(result, wd, &format!("{}-{}", sys_name, result.mutation), &ts_id, &range_des, &target_res);
+                    analyze_res(result, wd, &format!("{}-{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
                 }
                 println!("Finished writing residue-wised binding energy file(s).");
             },
@@ -172,16 +186,7 @@ fn get_time_range(result: &SMResult) -> Vec<usize> {
 }
 
 fn get_time_index(ts: &Vec<f64>, results: &SMResult) -> Vec<usize> {
-    let dt = results.times[1] - results.times[0];
-    ts.iter().filter_map(|&t| if t == results.times[0] {
-        Some(0)
-    } else {
-        if results.times.len() > 1 {
-            Some(((t - results.times[0]) / dt) as usize)
-        } else {
-            None
-        }
-    }).collect()
+    ts.iter().filter_map(|&t| results.times.iter().position(|&x| x == t)).collect()
 }
 
 fn write_pml(pml_name: &String, def_name: &String, png_name: &String, wd: &Path, settings: &Settings) {
@@ -233,17 +238,18 @@ fn write_atom_line(result: &SMResult, id: usize, name: &String, res_id: usize, t
                 reverse * dh_avg[id], name.get(0..1).unwrap()).unwrap();
 }
 
-fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &String) {
+fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &String, ts_ids: &Vec<usize>) {
     let beta_kj = 1000.0 / 8.314462618 / temperature;
-    let dh_avg = results.dh.mean().unwrap();
-    let mm_avg = results.mm.mean().unwrap();
-    let elec_avg = results.elec.mean().unwrap();
-    let vdw_avg = results.vdw.mean().unwrap();
-    let pb_avg = results.pb.mean().unwrap();
-    let sa_avg = results.sa.mean().unwrap();
+    let dh_avg = results.dh.select(Axis(0), ts_ids).mean().unwrap();
+    let mm_avg = results.mm.select(Axis(0), ts_ids).mean().unwrap();
+    let elec_avg = results.elec.select(Axis(0), ts_ids).mean().unwrap();
+    let vdw_avg = results.vdw.select(Axis(0), ts_ids).mean().unwrap();
+    let pb_avg = results.pb.select(Axis(0), ts_ids).mean().unwrap();
+    let sa_avg = results.sa.select(Axis(0), ts_ids).mean().unwrap();
 
-    let mm_sum: f64 = results.mm.iter().map(|&mm| f64::exp((mm - mm_avg) * beta_kj)).sum();
-    let tds = -(mm_sum / results.mm.len() as f64).ln() / beta_kj;
+    // Interactive Entropy
+    let mm_sum: f64 = results.mm.select(Axis(0), ts_ids).iter().map(|&mm| f64::exp((mm - mm_avg) * beta_kj)).sum();
+    let tds = -(mm_sum / ts_ids.len() as f64).ln() / beta_kj;
     let dg = dh_avg - tds;
     let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
 
