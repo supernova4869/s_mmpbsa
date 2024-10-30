@@ -40,6 +40,7 @@ pub fn get_input<T: FromStr>(default: T) -> T where <T as FromStr>::Err: Debug {
             false => match inp.parse() {
                 Ok(a) => return a,
                 Err(_) => {
+                    println!("Invalid input: {}", inp);
                     continue
                 }
             }
