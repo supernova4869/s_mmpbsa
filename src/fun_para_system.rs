@@ -580,10 +580,13 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
         let amber_home = amber_home.replace(r"\", "/");     // Fuck "\"
         // Add ENV Var
         env::set_var("AMBERHOME", &amber_home);
+        // println!("{}", env::var("AMBERHOME").unwrap());
         // Add PATH
         let path = env::var("PATH").unwrap();
-        env::set_var("PATH", format!("{}:{}", path, Path::new(&amber_home).join("bin").to_str().unwrap()));
-        Command::new(Path::new(&amber_home).join("bin").join("antechamber"))
+        let antechamber_path = Path::new(&amber_home).join("bin");
+        env::set_var("PATH", format!("{}:{}", &path, &antechamber_path.to_str().unwrap()));
+        // println!("{}", env::var("PATH").unwrap());
+        Command::new(settings.amber_dir.as_ref().unwrap())
             .args(vec!["-i", "LIG.mol2", 
                        "-fi", "mol2", 
                        "-o", "LIG_c.mol2", 
