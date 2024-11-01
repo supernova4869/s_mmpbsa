@@ -120,10 +120,6 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
     let mut basis = String::from("def2SVP");
     let mut total_charge = 0;
     let mut multiplicity = 1;
-    // Windows cannot use antechamber
-    if cfg!(windows) {
-        settings.chg_m = Some("gaussian".to_string());
-    }
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
@@ -239,12 +235,12 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                 ff = get_input("amber14sb".to_string());
             }
             5 => {
-                println!("Input ligand atom charge calculation method (acpype currently not available on windows):");
-                println!("1: acpype (quick)");
+                println!("Input ligand atom charge calculation method:");
+                println!("1: antechamber (quick)");
                 println!("2: gaussian (accurate)");
                 let chg_m = get_input_selection::<i32>();
                 if chg_m == 1 {
-                    settings.chg_m = Some("acpype".to_string());
+                    settings.chg_m = Some("antechamber".to_string());
                 } else if chg_m == 2 {
                     settings.chg_m = Some("gaussian".to_string());
                 }

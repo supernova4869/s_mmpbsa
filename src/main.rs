@@ -161,59 +161,40 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: 
     }
 }
 
-fn get_built_in_gmx() -> Option<String> {
-    if cfg!(windows) {
-        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-            .parent().expect("Cannot get current s_mmpbsa program directory.")
-            .join("programs").join("gmx")
-            .join("win").join("gmx.exe").to_str()
-            .expect("The built-in gromacs not found.").to_string())
-    } else {
-        println!("Built-in gromacs not supported on Linux.");
-        None
-    }
+fn get_built_in_gmx() -> String {
+    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+        .parent().expect("Cannot get current s_mmpbsa program directory.")
+        .join("programs").join("gmx")
+        .join(if cfg!(windows) {"win"} else {"linux"}).join("gmx")
+        .display().to_string()
 }
 
-fn get_built_in_apbs() -> Option<String> {
-    if cfg!(windows) {
-        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-            .parent()
-            .expect("Cannot get current s_mmpbsa program directory.")
-            .join("programs").join("apbs")
-            .join("win").join("apbs.exe").to_str()
-            .expect("The built-in apbs not found.").to_string())
-    } else if cfg!(unix) {
-        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-            .parent()
-            .expect("Cannot get current s_mmpbsa program directory.")
-            .join("programs").join("apbs")
-            .join("linux").join("apbs").to_str()
-            .expect("The built-in apbs not found.").to_string())
-    } else {
-        println!("Built-in apbs not found for current system.");
-        None
-    }
+fn get_built_in_apbs() -> String {
+    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+        .parent()
+        .expect("Cannot get current s_mmpbsa program directory.")
+        .join("programs").join("apbs")
+        .join(if cfg!(windows) {"win"} else {"linux"}).join("apbs")
+        .display().to_string()
 }
 
-fn get_built_in_delphi() -> Option<String> {
-    if cfg!(windows) {
-        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-            .parent()
-            .expect("Cannot get current s_mmpbsa program directory.")
-            .join("programs").join("delphi")
-            .join("win").join("delphi.exe").to_str()
-            .expect("The built-in delphi not found.").to_string())
-    } else if cfg!(unix) {
-        Some(env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-            .parent()
-            .expect("Cannot get current s_mmpbsa program directory.")
-            .join("programs").join("delphi")
-            .join("linux").join("delphi").to_str()
-            .expect("The built-in delphi not found.").to_string())
-    } else {
-        println!("Built-in delphi not found for current system.");
-        None
-    }
+fn get_built_in_delphi() -> String {
+    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+        .parent()
+        .expect("Cannot get current s_mmpbsa program directory.")
+        .join("programs").join("delphi")
+        .join(if cfg!(windows) {"win"} else {"linux"}).join("delphi")
+        .display().to_string()
+}
+
+fn get_built_in_amber() -> String {
+    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+        .parent()
+        .expect("Cannot get current s_mmpbsa program directory.")
+        .join("programs").join("amber")
+        .join(if cfg!(windows) {"win"} else {"linux"})
+        .join("bin").join("antechamber")
+        .display().to_string()
 }
 
 fn set_program(p: &Option<String>, name: &str) -> Option<String> {
@@ -223,12 +204,14 @@ fn set_program(p: &Option<String>, name: &str) -> Option<String> {
                 "gromacs" => get_built_in_gmx(),
                 "apbs" => get_built_in_apbs(),
                 "delphi" => get_built_in_delphi(),
-                _ => None
+                "amber" => get_built_in_amber(),
+                _ => String::from("")
             }
         } else {
-            Some(p.to_string())
+            p.to_string()
         };
-        if let Some(p) = p {
+        if !p.is_empty() {
+            println!("Checking {} validity...", name);
             match check_program_validity(p.as_str()) {
                 Ok(p) => {
                     println!("Using {}: {}", name, p);
@@ -337,5 +320,6 @@ fn env_check() -> Settings {
     settings.gmx_path = set_program(&settings.gmx_path, "gromacs");
     settings.apbs_path = set_program(&settings.apbs_path, "apbs");
     settings.delphi_path = set_program(&settings.delphi_path, "delphi");
+    settings.amber_dir = set_program(&settings.amber_dir, "amber");
     settings
 }

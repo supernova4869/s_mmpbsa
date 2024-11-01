@@ -519,7 +519,6 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
     // prepare ligand top
     let lig_gro_path = temp_dir.join(append_new_name(&ligand_name, ".gro", ""));
     let lig_gro_path = lig_gro_path.to_str().unwrap();
-    println!("{}", lig_gro_path);
     let itp_path = temp_dir.join(append_new_name(&ligand_name, ".itp", ""));
     let itp_path = itp_path.to_str().unwrap();
     let top_path = temp_dir.join(append_new_name(&ligand_name, ".top", ""));
@@ -575,14 +574,16 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
     let elements = lig_pdb.models[0].get_elements();
     let coord = lig_pdb.models[0].get_coordinates();
     
-    if settings.chg_m.as_ref().unwrap().eq("acpype") {
-        let amber_home = settings.amber_dir.as_ref().unwrap();
+    if settings.chg_m.as_ref().unwrap().eq("antechamber") {
+        let amber_home = Path::new(settings.amber_dir.as_ref().unwrap()).parent().unwrap().parent().unwrap();
+        let amber_home = amber_home.display().to_string();
+        let amber_home = amber_home.replace(r"\", "/");     // Fuck "\"
         // Add ENV Var
-        env::set_var("AMBERHOME", amber_home);
+        env::set_var("AMBERHOME", &amber_home);
         // Add PATH
         let path = env::var("PATH").unwrap();
-        env::set_var("PATH", format!("{}:{}", path, Path::new(amber_home).join("bin").to_str().unwrap()));
-        Command::new(Path::new(amber_home).join("bin").join("antechamber"))
+        env::set_var("PATH", format!("{}:{}", path, Path::new(&amber_home).join("bin").to_str().unwrap()));
+        Command::new(Path::new(&amber_home).join("bin").join("antechamber"))
             .args(vec!["-i", "LIG.mol2", 
                        "-fi", "mol2", 
                        "-o", "LIG_c.mol2", 
