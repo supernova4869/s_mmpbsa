@@ -19,10 +19,10 @@ pub struct Settings {
     pub delphi_path: Option<String>,
     pub chg_m: Option<String>,
     pub pymol_path: Option<String>,
-    pub amber_dir: Option<String>,
+    pub antechamber_path: Option<String>,
+    pub sobtop_path: Option<String>,
     pub gaussian_dir: Option<String>,
     pub gaussian_exe: Option<String>,
-    pub sobtop_dir: Option<String>,
     pub multiwfn_dir: Option<String>,
     pub nkernels: i32,
     pub debug_mode: bool,
@@ -46,10 +46,10 @@ impl Settings {
             delphi_path: None,
             chg_m: None,
             pymol_path: None,
-            amber_dir: None,
+            antechamber_path: None,
             gaussian_dir: None,
             gaussian_exe: None,
-            sobtop_dir: None,
+            sobtop_path: None,
             multiwfn_dir: None,
             nkernels: 1,
             debug_mode: false,
@@ -94,14 +94,14 @@ impl Settings {
         let chg_m = Some(chg_m[1..chg_m.len() - 1].to_string());
         let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
         let pymol_path = Some(pymol_path[1..pymol_path.len() - 1].to_string());
-        let amber_dir = parse_param(&setting_values, "amber_dir", "".to_string());
-        let amber_dir = Some(amber_dir[1..amber_dir.len() - 1].to_string());
+        let antechamber_path = parse_param(&setting_values, "antechamber_path", "".to_string());
+        let antechamber_path = Some(antechamber_path[1..antechamber_path.len() - 1].to_string());
         let gaussian_dir = parse_param(&setting_values, "gaussian_dir", "".to_string());
         let gaussian_dir = Some(gaussian_dir[1..gaussian_dir.len() - 1].to_string());
         let gaussian_exe = parse_param(&setting_values, "gaussian_exe", "".to_string());
         let gaussian_exe = Some(gaussian_exe[1..gaussian_exe.len() - 1].to_string());
-        let sobtop_dir = parse_param(&setting_values, "sobtop_dir", "".to_string());
-        let sobtop_dir = Some(sobtop_dir[1..sobtop_dir.len() - 1].to_string());
+        let sobtop_path = parse_param(&setting_values, "sobtop_path", "".to_string());
+        let sobtop_path = Some(sobtop_path[1..sobtop_path.len() - 1].to_string());
         let multiwfn_dir = parse_param(&setting_values, "multiwfn_dir", "".to_string());
         let multiwfn_dir = Some(multiwfn_dir[1..multiwfn_dir.len() - 1].to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
@@ -131,10 +131,10 @@ impl Settings {
             delphi_path,
             chg_m,
             pymol_path,
-            amber_dir,
+            antechamber_path,
+            sobtop_path,
             gaussian_dir,
             gaussian_exe,
-            sobtop_dir,
             multiwfn_dir,
             nkernels,
             debug_mode,

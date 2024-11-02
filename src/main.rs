@@ -28,7 +28,8 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    welcome("0.6", "2024-Nov-01");
+    let version = 0.6;
+    welcome(&version.to_string(), "2024-Nov-02");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -116,6 +117,8 @@ fn main() {
         } else {
             println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
         }
+    } else if input.eq("--version") {
+        println!("The s_mmpbsa program (v{}) reminds you: \"We must know. We will know.\" (David Hilbert)", version);
     } else {
         println!("Input {} not file or directory. Please check.", Path::new(&input).to_str().unwrap());
     }
@@ -187,13 +190,22 @@ fn get_built_in_delphi() -> String {
         .display().to_string()
 }
 
-fn get_built_in_amber() -> String {
+fn get_built_in_antechamber() -> String {
     env::current_exe().expect("Cannot get current s_mmpbsa program path.")
         .parent()
         .expect("Cannot get current s_mmpbsa program directory.")
         .join("programs").join("amber")
         .join(if cfg!(windows) {"win"} else {"linux"})
         .join("bin").join("antechamber")
+        .display().to_string()
+}
+
+fn get_built_in_sobtop() -> String {
+    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+        .parent()
+        .expect("Cannot get current s_mmpbsa program directory.")
+        .join("programs").join("sobtop")
+        .join("sobtop")
         .display().to_string()
 }
 
@@ -204,7 +216,8 @@ fn set_program(p: &Option<String>, name: &str) -> Option<String> {
                 "gromacs" => get_built_in_gmx(),
                 "apbs" => get_built_in_apbs(),
                 "delphi" => get_built_in_delphi(),
-                "amber" => get_built_in_amber(),
+                "antechamber" => get_built_in_antechamber(),
+                "sobtop" => get_built_in_sobtop(),
                 _ => String::from("")
             }
         } else {
@@ -243,8 +256,10 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
             match output.status.code() {
                 Some(0) => Ok(program.to_string()),
                 Some(13) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
-                Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command
+                Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command, and fuck sobtop's test
+                Some(24) => Ok(program.to_string()),    // Fuck sobtop do not have test command
                 _ => {
+                    // println!("{}", output.status.code().unwrap());
                     Err(())
                 }
             }
@@ -320,6 +335,7 @@ fn env_check() -> Settings {
     settings.gmx_path = set_program(&settings.gmx_path, "gromacs");
     settings.apbs_path = set_program(&settings.apbs_path, "apbs");
     settings.delphi_path = set_program(&settings.delphi_path, "delphi");
-    settings.amber_dir = set_program(&settings.amber_dir, "amber");
+    settings.antechamber_path = set_program(&settings.antechamber_path, "antechamber");
+    settings.sobtop_path = set_program(&settings.sobtop_path, "sobtop");
     settings
 }

@@ -137,7 +137,7 @@ pub fn trajectory(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, 
 
 pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) {
     let args = vec![infile];
-    let sobtop_dir = Path::new(settings.sobtop_dir.as_ref().unwrap());
+    let sobtop_dir = Path::new(settings.sobtop_path.as_ref().unwrap()).parent().unwrap();
     // fuck, sobtop must be used at its own directory
     cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir).unwrap();
 }
