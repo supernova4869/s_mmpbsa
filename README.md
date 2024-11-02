@@ -4,7 +4,7 @@ s_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajec
 The s_mmpbsa program follows LGPL license, and can be freely used for academic purposes.
 
 ## Introduction
-MM/PB-SA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convinent interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
+MM/PB-SA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convenient interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
 
 ## Features of s_mmpbsa
 - Open source and freely available.
@@ -26,7 +26,7 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 ### Basic requirements
 - Gromacs: The gromacs program is needed.
 - Matplotlib: (Optional) The matplotlib python package is essential during analyzation if plotting figures.
-- APBS: (Optional) The default PBSA kernel (already built-in, but the parallel version APBS on linux should be conpiled for higher performance).
+- APBS: (Optional) The default PBSA kernel (already built-in, but the parallel version APBS on linux should be compiled for higher performance).
 
 On Debian/Ubuntu/Linux, run:
 ```
@@ -39,10 +39,9 @@ sudo dnf -y install python3-matplotlib python-pip
 
 ### Special requirements of molecular docking rescoring:
 - PyMOL to prepare structures (also when plotting the B-factor colored structure).
-- AmberTools (antechamber) to calculate AM1-BCC atom charge.
-- Gaussian is another way to do DFT calculations.
-- Multiwfn is used to fit RESP atom charge.
-- Sobtop is used to generate atom topology.
+- Gaussian is an optional software to do DFT calculations for RESP atom charge calculation.
+- Multiwfn is an optional program to fit RESP atom charge.
+- Sobtop is needed to generate atom topology.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
