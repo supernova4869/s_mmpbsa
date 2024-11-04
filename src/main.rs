@@ -237,7 +237,11 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
                         }
                     }
                     if !Path::new(&p).is_file() {
-                        Some(String::from_utf8(Command::new("which").arg(p).output().unwrap().stdout).unwrap().trim().to_string())
+                        Some(String::from_utf8(Command::new(if cfg!(windows) {
+                            "where"
+                        } else {
+                            "which"
+                        }).arg(p).output().unwrap().stdout).unwrap().trim().to_string())
                     } else {
                         Some(p)
                     }
