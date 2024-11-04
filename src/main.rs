@@ -41,7 +41,8 @@ fn main() {
     let mut ligand = String::new();
     match args.len() {
         1 => {
-            println!("Input path of tpr file, e.g. D:/Conan/Ai.tpr");
+            println!("Input path of tpr file, e.g. D:/md.tpr");
+            println!("Or, input path of docking receptor file, e.g. D:/receptor.pdbqt");
             println!("Hint: input \"o\" to simply load last-opened file");
             println!("Hint: input \"a\" to start analyzation mode.");
             stdin().read_line(&mut input).expect("Failed to get input file.");
