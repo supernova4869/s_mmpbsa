@@ -17,7 +17,7 @@ pub struct Settings {
     pub pbsa_kernel: Option<String>,
     pub apbs_path: Option<String>,
     pub delphi_path: Option<String>,
-    pub chg_m: Option<String>,
+    pub chg_m: usize,
     pub pymol_path: Option<String>,
     pub antechamber_path: Option<String>,
     pub sobtop_path: Option<String>,
@@ -44,7 +44,7 @@ impl Settings {
             pbsa_kernel: None,
             apbs_path: None,
             delphi_path: None,
-            chg_m: None,
+            chg_m: 0,
             pymol_path: None,
             antechamber_path: None,
             gaussian_dir: None,
@@ -85,25 +85,24 @@ impl Settings {
         let fadd = parse_param(&setting_values, "fadd", default_settings.fadd);
         let df = parse_param(&setting_values, "df", default_settings.df);
         let pbsa_kernel = parse_param(&setting_values, "pbsa_kernel", "".to_string());
-        let pbsa_kernel = Some(pbsa_kernel[1..pbsa_kernel.len() - 1].to_string());
+        let pbsa_kernel = Some(pbsa_kernel.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let apbs_path = parse_param(&setting_values, "apbs_path", "".to_string());
-        let apbs_path = Some(apbs_path[1..apbs_path.len() - 1].to_string());
+        let apbs_path = Some(apbs_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let delphi_path = parse_param(&setting_values, "delphi_path", "".to_string());
-        let delphi_path = Some(delphi_path[1..delphi_path.len() - 1].to_string());
-        let chg_m = parse_param(&setting_values, "chg_m", "".to_string());
-        let chg_m = Some(chg_m[1..chg_m.len() - 1].to_string());
+        let delphi_path = Some(delphi_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
+        let chg_m = parse_param(&setting_values, "chg_m", 0);
         let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
-        let pymol_path = Some(pymol_path[1..pymol_path.len() - 1].to_string());
+        let pymol_path = Some(pymol_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let antechamber_path = parse_param(&setting_values, "antechamber_path", "".to_string());
-        let antechamber_path = Some(antechamber_path[1..antechamber_path.len() - 1].to_string());
+        let antechamber_path = Some(antechamber_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let gaussian_dir = parse_param(&setting_values, "gaussian_dir", "".to_string());
-        let gaussian_dir = Some(gaussian_dir[1..gaussian_dir.len() - 1].to_string());
+        let gaussian_dir = Some(gaussian_dir.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let gaussian_exe = parse_param(&setting_values, "gaussian_exe", "".to_string());
-        let gaussian_exe = Some(gaussian_exe[1..gaussian_exe.len() - 1].to_string());
+        let gaussian_exe = Some(gaussian_exe.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let sobtop_path = parse_param(&setting_values, "sobtop_path", "".to_string());
-        let sobtop_path = Some(sobtop_path[1..sobtop_path.len() - 1].to_string());
+        let sobtop_path = Some(sobtop_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let multiwfn_dir = parse_param(&setting_values, "multiwfn_dir", "".to_string());
-        let multiwfn_dir = Some(multiwfn_dir[1..multiwfn_dir.len() - 1].to_string());
+        let multiwfn_dir = Some(multiwfn_dir.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
         let debug_mode = match debug_mode[1..2].to_string().as_str() {
@@ -158,10 +157,7 @@ pub fn get_settings_in_use() -> Option<PathBuf> {
 
 fn parse_param<T: FromStr>(setting_values: &Value, key: &str, default: T) -> T {
     match setting_values.get(key) {
-        Some(v) => match v.to_string().parse::<T>() {
-            Ok(v) => v,
-            Err(_) => default
-        }
+        Some(v) => v.to_string().parse::<T>().unwrap_or(default),
         None => default
     }
 }

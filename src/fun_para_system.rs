@@ -574,7 +574,7 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
     let elements = lig_pdb.models[0].get_elements();
     let coord = lig_pdb.models[0].get_coordinates();
     
-    if settings.chg_m.as_ref().unwrap().eq("antechamber") {
+    if settings.chg_m == 0 {
         let amber_home = Path::new(settings.antechamber_path.as_ref().unwrap()).parent().unwrap().parent().unwrap();
         let amber_home = amber_home.display().to_string();
         let amber_home = amber_home.replace(r"\", "/");     // Fuck "\"
@@ -612,7 +612,7 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
         // fuck Multiwfn outputs chg with mass
         let new_lig = MOL2::from(temp_dir.join("LIG_c.mol2").to_str().unwrap());
         new_lig.to_chg(temp_dir.join("LIG.chg").to_str().unwrap());
-    } else if settings.chg_m.as_ref().unwrap().eq("gaussian") {
+    } else if settings.chg_m == 1 {
         // write gjf file
         let level = format!("{}/{} em=GD3BJ", method, basis);
         let mut gjf = File::create(temp_dir.join("LIG.gjf")).unwrap();

@@ -29,7 +29,7 @@ use utils::get_input;
 
 fn main() {
     let version = 0.6;
-    welcome(&version.to_string(), "2024-Nov-02");
+    welcome(&version.to_string(), "2024-Nov-04");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -134,7 +134,8 @@ fn welcome(version: &str, today: &str) {
         Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
         Version {}, first release: 2022-Oct-17, current release: {}\n", version, today);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `s_mmpbsa Miyano_Shiho.tpr` to load tpr file.\n");
+        Usage 2: run `s_mmpbsa Haibara_Ai.tpr` to load MD tpr file.\n\
+        Usage 3: run `s_mmpbsa Miyano_Shiho.pdbqt Kudo_Shinichi.pdbqt` (receptor first) to load docking results.\n");
 }
 
 pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
@@ -209,7 +210,7 @@ fn get_built_in_sobtop() -> String {
         .display().to_string()
 }
 
-fn set_program(p: &Option<String>, name: &str) -> Option<String> {
+fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<String> {
     if let Some(p) = p {
         let p = if p.eq("built-in") {
             match name {
@@ -224,7 +225,9 @@ fn set_program(p: &Option<String>, name: &str) -> Option<String> {
             p.to_string()
         };
         if !p.is_empty() {
-            println!("Checking {} validity...", name);
+            if settings.debug_mode {
+                println!("Checking {} validity...", name);
+            }
             match check_program_validity(p.as_str()) {
                 Ok(p) => {
                     println!("Using {}: {}", name, p);
@@ -233,7 +236,11 @@ fn set_program(p: &Option<String>, name: &str) -> Option<String> {
                             fs::remove_file("io.mc").ok();
                         }
                     }
-                    Some(p)
+                    if p.eq("antechamber") || p.eq("sobtop") {
+                        Some(String::from_utf8(Command::new(p).output().unwrap().stdout).unwrap())
+                    } else {
+                        Some(p)
+                    }
                 }
                 Err(_) => {
                     println!("Warning: no valid {} program in use.", name);
@@ -332,10 +339,10 @@ fn env_check() -> Settings {
         io::stdin().read_line(&mut String::new()).unwrap();
         std::process::exit(0);
     }
-    settings.gmx_path = set_program(&settings.gmx_path, "gromacs");
-    settings.apbs_path = set_program(&settings.apbs_path, "apbs");
-    settings.delphi_path = set_program(&settings.delphi_path, "delphi");
-    settings.antechamber_path = set_program(&settings.antechamber_path, "antechamber");
-    settings.sobtop_path = set_program(&settings.sobtop_path, "sobtop");
+    settings.gmx_path = set_program(&settings.gmx_path, "gromacs", &settings);
+    settings.apbs_path = set_program(&settings.apbs_path, "apbs", &settings);
+    settings.delphi_path = set_program(&settings.delphi_path, "delphi", &settings);
+    settings.antechamber_path = set_program(&settings.antechamber_path, "antechamber", &settings);
+    settings.sobtop_path = set_program(&settings.sobtop_path, "sobtop", &settings);
     settings
 }

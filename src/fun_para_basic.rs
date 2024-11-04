@@ -53,7 +53,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
             -3 => {
                 println!("Input APBS path:");
                 let s: String = get_input_selection();
-                match set_program(&Some(s), "apbs") {
+                match set_program(&Some(s), "apbs", settings) {
                     Some(s) => settings.apbs_path = Some(s),
                     None => settings.apbs_path = None
                 }
@@ -61,7 +61,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
             -4 => {
                 println!("Input Delphi path:");
                 let s: String = get_input_selection();
-                match set_program(&Some(s), "delphi") {
+                match set_program(&Some(s), "delphi", settings) {
                     Some(s) => settings.delphi_path = Some(s),
                     None => settings.delphi_path = None
                 }
@@ -151,7 +151,11 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             Some(p) => p.as_str()
         });
         println!("  4 Select force field for receptor, current: {}", ff);
-        println!("  5 Set ligand atom charge calculation method, current: {}", settings.chg_m.as_ref().unwrap());
+        println!("  5 Set ligand atom charge calculation method, current: {}", match settings.chg_m {
+            0 => "antechamber",
+            1 => "gaussian",
+            _ => "Not selected (default)"
+        });
         println!("  6 Set theoretical method, current: {}", method);
         println!("  7 Set basis, current: {}", basis);
         println!("  8 Set ligand total charge, current: {}", total_charge);
@@ -171,7 +175,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             -3 => {
                 println!("Input APBS path:");
                 let s: String = get_input_selection();
-                match set_program(&Some(s), "apbs") {
+                match set_program(&Some(s), "apbs", settings) {
                     Some(s) => settings.apbs_path = Some(s),
                     None => settings.apbs_path = None
                 }
@@ -179,7 +183,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             -4 => {
                 println!("Input Delphi path:");
                 let s: String = get_input_selection();
-                match set_program(&Some(s), "delphi") {
+                match set_program(&Some(s), "delphi", settings) {
                     Some(s) => settings.delphi_path = Some(s),
                     None => settings.delphi_path = None
                 }
@@ -236,14 +240,9 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             }
             5 => {
                 println!("Input ligand atom charge calculation method:");
-                println!("1: antechamber (quick)");
-                println!("2: gaussian (accurate)");
-                let chg_m = get_input_selection::<i32>();
-                if chg_m == 1 {
-                    settings.chg_m = Some("antechamber".to_string());
-                } else if chg_m == 2 {
-                    settings.chg_m = Some("gaussian".to_string());
-                }
+                println!("0: antechamber (quick)");
+                println!("1: gaussian (accurate)");
+                settings.chg_m = get_input_selection::<usize>();
             }
             6 => {
                 println!("Input calculation method, default: B3LYP");
