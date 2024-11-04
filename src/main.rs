@@ -236,8 +236,8 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
                             fs::remove_file("io.mc").ok();
                         }
                     }
-                    if p.eq("antechamber") || p.eq("sobtop") {
-                        Some(String::from_utf8(Command::new(p).output().unwrap().stdout).unwrap())
+                    if !Path::new(&p).is_file() {
+                        Some(String::from_utf8(Command::new("which").arg(p).output().unwrap().stdout).unwrap().trim().to_string())
                     } else {
                         Some(p)
                     }
@@ -263,7 +263,7 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
             match output.status.code() {
                 Some(0) => Ok(program.to_string()),
                 Some(13) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
-                Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command, and fuck sobtop's test
+                Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command
                 Some(24) => Ok(program.to_string()),    // Fuck sobtop do not have test command
                 _ => {
                     // println!("{}", output.status.code().unwrap());
