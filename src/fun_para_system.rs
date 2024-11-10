@@ -6,7 +6,7 @@ use std::io::Write;
 use crate::{dump_tpr, parse_mol2::MOL2};
 use crate::parse_pdb::{PDBModel, PDB};
 use crate::settings::Settings;
-use crate::utils::{append_new_name, get_input_selection, make_ndx, multiwfn, sobtop, trajectory};
+use crate::utils::{self, append_new_name, get_input_selection, make_ndx, multiwfn, sobtop, trajectory};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
@@ -35,59 +35,56 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
         println!("  5 Set time interval to analyze, current:    {} ns", dt / 1000.0);
         let i = get_input_selection();
         match i {
-            -10 => return,
-            -1 => {
+            Ok(-10) => return,
+            Ok(-1) => {
                 settings.fix_pbc = !settings.fix_pbc;
             }
-            0 => {
+            Ok(0) => {
                 if let Some(receptor_grp) = receptor_grp {
                     prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, tpr_name, ndx_name, bt, et, dt, wd, settings);
                 } else {
                     println!("Please select receptor groups.");
                 };
             }
-            1 => {
+            Ok(1) => {
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input receptor group num:");
-                receptor_grp = Some(get_input_selection());
+                receptor_grp = Some(get_input_selection().unwrap());
             }
-            2 => {
+            Ok(2) => {
                 println!("Current groups:");
                 ndx.list_groups();
-                println!("Input ligand group num (-1 for nothing):");
-                ligand_grp = match get_input_selection() {
-                    -1 => None,
-                    i => Some(i as usize)
-                };
+                println!("Input ligand group num (directly enter for nothing):");
+                ligand_grp = get_input_selection().ok();
             }
-            3 => {
+            Ok(3) => {
                 println!("Input start time (ns), should be divisible of {} ps:", dt);
-                let mut new_bt = get_input_selection::<f64>() * 1000.0;
+                let mut new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
                 while new_bt * 1000.0 % dt != 0.0 || new_bt > tpr.nsteps as f64 * tpr.dt as f64 || new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
                     println!("Input start time (ns) again, should be divisible of {} fs:", dt);
-                    new_bt = get_input_selection::<f64>() * 1000.0;
+                    new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
                 }
                 bt = new_bt;
             }
-            4 => {
+            Ok(4) => {
                 println!("Input end time (ns), should be divisible of {} ps:", dt);
-                let mut new_et = get_input_selection::<f64>() * 1000.0;
+                let mut new_et = get_input_selection::<f64>().unwrap() * 1000.0;
                 while new_et * 1000.0 % dt != 0.0 || new_et > tpr.nsteps as f64 * tpr.dt as f64 || new_et < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
                     println!("Input end time (ns) again, should be divisible of {} fs:", dt);
-                    new_et = get_input_selection::<f64>() * 1000.0;
+                    new_et = get_input_selection::<f64>().unwrap() * 1000.0;
                 }
                 et = new_et;
             }
-            5 => {
+            Ok(5) => {
                 println!("Input interval time (ns), should be divisible of {} ps:", unit_dt);
-                let mut new_dt = get_input_selection::<f64>() * 1000.0;
+                let mut new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
                 while new_dt * 1000.0 % unit_dt != 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
                     println!("Input interval time (ns) again, should be divisible of {} ps:", unit_dt);
-                    new_dt = get_input_selection::<f64>() * 1000.0;
+                    new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
                 }
                 dt = new_dt;
             }
@@ -181,35 +178,35 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
         println!("  2 Set end pose to analyze, current:         {}", et + 1);
         let i = get_input_selection();
         match i {
-            -10 => return,
-            -1 => {
+            Ok(-10) => return,
+            Ok(-1) => {
                 settings.fix_pbc = !settings.fix_pbc;
             }
-            0 => {
+            Ok(0) => {
                 set_para_mmpbsa(&time_list, &coordinates, &tpr, &ndx, wd, 
                     &mut aps, &ndx_rec, &ndx_lig, 0, Some(1), &residues, settings);
             }
-            1 => {
+            Ok(1) => {
                 println!("Input start pose, should be integer:");
-                let mut new_bt = get_input_selection::<usize>() - 1;
+                let mut new_bt = get_input_selection::<usize>().unwrap() - 1;
                 while new_bt > pdb.models.len() {
                     println!("The input {} not a valid pose in trajectory.", new_bt);
                     println!("Input start pose again:");
-                    new_bt = get_input_selection::<usize>() - 1;
+                    new_bt = get_input_selection::<usize>().unwrap() - 1;
                 }
                 bt = new_bt;
             }
-            2 => {
+            Ok(2) => {
                 println!("Input end pose, should be integer:");
-                let mut new_et = get_input_selection::<usize>() - 1;
+                let mut new_et = get_input_selection::<usize>().unwrap() - 1;
                 while new_et > pdb.models.len() {
                     println!("The input {} not a valid pose in trajectory.", new_et);
                     println!("Input end pose again:");
-                    new_et = get_input_selection::<usize>() - 1;
+                    new_et = get_input_selection::<usize>().unwrap() - 1;
                 }
                 et = new_et;
             }
-            _ => println!("Invalid input")
+            _ => {}
         }
     }
 }
@@ -317,6 +314,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     let residues = get_residues_tpr(tpr, &ndx_com);
 
     // pre-treat trajectory: fix pbc
+    let trj_clean = append_new_name(trj, "_clean.xtc", "_MMPBSA_"); // clean trj
     let trj_mmpbsa = append_new_name(trj, ".xtc", "_MMPBSA_"); // get trj output file name
     let tpr_name = append_new_name(tpr_name, ".tpr", ""); // fuck the passed tpr name is dump
     
@@ -341,14 +339,12 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     }
     
     // step 2: extract new trj with old tpr and new index
-    println!("Extracting trajectory, be patient...");
-    let (bt, et, dt) = (bt.to_string(), et.to_string(), dt.to_string());
-    let other_params = vec![
-        "-b", &bt,
-        "-e", &et,
-        "-dt", &dt
-    ];
-    trjconv(&vec!["Complex"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_mmpbsa, &other_params);
+    println!("Cleaning trajectory, be patient...");
+    trjconv(&vec!["System"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_clean, 
+        &vec!["-t0", "0", "-timestep", &dt.to_string()]);
+    println!("Extracting trajectory");
+    trjconv(&vec!["Complex"], wd, settings, &trj_clean, &tpr_name, &ndx_whole, &trj_mmpbsa, 
+        &vec!["-b", &bt.to_string(), "-e", &et.to_string()]);
     
     // step 3: extract new tpr from old tpr
     let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
@@ -389,7 +385,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     if settings.fix_pbc {
         let other_params = vec!["-rmpbc", "-select", "Complex"];
         let pbc_name = append_new_name(&trj_mmpbsa, "_pbc.xtc", "");
-        convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &pbc_name, &other_params);
+        convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, &pbc_name, &other_params);
         println!("Loading trajectory coordinates...");
         trajectory(&vec!["Complex"], wd, settings, &pbc_name, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
     } else {
@@ -575,17 +571,22 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
     let coord = lig_pdb.models[0].get_coordinates();
     
     if settings.chg_m == 0 {
-        let amber_home = Path::new(settings.antechamber_path.as_ref().unwrap()).parent().unwrap().parent().unwrap();
+        let amber_home = utils::get_program_path(settings.antechamber_path.as_ref().unwrap()).unwrap();
+        let amber_home = Path::new(&amber_home).parent().unwrap().parent().unwrap();
         let amber_home = amber_home.display().to_string();
         let amber_home = amber_home.replace(r"\", "/");     // Fuck "\"
         // Add ENV Var
         env::set_var("AMBERHOME", &amber_home);
-        // println!("{}", env::var("AMBERHOME").unwrap());
+        if settings.debug_mode {
+            println!("AMBERHOME set to: {}", env::var("AMBERHOME").unwrap());
+        }
         // Add PATH
         let path = env::var("PATH").unwrap();
         let antechamber_path = Path::new(&amber_home).join("bin");
         env::set_var("PATH", format!("{}:{}", &path, &antechamber_path.to_str().unwrap()));
-        // println!("{}", env::var("PATH").unwrap());
+        if settings.debug_mode {
+            println!("PATH set to: {}", env::var("PATH").unwrap());
+        }
         Command::new(settings.antechamber_path.as_ref().unwrap())
             .args(vec!["-i", "LIG.mol2", 
                        "-fi", "mol2", 

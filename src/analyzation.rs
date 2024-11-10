@@ -108,9 +108,9 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
         println!(" 3 Output binding energy by residue at specific time");
         println!(" 4 Output ligand binding energy by atom at specific time");
         println!("10 Output residue-wised binding energy by time as default names");
-        let sel_fun: i32 = get_input_selection();
+        let sel_fun = get_input_selection();
         match sel_fun {
-            -1 => {
+            Ok(-1) => {
                 println!("Input the time point (in ns) to output (default: average):");
                 let ts_ids = get_time_range(result_wt);
                 if ts_ids.is_empty() {
@@ -128,8 +128,8 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                 println!("Finished writing pdb file(s) with binding energy information.");
                 println!("Finished drawing figures with pml file(s) by PyMOL.");
             },
-            0 => exit(0),
-            1 => {
+            Ok(0) => exit(0),
+            Ok(1) => {
                 println!("Input the time point (in ns) to output (default: average):");
                 let ts_ids = get_time_range(result_wt);
                 if ts_ids.is_empty() {
@@ -140,12 +140,12 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                     analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation), &ts_ids)
                 }
             },
-            2 => {
+            Ok(2) => {
                 for result in &results {
                     analyze_traj(result, wd, &format!("{}-{}", sys_name, result.mutation))
                 }
             },
-            3 => {
+            Ok(3) => {
                 println!("Input the time point (in ns) to output (default: average):");
                 let ts_ids = get_time_range(result_wt);
                 if ts_ids.is_empty() {
@@ -159,18 +159,19 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                 }
                 println!("Finished writing residue-wised binding energy file(s).");
             },
-            4 => {
+            Ok(4) => {
                 for result in &results {
                     analyze_atom(result, wd, &format!("{}-{}", sys_name, result.mutation))
                 }
                 println!("Finished writing atom-wised binding energy pdb file(s) for ligand.");
             },
-            10 => {
+            Ok(10) => {
                 for result in &results {
                     output_all_details(result, wd, &format!("{}-{}", sys_name, result.mutation))
                 }
             },
-            _ => println!("Invalid input")
+            Ok(_) => {},
+            Err(_) => {}
         }
     }
 }
@@ -328,7 +329,7 @@ fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
     println!(" 4 Ligand and receptor residues by: CA within a specified distance");
     println!(" 5 Self-defined residue range");
     // 残基范围确定
-    let i: i32 = get_input_selection();
+    let i = get_input_selection().unwrap();
     let mut range_des = String::from("4A");
     let target_res = match i {
         1 => {
@@ -380,10 +381,7 @@ fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
                 .map(|&i| results.residues[i].id)     // 索引用id
                 .collect()
         },
-        _ => {
-            println!("Invalid selection");
-            vec![]
-        }
+        _ => vec![],
     };
     (range_des, target_res)
 }

@@ -6,6 +6,58 @@ use crate::{confirm_file_validity, convert_cur_dir, set_program};
 use crate::fun_para_system::{set_para_trj, set_para_trj_pdbqt};
 use crate::parse_tpr::TPR;
 
+fn list_basic_progs(settings: &mut Settings) {
+    println!(" -5 Set number of parallel kernels, current: {}", settings.nkernels);
+    println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
+        Some(s) => s.to_string(),
+        None => String::from("Not set")
+    });
+    println!(" -3 Set apbs path, current: {}", match &settings.apbs_path {
+        Some(s) => s.to_string(),
+        None => String::from("Not set")
+    });
+    println!(" -2 Set PBSA kernel, current: {}", match &settings.pbsa_kernel {
+        Some(s) => s.to_string(),
+        None => String::from("Not set")
+    });
+    println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
+}
+
+fn set_basic_progs(opt: i32, settings: &mut Settings) {
+    match opt {
+        -2 => {
+            println!("Input PBSA kernel (if empty, means not to do PBSA calculation):");
+            let s: String = get_input_selection().unwrap();
+            if s.eq("apbs") || s.eq("delphi") {
+                settings.pbsa_kernel = Some(s)
+            } else {
+                settings.pbsa_kernel = None
+            }
+        }
+        -3 => {
+            println!("Input APBS path:");
+            let s: String = get_input_selection().unwrap();
+            match set_program(&Some(s), "apbs", settings) {
+                Some(s) => settings.apbs_path = Some(s),
+                None => settings.apbs_path = None
+            }
+        }
+        -4 => {
+            println!("Input Delphi path:");
+            let s: String = get_input_selection().unwrap();
+            match set_program(&Some(s), "delphi", settings) {
+                Some(s) => settings.delphi_path = Some(s),
+                None => settings.delphi_path = None
+            }
+        }
+        -5 => {
+            println!("Input number of parallel kernels (default: 16):");
+            settings.nkernels = get_input(16);
+        }
+        _ => {}
+    }
+}
+
 pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings) {
     let mut trj = String::new();
     let mut ndx = String::new();
@@ -15,20 +67,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
-        println!(" -5 Set number of parallel kernels, current: {}", settings.nkernels);
-        println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
-            Some(s) => s.to_string(),
-            None => String::from("Not set")
-        });
-        println!(" -3 Set apbs path, current: {}", match &settings.apbs_path {
-            Some(s) => s.to_string(),
-            None => String::from("Not set")
-        });
-        println!(" -2 Set PBSA kernel, current: {}", match &settings.pbsa_kernel {
-            Some(s) => s.to_string(),
-            None => String::from("Not set")
-        });
-        println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
+        list_basic_progs(settings);
         println!("  0 Go to next step");
         println!("  1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
             0 => "undefined",
@@ -40,37 +79,8 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
         });
         let i = get_input_selection();
         match i {
-            -1 => settings.debug_mode = !settings.debug_mode,
-            -2 => {
-                println!("Input PBSA kernel (if empty, means not to do PBSA calculation):");
-                let s: String = get_input_selection();
-                if s.eq("apbs") || s.eq("delphi") {
-                    settings.pbsa_kernel = Some(s)
-                } else {
-                    settings.pbsa_kernel = None
-                }
-            }
-            -3 => {
-                println!("Input APBS path:");
-                let s: String = get_input_selection();
-                match set_program(&Some(s), "apbs", settings) {
-                    Some(s) => settings.apbs_path = Some(s),
-                    None => settings.apbs_path = None
-                }
-            }
-            -4 => {
-                println!("Input Delphi path:");
-                let s: String = get_input_selection();
-                match set_program(&Some(s), "delphi", settings) {
-                    Some(s) => settings.delphi_path = Some(s),
-                    None => settings.delphi_path = None
-                }
-            }
-            -5 => {
-                println!("Input number of parallel kernels (default: 16):");
-                settings.nkernels = get_input(16);
-            }
-            0 => {
+            Ok(-1) => settings.debug_mode = !settings.debug_mode,
+            Ok(0) => {
                 if trj.len() == 0 {
                     println!("Trajectory file not assigned.");
                 } else if ndx.len() == 0 {
@@ -80,7 +90,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                     set_para_trj(&trj, &mut tpr, &ndx, &wd, &tpr_path, settings);
                 }
             }
-            1 => {
+            Ok(1) => {
                 println!("Input trajectory file path, default: ?md.xtc (\"?\" means the same directory as tpr):");
                 trj.clear();
                 stdin().read_line(&mut trj).expect("Failed while reading trajectory file");
@@ -90,7 +100,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                 trj = convert_cur_dir(&trj, tpr_path);
                 trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "pdbqt"], tpr_path);
             }
-            2 => {
+            Ok(2) => {
                 println!("Input index file path, default: ?index.ndx (\"?\" means the same directory as tpr):");
                 println!("Note: if no index file prepared, the default index.ndx will be generated according to tpr.");
                 ndx.clear();
@@ -105,8 +115,11 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                 }
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_path);
             }
-            -10 => break,
-            _ => println!("Error input.")
+            Ok(-10) => break,
+            Ok(other) => {
+                set_basic_progs(other, settings);
+            },
+            Err(_) => {}
         };
     }
 }
@@ -123,20 +136,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
-        println!(" -5 Set number of parallel kernels, current: {}", settings.nkernels);
-        println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
-            Some(s) => s.to_string(),
-            None => String::from("Not set")
-        });
-        println!(" -3 Set apbs path, current: {}", match &settings.apbs_path {
-            Some(s) => s.to_string(),
-            None => String::from("Not set")
-        });
-        println!(" -2 Set PBSA kernel, current: {}", match &settings.pbsa_kernel {
-            Some(s) => s.to_string(),
-            None => String::from("Not set")
-        });
-        println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
+        list_basic_progs(settings);
         println!("  0 Go to next step");
         println!("  1 Assign docking receptor file, current: {}", match receptor_path.len() {
             0 => "undefined",
@@ -162,37 +162,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
         println!("  9 Set ligand spin multiplicity, current: {}", multiplicity);
         let i = get_input_selection();
         match i {
-            -1 => settings.debug_mode = !settings.debug_mode,
-            -2 => {
-                println!("Input PBSA kernel (if empty, means not to do PBSA calculation):");
-                let s: String = get_input_selection();
-                if s.eq("apbs") || s.eq("delphi") {
-                    settings.pbsa_kernel = Some(s)
-                } else {
-                    settings.pbsa_kernel = None
-                }
-            }
-            -3 => {
-                println!("Input APBS path:");
-                let s: String = get_input_selection();
-                match set_program(&Some(s), "apbs", settings) {
-                    Some(s) => settings.apbs_path = Some(s),
-                    None => settings.apbs_path = None
-                }
-            }
-            -4 => {
-                println!("Input Delphi path:");
-                let s: String = get_input_selection();
-                match set_program(&Some(s), "delphi", settings) {
-                    Some(s) => settings.delphi_path = Some(s),
-                    None => settings.delphi_path = None
-                }
-            }
-            -5 => {
-                println!("Input number of parallel kernels (default: 16):");
-                settings.nkernels = get_input(16);
-            }
-            0 => {
+            Ok(0) => {
                 if ligand_path.len() == 0 {
                     println!("Ligand file not assigned.");
                 } else if receptor_path.len() == 0 {
@@ -202,7 +172,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                     set_para_trj_pdbqt(&receptor_path, &ligand_path, &flex_path, &ff, &method, &basis, total_charge, multiplicity, &wd, settings);
                 }
             }
-            1 => {
+            Ok(1) => {
                 println!("Input docking receptor file path, default: ?protein.pdbqt (\"?\" means the same directory as initial input):");
                 receptor_path.clear();
                 stdin().read_line(&mut receptor_path).expect("Failed while reading receptor file");
@@ -212,7 +182,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                 receptor_path = convert_cur_dir(&receptor_path, &init_receptor_path);
                 receptor_path = confirm_file_validity(&mut receptor_path, vec!["pdbqt"], &init_receptor_path);
             }
-            2 => {
+            Ok(2) => {
                 println!("Input docking ligand file path, default: ?DSDP_out.pdbqt (\"?\" means the same directory as initial input):");
                 ligand_path.clear();
                 stdin().read_line(&mut ligand_path).expect("Failed while reading ligand file");
@@ -222,7 +192,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                 ligand_path = convert_cur_dir(&ligand_path, &init_receptor_path);
                 ligand_path = confirm_file_validity(&mut ligand_path, vec!["pdbqt"], &init_receptor_path);
             }
-            3 => {
+            Ok(3) => {
                 println!("Input docking flexible residues file path, default: None:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Failed while reading ligand file");
@@ -234,34 +204,37 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                     flex_path = Some(s);
                 };
             }
-            4 => {
+            Ok(4) => {
                 println!("Input force field, default: amber14sb");
                 ff = get_input("amber14sb".to_string());
             }
-            5 => {
+            Ok(5) => {
                 println!("Input ligand atom charge calculation method:");
                 println!("0: antechamber (quick)");
                 println!("1: gaussian (accurate)");
-                settings.chg_m = get_input_selection::<usize>();
+                settings.chg_m = get_input_selection().unwrap();
             }
-            6 => {
+            Ok(6) => {
                 println!("Input calculation method, default: B3LYP");
                 method = get_input("B3LYP".to_string());
             }
-            7 => {
+            Ok(7) => {
                 println!("Input basis, default: def2SVP");
                 basis = get_input("def2SVP".to_string());
             }
-            8 => {
+            Ok(8) => {
                 println!("Input total charge of the ligand, should be integer:");
-                total_charge = get_input_selection::<i32>();
+                total_charge = get_input_selection().unwrap();
             }
-            9 => {
+            Ok(9) => {
                 println!("Input spin multiplicity of the ligand, should be integer:");
-                multiplicity = get_input_selection::<usize>();
+                multiplicity = get_input_selection().unwrap();
             }
-            -10 => break,
-            _ => println!("Error input.")
+            Ok(-10) => break,
+            Ok(other) => {
+                set_basic_progs(other, settings);
+            },
+            Err(_) => {}
         };
     }
 }

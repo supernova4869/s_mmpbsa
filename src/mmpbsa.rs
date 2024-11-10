@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use crate::fun_para_system::normalize_index;
 use crate::settings::Settings;
-use crate::utils::resname_3to1;
+use crate::utils;
 use ndarray::parallel::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
 use std::process::Command;
@@ -27,7 +27,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
     if ala_list.len() > 0 {
         let as_res: Vec<String> = residues.iter().filter_map(
             |r| if ala_list.contains(&r.nr) && r.name.ne("GLY") && r.name.ne("ALA") {
-                match resname_3to1(&r.name) {
+                match utils::resname_3to1(&r.name) {
                     Some(mutation) => Some(format!("{}{}A", mutation, r.nr)),
                     None => Some(format!("{}{}A", r.name.to_string(), r.nr))
                 }
@@ -121,7 +121,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
             let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, Some(ndx_lig));
 
             // After alanine mutation
-            let mutation = match resname_3to1(&asr.name) {
+            let mutation = match utils::resname_3to1(&asr.name) {
                 Some(mutation) => mutation,
                 None => asr.name.to_string()
             };
@@ -147,6 +147,9 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
         }
         fs::remove_file(wd.join("_MMPBSA_coord.xvg")).unwrap();
     }
+
+    println!("");
+    utils::show_famous_quotes();
 
     (result_wt, result_ala_scan)
 }

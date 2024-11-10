@@ -48,19 +48,12 @@ pub fn get_input<T: FromStr>(default: T) -> T where <T as FromStr>::Err: Debug {
     }
 }
 
-pub fn get_input_selection<T: FromStr>() -> T {
-    loop {
-        let mut input = String::from("");
-        io::stdin().read_line(&mut input).expect("Error input.");
-        let input: Vec<&str> = input.split("#").collect();
-        let input = input[0].trim();
-        match input.parse() {
-            Ok(num) => return num,
-            Err(_) => {
-                continue;
-            }
-        };
-    }
+pub fn get_input_selection<T: FromStr>() -> Result<T, T::Err> {
+    let mut input = String::from("");
+    io::stdin().read_line(&mut input).expect("Error input.");
+    let input: Vec<&str> = input.split("#").collect();
+    let input = input[0].trim();
+    input.parse()
 }
 
 pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> String {
@@ -203,4 +196,21 @@ pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &Vec<usize>, cutoff: f
         }
     }
     res_range
+}
+
+pub fn get_program_path(cmd: &str) -> Option<String> {
+    // Note: on windows there is missed extension "exe"
+    let p = String::from_utf8(
+        Command::new(if cfg!(linux) { "which" } else { "where" })
+        .arg(cmd)
+        .output()
+        .unwrap()
+        .stdout
+    ).unwrap().trim().to_string();
+    let ps: Vec<&str> = p.split("\n").collect();
+    ps.first().map(|s| s.to_string())
+}
+
+pub fn show_famous_quotes() {
+    println!("The s_mmpbsa program reminds you: \"We must know. We will know.\" (David Hilbert)");
 }

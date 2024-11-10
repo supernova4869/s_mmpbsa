@@ -29,7 +29,7 @@ use utils::get_input;
 
 fn main() {
     let version = 0.6;
-    welcome(&version.to_string(), "2024-Nov-04");
+    welcome(&version.to_string(), "2024-Nov-10");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -119,7 +119,7 @@ fn main() {
             println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
         }
     } else if input.eq("--version") {
-        println!("The s_mmpbsa program (v{}) reminds you: \"We must know. We will know.\" (David Hilbert)", version);
+        utils::show_famous_quotes();
     } else {
         println!("Input {} not file or directory. Please check.", Path::new(&input).to_str().unwrap());
     }
@@ -237,15 +237,7 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
                             fs::remove_file("io.mc").ok();
                         }
                     }
-                    if !Path::new(&p).is_file() {
-                        Some(String::from_utf8(Command::new(if cfg!(windows) {
-                            "where"
-                        } else {
-                            "which"
-                        }).arg(p).output().unwrap().stdout).unwrap().trim().to_string())
-                    } else {
-                        Some(p)
-                    }
+                    Some(p)
                 }
                 Err(_) => {
                     println!("Warning: no valid {} program in use.", name);

@@ -45,8 +45,8 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
         println!("  9 Prepare SA parameters for APBS");
         let i = get_input_selection();
         match i {
-            -10 => return,
-            -1 => {
+            Ok(-10) => return,
+            Ok(-1) => {
                 let mut paras = File::create(wd.join("paras_atom_properties.txt")).unwrap();
                 paras.write_all(format!("Receptor group: {}\n", 
                     ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
@@ -67,7 +67,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                 }
                 println!("Structural parameters have been written to paras_atom_properties.txt");
             }
-            -2 => {
+            Ok(-2) => {
                 let mut paras = File::create(wd.join("paras_LJ.txt")).unwrap();
                 paras.write_all("c6:\n".as_bytes()).unwrap();
                 for i in 0..aps.c6.shape()[0] {
@@ -85,7 +85,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                 }
                 println!("Forcefield parameters have been written to paras_LJ.txt");
             }
-            -3 => {
+            Ok(-3) => {
                 let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
                 paras.write_all(format!("Electrostatic screening method: {}\n", settings.elec_screen).as_bytes()).unwrap();
                 paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
@@ -97,7 +97,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                 paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
                 println!("PBSA parameters have been written to paras_pbsa.txt");
             }
-            0 => {
+            Ok(0) => {
                 // Apply atom radius
                 println!("Applying {} radius...", radius_types[settings.radius_type]);
                 aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
@@ -134,19 +134,19 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                                                                 &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
             }
-            1 => {
+            Ok(1) => {
                 println!("Input the electrostatic screening method:");
                 println!("0: no screening\n1: Ding's method\n2: Supernova's method");
                 settings.elec_screen = get_input(1);
             }
-            2 => {
+            Ok(2) => {
                 println!("Select the residues for alanine scanning:");
                 println!(" 1 Select the residues within the first layer (0-4 A)");
                 println!(" 2 Select the residues within the second layer (4-6 A)");
                 println!(" 3 Select the residues within the third layer (6-8 A)");
                 println!(" 4 Select the residues within specific distance");
                 println!(" 5 Directly input the resudues list");
-                let i: i32 = get_input_selection();
+                let i: i32 = get_input_selection().unwrap();
                 let receptor_res: Vec<Residue> = residues.iter().filter_map(|r| if r.id != aps.atom_props[ndx_lig[0]].resid {
                     Some(r.clone())
                 } else {
@@ -197,7 +197,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                     _ => {}
                 }
             }
-            3 => {
+            Ok(3) => {
                 println!("Input atom radius type (default mBondi), Supported:{}", {
                     let mut s = String::new();
                     for (k, v) in radius_types.iter().enumerate() {
@@ -221,7 +221,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                     }
                 }
             }
-            4 => {
+            Ok(4) => {
                 println!("Input cutoff value (A), default 0 (inf):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -234,7 +234,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                     }
                 }
             }
-            5 => {
+            Ok(5) => {
                 println!("Input coarse grid expand factor, default 3:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -244,7 +244,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                     settings.cfac = s.trim().parse().expect("Input not valid number.");
                 }
             }
-            6 => {
+            Ok(6) => {
                 println!("Input fine grid expand amount (A), default 10:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -254,7 +254,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                     settings.fadd = s.trim().parse().expect("Input not valid number.");
                 }
             }
-            7 => {
+            Ok(7) => {
                 println!("Input fine mesh spacing (A), default 0.5:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -264,7 +264,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                     settings.df = s.trim().parse().expect("Input not valid number.");
                 }
             }
-            8 => {
+            Ok(8) => {
                 let pb_fpath = wd.join("PB_settings.yaml");
                 pbe_set.save_params(&pb_fpath);
                 println!("PB parameters have been wrote to {0}.\n\
@@ -272,7 +272,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                 let pb_fpath = get_input(pb_fpath.to_str().unwrap().to_string());
                 pbe_set = PBESet::load_params(pb_fpath);
             }
-            9 => {
+            Ok(9) => {
                 let sa_fpath = wd.join("SA_settings.yaml");
                 pba_set.save_params(&sa_fpath);
                 println!("SA parameters have been wrote to {0}.\n\
@@ -280,7 +280,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                 let sa_fpath = get_input(sa_fpath.to_str().unwrap().to_string());
                 pba_set = PBASet::load_params(sa_fpath);
             }
-            _ => println!("Invalid input")
+            _ => {}
         }
     }
 }
