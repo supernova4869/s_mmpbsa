@@ -314,7 +314,6 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     let residues = get_residues_tpr(tpr, &ndx_com);
 
     // pre-treat trajectory: fix pbc
-    let trj_clean = append_new_name(trj, "_clean.xtc", "_MMPBSA_"); // clean trj
     let trj_mmpbsa = append_new_name(trj, ".xtc", "_MMPBSA_"); // get trj output file name
     let tpr_name = append_new_name(tpr_name, ".tpr", ""); // fuck the passed tpr name is dump
     
@@ -339,12 +338,9 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     }
     
     // step 2: extract new trj with old tpr and new index
-    println!("Cleaning trajectory, be patient...");
-    trjconv(&vec!["System"], wd, settings, trj, &tpr_name, &ndx_whole, &trj_clean, 
-        &vec!["-t0", "0", "-timestep", &dt.to_string()]);
-    println!("Extracting trajectory");
-    trjconv(&vec!["Complex"], wd, settings, &trj_clean, &tpr_name, &ndx_whole, &trj_mmpbsa, 
-        &vec!["-b", &bt.to_string(), "-e", &et.to_string()]);
+    println!("Extracting trajectory, be patient...");
+    trjconv(&vec!["Complex"], wd, settings, &trj, &tpr_name, &ndx_whole, &trj_mmpbsa, 
+        &vec!["-t0", "0", "-dt", &dt.to_string(), "-b", &bt.to_string(), "-e", &et.to_string()]);
     
     // step 3: extract new tpr from old tpr
     let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
