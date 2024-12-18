@@ -6,8 +6,6 @@ WT_rigid.pdbqt
 
 3
 DSDP_out_flex.pdbqt
-5
-1
 0
 0
 0

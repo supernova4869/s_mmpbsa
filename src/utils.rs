@@ -128,11 +128,11 @@ pub fn trajectory(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, 
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
-pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) {
+pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) -> Result<ExitStatus, std::io::Error> {
     let args = vec![infile];
     let sobtop_dir = Path::new(settings.sobtop_path.as_ref().unwrap()).parent().unwrap();
     // fuck, sobtop must be used at its own directory
-    cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir).unwrap();
+    cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir)
 }
 
 pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str, wd: &Path) -> Result<ExitStatus, std::io::Error> {
@@ -201,7 +201,7 @@ pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &Vec<usize>, cutoff: f
 pub fn get_program_path(cmd: &str) -> Option<String> {
     // Note: on windows there is missed extension "exe"
     let p = String::from_utf8(
-        Command::new(if cfg!(linux) { "which" } else { "where" })
+        Command::new(if cfg!(unix) { "which" } else { "where" })
         .arg(cmd)
         .output()
         .unwrap()

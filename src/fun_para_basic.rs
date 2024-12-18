@@ -25,6 +25,7 @@ fn list_basic_progs(settings: &mut Settings) {
 
 fn set_basic_progs(opt: i32, settings: &mut Settings) {
     match opt {
+        -1 => settings.debug_mode = !settings.debug_mode,
         -2 => {
             println!("Input PBSA kernel (if empty, means not to do PBSA calculation):");
             let s: String = get_input_selection().unwrap();

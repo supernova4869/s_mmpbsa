@@ -262,6 +262,7 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
                 Some(13) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
                 Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command
                 Some(24) => Ok(program.to_string()),    // Fuck sobtop do not have test command
+                Some(69) => Ok(program.to_string()),    // Fuck sobtop do not have test command
                 _ => {
                     // println!("{}", output.status.code().unwrap());
                     Err(())

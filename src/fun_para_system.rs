@@ -516,7 +516,7 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
     let top_path = temp_dir.join(append_new_name(&ligand_name, ".top", ""));
     let top_path = top_path.to_str().unwrap();
     sobtop(&vec!["7", "10", temp_dir.join("LIG.chg").to_str().unwrap(), "0", 
-        "2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path);
+        "2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path).unwrap();
 
     // include ligand top into protein
     let protein_top = temp_dir.join("topol.top").display().to_string();
