@@ -6,7 +6,7 @@ use crate::{confirm_file_validity, convert_cur_dir, set_program};
 use crate::fun_para_system::{set_para_trj, set_para_trj_pdbqt};
 use crate::parse_tpr::TPR;
 
-fn list_basic_progs(settings: &mut Settings) {
+fn list_basic_programs(settings: &mut Settings) {
     println!(" -5 Set number of parallel kernels, current: {}", settings.nkernels);
     println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
         Some(s) => s.to_string(),
@@ -23,7 +23,7 @@ fn list_basic_progs(settings: &mut Settings) {
     println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
 }
 
-fn set_basic_progs(opt: i32, settings: &mut Settings) {
+fn set_basic_programs(opt: i32, settings: &mut Settings) {
     match opt {
         -1 => settings.debug_mode = !settings.debug_mode,
         -2 => {
@@ -68,7 +68,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
-        list_basic_progs(settings);
+        list_basic_programs(settings);
         println!("  0 Go to next step");
         println!("  1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
             0 => "undefined",
@@ -118,7 +118,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
             }
             Ok(-10) => break,
             Ok(other) => {
-                set_basic_progs(other, settings);
+                set_basic_programs(other, settings);
             },
             Err(_) => {}
         };
@@ -137,7 +137,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
-        list_basic_progs(settings);
+        list_basic_programs(settings);
         println!("  0 Go to next step");
         println!("  1 Assign docking receptor file, current: {}", match receptor_path.len() {
             0 => "undefined",
@@ -233,7 +233,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             }
             Ok(-10) => break,
             Ok(other) => {
-                set_basic_progs(other, settings);
+                set_basic_programs(other, settings);
             },
             Err(_) => {}
         };

@@ -256,7 +256,12 @@ pub fn get_residues_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
             for atom in &mol.atoms {
                 idx += 1;
                 if ndx_com.contains(&idx) && residues.len() <= atom.resind + resind_offset {
-                    residues.push(mol.residues[atom.resind].to_owned());
+                    let mut cur_res = mol.residues[atom.resind].to_owned();
+                    let prev_resnr_list : Vec<i32> = residues.iter().map(|r| r.nr).collect();
+                    if prev_resnr_list.contains(&cur_res.nr) {
+                        cur_res.nr = *prev_resnr_list.last().unwrap() + 1;
+                    }
+                    residues.push(cur_res);
                 }
             }
             resind_offset += mol.residues.len();
