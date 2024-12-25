@@ -255,7 +255,7 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     let dg = dh_avg - tds;
     let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
 
-    println!("\nEnergy terms summary:");
+    println!("\nEnergy terms summary ({}-{} ns):", results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]);
     println!("ΔH: {:.3} kJ/mol", dh_avg);
     println!("ΔMM: {:.3} kJ/mol", mm_avg);
     println!("ΔPB: {:.3} kJ/mol", pb_avg);
@@ -271,7 +271,7 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     let def_name = format!("MMPBSA_{}.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
-    write!(energy_sum, "Energy Term,value,info\n").unwrap();
+    write!(energy_sum, "Energy Term,value,info ({}-{} ns)\n", results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]).unwrap();
     write!(energy_sum, "ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)\n", dh_avg).unwrap();
     write!(energy_sum, "ΔMM,{:.3},ΔMM=Δelec+ΔvdW (kJ/mol)\n", mm_avg).unwrap();
     write!(energy_sum, "ΔPB,{:.3},(kJ/mol)\n", pb_avg).unwrap();
