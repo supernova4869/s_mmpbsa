@@ -9,11 +9,11 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 ## Features of s_mmpbsa
 - Open source and freely available.
 - Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting.
-- In contrast to other programs such as gmx_MMPBSA.py, s_mmpbsa is developed with Rust.
+- In contrast to other programs, s_mmpbsa is developed with Rust.
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Very fast. Due to the efficency of Rust program.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
-- Considers interaction entropy, as "J. Chem. Phys. 2017, 146, 124124".
+- Considers conformational entropy, as "J. Chem. Phys. 2017, 146, 124124".
 - Could store analyzation results for further reproducable analyzation.
 
 ## Main function
@@ -26,7 +26,7 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 ### Basic requirements
 - Gromacs: The gromacs program is needed.
 - Matplotlib: (Optional) The matplotlib python package is essential during analyzation if plotting figures.
-- APBS: (Optional) The default PBSA kernel (already built-in, but the parallel version APBS on linux should be compiled for higher performance).
+- APBS: (Optional) The default PBSA kernel (already built-in, but it is also supported to use other version of APBS programs).
 
 On Debian/Ubuntu/Linux, run:
 ```
@@ -41,7 +41,6 @@ sudo dnf -y install python3-matplotlib python-pip
 - PyMOL to prepare structures (also when plotting the B-factor colored structure).
 - Gaussian is an optional software to do DFT calculations for RESP atom charge calculation.
 - Multiwfn is an optional program to fit RESP atom charge.
-- Sobtop is needed to generate atom topology.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
