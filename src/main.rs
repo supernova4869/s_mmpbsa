@@ -28,8 +28,8 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    let version = 0.6;
-    welcome(&version.to_string(), "2024-Nov-10");
+    let version = 0.7;
+    welcome(&version.to_string(), "2024-Dec-29");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -223,7 +223,7 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
                 _ => String::from("")
             }
         } else {
-            p.to_string()
+            utils::get_program_path(p).unwrap()
         };
         if !p.is_empty() {
             if settings.debug_mode {
@@ -257,14 +257,15 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
     let output = Command::new(program).arg("--version").output();
     match output {
         Ok(output) => {
+            // println!("{}", output.status.code().unwrap());
             match output.status.code() {
                 Some(0) => Ok(program.to_string()),
                 Some(13) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
+                Some(127) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
                 Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command
                 Some(24) => Ok(program.to_string()),    // Fuck sobtop do not have test command
                 Some(69) => Ok(program.to_string()),    // Fuck sobtop do not have test command
                 _ => {
-                    // println!("{}", output.status.code().unwrap());
                     Err(())
                 }
             }

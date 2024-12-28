@@ -176,8 +176,11 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
     // Time list of trajectory
     let times: Vec<f64> = time_list.iter().map(|t| t / 1000.0).collect();
 
-    // start calculation
+    // set environment
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
+    env::set_var("LD_LIBRARY_PATH", 
+        format!("{}:{}", Path::new(settings.apbs_path.as_ref().unwrap()).parent().unwrap().to_str().unwrap(), 
+        env::var("LD_LIBRARY_PATH").unwrap()));
     let t_start = Local::now();
     
     let pgb = ProgressBar::new(time_list.len() as u64);
