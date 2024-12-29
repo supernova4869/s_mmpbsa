@@ -225,6 +225,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
                                         pgb.eta().as_secs()));
 
         frame_id += 1;
+        pgb.set_message(format!("at {} frame, ΔMM={:.2} kJ/mol, eta. {} s", 
+                                        frame_id, mm_atom_ie.row(frame_id).sum(), pgb.eta().as_secs()));
     }
     pgb.finish();
 
@@ -232,7 +234,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
     let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
     set_style(&pgb);
     pgb.inc(0);
-    for (id, frame) in coordinates.axis_iter(Axis(0)).enumerate() {
+    for (id, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
         if ndx_lig[0] != ndx_rec[0] {
             let (de_elec, de_vdw) = 
                 calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings);
