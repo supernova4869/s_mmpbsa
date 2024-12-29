@@ -33,8 +33,8 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
         println!("  2 Select ligand groups, current:            {}", show_grp(ligand_grp, &ndx));
         println!("  3 Set start time to analyze, current:       {} ns", bt / 1000.0);
         println!("  4 Set end time to analyze, current:         {} ns", et / 1000.0);
-        println!("  5 Set time interval for MM/PB-SA, current:  {} ns", dt / 1000.0);
-        println!("  6 Set time interval for IE, current:        {} ns", dt_ie / 1000.0);
+        println!("  5 Set time interval for ΔSOL, current:      {} ns", dt / 1000.0);
+        println!("  6 Set time interval for IE, current:        {} ps", dt_ie);
         let i = get_input_selection();
         match i {
             Ok(-10) => return,
@@ -43,7 +43,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             }
             Ok(0) => {
                 if let Some(receptor_grp) = receptor_grp {
-                    prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, tpr_name, ndx_name, bt, et, dt, dt_ie, wd, settings);
+                    if dt >= dt_ie {
+                        prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, tpr_name, ndx_name, bt, et, dt, dt_ie, wd, settings);
+                    } else {
+                        println!("Time interval for IE should be smaller than for ΔSOL.");
+                    }
                 } else {
                     println!("Please select receptor groups.");
                 };
@@ -61,42 +65,42 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                 ligand_grp = get_input_selection().ok();
             }
             Ok(3) => {
-                println!("Input start time (ns), should be divisible of {} ps:", dt);
+                println!("Input start time (in ns), should be divisible of {} ps:", dt);
                 let mut new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
                 while new_bt * 1000.0 % dt != 0.0 || new_bt > tpr.nsteps as f64 * tpr.dt as f64 || new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
-                    println!("Input start time (ns) again, should be divisible of {} fs:", dt);
+                    println!("Input start time (in ns) again, should be divisible of {} fs:", dt);
                     new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
                 }
                 bt = new_bt;
             }
             Ok(4) => {
-                println!("Input end time (ns), should be divisible of {} ps:", dt);
+                println!("Input end time (in ns), should be divisible of {} ps:", dt);
                 let mut new_et = get_input_selection::<f64>().unwrap() * 1000.0;
                 while new_et * 1000.0 % dt != 0.0 || new_et > tpr.nsteps as f64 * tpr.dt as f64 || new_et < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
-                    println!("Input end time (ns) again, should be divisible of {} fs:", dt);
+                    println!("Input end time (in ns) again, should be divisible of {} fs:", dt);
                     new_et = get_input_selection::<f64>().unwrap() * 1000.0;
                 }
                 et = new_et;
             }
             Ok(5) => {
-                println!("Input interval time (ns) for MM/PB-SA, should be divisible of {} ps:", unit_dt);
+                println!("Input interval time (in ns) for MM/PB-SA, should be divisible of {} ps:", unit_dt);
                 let mut new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
                 while new_dt * 1000.0 % unit_dt != 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
-                    println!("Input interval time (ns) again, should be divisible of {} ps:", unit_dt);
+                    println!("Input interval time (in ns) again, should be divisible of {} ps:", unit_dt);
                     new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
                 }
                 dt = new_dt;
             }
             Ok(6) => {
-                println!("Input interval time (ns) for IE, should be divisible of {} ps:", unit_dt);
-                let mut new_dt_ie = get_input_selection::<f64>().unwrap() * 1000.0;
-                while new_dt_ie * 1000.0 % unit_dt != 0.0 {
-                    println!("The input {} ns is not a valid time step.", new_dt_ie / 1000.0);
-                    println!("Input interval time (ns) again, should be divisible of {} ps:", unit_dt);
-                    new_dt_ie = get_input_selection::<f64>().unwrap() * 1000.0;
+                println!("Input interval time (in ps) for IE, should be divisible of {} ps:", unit_dt);
+                let mut new_dt_ie = get_input_selection::<f64>().unwrap();
+                while new_dt_ie % unit_dt != 0.0 {
+                    println!("The input {} ps is not a valid time step.", new_dt_ie);
+                    println!("Input interval time (in ps) again, should be divisible of {} ps:", unit_dt);
+                    new_dt_ie = get_input_selection::<f64>().unwrap();
                 }
                 dt_ie = new_dt_ie;
             }

@@ -225,8 +225,6 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
                                         pgb.eta().as_secs()));
 
         frame_id += 1;
-        pgb.set_message(format!("at {} frame, ΔMM={:.2} kJ/mol, eta. {} s", 
-                                        frame_id, mm_atom_ie.row(frame_id).sum(), pgb.eta().as_secs()));
     }
     pgb.finish();
 
