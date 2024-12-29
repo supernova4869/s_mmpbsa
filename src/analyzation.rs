@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use plotpy::{Barplot, Curve, Plot};
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
-use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca, range2list};
+use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SMResult {
@@ -17,6 +17,7 @@ pub struct SMResult {
     pub residues: Vec<Residue>,
     pub ndx_lig: Vec<usize>,
     pub times: Vec<f64>,
+    pub times_ie: Vec<f64>,
     pub coord: Array3<f64>,
     pub dh: Array1<f64>,
     pub mm: Array1<f64>,
@@ -24,6 +25,7 @@ pub struct SMResult {
     pub sa: Array1<f64>,
     pub elec: Array1<f64>,
     pub vdw: Array1<f64>,
+    pub mm_ie: Array1<f64>,
     pub dh_atom: Array2<f64>,
     pub mm_atom: Array2<f64>,
     pub pb_atom: Array2<f64>,
@@ -35,15 +37,17 @@ pub struct SMResult {
 impl SMResult {
     pub fn new(atom_names: &Vec<String>, atom_res: &Vec<usize>, 
                residues: &Vec<Residue>, ndx_lig: &Vec<usize>, 
-               times: &Vec<f64>, coord: &Array3<f64>, mutation: &str,
+               times: &Vec<f64>, times_ie: &Vec<f64>, coord: &Array3<f64>, mutation: &str,
                elec_atom: &Array2<f64>, vdw_atom: &Array2<f64>, 
-               pb_atom: &Array2<f64>, sa_atom: &Array2<f64>) -> SMResult {
+               pb_atom: &Array2<f64>, sa_atom: &Array2<f64>,
+               mm_atom_ie: &Array2<f64>) -> SMResult {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
         let mut mm: Array1<f64> = Array1::zeros(times.len());
         let mut pb: Array1<f64> = Array1::zeros(times.len());
         let mut sa: Array1<f64> = Array1::zeros(times.len());
         let mut elec: Array1<f64> = Array1::zeros(times.len());
         let mut vdw: Array1<f64> = Array1::zeros(times.len());
+        let mut mm_ie: Array1<f64> = Array1::zeros(mm_atom_ie.shape()[0]);
         for t in 0..times.len() {
             elec[t] = elec_atom.row(t).sum();
             vdw[t] = vdw_atom.row(t).sum();
@@ -51,6 +55,9 @@ impl SMResult {
             pb[t] = pb_atom.row(t).sum();
             sa[t] = sa_atom.row(t).sum();
             dh[t] = mm[t] + pb[t] + sa[t];
+        }
+        for (i, row) in mm_atom_ie.rows().into_iter().enumerate() {
+            mm_ie[i] = row.sum();
         }
 
         let mm_atom: Array2<f64> = elec_atom + vdw_atom;
@@ -63,6 +70,7 @@ impl SMResult {
             residues: residues.to_owned(),
             ndx_lig: ndx_lig.to_owned(),
             times: times.to_owned(),
+            times_ie: times_ie.to_owned(),
             coord: coord.to_owned(),
             dh,
             mm,
@@ -70,6 +78,7 @@ impl SMResult {
             sa,
             elec,
             vdw,
+            mm_ie,
             dh_atom,
             mm_atom,
             pb_atom: pb_atom.to_owned(),
@@ -111,8 +120,8 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
         let sel_fun = get_input_selection();
         match sel_fun {
             Ok(-1) => {
-                println!("Input the time point (in ns) to output (default: average):");
-                let ts_ids = get_time_range(result_wt);
+                println!("Input the time point or period (in ns) to output (default: average):");
+                let ts_ids = get_time_index(&result_wt.times);
                 if ts_ids.is_empty() {
                     println!("Not valid time.");
                     continue;
@@ -131,7 +140,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             Ok(0) => exit(0),
             Ok(1) => {
                 println!("Input the time point (in ns) to output (default: average):");
-                let ts_ids = get_time_range(result_wt);
+                let ts_ids = get_time_index(&result_wt.times_ie);
                 if ts_ids.is_empty() {
                     println!("Not valid time.");
                     continue;
@@ -147,7 +156,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             },
             Ok(3) => {
                 println!("Input the time point (in ns) to output (default: average):");
-                let ts_ids = get_time_range(result_wt);
+                let ts_ids = get_time_index(&result_wt.times);
                 if ts_ids.is_empty() {
                     println!("Not valid time.");
                     continue;
@@ -176,18 +185,21 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
     }
 }
 
-fn get_time_range(result: &SMResult) -> Vec<usize> {
+fn get_time_index(time_range: &Vec<f64>) -> Vec<usize> {
+    println!("Note: time period should be splitted by \"-\", e.g., 3-5");
     let ts = get_input("".to_string());
     if !ts.trim().is_empty() {
-        let ts: Vec<f64> = utils::range2list(&ts).iter().map(|&i| i as f64).collect();
-        get_time_index(&ts, result)
+        (0..time_range.len()).collect()
     } else {
-        (0..result.times.len()).collect()
+        let tm: Vec<&str> = ts.split("-").collect();
+        let tmin: f64 = tm[0].parse().unwrap();
+        let tmax: f64 = tm[1].parse().unwrap();
+        time_range.iter().enumerate().filter_map(|(i, &t)| if t >= tmin && t <= tmax {
+            Some(i)
+        } else {
+            None
+        }).collect()
     }
-}
-
-fn get_time_index(ts: &Vec<f64>, results: &SMResult) -> Vec<usize> {
-    ts.iter().filter_map(|&t| results.times.iter().position(|&x| x == t)).collect()
 }
 
 fn write_pml(pml_name: &String, def_name: &String, png_name: &String, wd: &Path, settings: &Settings) {
@@ -250,7 +262,7 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     let sa_avg = results.sa.select(Axis(0), ts_ids).mean().unwrap();
 
     // Interactive Entropy
-    let mm_sum: f64 = results.mm.select(Axis(0), ts_ids).iter().map(|&mm| f64::exp((mm - mm_avg) * beta_kj)).sum();
+    let mm_sum: f64 = results.mm_ie.select(Axis(0), ts_ids).iter().map(|&mm| f64::exp((mm - mm_avg) * beta_kj)).sum();
     let tds = -(mm_sum / ts_ids.len() as f64).ln() / beta_kj;
     let dg = dh_avg - tds;
     let ki = f64::exp(dg * beta_kj) * 1e9;    // nM

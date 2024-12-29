@@ -17,8 +17,8 @@ use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, temp_dir: &PathBuf,
-                               sys_name: &String, aps: &AtomProperties,
+pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: &Array3<f64>, coordinates_ie: &Array3<f64>, 
+                               temp_dir: &PathBuf, sys_name: &String, aps: &AtomProperties,
                                ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
@@ -39,7 +39,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
 
     // calculate MM and PBSA
     println!("Calculating binding energy for {}...", sys_name);
-    let result_wt = calculate_mmpbsa(&time_list, &coordinates, aps, &temp_dir, &ndx_rec, &ndx_lig, residues,
+    let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates, coordinates_ie, aps, &temp_dir, &ndx_rec, &ndx_lig, residues,
         sys_name, "WT", pbe_set, pba_set, settings);
     result_wt.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, "WT").as_str()));
 
@@ -48,77 +48,12 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
         // main chain atoms number
         let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
             && r.name.ne("GLY") && r.name.ne("ALA")).collect();     // gly not contain CB, ala no need to mutate
-        let mut new_coordinates = coordinates.clone();
         let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
         for asr in as_res {
-            let mut new_aps = aps.clone();
-            let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
-                Some(a.clone())
-            } else {
-                None
-            }).collect();
-            let mut sc_out: Vec<&AtomProperty> = as_atoms.iter().filter(|&a| !exclude_list.contains(&a.name.as_str())).collect();
-            let xgs: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
-                if a.name.eq("CG") || a.name.eq("CG1") || a.name.eq("CG2") || a.name.eq("SG") || a.name.eq("OG") || a.name.eq("OG1") {
-                    Some(a.clone())
-                } else {
-                    None
-                }}).collect();
-            // 通过CB定位新的HB
-            let cb: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
-                if a.name.eq("CB") {
-                    Some(a.clone())
-                } else {
-                    None
-                }}).collect();
-            for xg in xgs.iter() {
-                new_aps.atom_props[xg.id].change_atom(aps.at_map.get("HC"), "HC", &aps.radius_type);
-                // 获取新的HB坐标
-                for layer in 0..new_coordinates.shape()[0] {
-                    let cb_coords: Array1<f64> = new_coordinates.slice(s![layer, cb[0].id, ..]).to_owned();
-                    let hg_coords: Array1<f64> = new_coordinates.slice(s![layer, xg.id, ..]).to_owned();
-                    let new_hg_coord: Array1<f64> = transform_coordinate(&cb_coords, &hg_coords, 1.09);
-                    new_coordinates[[layer, xg.id, 0]] = new_hg_coord[0];
-                    new_coordinates[[layer, xg.id, 1]] = new_hg_coord[1];
-                    new_coordinates[[layer, xg.id, 2]] = new_hg_coord[2];
-                }
-            }
-            // 脯氨酸需要把CD改成H
-            // 通过N定位新的HN
-            if asr.name.eq("PRO") {
-                let n: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
-                    if a.name.eq("N") {
-                        Some(a.clone())
-                    } else {
-                        None
-                    }}).collect();
-                sc_out.retain(|&a| a.name.ne("CD"));
-                let cd = as_atoms.iter().find(|&a| a.name == "CD").unwrap();
-                new_aps.atom_props[cd.id].change_atom(aps.at_map.get("H"), "HN", &aps.radius_type);
-                // 获取新的HN坐标
-                for layer in 0..new_coordinates.shape()[0] {
-                    let n_coords: Array1<f64> = new_coordinates.slice(s![layer, n[0].id, ..]).to_owned();
-                    let hn_coords: Array1<f64> = new_coordinates.slice(s![layer, cd.id, ..]).to_owned();
-                    let new_hn_coord = transform_coordinate(&n_coords, &hn_coords, 1.07);
-                    new_coordinates[[layer, cd.id, 0]] = new_hn_coord[0];
-                    new_coordinates[[layer, cd.id, 1]] = new_hn_coord[1];
-                    new_coordinates[[layer, cd.id, 2]] = new_hn_coord[2];
-                }
-            }
-            
-            // delete other atoms in the scanned residue
-            let del_list: Vec<usize> = sc_out.iter().map(|a| a.id).collect();
-            let xg_list: Vec<usize> = xgs.iter().map(|a| a.id).collect();
-            new_aps.atom_props.retain(|a| !del_list.contains(&a.id) || xg_list.contains(&a.id));
-            let retain_id: Vec<usize> = new_aps.atom_props.iter().map(|a| a.id).collect();
-            // 每次删除原子后重新排序剩余原子id
-            for (i, ap) in new_aps.atom_props.iter_mut().enumerate() {
-                ap.id = i;
-            };
-            let new_coordinates: Array3<f64> = new_coordinates.select(Axis(1), &retain_id);
-            let mut new_ndx_rec = ndx_rec.clone();
-            new_ndx_rec.retain(|&x| !del_list.contains(&x) || xg_list.contains(&x));
-            let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, Some(ndx_lig));
+            let (new_coordinates, new_aps, new_ndx_rec, new_ndx_lig) = 
+                ala_mutate(aps, asr, &exclude_list, coordinates, ndx_rec, ndx_lig);
+            let (new_coordinates_ie, _, _, _) = 
+                ala_mutate(aps, asr, &exclude_list, coordinates_ie, ndx_rec, ndx_lig);
 
             // After alanine mutation
             let mutation = match utils::resname_3to1(&asr.name) {
@@ -132,7 +67,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
             let mutation = format!("{}{}A", mutation, asr.nr);
             let sys_name = format!("{}-{}", sys_name, mutation);
             println!("Calculating binding energy for {}...", sys_name);
-            let result_as = calculate_mmpbsa(&time_list, &new_coordinates,
+            let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates, &new_coordinates_ie,
                 &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
             result_as.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, mutation).as_str()));
@@ -154,13 +89,87 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
     (result_wt, result_ala_scan)
 }
 
+fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordinates: &Array3<f64>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>)
+            -> (Array3<f64>, AtomProperties, Vec<usize>, Vec<usize>) {
+    let mut new_coordinates = coordinates.clone();
+    let mut new_aps = aps.clone();
+    let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
+        Some(a.clone())
+    } else {
+        None
+    }).collect();
+    let mut sc_out: Vec<&AtomProperty> = as_atoms.iter().filter(|&a| !exclude_list.contains(&a.name.as_str())).collect();
+    let xgs: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
+        if a.name.eq("CG") || a.name.eq("CG1") || a.name.eq("CG2") || a.name.eq("SG") || a.name.eq("OG") || a.name.eq("OG1") {
+            Some(a.clone())
+        } else {
+            None
+        }}).collect();
+    // 通过CB定位新的HB
+    let cb: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
+        if a.name.eq("CB") {
+            Some(a.clone())
+        } else {
+            None
+        }}).collect();
+    for xg in xgs.iter() {
+        new_aps.atom_props[xg.id].change_atom(aps.at_map.get("HC"), "HC", &aps.radius_type);
+        // 获取新的HB坐标
+        for layer in 0..new_coordinates.shape()[0] {
+            let cb_coords: Array1<f64> = new_coordinates.slice(s![layer, cb[0].id, ..]).to_owned();
+            let hg_coords: Array1<f64> = new_coordinates.slice(s![layer, xg.id, ..]).to_owned();
+            let new_hg_coord: Array1<f64> = transform_coordinate(&cb_coords, &hg_coords, 1.09);
+            new_coordinates[[layer, xg.id, 0]] = new_hg_coord[0];
+            new_coordinates[[layer, xg.id, 1]] = new_hg_coord[1];
+            new_coordinates[[layer, xg.id, 2]] = new_hg_coord[2];
+        }
+    }
+    // 脯氨酸需要把CD改成H
+    // 通过N定位新的HN
+    if asr.name.eq("PRO") {
+        let n: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
+            if a.name.eq("N") {
+                Some(a.clone())
+            } else {
+                None
+            }}).collect();
+        sc_out.retain(|&a| a.name.ne("CD"));
+        let cd = as_atoms.iter().find(|&a| a.name == "CD").unwrap();
+        new_aps.atom_props[cd.id].change_atom(aps.at_map.get("H"), "HN", &aps.radius_type);
+        // 获取新的HN坐标
+        for layer in 0..new_coordinates.shape()[0] {
+            let n_coords: Array1<f64> = new_coordinates.slice(s![layer, n[0].id, ..]).to_owned();
+            let hn_coords: Array1<f64> = new_coordinates.slice(s![layer, cd.id, ..]).to_owned();
+            let new_hn_coord = transform_coordinate(&n_coords, &hn_coords, 1.07);
+            new_coordinates[[layer, cd.id, 0]] = new_hn_coord[0];
+            new_coordinates[[layer, cd.id, 1]] = new_hn_coord[1];
+            new_coordinates[[layer, cd.id, 2]] = new_hn_coord[2];
+        }
+    }
+    
+    // delete other atoms in the scanned residue
+    let del_list: Vec<usize> = sc_out.iter().map(|a| a.id).collect();
+    let xg_list: Vec<usize> = xgs.iter().map(|a| a.id).collect();
+    new_aps.atom_props.retain(|a| !del_list.contains(&a.id) || xg_list.contains(&a.id));
+    let retain_id: Vec<usize> = new_aps.atom_props.iter().map(|a| a.id).collect();
+    // 每次删除原子后重新排序剩余原子id
+    for (i, ap) in new_aps.atom_props.iter_mut().enumerate() {
+        ap.id = i;
+    };
+    let mut new_ndx_rec = ndx_rec.clone();
+    new_ndx_rec.retain(|&x| !del_list.contains(&x) || xg_list.contains(&x));
+    let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, Some(ndx_lig));
+
+    return (new_coordinates.select(Axis(1), &retain_id).clone(), new_aps, new_ndx_rec, new_ndx_lig)
+}
+
 pub fn set_style(pb: &ProgressBar) {
     pb.set_style(ProgressStyle::with_template(
         "[{elapsed_precise}] {bar:50.cyan/cyan} {pos}/{len} {msg}").unwrap()
         .progress_chars("=>-"));
 }
 
-fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
+fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: &Array3<f64>, coordinates_ie: &Array3<f64>, 
                     aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                     residues: &Vec<Residue>, sys_name: &String, mutation: &str,
@@ -169,12 +178,14 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
     let mut vdw_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut pb_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut sa_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
+    let mut mm_atom_ie: Array2<f64> = Array2::zeros((coordinates_ie.shape()[0], aps.atom_props.len()));
     
     // parameters for elec calculation
     let coeff = Coefficients::new(pbe_set);
 
     // Time list of trajectory
     let times: Vec<f64> = time_list.iter().map(|t| t / 1000.0).collect();
+    let times_ie: Vec<f64> = time_list_ie.iter().map(|t| t / 1000.0).collect();
 
     // set environment
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
@@ -217,6 +228,23 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
     }
     pgb.finish();
 
+    println!("Start IE calculation...");
+    let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
+    set_style(&pgb);
+    pgb.inc(0);
+    for (id, frame) in coordinates.axis_iter(Axis(0)).enumerate() {
+        if ndx_lig[0] != ndx_rec[0] {
+            let (de_elec, de_vdw) = 
+                calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings);
+            mm_atom_ie.row_mut(id).assign(&(de_elec + de_vdw));
+        }
+
+        pgb.inc(1);
+        pgb.set_message(format!("at {} frame, ΔMM={:.2} kJ/mol, eta. {} s", 
+                                        id, mm_atom_ie.row(id).sum(), pgb.eta().as_secs()));
+    }
+    pgb.finish();
+
     // end calculation
     let t_end = Local::now();
     let t_spend = Duration::from(t_end - t_start).num_milliseconds();
@@ -231,12 +259,14 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
         residues,
         ndx_lig,
         &times,
+        &times_ie,
         &coordinates,
         mutation,
         &elec_atom,
         &vdw_atom,
         &pb_atom,
         &sa_atom,
+        &mm_atom_ie
     )
 }
 

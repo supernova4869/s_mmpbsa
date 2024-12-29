@@ -13,7 +13,7 @@ use crate::parse_tpr::{Residue, TPR};
 use crate::mmpbsa;
 use crate::analyzation;
 
-pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>, 
+pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: &Array3<f64>, coordinates_ie: &Array3<f64>, 
                        tpr: &TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
                        ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
@@ -129,7 +129,9 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, coordinates: &Array3<f64>,
                 };
                 
                 // run MM/PB-SA calculations
-                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(&time_list, &coordinates, &temp_dir, &sys_name, &aps,
+                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
+                                                                coordinates, coordinates_ie, 
+                                                                &temp_dir, &sys_name, &aps,
                                                                 &ndx_rec, &ndx_lig, &ala_list, &residues, wd,
                                                                 &pbe_set, &pba_set, settings);
                 analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
