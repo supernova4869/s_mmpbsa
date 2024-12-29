@@ -188,7 +188,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
 fn get_time_index(time_range: &Vec<f64>) -> Vec<usize> {
     println!("Note: time period should be splitted by \"-\", e.g., 3-5");
     let ts = get_input("".to_string());
-    if !ts.trim().is_empty() {
+    if ts.trim().is_empty() {
         (0..time_range.len()).collect()
     } else {
         let tm: Vec<&str> = ts.split("-").collect();
