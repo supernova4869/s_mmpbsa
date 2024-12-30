@@ -1,3 +1,4 @@
+use core::f64;
 use std::process::{exit, Command, Stdio};use std::env::{self, current_exe};
 use std::path::Path;
 use std::fs::{self, File};
@@ -19,7 +20,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
     let mut receptor_grp: Option<usize> = None;
     let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps
-    let mut et: f64 = tpr.dt * tpr.nsteps as f64;           // ps
+    let mut et: f64 = f64::INFINITY;                        // ps
     let mut dt = 1000.0;                               // ps
     let mut dt_ie = 1.0;                               // ps
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
@@ -362,7 +363,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     println!("Extracting trajectory, be patient...");
     // currently use smaller dt_ie
     trjconv(&vec!["Complex"], wd, settings, &trj, &tpr_name, &ndx_whole, &trj_mmpbsa, 
-        &vec!["-t0", "0", "-dt", &dt_ie.to_string(), "-b", &bt.to_string(), "-e", &et.to_string()]);
+        &vec!["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
     
     // step 3: extract new tpr from old tpr
     let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
