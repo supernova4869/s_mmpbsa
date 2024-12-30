@@ -68,7 +68,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             Ok(3) => {
                 println!("Input start time (in ns), should be divisible of {} ps:", dt);
                 let mut new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
-                while new_bt * 1000.0 % dt != 0.0 || new_bt > tpr.nsteps as f64 * tpr.dt as f64 || new_bt < 0.0 {
+                while new_bt * 1000.0 % dt != 0.0 || new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
                     println!("Input start time (in ns) again, should be divisible of {} fs:", dt);
                     new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
@@ -78,7 +78,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             Ok(4) => {
                 println!("Input end time (in ns), should be divisible of {} ps:", dt);
                 let mut new_et = get_input_selection::<f64>().unwrap() * 1000.0;
-                while new_et * 1000.0 % dt != 0.0 || new_et > tpr.nsteps as f64 * tpr.dt as f64 || new_et < 0.0 {
+                while new_et * 1000.0 % dt != 0.0 || new_et < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
                     println!("Input end time (in ns) again, should be divisible of {} fs:", dt);
                     new_et = get_input_selection::<f64>().unwrap() * 1000.0;
@@ -88,7 +88,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             Ok(5) => {
                 println!("Input interval time (in ns) for MM/PB-SA, should be divisible of {} ps:", unit_dt);
                 let mut new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
-                while new_dt * 1000.0 % unit_dt != 0.0 {
+                while new_dt * 1000.0 % unit_dt != 0.0 || new_dt < 0.0 {
                     println!("The input {} ns is not a valid time step.", new_dt / 1000.0);
                     println!("Input interval time (in ns) again, should be divisible of {} ps:", unit_dt);
                     new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
@@ -98,7 +98,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             Ok(6) => {
                 println!("Input interval time (in ps) for IE, should be divisible of {} ps:", unit_dt);
                 let mut new_dt_ie = get_input_selection::<f64>().unwrap();
-                while new_dt_ie % unit_dt != 0.0 {
+                while new_dt_ie % unit_dt != 0.0 || new_dt_ie < 0.0 {
                     println!("The input {} ps is not a valid time step.", new_dt_ie);
                     println!("Input interval time (in ps) again, should be divisible of {} ps:", unit_dt);
                     new_dt_ie = get_input_selection::<f64>().unwrap();
