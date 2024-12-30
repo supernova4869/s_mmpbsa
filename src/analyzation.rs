@@ -264,11 +264,17 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
 
     let beta_kj = 1000.0 / 8.314462618 / temperature;
     let dh_avg = results.dh.select(Axis(0), &ts_ids).mean().unwrap();
+    let dh_err = results.dh.select(Axis(0), &ts_ids).std(0.0);
     let mm_avg = results.mm.select(Axis(0), &ts_ids).mean().unwrap();
+    let mm_err = results.mm.select(Axis(0), &ts_ids).std(0.0);
     let elec_avg = results.elec.select(Axis(0), &ts_ids).mean().unwrap();
+    let elec_err = results.elec.select(Axis(0), &ts_ids).std(0.0);
     let vdw_avg = results.vdw.select(Axis(0), &ts_ids).mean().unwrap();
+    let vdw_err = results.vdw.select(Axis(0), &ts_ids).std(0.0);
     let pb_avg = results.pb.select(Axis(0), &ts_ids).mean().unwrap();
+    let pb_err = results.pb.select(Axis(0), &ts_ids).std(0.0);
     let sa_avg = results.sa.select(Axis(0), &ts_ids).mean().unwrap();
+    let sa_err = results.sa.select(Axis(0), &ts_ids).std(0.0);
 
     // Interactive Entropy
     let mm_ie_avg = results.mm_ie.select(Axis(0), &ts_ie_ids).mean().unwrap();
@@ -278,13 +284,13 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
 
     println!("\nEnergy terms summary ({}-{} ns):", results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]);
-    println!("ΔH: {:.3} kJ/mol", dh_avg);
-    println!("ΔMM: {:.3} kJ/mol", mm_avg);
-    println!("ΔPB: {:.3} kJ/mol", pb_avg);
-    println!("ΔSA: {:.3} kJ/mol", sa_avg);
+    println!("ΔH: {:.3} ± {:.3} kJ/mol", dh_avg, dh_err);
+    println!("ΔMM: {:.3} ± {:.3} kJ/mol", mm_avg, mm_err);
+    println!("ΔPB: {:.3} ± {:.3} kJ/mol", pb_avg, pb_err);
+    println!("ΔSA: {:.3} ± {:.3} kJ/mol", sa_avg, sa_err);
     println!();
-    println!("Δelec: {:.3} kJ/mol", elec_avg);
-    println!("Δvdw: {:.3} kJ/mol", vdw_avg);
+    println!("Δelec: {:.3} ± {:.3} kJ/mol", elec_avg, elec_err);
+    println!("Δvdw: {:.3} ± {:.3} kJ/mol", vdw_avg, vdw_err);
     println!();
     println!("-TΔS: {:.3} kJ/mol", -tds);
     println!("ΔG: {:.3} kJ/mol", dg);
@@ -293,14 +299,14 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     let def_name = format!("MMPBSA_{}.csv", sys_name);
     println!("Writing binding energy terms...");
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
-    write!(energy_sum, "Energy Term,value,info ({}-{} ns)\n", results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]).unwrap();
-    write!(energy_sum, "ΔH,{:.3},ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)\n", dh_avg).unwrap();
-    write!(energy_sum, "ΔMM,{:.3},ΔMM=Δelec+ΔvdW (kJ/mol)\n", mm_avg).unwrap();
-    write!(energy_sum, "ΔPB,{:.3},(kJ/mol)\n", pb_avg).unwrap();
-    write!(energy_sum, "ΔSA,{:.3},(kJ/mol)\n", sa_avg).unwrap();
+    write!(energy_sum, "Energy Term,value,std.P,info ({}-{} ns)\n", results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]).unwrap();
+    write!(energy_sum, "ΔH,{:.3},{:.3},ΔH=ΔMM+ΔPB+ΔSA (kJ/mol)\n", dh_avg, dh_err).unwrap();
+    write!(energy_sum, "ΔMM,{:.3},{:.3},ΔMM=Δelec+ΔvdW (kJ/mol)\n", mm_avg, mm_err).unwrap();
+    write!(energy_sum, "ΔPB,{:.3},{:.3},(kJ/mol)\n", pb_avg, pb_err).unwrap();
+    write!(energy_sum, "ΔSA,{:.3},{:.3},(kJ/mol)\n", sa_avg, sa_err).unwrap();
     write!(energy_sum, "\n").unwrap();
-    write!(energy_sum, "Δelec,{:.3},(kJ/mol)\n", elec_avg).unwrap();
-    write!(energy_sum, "ΔvdW,{:.3},(kJ/mol)\n", vdw_avg).unwrap();
+    write!(energy_sum, "Δelec,{:.3},{:.3},(kJ/mol)\n", elec_avg, elec_err).unwrap();
+    write!(energy_sum, "ΔvdW,{:.3},{:.3},(kJ/mol)\n", vdw_avg, vdw_err).unwrap();
     write!(energy_sum, "\n").unwrap();
     write!(energy_sum, "-TΔS,{:.3},(kJ/mol)\n", -tds).unwrap();
     write!(energy_sum, "ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
@@ -386,6 +392,7 @@ fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
                         }
                     });
                     println!();
+                    res_range.clear();
                 } else {
                     break;
                 }
@@ -411,9 +418,10 @@ fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
 
 fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts_ids: &Vec<usize>, range_des: &String, target_res: &Vec<usize>) {
     let def_name = format!("MMPBSA_{}_res_{}.csv", sys_name, range_des);
-    let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_data(results, ts_ids, target_res);
-    write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &def_name);
-    plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, wd, &format!("MMPBSA_{}_res_{}.png", sys_name, range_des));
+    let (tar_res_nr, tar_res_name, 
+        tar_res_energy, tar_res_energy_err) = get_target_res_data(results, ts_ids, target_res);
+    write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, &tar_res_energy_err, wd, &def_name);
+    plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, &tar_res_energy_err, wd, &format!("MMPBSA_{}_res_{}.png", sys_name, range_des));
 }
 
 fn analyze_atom(results: &SMResult, wd: &Path, sys_name: &String) {
@@ -421,7 +429,7 @@ fn analyze_atom(results: &SMResult, wd: &Path, sys_name: &String) {
     write_pdb_with_bf(results, &def_name, &vec![0], wd, &results.ndx_lig, false);
 }
 
-fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec<usize>) -> (Vec<i32>, Vec<String>, [Vec<f64>; 6]) {
+fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec<usize>) -> (Vec<i32>, Vec<String>, [Vec<f64>; 6], [Vec<f64>; 6]) {
     let res_nr: Vec<i32> = results.residues.iter().filter_map(|res| if target_res.contains(&res.id) {
         Some(res.nr)
     } else {
@@ -433,11 +441,17 @@ fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec
         None
     }).collect();
     let mut dh_res = vec![];
+    let mut dh_res_err = vec![];
     let mut mm_res = vec![];
+    let mut mm_res_err = vec![];
     let mut pb_res = vec![];
+    let mut pb_res_err = vec![];
     let mut sa_res = vec![];
+    let mut sa_res_err = vec![];
     let mut elec_res = vec![];
+    let mut elec_res_err = vec![];
     let mut vdw_res = vec![];
+    let mut vdw_res_err = vec![];
     // 该残基的所有原子所在索引
     let get_cur_res_atom_ids = |target_resid| results
         .atom_res
@@ -453,37 +467,61 @@ fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec
             continue;
         }
         let atom_ids = get_cur_res_atom_ids(res.id);
-        let atom_energy = |arr: &Array2<f64>| {arr.select(Axis(1), &atom_ids).select(Axis(0), &ts_ids)};
-        dh_res.push(atom_energy(&results.dh_atom).sum() / ts_ids.len() as f64);
-        mm_res.push(atom_energy(&results.mm_atom).sum() / ts_ids.len() as f64);
-        pb_res.push(atom_energy(&results.pb_atom).sum() / ts_ids.len() as f64);
-        sa_res.push(atom_energy(&results.sa_atom).sum() / ts_ids.len() as f64);
-        elec_res.push(atom_energy(&results.elec_atom).sum() / ts_ids.len() as f64);
-        vdw_res.push(atom_energy(&results.vdw_atom).sum() / ts_ids.len() as f64);
+        let atom_energy = |arr: &Array2<f64>| {
+            arr.select(Axis(1), &atom_ids).select(Axis(0), &ts_ids)
+        };
+        let dh_resi: Array1<f64> = atom_energy(&results.dh_atom).sum_axis(Axis(1));
+        dh_res.push(dh_resi.mean().unwrap());
+        dh_res_err.push(dh_resi.std(0.0));
+        let mm_resi: Array1<f64> = atom_energy(&results.mm_atom).sum_axis(Axis(1));
+        mm_res.push(mm_resi.mean().unwrap());
+        mm_res_err.push(mm_resi.std(0.0));
+        let pb_resi: Array1<f64> = atom_energy(&results.pb_atom).sum_axis(Axis(1));
+        pb_res.push(pb_resi.mean().unwrap());
+        pb_res_err.push(pb_resi.std(0.0));
+        let sa_resi: Array1<f64> = atom_energy(&results.sa_atom).sum_axis(Axis(1));
+        sa_res.push(sa_resi.mean().unwrap());
+        sa_res_err.push(sa_resi.std(0.0));
+        let elec_resi: Array1<f64> = atom_energy(&results.elec_atom).sum_axis(Axis(1));
+        elec_res.push(elec_resi.mean().unwrap());
+        elec_res_err.push(elec_resi.std(0.0));
+        let vdw_resi: Array1<f64> = atom_energy(&results.vdw_atom).sum_axis(Axis(1));
+        vdw_res.push(vdw_resi.mean().unwrap());
+        vdw_res_err.push(vdw_resi.std(0.0));
     }
-    (res_nr, res_name, [dh_res, mm_res, pb_res, sa_res, elec_res, vdw_res])
+    (res_nr, res_name, [dh_res, mm_res, pb_res, sa_res, elec_res, vdw_res], 
+        [dh_res_err, mm_res_err, pb_res_err, sa_res_err, elec_res_err, vdw_res_err])
 }
 
-fn write_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, tar_res_energy: &[Vec<f64>; 6], wd: &Path, def_name: &String) {
+fn write_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, 
+                 tar_res_energy: &[Vec<f64>; 6], tar_res_energy_err: &[Vec<f64>; 6], 
+                 wd: &Path, def_name: &String) {
     let mut res_energy_file = fs::File::create(wd.join(def_name)).unwrap();
-    res_energy_file.write_all("id,name,ΔH,ΔMM,ΔPB,ΔSA,Δelec,ΔvdW\n".as_bytes()).unwrap();
+    res_energy_file.write_all("id,name,ΔH,ΔH_std.P,ΔMM,ΔMM_std.P,ΔPB,ΔPB_std.P,ΔSA,ΔSA_std.P,Δelec,Δelec_std.P,ΔvdW,ΔvdW_std.P\n".as_bytes()).unwrap();
     for tar_res_id in 0..tar_res_energy[0].len() {
-        write!(res_energy_file, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
+        write!(res_energy_file, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
             tar_res_nr[tar_res_id], tar_res_name[tar_res_id],
-            tar_res_energy[0][tar_res_id],
-            tar_res_energy[1][tar_res_id],
-            tar_res_energy[2][tar_res_id],
-            tar_res_energy[3][tar_res_id],
-            tar_res_energy[4][tar_res_id],
-            tar_res_energy[5][tar_res_id])
+            tar_res_energy[0][tar_res_id], tar_res_energy_err[0][tar_res_id],
+            tar_res_energy[1][tar_res_id], tar_res_energy_err[1][tar_res_id],
+            tar_res_energy[2][tar_res_id], tar_res_energy_err[2][tar_res_id],
+            tar_res_energy[3][tar_res_id], tar_res_energy_err[3][tar_res_id],
+            tar_res_energy[4][tar_res_id], tar_res_energy_err[4][tar_res_id],
+            tar_res_energy[5][tar_res_id], tar_res_energy_err[5][tar_res_id])
             .expect("Error while writing residue-wised energy file");
     }
 }
 
-fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, tar_res_energy: &[Vec<f64>; 6], wd: &Path, def_name: &String) {
+fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, 
+                tar_res_energy: &[Vec<f64>; 6], tar_res_energy_err: &[Vec<f64>; 6], 
+                wd: &Path, def_name: &String) {
     println!("Plotting residue-wised binding energy figures...");
     let mut bar = Barplot::new();
-    bar.draw(&(0..tar_res_nr.len()).map(|a| a as f64).collect(), &tar_res_energy[0]);
+    let x: Vec<f64> = (0..tar_res_nr.len()).map(|a| a as f64).collect();
+    // bar.draw(&x, &tar_res_energy[0]);
+    bar.set_x_errors(&tar_res_energy_err[0])
+            .set_horizontal(true)
+            .draw(&x, &tar_res_energy[0]);
+            // .draw_with_str(&x, &tar_res_energy[0]);
     let mut plot = Plot::new();
     if cfg!(windows) {
         plot.set_python_exe("python");
@@ -491,10 +529,11 @@ fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, tar_res_energ
     let xticks: Vec<usize> = (0..tar_res_nr.len()).collect();
     let xtick_labels: Vec<String> = tar_res_nr.iter().enumerate().map(|(i, r)| format!("{}{}", tar_res_name[i], r)).collect();
     match plot.add(&bar)
-            .set_figure_size_inches(tar_res_nr.len() as f64 * 0.64, 4.8)
-            .set_ticks_x_labels(&xticks, &xtick_labels)
-            .set_rotation_ticks_x(45.0)
-            .grid_and_labels("Residue", "Binding Energy (kJ/mol)")
+            .set_figure_size_inches(6.4, tar_res_nr.len() as f64 * 0.48)
+            .set_ticks_y_labels(&xticks, &xtick_labels)
+            .set_ymin(-0.52)
+            .set_ymax(tar_res_nr.len() as f64 - 0.48)
+            .grid_and_labels("Binding Energy (kJ/mol)", "Residue")
             .set_label_x_fontsize(18.0)
             .set_label_y_fontsize(18.0)
             .set_ticks_x_fontsize(14.0)

@@ -399,9 +399,12 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "plotpy"
-version = "1.7.1"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "450b9d85a5d129972fb6c46a7820a1dcf2b361a7db66de310ad61bbfa5c17b35"
+checksum = "66b016cb6faa0f88066c42c0789445ff7d002e6330cb336ab8dac0f8bbe04627"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "proc-macro2"
