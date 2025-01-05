@@ -22,7 +22,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
     let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = f64::INFINITY;                        // ps
     let mut dt = 1000.0;                               // ps
-    let mut dt_ie = 1.0;                               // ps
+    let mut dt_ie = 100.0;                             // ps
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
     let ndx = Index::from(ndx_name);
     loop {

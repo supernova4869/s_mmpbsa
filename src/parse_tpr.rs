@@ -20,7 +20,6 @@ pub struct TPR {
     pub lj_sr_params: Vec<LJType>,
     pub molecules: Vec<Molecule>,
     pub dt: f64,
-    pub nsteps: u64,
     pub nstxout: u32,
     pub temp: f64,
     pub coordinates: Array2<f64>,
@@ -66,7 +65,6 @@ impl TPR {
 
         // simulation time parameters
         let mut dt = 0.0;
-        let mut nsteps = 0;
         let mut nstxout = 0;
         let mut temp = 0.0;
 
@@ -84,9 +82,6 @@ impl TPR {
                     if buf.trim().starts_with("dt") {
                         let re = Regex::new(r"dt\s+=\s*(.*)").unwrap();
                         dt = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
-                        read_line(&mut reader, &mut buf);
-                        let re = Regex::new(r"nsteps\s+=\s*(.*)").unwrap();
-                        nsteps = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
                     } else if buf.trim().starts_with("nstxout-compressed") {
                         let re = Regex::new(r"nstxout-compressed\s+=\s*(.*)").unwrap();
                         nstxout = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
@@ -335,7 +330,6 @@ impl TPR {
             lj_sr_params: fun_type,
             molecules,
             dt,
-            nsteps,
             nstxout,
             temp,
             coordinates: Array2::from_shape_vec((atoms_num, 3), coordinates).unwrap()

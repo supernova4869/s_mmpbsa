@@ -29,7 +29,7 @@ use utils::get_input;
 
 fn main() {
     let version = 0.7;
-    welcome(&version.to_string(), "2025-Jan-01");
+    welcome(&version.to_string(), "2025-Jan-06");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),

@@ -101,14 +101,14 @@ impl SMResult {
 }
 
 pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
-    println!("\nTime range: {} - {} ns, step = {} ns", result_wt.times[0], result_wt.times.last().unwrap(), if result_wt.times.len() > 1 {
-        result_wt.times[1] - result_wt.times[0]
-    } else {
-        0.0
-    });
     let mut results = result_as.clone();
     results.insert(0, result_wt.clone());
     loop {
+        println!("\nTime range: {} - {} ns, step = {} ns", result_wt.times[0], result_wt.times.last().unwrap(), if result_wt.times.len() > 1 {
+            result_wt.times[1] - result_wt.times[0]
+        } else {
+            0.0
+        });
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!("-1 Write residue-wised binding energy at specific time to pdb file");
         println!(" 0 Exit program");
@@ -516,23 +516,19 @@ fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>,
                 wd: &Path, def_name: &String) {
     println!("Plotting residue-wised binding energy figures...");
     let mut bar = Barplot::new();
-    let x: Vec<f64> = (0..tar_res_nr.len()).map(|a| a as f64).collect();
-    // bar.draw(&x, &tar_res_energy[0]);
-    bar.set_x_errors(&tar_res_energy_err[0])
-            .set_horizontal(true)
-            .draw(&x, &tar_res_energy[0]);
-            // .draw_with_str(&x, &tar_res_energy[0]);
     let mut plot = Plot::new();
     if cfg!(windows) {
         plot.set_python_exe("python");
     }
-    let xticks: Vec<usize> = (0..tar_res_nr.len()).collect();
-    let xtick_labels: Vec<String> = tar_res_nr.iter().enumerate().map(|(i, r)| format!("{}{}", tar_res_name[i], r)).collect();
+    let ytick_labels: Vec<String> = tar_res_nr.iter().enumerate().map(|(i, r)| format!("{}{}", tar_res_name[i], r)).collect();
+    let ytick_labels: Vec<&str> = ytick_labels.iter().map(|s| s.as_str()).collect();
+    bar.set_errors(&tar_res_energy_err[0])
+        .set_horizontal(true)
+        .draw_with_str(&ytick_labels, &tar_res_energy[0]); // requires string, as expected
     match plot.add(&bar)
             .set_figure_size_inches(6.4, tar_res_nr.len() as f64 * 0.48)
-            .set_ticks_y_labels(&xticks, &xtick_labels)
-            .set_ymin(-0.52)
-            .set_ymax(tar_res_nr.len() as f64 - 0.48)
+            .set_ymin(-0.5)
+            .set_ymax(tar_res_nr.len() as f64 - 0.5)
             .grid_and_labels("Binding Energy (kJ/mol)", "Residue")
             .set_label_x_fontsize(18.0)
             .set_label_y_fontsize(18.0)
