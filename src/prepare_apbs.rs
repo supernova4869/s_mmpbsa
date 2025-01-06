@@ -6,11 +6,11 @@ use crate::apbs_param::*;
 use crate::atom_property::AtomProperties;
 use crate::settings::Settings;
 
-pub fn prepare_pqr(cur_frm: usize, time_list: &Vec<f64>,
+pub fn prepare_pqr(cur_frm: usize, times: &Vec<f64>,
                    temp_dir: &Path, sys_name: &String, coord: &ArrayView2<f64>,
                    ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>,
                    aps: &AtomProperties) {
-    let f_name = format!("{}_{}ns", sys_name, time_list[cur_frm]);
+    let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
     let mut pqr_com = match ndx_lig_norm[0] != ndx_rec_norm[0] {
         true => Some(File::create(&temp_dir.join(format!("{}_com.pqr", f_name))).unwrap()),
         false => None

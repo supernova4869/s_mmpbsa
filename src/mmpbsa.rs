@@ -214,7 +214,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
         // PBSA
         if settings.pbsa_kernel.is_some() {
             let (de_pb, de_sa) = 
-                calc_pbsa(&coord, time_list, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
+                calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
             pb_atom.row_mut(frame_id).assign(&de_pb);
             sa_atom.row_mut(frame_id).assign(&de_sa);
         }
@@ -311,17 +311,17 @@ fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coo
     return (de_elec, de_vdw)
 }
 
-fn calc_pbsa(coord: &ArrayView2<f64>, time_list: &Vec<f64>, 
+fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>, 
             ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
-    prepare_pqr(cur_frm, &time_list, &temp_dir, sys_name, coord, &ndx_rec_norm, ndx_lig_norm, aps);
+    prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec_norm, ndx_lig_norm, aps);
 
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is calculated by s_mmpbsa
     let gamma = 0.030125;
     let bias = 0.0;
-    let f_name = format!("{}_{}ns", sys_name, time_list[cur_frm]);
+    let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
     if let Some(pbsa_kernel) = &settings.pbsa_kernel {
         if pbsa_kernel.eq("apbs") {
             if settings.apbs_path.as_ref().is_none() {
