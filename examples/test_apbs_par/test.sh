@@ -5,7 +5,7 @@ do
     for j in `seq 1 3`
     do
         echo "Running with $i kernels the "$j"th time"
-        (time ../../target/release/programs/apbs/linux/APBS-1.5-linux64/bin/apbs test.apbs) 1>/dev/null 2>> cost_$i.txt
+        (time apbs test.apbs) 1>>/dev/null 2>> cost_$i.txt
     done
 done
 

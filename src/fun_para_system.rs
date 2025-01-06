@@ -335,7 +335,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     println!("Collecting residues list...");
     let residues = get_residues_tpr(tpr, &ndx_com);
 
-    // pre-treat trajectory: fix pbc
+    // pre-treat trajectory
     let trj_mmpbsa = append_new_name(trj, "_trj.xtc", "_MMPBSA_"); // get trj output file name
     let tpr_name = append_new_name(tpr_name, ".tpr", ""); // fuck the passed tpr name is dump
     
@@ -403,29 +403,36 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     // 在这里 remove pbc, convert-trj有bug, 不能处理不完整蛋白, 故先trjconv再convert-trj
     println!("Preparing trajectories for IE calculation...");
     if settings.fix_pbc {
-        // 先生成ie用的小dt轨迹
+        // 先生成ie用的小dt轨迹(直接消pbc)
         let trj_mmpbsa_pbc_ie = append_new_name(&trj, "_ie.xtc", "_MMPBSA_");
-        convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa_pbc_ie, 
+        convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_pbc_ie, 
             &vec!["-rmpbc", "-select", "Complex"]);
+        // 生成初始结构方便VMD查看
+        let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
+        trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         // 再进一步生成正常用的大dt轨迹(不用重新消pbc)
-        let trj_mmpbsa_pbc = append_new_name(&trj, ".xtc", "_MMPBSA_");
-        convert_trj(&vec![], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa_pbc, 
+        let trj_mmpbsa_pbc_sol = append_new_name(&trj, "_sol.xtc", "_MMPBSA_");
+        convert_trj(&vec![], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_pbc_sol, 
             &vec!["-dt", &dt.to_string()]);
         println!("Loading trajectory coordinates...");
-        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord_ie.xvg");
-        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
+        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_ie.xvg");
+        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_sol, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_sol.xvg");
     } else {
+        let trj_mmpbsa_ie = append_new_name(&trj, "_ie.xtc", "_MMPBSA_");
+        convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_ie, &[]);
+        let init_struct = append_new_name(&trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
+        trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa_ie, &tpr_mmpbsa, ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         // 生成正常用的大dt轨迹
-        let trj_mmpbsa_normal = append_new_name(&trj, "_ie.xtc", "_MMPBSA_");
-        convert_trj(&vec![], wd, settings, &trj, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa_normal, 
+        let trj_mmpbsa_sol = append_new_name(&trj, "_sol.xtc", "_MMPBSA_");
+        convert_trj(&vec![], wd, settings, &trj_mmpbsa_ie, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_sol, 
             &vec!["-dt", &dt.to_string()]);
         println!("Loading trajectory coordinates...");
-        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord_ie.xvg");
-        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_normal, &tpr_mmpbsa, &ndx_mmpbsa, "_MMPBSA_coord.xvg");
+        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_ie, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_ie.xvg");
+        trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_sol, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_sol.xvg");
     }
 
     let (time_list_ie, coordinates_ie) = read_coord_xvg(wd.join("_MMPBSA_coord_ie.xvg").to_str().unwrap());
-    let (time_list, coordinates) = read_coord_xvg(wd.join("_MMPBSA_coord.xvg").to_str().unwrap());
+    let (time_list, coordinates) = read_coord_xvg(wd.join("_MMPBSA_coord_sol.xvg").to_str().unwrap());
 
     set_para_mmpbsa(&time_list, &time_list_ie, &coordinates, &coordinates_ie, 
         tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
