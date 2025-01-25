@@ -80,7 +80,8 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
         if settings.apbs_path.is_some() {
             fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
         }
-        fs::remove_file(wd.join("_MMPBSA_coord.xvg")).unwrap();
+        fs::remove_file(wd.join("_MMPBSA_coord_ie.xvg")).unwrap();
+        fs::remove_file(wd.join("_MMPBSA_coord_sol.xvg")).unwrap();
     }
 
     println!("");
