@@ -40,14 +40,13 @@ impl SMResult {
                times: &Vec<f64>, times_ie: &Vec<f64>, coord: &Array3<f64>, mutation: &str,
                elec_atom: &Array2<f64>, vdw_atom: &Array2<f64>, 
                pb_atom: &Array2<f64>, sa_atom: &Array2<f64>,
-               mm_atom_ie: &Array2<f64>) -> SMResult {
+               mm_ie: &Array1<f64>) -> SMResult {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
         let mut mm: Array1<f64> = Array1::zeros(times.len());
         let mut pb: Array1<f64> = Array1::zeros(times.len());
         let mut sa: Array1<f64> = Array1::zeros(times.len());
         let mut elec: Array1<f64> = Array1::zeros(times.len());
         let mut vdw: Array1<f64> = Array1::zeros(times.len());
-        let mut mm_ie: Array1<f64> = Array1::zeros(mm_atom_ie.shape()[0]);
         for t in 0..times.len() {
             elec[t] = elec_atom.row(t).sum();
             vdw[t] = vdw_atom.row(t).sum();
@@ -55,9 +54,6 @@ impl SMResult {
             pb[t] = pb_atom.row(t).sum();
             sa[t] = sa_atom.row(t).sum();
             dh[t] = mm[t] + pb[t] + sa[t];
-        }
-        for (i, row) in mm_atom_ie.rows().into_iter().enumerate() {
-            mm_ie[i] = row.sum();
         }
 
         let mm_atom: Array2<f64> = elec_atom + vdw_atom;
@@ -78,7 +74,7 @@ impl SMResult {
             sa,
             elec,
             vdw,
-            mm_ie,
+            mm_ie: mm_ie.to_owned(),
             dh_atom,
             mm_atom,
             pb_atom: pb_atom.to_owned(),

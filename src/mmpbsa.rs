@@ -179,7 +179,6 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
     let mut vdw_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut pb_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut sa_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
-    let mut mm_atom_ie: Array2<f64> = Array2::zeros((coordinates_ie.shape()[0], aps.atom_props.len()));
     
     // parameters for elec calculation
     let coeff = Coefficients::new(pbe_set);
@@ -235,17 +234,20 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
     let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
     set_style(&pgb);
     pgb.inc(0);
-    for (id, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
-        if ndx_lig[0] != ndx_rec[0] {
-            let (de_elec, de_vdw) = 
-                calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings);
-            mm_atom_ie.row_mut(id).assign(&(de_elec + de_vdw));
-        }
-
+    let calc_ie_per_frame = |frame: ArrayView2<f64>| {
+        let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings);
         pgb.inc(1);
-        pgb.set_message(format!("at {} frame, ΔMM={:.2} kJ/mol, eta. {} s", 
-                                        id, mm_atom_ie.row(id).sum(), pgb.eta().as_secs()));
-    }
+        pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
+        de_elec.sum() + de_vdw.sum()
+    };
+
+    let mm_ie: Array1<f64> = if ndx_lig[0] != ndx_rec[0] {
+        let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0)).into_par_iter().map(|frame| 
+            calc_ie_per_frame(frame)).collect();
+        Array1::from_vec(atoms_ie)
+    } else {
+        Array1::zeros(coordinates_ie.shape()[0])
+    };
     pgb.finish();
 
     // end calculation
@@ -269,7 +271,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
         &vdw_atom,
         &pb_atom,
         &sa_atom,
-        &mm_atom_ie
+        &mm_ie
     )
 }
 
