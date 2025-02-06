@@ -149,7 +149,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     }
     
     // prepare pdbqt files
-    pdbqt2pdb(rec_name, lig_name, &flex_name, temp_dir, settings);
+    pdbqt2pdb(receptor_path, ligand_path, flex_path, rec_name, lig_name, &flex_name, temp_dir, settings);
 
     // fake tpr
     prepare_system_tpr_pdb(rec_name, lig_name, &flex_name, ff, method, basis, total_charge, multiplicity, temp_dir, settings);
@@ -438,7 +438,8 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
 }
 
-fn pdbqt2pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, temp_dir: &Path, settings: &Settings) {
+fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, flex_path: &Option<String>, 
+            rec_name: &str, lig_name: &str, flex_name: &Option<&str>, temp_dir: &Path, settings: &Settings) {
     let out_rec_name = append_new_name(rec_name, ".pdb", "MMPBSA_docking_");
     let out_lig_name = append_new_name(lig_name, ".pdb", "MMPBSA_docking_");
     let out_flex_name = if let Some(flex_name) = flex_name {
@@ -448,13 +449,13 @@ fn pdbqt2pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, temp_dir:
     };
     let pml_path = temp_dir.join("MMPBSA_docking.pml");
     let mut pml_file = fs::File::create(&pml_path).unwrap();
-    writeln!(pml_file, "cmd.load(r\"../{}.pdbqt\", \"Protein\")", rec_name).unwrap();
+    writeln!(pml_file, "cmd.load(r\"{}\", \"Protein\")", fs::canonicalize(receptor_path).unwrap().to_str().unwrap()).unwrap();
     writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(Protein)\", state=1)", &out_rec_name).unwrap();
-    if !out_flex_name.is_none() {
-        writeln!(pml_file, "cmd.load(r\"../{}.pdbqt\", \"Flex\")", flex_name.unwrap()).unwrap();
+    if let Some(flex_path) = flex_path {
+        writeln!(pml_file, "cmd.load(r\"{}\", \"Flex\")", fs::canonicalize(flex_path).unwrap().to_str().unwrap()).unwrap();
         writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(Flex)\", state=0)", out_flex_name.unwrap()).unwrap();
     }
-    writeln!(pml_file, "cmd.load(r\"../{}.pdbqt\", \"Ligand\")", lig_name).unwrap();
+    writeln!(pml_file, "cmd.load(r\"{}\", \"Ligand\")", fs::canonicalize(ligand_path).unwrap().to_str().unwrap()).unwrap();
     writeln!(pml_file, "cmd.h_add(\"all\")").unwrap();
     writeln!(pml_file, "cmd.save(r\"LIG.mol2\", selection=\"(Ligand)\", state=1)").unwrap();
     writeln!(pml_file, "cmd.save(r\"{}\", selection=\"(Ligand)\", state=0)", &out_lig_name).unwrap();
@@ -560,7 +561,7 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
     let top_path = temp_dir.join(append_new_name(&ligand_name, ".top", ""));
     let top_path = top_path.to_str().unwrap();
     sobtop(&vec!["7", "10", temp_dir.join("LIG.chg").to_str().unwrap(), "0", 
-        "2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path).unwrap();
+        "2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path).expect("Cannot properly run Sobtop");
 
     // include ligand top into protein
     let protein_top = temp_dir.join("topol.top").display().to_string();
@@ -671,31 +672,31 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
 
         let infile = File::open(temp_dir.join("LIG.gjf")).unwrap();
         let outfile = File::create(temp_dir.join("LIG.out")).unwrap();
-        let gauss_dir = settings.gaussian_dir.as_ref().unwrap();
+        let gauss_path = Path::new(settings.gaussian_path.as_ref().unwrap());
         // Add ENV Var
-        env::set_var("GAUSS_EXEDIR", gauss_dir);
+        env::set_var("GAUSS_EXEDIR", gauss_path.parent().unwrap().to_str().unwrap());
         // Add PATH
         let path = env::var("PATH").unwrap();
-        env::set_var("PATH", format!("{}:{}", path, gauss_dir));
+        env::set_var("PATH", format!("{}:{}", path, gauss_path.parent().unwrap().to_str().unwrap()));
 
-        let gaussian_status = Command::new(Path::new(gauss_dir).join(settings.gaussian_exe.as_ref().unwrap()).to_str().unwrap())
+        let gaussian_status = Command::new(gauss_path.to_str().unwrap())
             .current_dir(temp_dir)
             .stdin(Stdio::from(infile))
             .stdout(Stdio::from(outfile))
             .stderr(Stdio::inherit())
             .status()
-            .expect("Failed to start process");
+            .expect("Cannot properly run gaussian");
         if gaussian_status.code() != Some(0) {
             println!("Gaussian not normally exited. Change calculation level.");
             exit(1);
         }
-        Command::new(Path::new(gauss_dir).join("formchk").to_str().unwrap())
+        Command::new(gauss_path.parent().unwrap().join("formchk").to_str().unwrap())
             .current_dir(temp_dir)
             .arg("LIG.chk")
             .stdout(Stdio::null())
             .stderr(Stdio::inherit())
             .status()
-            .expect("Failed to start process");
+            .expect("Cannot properly run formchk");
         let fchk_path = if cfg!(windows) {
             temp_dir.join("LIG.fch")
         } else {
@@ -703,7 +704,8 @@ fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String,
         };
         multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, 
                 fchk_path.to_str().unwrap().trim_start_matches(r"\\?\"), 
-                Path::new(temp_dir.to_str().unwrap().trim_start_matches(r"\\?\"))).unwrap();
+                Path::new(temp_dir.to_str().unwrap().trim_start_matches(r"\\?\")))
+                .expect("Cannot properly run Multiwfn");
     }
 }
 

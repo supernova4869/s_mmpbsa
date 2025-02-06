@@ -21,9 +21,8 @@ pub struct Settings {
     pub pymol_path: Option<String>,
     pub antechamber_path: Option<String>,
     pub sobtop_path: Option<String>,
-    pub gaussian_dir: Option<String>,
-    pub gaussian_exe: Option<String>,
-    pub multiwfn_dir: Option<String>,
+    pub gaussian_path: Option<String>,
+    pub multiwfn_path: Option<String>,
     pub nkernels: i32,
     pub debug_mode: bool,
     pub last_opened: String,
@@ -47,10 +46,9 @@ impl Settings {
             chg_m: 0,
             pymol_path: None,
             antechamber_path: None,
-            gaussian_dir: None,
-            gaussian_exe: None,
+            gaussian_path: None,
             sobtop_path: None,
-            multiwfn_dir: None,
+            multiwfn_path: None,
             nkernels: 1,
             debug_mode: false,
             last_opened: String::new(),
@@ -95,14 +93,12 @@ impl Settings {
         let pymol_path = Some(pymol_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let antechamber_path = parse_param(&setting_values, "antechamber_path", "".to_string());
         let antechamber_path = Some(antechamber_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let gaussian_dir = parse_param(&setting_values, "gaussian_dir", "".to_string());
-        let gaussian_dir = Some(gaussian_dir.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let gaussian_exe = parse_param(&setting_values, "gaussian_exe", "".to_string());
-        let gaussian_exe = Some(gaussian_exe.trim_start_matches('\"').trim_end_matches('\"').to_string());
+        let gaussian_path = parse_param(&setting_values, "gaussian_path", "".to_string());
+        let gaussian_path = Some(gaussian_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let sobtop_path = parse_param(&setting_values, "sobtop_path", "".to_string());
         let sobtop_path = Some(sobtop_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let multiwfn_dir = parse_param(&setting_values, "multiwfn_dir", "".to_string());
-        let multiwfn_dir = Some(multiwfn_dir.trim_start_matches('\"').trim_end_matches('\"').to_string());
+        let multiwfn_path = parse_param(&setting_values, "multiwfn_path", "".to_string());
+        let multiwfn_path = Some(multiwfn_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
         let debug_mode = match debug_mode[1..2].to_string().as_str() {
@@ -132,9 +128,8 @@ impl Settings {
             pymol_path,
             antechamber_path,
             sobtop_path,
-            gaussian_dir,
-            gaussian_exe,
-            multiwfn_dir,
+            gaussian_path,
+            multiwfn_path,
             nkernels,
             debug_mode,
             last_opened,

@@ -137,8 +137,8 @@ pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) -> Result<
 
 pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str, wd: &Path) -> Result<ExitStatus, std::io::Error> {
     let args = vec![infile];
-    let multiwfn_dir = Path::new(settings.multiwfn_dir.as_ref().unwrap());
-    cmd_options(settings, multiwfn_dir.join("Multiwfn").to_str().unwrap(), options, &args, wd)
+    let multiwfn_dir = Path::new(settings.multiwfn_path.as_ref().unwrap());
+    cmd_options(settings, multiwfn_dir.to_str().unwrap(), options, &args, wd)
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {
