@@ -165,8 +165,8 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     let trj_path = wd.join(&trj_path);
     pdb.to_pdb(&trj_path.to_str().unwrap());
     trajectory(&vec!["0"], wd, settings, &trj_path.to_str().unwrap(), "md.tpr", 
-        &temp_dir.join("MMPBSA_index.ndx").to_str().unwrap(), wd.join("_MMPBSA_coord.xvg").to_str().unwrap());
-    let (_, coordinates) = read_coord_xvg(wd.join("_MMPBSA_coord.xvg").to_str().unwrap());
+        &temp_dir.join("MMPBSA_index.ndx").to_str().unwrap(), wd.join("_MMPBSA_coord_ie.xvg").to_str().unwrap());
+    let (_, coordinates) = read_coord_xvg(wd.join("_MMPBSA_coord_ie.xvg").to_str().unwrap());
     let time_list = (0..coordinates.shape()[0]).map(|t| (t + 1) as f64 * 1000.0).collect();
 
     // fake ndx
