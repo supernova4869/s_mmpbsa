@@ -116,7 +116,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
         let sel_fun = get_input_selection();
         match sel_fun {
             Ok(-1) => {
-                println!("Input the time point or period (in ns) to output (default: average):");
+                println!("Input the time point (in ns, e.g. 40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
                 let ts_ids = get_time_index(&result_wt.times, tmin, tmax);
                 if ts_ids.is_empty() {
@@ -136,7 +136,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
             },
             Ok(0) => exit(0),
             Ok(1) => {
-                println!("Input the time point (in ns) to output (default: average):");
+                println!("Input the time period (in ns, e.g. 0-40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
                 for result in &results {
                     analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
@@ -148,7 +148,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                 }
             },
             Ok(3) => {
-                println!("Input the time point (in ns) to output (default: average):");
+                println!("Input the time period (in ns, e.g. 0-40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
                 let ts_ids = get_time_index(&result_wt.times, tmin, tmax);
                 if ts_ids.is_empty() {
@@ -180,12 +180,12 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
 }
 
 fn get_time_range() -> (f64, f64) {
-    println!("Note: time period should be splitted by \"-\", e.g., 3-5");
+    println!("Note: should be time point or period. Time period should be splitted by \"-\", e.g., 3-5");
     let ts = get_input("".to_string());
     if !ts.trim().is_empty() {
         let tm: Vec<&str> = ts.split("-").collect();
-        let tmin: f64 = tm[0].parse().unwrap();
-        let tmax: f64 = tm[1].parse().unwrap();
+        let tmin: f64 = tm.first().unwrap().parse().unwrap();
+        let tmax: f64 = tm.last().unwrap().parse().unwrap();
         (tmin, tmax)
     } else {
         (0.0, f64::INFINITY)
