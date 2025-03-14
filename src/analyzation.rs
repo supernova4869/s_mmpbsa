@@ -304,9 +304,9 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     write!(energy_sum, "Δelec,{:.3},{:.3},(kJ/mol)\n", elec_avg, elec_err).unwrap();
     write!(energy_sum, "ΔvdW,{:.3},{:.3},(kJ/mol)\n", vdw_avg, vdw_err).unwrap();
     write!(energy_sum, "\n").unwrap();
-    write!(energy_sum, "-TΔS,{:.3},(kJ/mol)\n", -tds).unwrap();
-    write!(energy_sum, "ΔG,{:.3},ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
-    write!(energy_sum, "Ki,{:.9e},Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
+    write!(energy_sum, "-TΔS,{:.3},,(kJ/mol)\n", -tds).unwrap();
+    write!(energy_sum, "ΔG,{:.3},,ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
+    write!(energy_sum, "Ki,{:.9e},,Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
     println!("Binding energy terms have been writen to {}", &def_name);
 }
 
