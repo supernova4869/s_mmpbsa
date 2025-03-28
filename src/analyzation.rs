@@ -404,7 +404,7 @@ fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
             results.atom_res
                 .iter()
                 .filter(|&&i| res_range.contains(&(results.residues[i].nr)))    // 用户筛选用nr
-                .map(|&i| results.residues[i].id)     // 索引用id
+                .map(|&i| i)     // 索引用nr
                 .collect()
         },
         _ => vec![],
@@ -426,12 +426,12 @@ fn analyze_atom(results: &SMResult, wd: &Path, sys_name: &String) {
 }
 
 fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec<usize>) -> (Vec<i32>, Vec<String>, [Vec<f64>; 6], [Vec<f64>; 6]) {
-    let res_nr: Vec<i32> = results.residues.iter().filter_map(|res| if target_res.contains(&res.id) {
+    let res_nr: Vec<i32> = results.residues.iter().enumerate().filter_map(|(id, res)| if target_res.contains(&id) {
         Some(res.nr)
     } else {
         None
     }).collect();
-    let res_name: Vec<String> = results.residues.iter().filter_map(|res| if target_res.contains(&res.id) {
+    let res_name: Vec<String> = results.residues.iter().enumerate().filter_map(|(id, res)| if target_res.contains(&id) {
         Some(res.name.to_string())
     } else {
         None
@@ -458,11 +458,11 @@ fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec
     } else {
         None
     }).collect::<Vec<usize>>();
-    for res in results.residues.iter() {
-        if !target_res.contains(&res.id) {
+    for (id, _res) in results.residues.iter().enumerate() {
+        if !target_res.contains(&id) {
             continue;
         }
-        let atom_ids = get_cur_res_atom_ids(res.id);
+        let atom_ids = get_cur_res_atom_ids(id);
         let atom_energy = |arr: &Array2<f64>| {
             arr.select(Axis(1), &atom_ids).select(Axis(0), &ts_ids)
         };

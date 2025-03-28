@@ -29,7 +29,7 @@ use utils::get_input;
 
 fn main() {
     let version = 0.7;
-    welcome(&version.to_string(), "2025-Feb-07");
+    welcome(&version.to_string(), "2025-Mar-28");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -43,7 +43,7 @@ fn main() {
         1 => {
             println!("Input path of tpr file, e.g. D:/md.tpr");
             println!("Or, input path of docking receptor file, e.g. D:/receptor.pdbqt");
-            println!("Hint: input \"o\" to simply load last-opened file");
+            println!("Hint: input \"o\" to simply load last-opened file.");
             println!("Hint: input \"a\" to start analyzation mode.");
             stdin().read_line(&mut input).expect("Failed to get input file.");
             if input.trim().eq("o") {
