@@ -11,7 +11,6 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting.
 - In contrast to other programs, s_mmpbsa is developed with Rust.
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
-- Very fast. Due to the efficency of Rust program.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
 - Considers conformational entropy, as "J. Chem. Phys. 2017, 146, 124124".
 - Could store analyzation results for further reproducable analyzation.
@@ -38,9 +37,9 @@ sudo dnf -y install python3-matplotlib python-pip
 ```
 
 ### Special requirements of molecular docking rescoring:
-- PyMOL to prepare structures (also when plotting the B-factor colored structure).
+- PyMOL is an optional software to plot the B-factor colored structure.
 - Gaussian is an optional software to do DFT calculations for RESP atom charge calculation.
-- Multiwfn is an optional program to fit RESP atom charge.
+- Multiwfn is an optional program (already built-in) to fit RESP atom charge.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
