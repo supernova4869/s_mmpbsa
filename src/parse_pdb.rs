@@ -63,6 +63,7 @@ pub struct PDBModel {
     pub atoms: Vec<PDBAtom>
 }
 
+#[allow(dead_code)]
 impl PDBModel {
     pub fn from(model: &str) -> PDBModel {
         let mut f: Vec<&str> = model.split("\n").collect();

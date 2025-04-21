@@ -153,8 +153,9 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
         });
         println!("  4 Select force field for receptor, current: {}", ff);
         println!("  5 Set ligand atom charge calculation method, current: {}", match settings.chg_m {
-            0 => "antechamber",
-            1 => "gaussian",
+            0 => "openbabel",
+            1 => "antechamber",
+            2 => "gaussian",
             _ => "Not selected (default)"
         });
         println!("  6 Set theoretical method, current: {}", method);
@@ -211,8 +212,9 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             }
             Ok(5) => {
                 println!("Input ligand atom charge calculation method:");
-                println!("0: antechamber (quick)");
-                println!("1: gaussian (accurate)");
+                println!("0: openbabel (quick)");
+                println!("1: antechamber (moderate)");
+                println!("2: gaussian (accurate)");
                 settings.chg_m = get_input_selection().unwrap();
             }
             Ok(6) => {

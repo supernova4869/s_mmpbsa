@@ -3,6 +3,7 @@ mod mmpbsa;
 mod parse_tpr;
 mod parse_xvg;
 mod parse_pdb;
+mod parse_pdbqt;
 mod parse_mol2;
 mod analyzation;
 mod fun_para_basic;
@@ -28,8 +29,8 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    let version = 0.7;
-    welcome(&version.to_string(), "2025-Mar-28");
+    let version = 0.8;
+    welcome(&version.to_string(), "2025-Apr-21");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -211,6 +212,15 @@ fn get_built_in_sobtop() -> String {
         .display().to_string()
 }
 
+fn get_built_in_obabel() -> String {
+    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
+        .parent()
+        .expect("Cannot get current s_mmpbsa program directory.")
+        .join("programs").join("openbabel")
+        .join("obabel")
+        .display().to_string()
+}
+
 fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<String> {
     if let Some(p) = p {
         let p = if p.eq("built-in") {
@@ -220,6 +230,7 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
                 "delphi" => get_built_in_delphi(),
                 "antechamber" => get_built_in_antechamber(),
                 "sobtop" => get_built_in_sobtop(),
+                "obabel" => get_built_in_obabel(),
                 _ => String::from("")
             }
         } else {
@@ -254,17 +265,21 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
 }
 
 fn check_program_validity(program: &str) -> Result<String, ()> {
-    let output = Command::new(program).arg("--version").output();
+    let version_arg = match program {
+        "obabel" => "-V",
+        _ => "--version"
+    };
+    let output = Command::new(program).arg(version_arg).output();
     match output {
         Ok(output) => {
             // println!("{}", output.status.code().unwrap());
             match output.status.code() {
                 Some(0) => Ok(program.to_string()),
-                Some(13) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
-                Some(127) => Ok(program.to_string()),    // Fuck APBS cannot return 0 without input
-                Some(1) => Ok(program.to_string()),    // Currently do not know delphi's test command
-                Some(24) => Ok(program.to_string()),    // Fuck sobtop do not have test command
-                Some(69) => Ok(program.to_string()),    // Fuck sobtop do not have test command
+                Some(13) => Ok(program.to_string()),    // APBS
+                Some(127) => Ok(program.to_string()),    // APBS
+                Some(1) => Ok(program.to_string()),    // delphi
+                Some(24) => Ok(program.to_string()),    // sobtop
+                Some(69) => Ok(program.to_string()),    // ?
                 _ => {
                     Err(())
                 }
@@ -343,5 +358,6 @@ fn env_check() -> Settings {
     settings.delphi_path = set_program(&settings.delphi_path, "delphi", &settings);
     settings.antechamber_path = set_program(&settings.antechamber_path, "antechamber", &settings);
     settings.sobtop_path = set_program(&settings.sobtop_path, "sobtop", &settings);
+    settings.obabel_path = set_program(&settings.obabel_path, "obabel", &settings);
     settings
 }

@@ -23,6 +23,7 @@ pub struct Settings {
     pub sobtop_path: Option<String>,
     pub gaussian_path: Option<String>,
     pub multiwfn_path: Option<String>,
+    pub obabel_path: Option<String>,
     pub nkernels: i32,
     pub debug_mode: bool,
     pub last_opened: String,
@@ -49,6 +50,7 @@ impl Settings {
             gaussian_path: None,
             sobtop_path: None,
             multiwfn_path: None,
+            obabel_path: None,
             nkernels: 1,
             debug_mode: false,
             last_opened: String::new(),
@@ -99,6 +101,8 @@ impl Settings {
         let sobtop_path = Some(sobtop_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let multiwfn_path = parse_param(&setting_values, "multiwfn_path", "".to_string());
         let multiwfn_path = Some(multiwfn_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
+        let obabel_path = parse_param(&setting_values, "obabel_path", "".to_string());
+        let obabel_path = Some(obabel_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
         let debug_mode = match debug_mode[1..2].to_string().as_str() {
@@ -130,6 +134,7 @@ impl Settings {
             sobtop_path,
             gaussian_path,
             multiwfn_path,
+            obabel_path,
             nkernels,
             debug_mode,
             last_opened,
