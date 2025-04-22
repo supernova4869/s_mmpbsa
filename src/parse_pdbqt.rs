@@ -39,11 +39,7 @@ impl PDBQT {
         let mut pdbqt_file = File::create(out_file_path).unwrap();
         writeln!(pdbqt_file, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
         for model in &self.models {
-            writeln!(pdbqt_file, "MODEL      {}", model.modelid).unwrap();
-            for atom in model.atoms.iter() {
-                writeln!(pdbqt_file, "{}", atom).unwrap();
-            }
-            writeln!(pdbqt_file, "ENDMDL").unwrap();
+            write!(pdbqt_file, "{}", model).unwrap();
         }
         writeln!(pdbqt_file, "END").unwrap();
     }
@@ -74,13 +70,23 @@ impl PdbqtModel {
         self.atoms.insert(pos, new_atom.clone());
     }
 
-    pub fn to_pdb(&self, out_file_path: &str) {
+    pub fn to_pdbqt(&self, out_file_path: &str) {
         let mut pdbqt_file = File::create(out_file_path).unwrap();
         writeln!(pdbqt_file, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
         for atom in self.atoms.iter() {
             writeln!(pdbqt_file, "{}", atom).unwrap();
         }
         writeln!(pdbqt_file, "END").unwrap();
+    }
+}
+
+impl fmt::Display for PdbqtModel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(f, "MODEL      {}", self.modelid).unwrap();
+        for atom in self.atoms.iter() {
+            writeln!(f, "{}", atom).unwrap();
+        }
+        writeln!(f, "ENDMDL")
     }
 }
 

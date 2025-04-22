@@ -45,14 +45,9 @@ impl PDB {
         let pb = ProgressBar::new(self.models.len() as u64);
         set_style(&pb);
         for model in &self.models {
-            writeln!(pdb_file, "MODEL      {}", model.modelid).unwrap();
-            for atom in model.atoms.iter() {
-                writeln!(pdb_file, "{}", atom).unwrap();
-            }
-            writeln!(pdb_file, "ENDMDL").unwrap();
+            write!(pdb_file, "{}", model).unwrap();
             pb.inc(1);
         }
-        writeln!(pdb_file, "END").unwrap();
         pb.finish();
     }
 }
@@ -110,7 +105,11 @@ impl PDBModel {
 
 impl fmt::Display for PDBModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "PDB MODEL {}: contains {} atoms", self.modelid, self.atoms.len())
+        writeln!(f, "MODEL      {}", self.modelid).unwrap();
+        for atom in self.atoms.iter() {
+            writeln!(f, "{}", atom).unwrap();
+        }
+        writeln!(f, "ENDMDL")
     }
 }
 

@@ -8,13 +8,13 @@ use std::io::Write;
 use crate::{dump_tpr, parse_mol2::MOL2};
 use crate::parse_pdb::{PDBModel, PDB};
 use crate::settings::Settings;
-use crate::utils::{self, append_new_name, get_input_selection, make_ndx, multiwfn, sobtop, trajectory};
+use crate::utils::{self, append_new_name, get_input_selection, make_ndx, multiwfn, obabel, sobtop, trajectory};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
-use crate::utils::{convert_tpr, convert_trj, trjconv, pdb2gmx, grompp, cmd_options, copy_dir};
+use crate::utils::{convert_tpr, convert_trj, trjconv, pdb2gmx, grompp, copy_dir};
 use crate::parse_xvg::read_coord_xvg;
 use crate::parse_pdbqt::{PdbqtModel, PDBQT};
 
@@ -175,7 +175,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     // prepare pdbqt files
     copy_ff(ff, temp_dir);
     let model_num = fs::read_to_string(ligand_path).unwrap().split("\n").filter(|s| s.starts_with("MODEL")).count();
-    pdbqt2pdb(receptor_path, ligand_path, flex_path, model_num, rec_name, lig_name, ff, wd, temp_dir, settings);
+    pdbqt2pdb(receptor_path, ligand_path, flex_path, model_num, rec_name, lig_name, ff, temp_dir, settings);
 
     // fake tpr
     prepare_system_tpr_pdb(rec_name, lig_name, &flex_name, ff, method, basis, total_charge, multiplicity, temp_dir, settings);
@@ -465,55 +465,49 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
 }
 
 fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, flex_path: &Option<String>, model_num: usize,
-            rec_name: &str, lig_name: &str, ff: &String, wd: &Path, temp_dir: &Path, settings: &Settings) {
+            rec_name: &str, lig_name: &str, ff: &String, temp_dir: &Path, settings: &Settings) {
     let out_rec_name = append_new_name(rec_name, ".pdb", "MMPBSA_docking_");
     let out_lig_name = append_new_name(lig_name, ".pdb", "MMPBSA_docking_");
-    let obabel_path = settings.obabel_path.as_deref().unwrap();
     // if flex docking, flex part must be combined into rigid part before obabel processing
     if let Some(flex_path) = flex_path {
         // combine flexible residues, prepare receptor with obabel then gmx pdb2gmx
         println!("Preparing flexible residues...");
-        let new_pdb = combine_flex(receptor_path, flex_path, wd);
+        let new_pdb = combine_flex(receptor_path, flex_path);
         for (i, model) in new_pdb.models.iter().enumerate() {
             let pro_name_pdbqt = format!("MMPBSA_docking_{}{}.pdbqt", rec_name, i + 1);
             let pro_name_pdb = format!("MMPBSA_docking_{}{}.pdb", rec_name, i + 1);
-            model.to_pdb(temp_dir.join(&pro_name_pdbqt).to_str().unwrap());
-            cmd_options(settings, &obabel_path, &vec![], 
+            model.to_pdbqt(temp_dir.join(&pro_name_pdbqt).to_str().unwrap());
+            obabel(&vec![], settings, 
                 &[temp_dir.join(pro_name_pdbqt).to_str().unwrap(), "-opdb", 
-                    format!("-O{}", temp_dir.join(&pro_name_pdb).to_str().unwrap()).as_str()], 
-                Path::new(&obabel_path).parent().unwrap()).unwrap();
+                    format!("-O{}", temp_dir.join(&pro_name_pdb).to_str().unwrap()).as_str()]);
             pdb2gmx(&vec![], temp_dir, settings, &pro_name_pdb, &pro_name_pdb, ff, "spc");
         }
     } else {
         // if rigid, prepare receptor with obabel then gmx pdb2gmx
-        cmd_options(settings, &obabel_path, &vec![], 
+        obabel(&vec![], settings, 
             &[Path::new(receptor_path).canonicalize().unwrap().to_str().unwrap(), "-opdb", 
-                format!("-O{}", temp_dir.join(&out_rec_name).to_str().unwrap()).as_str()], 
-            Path::new(&obabel_path).parent().unwrap()).unwrap();
+                format!("-O{}", temp_dir.join(&out_rec_name).to_str().unwrap()).as_str()]);
         pdb2gmx(&vec![], temp_dir, settings, &out_rec_name, &out_rec_name, ff, "spc");
     }
     // split ligand structures
-    cmd_options(settings, &obabel_path, &vec![], 
+    obabel(&vec![], settings, 
         &[Path::new(ligand_path).canonicalize().unwrap().to_str().unwrap(), "-opdb", 
-        format!("-O{}", temp_dir.join(&out_lig_name).to_str().unwrap()).as_str(), "-m"], 
-        Path::new(&obabel_path).parent().unwrap()).unwrap();
+            format!("-O{}", temp_dir.join(&out_lig_name).to_str().unwrap()).as_str(), "-m"]);
     // add H for ligands
     for i in 1..(model_num + 1) {
-        cmd_options(settings, &obabel_path, &vec![], 
+        obabel(&vec![], settings, 
             &[temp_dir.join(format!("MMPBSA_docking_{}{}.pdb", lig_name, i)).to_str().unwrap(), "-opdb", 
-            format!("-O{}", temp_dir.join(format!("MMPBSA_docking_{}{}.pdb", lig_name, i)).to_str().unwrap()).as_str(), "-h"], 
-            Path::new(&obabel_path).parent().unwrap()).unwrap();
+            format!("-O{}", temp_dir.join(format!("MMPBSA_docking_{}{}.pdb", lig_name, i)).to_str().unwrap()).as_str(), "-h"]);
     }
     // gen first mol2 for top building
-    cmd_options(settings, &obabel_path, &vec![], 
+    obabel(&vec![], settings, 
         &[temp_dir.join(format!("MMPBSA_docking_{}1.pdb", lig_name)).to_str().unwrap(), "-omol2", 
-        format!("-O{}", temp_dir.join("LIG.mol2").to_str().unwrap()).as_str()], 
-        Path::new(&obabel_path).parent().unwrap()).unwrap();
+            format!("-O{}", temp_dir.join("LIG.mol2").to_str().unwrap()).as_str()]);
 }
 
-fn combine_flex(protein_name: &String, flex_name: &String, wd: &Path) -> PDBQT {
-    let protein = PDBQT::from(wd.join(protein_name).to_str().unwrap());
-    let flex = PDBQT::from(wd.join(&flex_name).to_str().unwrap());
+fn combine_flex(protein_path: &String, flex_path: &String) -> PDBQT {
+    let protein = PDBQT::from(protein_path);
+    let flex = PDBQT::from(&flex_path);
     let mut models: Vec<PdbqtModel> = vec![];
     for (i, flex_model) in flex.models.iter().enumerate() {
         let mut pro = protein.models[0].clone();
