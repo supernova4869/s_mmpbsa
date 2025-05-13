@@ -12,14 +12,14 @@ pub fn prepare_pqr(cur_frm: usize, times: &Vec<f64>,
                    aps: &AtomProperties) {
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
     let mut pqr_com = match ndx_lig_norm[0] != ndx_rec_norm[0] {
-        true => Some(File::create(&temp_dir.join(format!("{}_com.pqr", f_name))).unwrap()),
+        true => Some(File::create(&temp_dir.join(format!("{}_com.pqr", f_name))).expect("Error: Failed to write pqr file")),
         false => None
     };
     let mut pqr_lig = match ndx_lig_norm[0] != ndx_rec_norm[0] {
-        true => Some(File::create(&temp_dir.join(format!("{}_lig.pqr", f_name))).unwrap()),
+        true => Some(File::create(&temp_dir.join(format!("{}_lig.pqr", f_name))).expect("Error: Failed to write pqr file")),
         false => None
     };
-    let mut pqr_rec = File::create(&temp_dir.join(format!("{}_rec.pqr", f_name))).unwrap();
+    let mut pqr_rec = File::create(&temp_dir.join(format!("{}_rec.pqr", f_name))).expect("Error: Failed to write pqr file");
     
     // loop atoms and write pqr information (from pqr)
     for at_id in 0..aps.atom_props.len() {
