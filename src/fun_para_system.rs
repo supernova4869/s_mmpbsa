@@ -474,19 +474,14 @@ fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, flex_path: &Option<St
         println!("Preparing flexible residues...");
         let new_pdb = combine_flex(receptor_path, flex_path);
         for (i, model) in new_pdb.models.iter().enumerate() {
-            let pro_name_pdbqt = format!("MMPBSA_docking_{}{}.pdbqt", rec_name, i + 1);
             let pro_name_pdb = format!("MMPBSA_docking_{}{}.pdb", rec_name, i + 1);
-            model.to_pdbqt(temp_dir.join(&pro_name_pdbqt).to_str().unwrap());
-            obabel(&vec![], settings, 
-                &[temp_dir.join(pro_name_pdbqt).to_str().unwrap(), "-opdb", 
-                    format!("-O{}", temp_dir.join(&pro_name_pdb).to_str().unwrap()).as_str()]);
+            model.to_pdb(temp_dir.join(&pro_name_pdb).to_str().unwrap());
             pdb2gmx(&vec![], temp_dir, settings, &pro_name_pdb, &pro_name_pdb, ff, "spc");
         }
     } else {
         // if rigid, prepare receptor with obabel then gmx pdb2gmx
-        obabel(&vec![], settings, 
-            &[Path::new(receptor_path).canonicalize().unwrap().to_str().unwrap(), "-opdb", 
-                format!("-O{}", temp_dir.join(&out_rec_name).to_str().unwrap()).as_str()]);
+        let rec_pdbqt = PDBQT::from(&receptor_path);
+        rec_pdbqt.to_pdb(temp_dir.join(&out_rec_name).to_str().unwrap());
         pdb2gmx(&vec![], temp_dir, settings, &out_rec_name, &out_rec_name, ff, "spc");
     }
     // split ligand structures
@@ -597,9 +592,9 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
     // make complex ndx
     make_ndx(&vec!["q"], temp_dir, settings, complex_gro_path.to_str().unwrap(), "", "MMPBSA_index.ndx");
 
-    // grompp
-    let mdp = current_exe().unwrap().parent().unwrap().join("include").join("md.mdp");
-    grompp(&vec![], temp_dir, settings, mdp.to_str().unwrap(), complex_gro_path.to_str().unwrap(), "../md.tpr");
+    // MD protocol
+    let md_mdp = current_exe().unwrap().parent().unwrap().join("include").join("md.mdp");
+    grompp(&vec![], temp_dir, settings, md_mdp.to_str().unwrap(), complex_gro_path.to_str().unwrap(), "../md.tpr");
 }
 
 fn calc_charge(lig_name: &str, temp_dir: &Path, method: &String, basis: &String, total_charge: i32, multiplicity: usize, settings: &Settings) {

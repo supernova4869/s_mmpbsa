@@ -1,7 +1,7 @@
 define =
 integrator = md
 dt         = 0.002   ; ps
-nsteps     = 20000000
+nsteps     = 500000
 comm-grps  = system
 energygrps = 
 ;

@@ -101,6 +101,12 @@ pub fn grompp(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, c: &
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
+#[allow(dead_code)]
+pub fn mdrun(options: &Vec<&str>, wd: &Path, settings: &Settings, name: &str, nt: &str) {
+    let args = ["mdrun", "-v", "-deffnm", name, "-nt", nt, "-quiet"];
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
+}
+
 pub fn convert_tpr(options: &Vec<&str>, wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o, "-quiet"];
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
