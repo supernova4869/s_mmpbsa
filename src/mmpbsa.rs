@@ -252,8 +252,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
 
     // end calculation
     let t_end = Local::now();
-    let t_spend = Duration::from(t_end - t_start).num_milliseconds();
-    println!("MM/PB-SA calculation of {} finished. Total time cost: {} s", sys_name, t_spend as f64 / 1000.0);
+    let t_spend = Duration::from(t_end - t_start).num_seconds();
+    println!("MM/PB-SA calculation of {} finished. Total time cost: {} s", sys_name, t_spend);
     env::remove_var("OMP_NUM_THREADS");
 
     let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
@@ -271,7 +271,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
         &vdw_atom,
         &pb_atom,
         &sa_atom,
-        &mm_ie
+        &mm_ie,
     )
 }
 

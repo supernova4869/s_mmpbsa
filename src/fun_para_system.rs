@@ -4,6 +4,7 @@ use std::env::{self, current_exe};
 use std::path::Path;
 use std::fs::{self, File};
 use std::io::Write;
+use std::collections::HashSet;
 
 use crate::{dump_tpr, parse_mol2::MOL2};
 use crate::parse_pdb::{PDBModel, PDB};
@@ -24,7 +25,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
     let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = f64::INFINITY;                        // ps
     let mut dt = 1000.0;                               // ps
-    let mut dt_ie = 100.0;                             // ps
+    let mut ie_multi = 10;                           // multipli
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
     let ndx = Index::from(ndx_name);
     loop {
@@ -32,12 +33,12 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
         println!("-10 Return");
         println!(" -1 Toggle whether to fix PBC conditions, current: {}", settings.fix_pbc);
         println!("  0 Go to next step");
-        println!("  1 Select receptor groups, current:          {}", show_grp(receptor_grp, &ndx));
-        println!("  2 Select ligand groups, current:            {}", show_grp(ligand_grp, &ndx));
+        println!("  1 Select receptor group, current:           {}", show_grp(receptor_grp, &ndx));
+        println!("  2 Select ligand group, current:             {}", show_grp(ligand_grp, &ndx));
         println!("  3 Set start time to analyze, current:       {} ns", bt / 1000.0);
         println!("  4 Set end time to analyze, current:         {} ns", et / 1000.0);
-        println!("  5 Set time interval for ΔSOL, current:      {} ns", dt / 1000.0);
-        println!("  6 Set time interval for IE, current:        {} ps", dt_ie);
+        println!("  5 Set time interval, current:               {} ns", dt / 1000.0);
+        println!("  6 Set IE sampling rate multiple, current:   {}", ie_multi);
         let i = get_input_selection();
         match i {
             Ok(-10) => return,
@@ -46,11 +47,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             }
             Ok(0) => {
                 if let Some(receptor_grp) = receptor_grp {
-                    if dt >= dt_ie {
-                        prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, tpr_name, ndx_name, bt, et, dt, dt_ie, wd, settings);
-                    } else {
-                        println!("Time interval for IE should be smaller than for ΔSOL.");
-                    }
+                    prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, tpr_name, ndx_name, bt, et, dt, dt / ie_multi as f64, wd, settings);
                 } else {
                     println!("Please select receptor groups.");
                 };
@@ -99,13 +96,12 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             }
             Ok(6) => {
                 println!("Input interval time (in ps) for IE, should be divisible of {} ps:", unit_dt);
-                let mut new_dt_ie = get_input_selection::<f64>().unwrap();
-                while new_dt_ie % unit_dt != 0.0 || new_dt_ie < 0.0 {
-                    println!("The input {} ps is not a valid time step.", new_dt_ie);
-                    println!("Input interval time (in ps) again, should be divisible of {} ps:", unit_dt);
-                    new_dt_ie = get_input_selection::<f64>().unwrap();
+                let mut new_ie_multi = get_input_selection::<i32>().unwrap();
+                while new_ie_multi <= 0 {
+                    println!("Must be positive integer, input again:");
+                    new_ie_multi = get_input_selection::<i32>().unwrap();
                 }
-                dt_ie = new_dt_ie;
+                ie_multi = new_ie_multi;
             }
             _ => println!("Invalid input")
         }
@@ -196,7 +192,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     let time_list = (0..coordinates.shape()[0]).map(|t| (t + 1) as f64 * 1000.0).collect();
 
     // fake ndx
-    let ndx_com = (0..total_atoms_num).collect();
+    let ndx_com: Vec<usize> = (0..total_atoms_num).collect();
     let ndx_rec: Vec<usize> = (0..rec_atoms_num).collect();
     let ndx_lig: Vec<usize> = (rec_atoms_num..total_atoms_num).collect();
     let ndx = Index::new(vec![IndexGroup::new("Receptor", &ndx_rec), IndexGroup::new("Ligand", &ndx_lig)]);
@@ -289,21 +285,28 @@ pub fn normalize_index(ndx_rec: &Vec<usize>, ndx_lig: Option<&Vec<usize>>) -> (V
     }
 }
 
+
 pub fn get_residues_tpr(tpr: &TPR, ndx_com: &Vec<usize>) -> Vec<Residue> {
-    let mut residues: Vec<Residue> = vec![];
+    let mut residues: Vec<Residue> = Vec::with_capacity(ndx_com.len());
+    let ndx_com_set: HashSet<usize> = ndx_com.iter().cloned().collect();
     let mut idx = 0;
     let mut resind_offset = 0;
     
     for mol in &tpr.molecules {
-        for _ in 0..tpr.molecule_types[mol.molecule_type_id].molecules_num {
+        let mol_type = &tpr.molecule_types[mol.molecule_type_id];
+        for _ in 0..mol_type.molecules_num {
             for atom in &mol.atoms {
                 idx += 1;
-                if ndx_com.contains(&idx) && residues.len() <= atom.resind + resind_offset {
+                if ndx_com_set.contains(&idx) && residues.len() <= atom.resind + resind_offset {
                     let mut cur_res = mol.residues[atom.resind].to_owned();
-                    let prev_resnr_list : Vec<i32> = residues.iter().map(|r| r.nr).collect();
-                    if prev_resnr_list.contains(&cur_res.nr) {
-                        cur_res.nr = *prev_resnr_list.last().unwrap() + 1;
+                    // 检查重复的nr
+                    if !residues.is_empty() {
+                        let last_nr = residues.last().unwrap().nr;
+                        if residues.iter().any(|r| r.nr == cur_res.nr) {
+                            cur_res.nr = last_nr + 1;
+                        }
                     }
+                    
                     residues.push(cur_res);
                 }
             }
