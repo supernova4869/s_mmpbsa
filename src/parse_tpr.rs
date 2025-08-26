@@ -1,15 +1,38 @@
 use std::fmt::Formatter;
 use std::path::Path;
-use std::{fmt, fs};
-use std::io::Write;
-use std::io::BufReader;
+use std::fmt;
 use ndarray::Array2;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::BufRead;
+use once_cell::sync::Lazy;
 
 use crate::settings::Settings;
+
+// 预编译所有正则表达式
+static RE_DT: Lazy<Regex> = Lazy::new(|| Regex::new(r"dt\s+=\s*(.*)").unwrap());
+static RE_NSTXOUT: Lazy<Regex> = Lazy::new(|| Regex::new(r"nstxout-compressed\s+=\s*(.*)").unwrap());
+static RE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name\\s*=\\s*\"(.*)\"").unwrap());
+static RE_ATOMS_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"#atoms\s*=\s*(\d+)").unwrap());
+static RE_MOLBLOCK: Lazy<Regex> = Lazy::new(|| Regex::new(r"#molblock\s*=\s*(\d+)").unwrap());
+static RE_MOLTYPE: Lazy<Regex> = Lazy::new(|| Regex::new("moltype\\s*=\\s*\\d+\\s*\"(.*)\"").unwrap());
+static RE_MOLECULES_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"#molecules\s*=\s*(\d+)").unwrap());
+static RE_ATNR: Lazy<Regex> = Lazy::new(|| Regex::new(r"atnr\s*=\s*(\d+)").unwrap());
+static RE_FUNCTYPE: Lazy<Regex> = Lazy::new(|| 
+    Regex::new(r"functype\[(\d*)]=LJ_SR,\s*c6\s*=\s*(\S*),\s*c12\s*=\s*(\S*)").unwrap());
+static RE_MOLTYPE_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"moltype \((\d+)\)").unwrap());
+static RE_ATOM_PARAMS: Lazy<Regex> = Lazy::new(|| 
+    Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap());
+static RE_ATOM_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name=\"(.*)\"").unwrap());
+static RE_TYPE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name=\"(.*)\",").unwrap());
+static RE_RESIDUE: Lazy<Regex> = Lazy::new(|| 
+    Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=([\\d\\-]+).*").unwrap());
+static RE_ANGLES_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"nr\s*:\s*(\d+)").unwrap());
+static RE_ANGLES: Lazy<Regex> = Lazy::new(|| Regex::new(r"\(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap());
+static RE_COORD: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\s*(.*),\s*(.*),\s*(.*)\}").unwrap());
+static RE_ATOM_COUNT: Lazy<Regex> = Lazy::new(|| Regex::new(r"atom \((\d+)\):").unwrap());
+static RE_RESIDUE_COUNT: Lazy<Regex> = Lazy::new(|| Regex::new(r"residue \((\d+)\)").unwrap());
 
 pub struct TPR {
     pub name: String,
@@ -20,7 +43,7 @@ pub struct TPR {
     pub lj_sr_params: Vec<LJType>,
     pub molecules: Vec<Molecule>,
     pub dt: f64,
-    pub nstxout: u32,
+    pub nstxout: i32,
     pub temp: f64,
     pub coordinates: Array2<f64>,
 }
@@ -41,280 +64,72 @@ impl TPR {
         let mut atoms_num = 0;
         let mut molecule_types_num = 0;
         let mut atom_types_num = 0;
-        let mut molecule_types: Vec<MolType> = vec![];
+        let mut molecule_types: Vec<MolType> = Vec::new();
 
+        // 使用BufReader高效读取文件
         let file = File::open(mdp).unwrap();
         let mut reader = BufReader::new(file);
-        let mut buf = String::from("");
+        let mut buf = String::with_capacity(256);
 
-        let mut fun_type: Vec<LJType> = vec![];
-        let mut sigma: Vec<f64> = vec![];
-        let mut epsilon: Vec<f64> = vec![];
-        let mut radius: Vec<f64> = vec![];
+        let mut fun_type: Vec<LJType> = Vec::new();
+        let mut sigma: Vec<f64> = Vec::new();
+        let mut epsilon: Vec<f64> = Vec::new();
+        let mut radius: Vec<f64> = Vec::new();
 
-        let mut atom_resids: Vec<usize> = vec![];   // residue ids of each atom
-        let mut atom_types: Vec<usize> = vec![];    // atom type
-        let mut atom_radii: Vec<f64> = vec![];      // atom radius
-        let mut atom_charges: Vec<f64> = vec![];    // atom charge
-        let mut atom_names: Vec<String> = vec![];   // atom name
-        let mut type_names: Vec<String> = vec![];   // atom type name
-        
-        let mut coordinates: Vec<f64> = vec![];   // atom coordinates
+        // 预分配向量容量（稍后根据实际大小调整）
+        let mut atom_resids: Vec<usize> = Vec::new();
+        let mut atom_types: Vec<usize> = Vec::new();
+        let mut atom_radii: Vec<f64> = Vec::new();
+        let mut atom_charges: Vec<f64> = Vec::new();
+        let mut atom_names: Vec<String> = Vec::new();
+        let mut type_names: Vec<String> = Vec::new();
+        let mut coordinates: Vec<f64> = Vec::new();
+        let mut molecules: Vec<Molecule> = Vec::new();
 
-        let mut molecules: Vec<Molecule> = vec![];
-
-        // simulation time parameters
+        // 模拟时间参数
         let mut dt = 0.0;
         let mut nstxout = 0;
         let mut temp = 0.0;
 
         println!("Loading dump file: {}\n", mdp);
-        loop {
-            let bytes = read_line(&mut reader, &mut buf);
-            if bytes == 0 {
-                break;
-            }
-
-            // MD steps
-            if buf.starts_with("inputrec:") {
-                loop {
-                    read_line(&mut reader, &mut buf);
-                    if buf.trim().starts_with("dt") {
-                        let re = Regex::new(r"dt\s+=\s*(.*)").unwrap();
-                        dt = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
-                    } else if buf.trim().starts_with("nstxout-compressed") {
-                        let re = Regex::new(r"nstxout-compressed\s+=\s*(.*)").unwrap();
-                        nstxout = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
-                        break
-                    }
-                }
-            }
-
-            if buf.trim().starts_with("ref-t:") {
-                let ref_t: Vec<&str> = buf.split(" ").filter_map(|p| match p.trim().len() {
-                    0 => None,
-                    _ => Some(p)
-                }).collect();
-                temp = ref_t[1].trim().parse().expect("Failed to get temperature.");
-            }
-
-            // molecules define
-            if buf.starts_with("topology:") {
-                // name
-                read_line(&mut reader, &mut buf);       // name="Protein in water"
-                let re = Regex::new("name\\s*=\\s*\"(.*)\"").unwrap();
-                name = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().to_string();
-                name = name.replace(" ", "_");
-                println!("System name: {}", name);
-
-                // atom num
-                read_line(&mut reader, &mut buf);       // #atoms = 3218
-                let re = Regex::new(r"#atoms\s*=\s*(\d+)").unwrap();
-                atoms_num = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
-                println!("Total atoms number: {}", atoms_num);
-
-                // molecule types num
-                read_line(&mut reader, &mut buf);
-                let re = Regex::new(r"#molblock\s*=\s*(\d+)").unwrap();
-                molecule_types_num = re.captures(&buf).unwrap().get(1).unwrap().as_str().trim().parse().unwrap();
-
-                println!("System molecular types:");
-                for mt_id in 0..molecule_types_num {
-                    loop {
-                        read_line(&mut reader, &mut buf);
-                        if buf.trim().starts_with("molblock (") {
-                            read_line(&mut reader, &mut buf);
-                            let re = Regex::new("moltype\\s*=\\s*\\d+\\s*\"(.*)\"").unwrap();
-                            let name = re.captures(&buf).unwrap().get(1).unwrap().as_str().to_string();
-                            read_line(&mut reader, &mut buf);
-                            let re = Regex::new(r"#molecules\s*=\s*(\d+)").unwrap();
-                            let molecules_num: i64 = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                            let moltype = MolType::new(mt_id, name, molecules_num);
-                            println!("{}", moltype);
-                            molecule_types.push(moltype);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // force field parameters (atom radius here)
-            if buf.trim().starts_with("ffparams:") {
-                read_line(&mut reader, &mut buf);
-                let re = Regex::new(r"atnr\s*=\s*(\d+)").unwrap();
-                atom_types_num = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                println!("Total atom types: {}.", atom_types_num);
-
-                read_line(&mut reader, &mut buf);
-                // functype[0]=LJ_SR, c6= 2.07413384e-03, c12= 1.51207360e-06
-                let re = Regex::new(r"functype\[(\d*)]=LJ_SR,\s*c6\s*=\s*(\S*),\s*c12\s*=\s*(\S*)").unwrap();
-                for i in 0..atom_types_num {
-                    for j in 0..atom_types_num {
-                        read_line(&mut reader, &mut buf);
-                        let m = re.captures(&buf).unwrap();
-                        let c6: f64 = m.get(2).unwrap().as_str().parse().unwrap();
-                        let c12: f64 = m.get(3).unwrap().as_str().parse().unwrap();
-                        fun_type.push(LJType::new(c6, c12));
-                        // calculate σ, ε, radius for each atom
-                        if j == i {
-                            if c6 != 0.0 && c12 != 0.0 {
-                                sigma.push(10.0 * (c12 / c6).powf(1.0 / 6.0)); // nm to A
-                                epsilon.push(c6.powi(2) / (4.0 * c12));
-                                radius.push(sigma[i] / 2.0); // sigma is diameter
-                            } else {
-                                sigma.push(0.0);
-                                epsilon.push(0.0);
-                                radius.push(settings.radius_ff_default);
-                            }
-                        }
-                    }
-                }
-                println!("Total LJ function types: {}", fun_type.len());
-            }
-
-            if buf.trim().starts_with("moltype (") {
-                let mut atoms: Vec<Atom> = vec![];
-                let mut residues: Vec<Residue> = vec![];
-                // currently exist atoms, to avoid duplicate process
-                let offset: usize = molecules.iter().map(|p| p.atoms_num).sum();
-
-                let re = Regex::new(r"moltype \((\d+)\)").unwrap();
-                let molecule_type_id: usize = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                println!("Reading molecule {} information...", molecule_type_id);
-                read_line(&mut reader, &mut buf);
-                let re = Regex::new("name\\s*=\\s*\"(.*)\"").unwrap();
-                let molecule_name = re.captures(&buf).unwrap().get(1).unwrap().as_str().to_string();
-                read_line(&mut reader, &mut buf);
-                read_line(&mut reader, &mut buf);
-                let re = Regex::new(r"atom \((\d+)\):").unwrap();
-                let atoms_num: usize = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-
-                // atom parameters
-                // atom[     0]={type=  0, typeB=  0, ptype=    Atom, m= 1.60000e+01,
-                // q=-4.91104e-01, mB= 1.60000e+01, qB=-4.91104e-01, resind=    0, atomnumber= -1}
-                let re = Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap();
-                for _ in 0..atoms_num {
-                    read_line(&mut reader, &mut buf);
-                    let c = re.captures(&buf).unwrap();
-                    let atom_type_id: usize = c.get(1).unwrap().as_str().parse().unwrap();
-                    let atom_charge: f64 = c.get(2).unwrap().as_str().parse().unwrap();
-                    let residue_index: usize = c.get(3).unwrap().as_str().parse().unwrap();
-                    atom_resids.push(residue_index);
-                    atom_types.push(atom_type_id);
-                    atom_radii.push(radius[atom_type_id]);
-                    atom_charges.push(atom_charge);
-                }
-
-                // atom names
-                read_line(&mut reader, &mut buf);
-                // atom[0]={name="O1"}
-                let re = Regex::new("name=\"(.*)\"").unwrap();
-                for _ in 0..atoms_num {
-                    read_line(&mut reader, &mut buf);
-                    let name = re.captures(&buf).unwrap().get(1).unwrap().as_str();
-                    atom_names.push(name.to_string());
-                }
-
-                // atom types
-                read_line(&mut reader, &mut buf);
-                // type[0]={name="N3",nameB="N3"}
-                let re = Regex::new("name=\"(.*)\",").unwrap();
-                for _ in 0..atoms_num {
-                    read_line(&mut reader, &mut buf);
-                    let name = re.captures(&buf).unwrap().get(1).unwrap().as_str();
-                    type_names.push(name.to_string());
-                }
-
-                // residues
-                read_line(&mut reader, &mut buf);
-                let re = Regex::new(r"\s*residue \((\d+)\)").unwrap();
-                let res_num: i32 = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                let re = Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=([\\d\\-]+).*").unwrap();
-                for _ in 0..res_num {
-                    read_line(&mut reader, &mut buf);
-                    let m = re.captures(&buf).unwrap();
-                    let id: usize = m.get(1).unwrap().as_str().parse().unwrap();
-                    let name = m.get(2).unwrap().as_str().to_string();
-                    let nr: i32 = m.get(3).unwrap().as_str().parse().unwrap();
-                    residues.push(Residue::new(id, name, nr));
-                }
-
-                // angles
-                loop {
-                    read_line(&mut reader, &mut buf);
-                    if buf.trim().starts_with("Angle:") {
-                        read_line(&mut reader, &mut buf);
-                        let re = Regex::new(r"nr\s*:\s*(\d+)").unwrap();
-                        let angles: i32 = re.captures(&buf).unwrap().get(1).unwrap().as_str().parse().unwrap();
-                        if angles > 0 {
-                            read_line(&mut reader, &mut buf);
-                            let re = Regex::new(r"\(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap();
-                            // assign H types by connection atoms from angle information
-                            for _ in 0..angles / 4 {
-                                read_line(&mut reader, &mut buf);
-                                if re.is_match(&buf) {
-                                    let c = re.captures(&buf).unwrap();
-                                    let i: usize = c.get(1).unwrap().as_str().parse().unwrap();
-                                    let j: usize = c.get(2).unwrap().as_str().parse().unwrap();
-                                    let k: usize = c.get(3).unwrap().as_str().trim().parse().unwrap();
-                                    if atom_names[offset + i].starts_with(['H', 'h']) {
-                                        atom_names[offset + i] = format!("H{}", atom_names[offset + j]);
-                                    }
-                                    if atom_names[offset + k].starts_with(['H', 'h']) {
-                                        atom_names[offset + k] = format!("H{}", atom_names[offset + j]);
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
-                            break;
-                        } else { break; }
-                    }
-                }
-
-                for id in 0..atoms_num {
-                    let id = id + offset;
-                    atoms.push(Atom::new(id,
-                                        &type_names[id],
-                                        atom_types[id],
-                                        atom_charges[id],
-                                        atom_resids[id],
-                                        atom_names[id].to_string(),
-                                        atom_radii[id]));
-                }
-
-                molecules.push(Molecule::new(molecule_type_id, molecule_name, atoms_num,
-                                             &atoms, &residues));
-            }
-
-            // coordinates
-            // x (3218x3):
-            if buf.trim().starts_with("x (") {
-                println!("Reading coordinate information...");
-                let re = Regex::new(r"\{\s*(.*),\s*(.*),\s*(.*)\}").unwrap();
-                for _ in 0..atoms_num {
-                    read_line(&mut reader, &mut buf);
-                    // x[    0]={ 1.41430e+00,  1.38595e+00,  2.14591e-01}
-                    let caps = re.captures(&buf).unwrap();
-                    let x: f64 = caps.get(1).unwrap().as_str().parse().unwrap();
-                    let y: f64 = caps.get(2).unwrap().as_str().parse().unwrap();
-                    let z: f64 = caps.get(3).unwrap().as_str().parse().unwrap();
-                    coordinates.push(x * 10.0);
-                    coordinates.push(y * 10.0);
-                    coordinates.push(z * 10.0);
-                }
+        
+        // 读取文件行
+        while read_line(&mut reader, &mut buf) > 0 {
+            let line = buf.trim();
+            
+            // 使用模式匹配提高可读性和性能
+            if line.starts_with("inputrec:") {
+                process_inputrec(&mut reader, &mut buf, &mut dt, &mut nstxout);
+            } else if line.starts_with("ref-t:") {
+                process_ref_t(line, &mut temp);
+            } else if line.starts_with("topology:") {
+                process_topology(&mut reader, &mut buf, &mut name, &mut atoms_num, 
+                            &mut molecule_types_num, &mut molecule_types);
+            } else if line.starts_with("ffparams:") {
+                process_ffparams(&mut reader, &mut buf, &mut atom_types_num, 
+                            &mut fun_type, &mut sigma, &mut epsilon, 
+                            &mut radius, settings);
+            } else if line.starts_with("moltype (") {
+                process_moltype(&mut reader, &mut buf, &mut molecules, 
+                            &mut atom_resids, &mut atom_types, &mut atom_radii,
+                            &mut atom_charges, &mut atom_names, &mut type_names,
+                            &radius);
+            } else if line.starts_with("x (") {
+                process_coordinates(&mut reader, &mut buf, atoms_num, &mut coordinates);
             }
         }
 
         println!("Backup force field radius...");
         let ff_dat = Path::new(mdp).parent().unwrap().join("ff_radius.dat");
         if ff_dat.is_file() {
-            fs::remove_file(&ff_dat).unwrap();
+            std::fs::remove_file(&ff_dat).unwrap();
         }
-        let mut ff_dat = File::create(ff_dat).unwrap();
-        for r in atom_radii {
-            writeln!(ff_dat, "{:.2}", r).unwrap();
+        let ff_file = File::create(ff_dat).unwrap();
+        let mut writer = BufWriter::new(ff_file);
+        for r in &atom_radii {
+            writeln!(writer, "{:.2}", r).unwrap();
         }
+        writer.flush().unwrap();
 
         println!("System molecular composition:");
         for mol in &molecules {
@@ -457,7 +272,309 @@ impl Residue {
     }
 }
 
-fn read_line(reader: &mut BufReader<File>, buf: &mut String) -> usize {
+// 优化的读取行函数
+fn read_line<R: BufRead>(reader: &mut R, buf: &mut String) -> usize {
     buf.clear();
-    reader.read_line(buf).unwrap()
+    match reader.read_line(buf) {
+        Ok(0) => 0,
+        Ok(n) => n,
+        Err(_) => 0,
+    }
+}
+
+// 分解的处理函数
+fn process_inputrec<R: BufRead>(reader: &mut R, buf: &mut String, dt: &mut f64, nstxout: &mut i32) {
+    while read_line(reader, buf) > 0 {
+        let line = buf.trim();
+        if line.starts_with("dt") {
+            if let Some(caps) = RE_DT.captures(line) {
+                *dt = caps[1].trim().parse().unwrap();
+            }
+        } else if line.starts_with("nstxout-compressed") {
+            if let Some(caps) = RE_NSTXOUT.captures(line) {
+                *nstxout = caps[1].trim().parse().unwrap();
+                break;
+            }
+        }
+    }
+}
+
+fn process_ref_t(line: &str, temp: &mut f64) {
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() > 1 {
+        *temp = parts[1].parse().unwrap_or(0.0);
+    }
+}
+
+fn process_topology<R: BufRead>(
+    reader: &mut R, 
+    buf: &mut String, 
+    name: &mut String, 
+    atoms_num: &mut usize, 
+    molecule_types_num: &mut usize, 
+    molecule_types: &mut Vec<MolType>
+) {
+    // name
+    read_line(reader, buf);
+    if let Some(caps) = RE_NAME.captures(&buf) {
+        *name = caps[1].trim().to_string().replace(" ", "_");
+    }
+    println!("System name: {}", name);
+
+    // atom num
+    read_line(reader, buf);
+    if let Some(caps) = RE_ATOMS_NUM.captures(&buf) {
+        *atoms_num = caps[1].trim().parse().unwrap();
+    }
+    println!("Total atoms number: {}", atoms_num);
+
+    // molecule types num
+    read_line(reader, buf);
+    if let Some(caps) = RE_MOLBLOCK.captures(&buf) {
+        *molecule_types_num = caps[1].trim().parse().unwrap();
+    }
+
+    println!("System molecular types:");
+    for mt_id in 0..*molecule_types_num {
+        loop {
+            read_line(reader, buf);
+            if buf.trim().starts_with("molblock (") {
+                read_line(reader, buf);
+                if let Some(caps) = RE_MOLTYPE.captures(&buf) {
+                    let mol_name = caps[1].to_string();
+                    read_line(reader, buf);
+                    if let Some(caps) = RE_MOLECULES_NUM.captures(&buf) {
+                        let molecules_num: i64 = caps[1].parse().unwrap();
+                        let moltype = MolType::new(mt_id, mol_name, molecules_num);
+                        println!("{}", moltype);
+                        molecule_types.push(moltype);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn process_ffparams<R: BufRead>(
+    reader: &mut R, 
+    buf: &mut String, 
+    atom_types_num: &mut usize, 
+    fun_type: &mut Vec<LJType>, 
+    sigma: &mut Vec<f64>, 
+    epsilon: &mut Vec<f64>, 
+    radius: &mut Vec<f64>, 
+    settings: &Settings
+) {
+    read_line(reader, buf);
+    if let Some(caps) = RE_ATNR.captures(&buf) {
+        *atom_types_num = caps[1].trim().parse().unwrap();
+    }
+    println!("Total atom types: {}.", atom_types_num);
+
+    read_line(reader, buf);
+    
+    // 预分配向量容量
+    fun_type.reserve(*atom_types_num * *atom_types_num);
+    sigma.reserve(*atom_types_num);
+    epsilon.reserve(*atom_types_num);
+    radius.reserve(*atom_types_num);
+
+    const INV_SIX: f64 = 1.0 / 6.0;
+
+    for i in 0..*atom_types_num {
+        for j in 0..*atom_types_num {
+            read_line(reader, buf);
+            if let Some(caps) = RE_FUNCTYPE.captures(&buf) {
+                let c6: f64 = caps[2].parse().unwrap();
+                let c12: f64 = caps[3].parse().unwrap();
+                fun_type.push(LJType::new(c6, c12));
+                
+                if j == i {
+                    if c6 != 0.0 && c12 != 0.0 {
+                        let ratio = c12 / c6;
+                        sigma.push(10.0 * ratio.powf(INV_SIX));
+                        epsilon.push(c6 * c6 / (4.0 * c12));
+                        radius.push(sigma.last().unwrap() / 2.0);
+                    } else {
+                        sigma.push(0.0);
+                        epsilon.push(0.0);
+                        radius.push(settings.radius_ff_default);
+                    }
+                }
+            }
+        }
+    }
+    println!("Total LJ function types: {}", fun_type.len());
+}
+
+fn process_moltype<R: BufRead>(
+    reader: &mut R, 
+    buf: &mut String, 
+    molecules: &mut Vec<Molecule>, 
+    atom_resids: &mut Vec<usize>, 
+    atom_types: &mut Vec<usize>, 
+    atom_radii: &mut Vec<f64>, 
+    atom_charges: &mut Vec<f64>, 
+    atom_names: &mut Vec<String>, 
+    type_names: &mut Vec<String>, 
+    radius: &[f64]
+) {
+    let mut atoms: Vec<Atom> = Vec::new();
+    let mut residues: Vec<Residue> = Vec::new();
+    let offset: usize = molecules.iter().map(|p| p.atoms_num).sum();
+
+    if let Some(caps) = RE_MOLTYPE_ID.captures(&buf) {
+        let molecule_type_id: usize = caps[1].parse().unwrap();
+        println!("Reading molecule {} information...", molecule_type_id);
+        
+        read_line(reader, buf);
+        let molecule_name = if let Some(caps) = RE_NAME.captures(&buf) {
+            caps[1].to_string()
+        } else {
+            String::new()
+        };
+
+        read_line(reader, buf);
+        read_line(reader, buf);
+        
+        let atoms_num: usize = if let Some(caps) = RE_ATOM_COUNT.captures(&buf) {
+            caps[1].parse().unwrap()
+        } else {
+            0
+        };
+
+        // 预分配容量
+        atom_resids.reserve(atom_resids.len() + atoms_num);
+        atom_types.reserve(atom_types.len() + atoms_num);
+        atom_radii.reserve(atom_radii.len() + atoms_num);
+        atom_charges.reserve(atom_charges.len() + atoms_num);
+        atom_names.reserve(atom_names.len() + atoms_num);
+        type_names.reserve(type_names.len() + atoms_num);
+
+        // 原子参数
+        for _ in 0..atoms_num {
+            read_line(reader, buf);
+            if let Some(caps) = RE_ATOM_PARAMS.captures(&buf) {
+                let atom_type_id: usize = caps[1].parse().unwrap();
+                let atom_charge: f64 = caps[2].parse().unwrap();
+                let residue_index: usize = caps[3].parse().unwrap();
+                
+                atom_resids.push(residue_index);
+                atom_types.push(atom_type_id);
+                atom_radii.push(radius[atom_type_id]);
+                atom_charges.push(atom_charge);
+            }
+        }
+
+        // 原子名称
+        read_line(reader, buf);
+        for _ in 0..atoms_num {
+            read_line(reader, buf);
+            if let Some(caps) = RE_ATOM_NAME.captures(&buf) {
+                atom_names.push(caps[1].to_string());
+            }
+        }
+
+        // 原子类型名称
+        read_line(reader, buf);
+        for _ in 0..atoms_num {
+            read_line(reader, buf);
+            if let Some(caps) = RE_TYPE_NAME.captures(&buf) {
+                type_names.push(caps[1].to_string());
+            }
+        }
+
+        // 残基
+        read_line(reader, buf);
+        let res_num: i32 = if let Some(caps) = RE_RESIDUE_COUNT.captures(&buf) {
+            caps[1].parse().unwrap()
+        } else {
+            0
+        };
+
+        for _ in 0..res_num {
+            read_line(reader, buf);
+            if let Some(caps) = RE_RESIDUE.captures(&buf) {
+                let id: usize = caps[1].parse().unwrap();
+                let name = caps[2].to_string();
+                let nr: i32 = caps[3].parse().unwrap();
+                residues.push(Residue::new(id, name, nr));
+            }
+        }
+
+        // 角度处理
+        loop {
+            read_line(reader, buf);
+            if buf.trim().starts_with("Angle:") {
+                read_line(reader, buf);
+                if let Some(caps) = RE_ANGLES_NUM.captures(&buf) {
+                    let angles: i32 = caps[1].parse().unwrap();
+                    if angles > 0 {
+                        read_line(reader, buf);
+                        for _ in 0..angles / 4 {
+                            read_line(reader, buf);
+                            if let Some(caps) = RE_ANGLES.captures(&buf) {
+                                let i: usize = caps[1].parse().unwrap();
+                                let j: usize = caps[2].parse().unwrap();
+                                let k: usize = caps[3].trim().parse().unwrap();
+                                
+                                if atom_names[offset + i].starts_with(['H', 'h']) {
+                                    let base_name = &atom_names[offset + j];
+                                    atom_names[offset + i] = format!("H{}", base_name);
+                                }
+                                if atom_names[offset + k].starts_with(['H', 'h']) {
+                                    let base_name = &atom_names[offset + j];
+                                    atom_names[offset + k] = format!("H{}", base_name);
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                        break;
+                    } else { break; }
+                }
+            }
+        }
+
+        // 创建原子
+        for id in 0..atoms_num {
+            let global_id = id + offset;
+            atoms.push(Atom::new(
+                global_id,
+                &type_names[global_id],
+                atom_types[global_id],
+                atom_charges[global_id],
+                atom_resids[global_id],
+                atom_names[global_id].clone(),
+                atom_radii[global_id]
+            ));
+        }
+
+        molecules.push(Molecule::new(molecule_type_id, molecule_name, atoms_num, &atoms, &residues));
+    }
+}
+
+fn process_coordinates<R: BufRead>(
+    reader: &mut R, 
+    buf: &mut String, 
+    atoms_num: usize, 
+    coordinates: &mut Vec<f64>
+) {
+    println!("Reading coordinate information...");
+    
+    // 预分配容量
+    coordinates.reserve(coordinates.len() + atoms_num * 3);
+    
+    for _ in 0..atoms_num {
+        read_line(reader, buf);
+        if let Some(caps) = RE_COORD.captures(&buf) {
+            let x: f64 = caps[1].parse().unwrap();
+            let y: f64 = caps[2].parse().unwrap();
+            let z: f64 = caps[3].parse().unwrap();
+            coordinates.push(x * 10.0);
+            coordinates.push(y * 10.0);
+            coordinates.push(z * 10.0);
+        }
+    }
 }
