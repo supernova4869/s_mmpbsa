@@ -1,4 +1,5 @@
 use std::fs::{self, File};
+use std::path::Path;
 use std::io::Write;
 use std::fmt::Formatter;
 use std::fmt;
@@ -25,7 +26,7 @@ impl PDB {
         PDB { models: models.to_vec() }
     }
 
-    pub fn from(fname: &str) -> PDB {
+    pub fn from<P: AsRef<Path>>(fname: P) -> PDB {
         let f = fs::read_to_string(fname).unwrap();
         let ms: Vec<&str> = f.split("MODEL").collect();
         let mut models: Vec<PDBModel> = vec![];

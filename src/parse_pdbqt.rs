@@ -1,4 +1,5 @@
 use std::fs::{self, File};
+use std::path::Path;
 use std::io::Write;
 use std::fmt::Formatter;
 use std::fmt;
@@ -21,7 +22,7 @@ impl PDBQT {
         PDBQT { models: models.to_vec() }
     }
 
-    pub fn from(fname: &str) -> PDBQT {
+    pub fn from<P: AsRef<Path>>(fname: P) -> PDBQT {
         let f = fs::read_to_string(fname).unwrap();
         let ms: Vec<&str> = f.split("MODEL").collect();
         let mut models: Vec<PdbqtModel> = vec![];
