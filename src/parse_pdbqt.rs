@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::path::Path;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::fmt::Formatter;
 use std::fmt;
 
@@ -10,10 +10,8 @@ pub struct PDBQT {
 
 impl fmt::Display for PDBQT {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "PDBQT with {} model(s)",
-        self.models.len()
-    )
-}
+        write!(f, "PDBQT with {} model(s)", self.models.len())
+    }
 }
 
 #[allow(dead_code)]
@@ -82,17 +80,21 @@ impl PdbqtModel {
     }
 
     pub fn to_pdbqt(&self, out_file_path: &str) {
-        let mut pdbqt_file = File::create(out_file_path).unwrap();
-        writeln!(pdbqt_file, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
-        writeln!(pdbqt_file, "{}", self).unwrap();
-        writeln!(pdbqt_file, "END").unwrap();
+        let pdbqt_file = File::create(out_file_path).unwrap();
+        let mut writer = BufWriter::new(pdbqt_file);
+        writeln!(writer, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
+        writeln!(writer, "{}", self).unwrap();
+        writeln!(writer, "END").unwrap();
+        writer.flush().unwrap();
     }
 
     pub fn to_pdb(&self, out_file_path: &str) {
-        let mut pdb_file = File::create(out_file_path).unwrap();
-        writeln!(pdb_file, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
-        writeln!(pdb_file, "{:-}", self).unwrap();
-        writeln!(pdb_file, "END").unwrap();
+        let pdb_file = File::create(out_file_path).unwrap();
+        let mut writer = BufWriter::new(pdb_file);
+        writeln!(writer, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
+        writeln!(writer, "{:-}", self).unwrap();
+        writeln!(writer, "END").unwrap();
+        writer.flush().unwrap();
     }
 }
 

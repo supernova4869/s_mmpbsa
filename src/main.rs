@@ -30,7 +30,7 @@ use utils::get_input;
 
 fn main() {
     let version = 0.8;
-    welcome(&version.to_string(), "2025-May-23");
+    welcome(&version.to_string(), "2025-Aug-26");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -340,13 +340,21 @@ fn env_check() -> Settings {
     // initialize parameters
     let mut settings = match get_settings_in_use() {
         Some(settings_file) => {
+            println!("Note: found settings.ini at {}.", settings_file.display());
             Settings::from(&settings_file)
         }
         None => {
-            println!("Note: settings.ini not found, will use 1 kernel.");
+            println!("Note: no settings.ini found.");
             Settings::new()
         }
     };
+
+    // Set global parallel kernels
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(settings.nkernels)
+        .build_global()
+        .unwrap();
+
     // check necessary dat path
     if !Path::new(env::current_exe().unwrap().parent().unwrap().join("dat/").as_path()).is_dir() {
         println!("Error: the dat/ folder with atom radius not found, please check and retry.");

@@ -1,14 +1,11 @@
 use std::fs::{self, File};
 use std::path::Path;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::fmt::Formatter;
 use std::fmt;
 
-use indicatif::ProgressBar;
 use ndarray::Array2;
 use regex::Regex;
-
-use crate::mmpbsa::set_style;
 
 #[derive(Clone)]
 pub struct PDB {
@@ -41,15 +38,12 @@ impl PDB {
     }
 
     pub fn to_pdb(&self, out_file_path: &str) {
-        let mut pdb_file = File::create(out_file_path).unwrap();
-        writeln!(pdb_file, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
-        let pb = ProgressBar::new(self.models.len() as u64);
-        set_style(&pb);
+        let pdb_file = File::create(out_file_path).unwrap();
+        let mut writer = BufWriter::new(pdb_file);
+        writeln!(writer, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();
         for model in &self.models {
-            write!(pdb_file, "{}", model).unwrap();
-            pb.inc(1);
+            write!(writer, "{}", model).unwrap();
         }
-        pb.finish();
     }
 }
 

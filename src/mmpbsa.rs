@@ -187,7 +187,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
     let times: Vec<f64> = time_list.iter().map(|t| t / 1000.0).collect();
     let times_ie: Vec<f64> = time_list_ie.iter().map(|t| t / 1000.0).collect();
 
-    // set environment
+    // set up environment
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
     if settings.pbsa_kernel.is_some() && settings.apbs_path.is_some() {
         env::set_var("LD_LIBRARY_PATH", 
@@ -242,8 +242,15 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
     };
 
     let mm_ie: Array1<f64> = if ndx_lig[0] != ndx_rec[0] {
-        let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0)).into_par_iter().map(|frame| 
-            calc_ie_per_frame(frame)).collect();
+        let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
+            .into_par_iter()
+            .enumerate()
+            .map(|(i, frame)| 
+                if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
+                    vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
+                } else {
+                    calc_ie_per_frame(frame)
+                }).collect();
         Array1::from_vec(atoms_ie)
     } else {
         Array1::zeros(coordinates_ie.shape()[0])
@@ -275,31 +282,53 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
     )
 }
 
-fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>, 
+fn calc_mm(ndx_rec: &[usize], ndx_lig: &[usize], aps: &AtomProperties, coord: &ArrayView2<f64>, 
             coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
-    let mut de_elec: Array1<f64> = Array1::zeros(aps.atom_props.len());
-    let mut de_vdw: Array1<f64> = Array1::zeros(aps.atom_props.len());
-
-    for &i in ndx_rec {
+    let n_atoms = aps.atom_props.len();
+    let mut de_elec: Array1<f64> = Array1::zeros(n_atoms);
+    let mut de_vdw: Array1<f64> = Array1::zeros(n_atoms);
+    
+    // 预计算一些常量
+    let r_cutoff_sq = settings.r_cutoff.powi(2); // 使用平方避免开方
+    let scale_factor = 1.0 / 10.0; // 单位转换因子
+    
+    // 预提取坐标和属性到局部数组以提高缓存友好性
+    let rec_coords: Vec<_> = ndx_rec.iter().map(|&i| {
+        (i, coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
+    }).collect();
+    
+    let lig_props: Vec<_> = ndx_lig.iter().map(|&j| {
+        (j, aps.atom_props[j].charge, aps.atom_props[j].type_id, 
+         coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
+    }).collect();
+    
+    for &(i, xi, yi, zi) in &rec_coords {
         let qi = aps.atom_props[i].charge;
         let ci = aps.atom_props[i].type_id;
-        let xi = coord[[i, 0]];
-        let yi = coord[[i, 1]];
-        let zi = coord[[i, 2]];
-        for &j in ndx_lig {
-            if ndx_lig[0] == ndx_rec[0] && j <= i {
+        
+        for &(j, qj, cj, xj, yj, zj) in &lig_props {
+            // 跳过不必要的计算
+            if i == j || (ndx_lig[0] == ndx_rec[0] && j <= i) {
                 continue;
             }
-            let qj = aps.atom_props[j].charge;
-            let cj = aps.atom_props[j].type_id;
-            let xj = coord[[j, 0]];
-            let yj = coord[[j, 1]];
-            let zj = coord[[j, 2]];
-            let r = ((xi - xj).powi(2) + (yi - yj).powi(2) + (zi - zj).powi(2)).sqrt();
-            if r <= settings.r_cutoff {
-                let r = r / 10.0;   // The fucking unit system
-                let e_elec = qi * qj / r * coefficients::screening_method(r, coeff, settings.elec_screen);
-                let e_vdw = (aps.c12[[ci, cj]] / r.powi(6) - aps.c6[[ci, cj]]) / r.powi(6);
+            
+            // 使用平方距离进行快速筛选
+            let dx = xi - xj;
+            let dy = yi - yj;
+            let dz = zi - zj;
+            let r_sq = dx * dx + dy * dy + dz * dz;
+            
+            if r_sq <= r_cutoff_sq {
+                let r = r_sq.sqrt() * scale_factor;
+                let r_inv = 1.0 / r;
+                
+                // 静电相互作用
+                let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+                
+                // 范德华相互作用 - 预计算 r^-6
+                let r6_inv = r_inv.powi(6);
+                let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
+                
                 de_elec[i] += e_elec;
                 de_elec[j] += e_elec;
                 de_vdw[i] += e_vdw;
@@ -307,12 +336,90 @@ fn calc_mm(ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, aps: &AtomProperties, coo
             }
         }
     }
-
-    de_elec = de_elec * coeff.f / coeff.pdie / 2.0;
-    de_vdw = de_vdw / 2.0;
-
-    return (de_elec, de_vdw)
+    
+    // 应用缩放因子
+    let elec_scale = coeff.f / coeff.pdie / 2.0;
+    let vdw_scale = 0.5;
+    
+    de_elec = de_elec * elec_scale;
+    de_vdw = de_vdw * vdw_scale;
+    
+    (de_elec, de_vdw)
 }
+
+// fn calc_mm(ndx_rec: &[usize], ndx_lig: &[usize], aps: &AtomProperties, coord: &ArrayView2<f64>, 
+//             coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
+//     let n_atoms = aps.atom_props.len();
+    
+//     // 预计算常量
+//     let r_cutoff_sq = settings.r_cutoff.powi(2);
+//     let scale_factor = 1.0 / 10.0;
+    
+//     // 预提取数据
+//     let rec_coords: Vec<_> = ndx_rec.iter().map(|&i| {
+//         (i, coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
+//     }).collect();
+    
+//     let lig_props: Vec<_> = ndx_lig.iter().map(|&j| {
+//         (j, aps.atom_props[j].charge, aps.atom_props[j].type_id, 
+//          coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
+//     }).collect();
+    
+//     // 并行计算每个受体原子的贡献
+//     let results: Vec<(Array1<f64>, Array1<f64>)> = rec_coords.par_iter().map(|&(i, xi, yi, zi)| {
+//         let qi = aps.atom_props[i].charge;
+//         let ci = aps.atom_props[i].type_id;
+        
+//         let mut local_elec = Array1::zeros(n_atoms);
+//         let mut local_vdw = Array1::zeros(n_atoms);
+        
+//         for &(j, qj, cj, xj, yj, zj) in &lig_props {
+//             if i == j || (ndx_lig[0] == ndx_rec[0] && j <= i) {
+//                 continue;
+//             }
+            
+//             let dx = xi - xj;
+//             let dy = yi - yj;
+//             let dz = zi - zj;
+//             let r_sq = dx * dx + dy * dy + dz * dz;
+            
+//             if r_sq <= r_cutoff_sq {
+//                 let r = r_sq.sqrt() * scale_factor;
+//                 let r_inv = 1.0 / r;
+                
+//                 let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+                
+//                 let r6_inv = r_inv.powi(6);
+//                 let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
+                
+//                 local_elec[i] += e_elec;
+//                 local_elec[j] += e_elec;
+//                 local_vdw[i] += e_vdw;
+//                 local_vdw[j] += e_vdw;
+//             }
+//         }
+        
+//         (local_elec, local_vdw)
+//     }).collect();
+    
+//     // 合并所有线程的结果
+//     let mut de_elec = Array1::zeros(n_atoms);
+//     let mut de_vdw = Array1::zeros(n_atoms);
+    
+//     for (elec, vdw) in results {
+//         de_elec += &elec;
+//         de_vdw += &vdw;
+//     }
+    
+//     // 应用缩放因子
+//     let elec_scale = coeff.f / coeff.pdie / 2.0;
+//     let vdw_scale = 0.5;
+    
+//     de_elec = de_elec * elec_scale;
+//     de_vdw = de_vdw * vdw_scale;
+    
+//     (de_elec, de_vdw)
+// }
 
 fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>, 
             ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 

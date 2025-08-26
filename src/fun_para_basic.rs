@@ -1,5 +1,7 @@
 use std::io::stdin;
 use std::path::Path;
+use std::thread;
+use colored::*;
 use crate::settings::Settings;
 use crate::utils::{append_new_name, get_input, get_input_selection, make_ndx};
 use crate::{confirm_file_validity, convert_cur_dir, set_program};
@@ -7,7 +9,7 @@ use crate::fun_para_system::{set_para_trj, set_para_trj_pdbqt};
 use crate::parse_tpr::TPR;
 
 fn list_basic_programs(settings: &mut Settings) {
-    println!(" -5 Set number of parallel kernels, current: {}", settings.nkernels);
+    println!(" -5 Set number of parallel kernels (only used by PBSA calculations), current: {}", settings.nkernels);
     println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
         Some(s) => s.to_string(),
         None => String::from("Not set")
@@ -52,8 +54,15 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
             }
         }
         -5 => {
-            println!("Input number of parallel kernels (default: 16):");
-            settings.nkernels = get_input(16);
+            let num_cores = thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1);
+            
+            // 使用一半的核心
+            let threads_to_use = (num_cores / 2).max(1);
+            
+            println!("Input number of parallel kernels (default: system cores num, currently {}):", threads_to_use);
+            settings.nkernels = get_input(threads_to_use).max(1);
         }
         _ => {}
     }
@@ -69,8 +78,12 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
         list_basic_programs(settings);
-        println!("  0 Go to next step");
-        println!("  1 Assign trajectory file (xtc or trr), current: {}", match trj.len() {
+        if !trj.is_empty() && !ndx.is_empty() {
+            println!("{}", "  0 Go to next step (complete)".green().bold());
+        } else {
+            println!("{}", "  0 Go to next step (incomplete)".red().bold());
+        }
+        println!("  1 Assign trajectory file (xtc, trr, pdb), current: {}", match trj.len() {
             0 => "undefined",
             _ => trj.as_str()
         });
@@ -82,10 +95,10 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
         match i {
             Ok(-1) => settings.debug_mode = !settings.debug_mode,
             Ok(0) => {
-                if trj.len() == 0 {
-                    println!("Trajectory file not assigned.");
-                } else if ndx.len() == 0 {
-                    println!("Index file not assigned.");
+                if trj.is_empty() {
+                    println!("Please assign trajectory file, including xtc, trr or multi-frame pdb.");
+                } else if ndx.is_empty() {
+                    println!("Please assign index file.");
                 } else {
                     // go to next step
                     set_para_trj(&trj, &mut tpr, &ndx, &wd, &tpr_path, settings);
@@ -99,7 +112,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                     trj = "?md.xtc".to_string();
                 }
                 trj = convert_cur_dir(&trj, tpr_path);
-                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "pdbqt"], tpr_path);
+                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "pdb", "pdbqt"], tpr_path);
             }
             Ok(2) => {
                 println!("Input index file path, default: ?index.ndx (\"?\" means the same directory as tpr):");
@@ -138,7 +151,11 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
         list_basic_programs(settings);
-        println!("  0 Go to next step");
+        if !receptor_path.is_empty() && !ligand_path.is_empty() {
+            println!("{}", "  0 Go to next step (complete)".green().bold());
+        } else {
+            println!("{}", "  0 Go to next step (incomplete)".red().bold());
+        }
         println!("  1 Assign docking receptor file, current: {}", match receptor_path.len() {
             0 => "undefined",
             _ => receptor_path.as_str()

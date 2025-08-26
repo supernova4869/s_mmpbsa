@@ -24,7 +24,7 @@ pub struct Settings {
     pub gaussian_path: Option<String>,
     pub multiwfn_path: Option<String>,
     pub obabel_path: Option<String>,
-    pub nkernels: i32,
+    pub nkernels: usize,
     pub debug_mode: bool,
     pub last_opened: String,
 }
@@ -112,8 +112,6 @@ impl Settings {
         };
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
-
-        println!("Note: found settings.ini, will use {} kernels.", nkernels);
 
         Settings {
             elec_screen,

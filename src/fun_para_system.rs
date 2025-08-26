@@ -1,4 +1,5 @@
 use core::f64;
+use colored::*;
 use std::process::{exit, Command, Stdio};
 use std::env::{self, current_exe};
 use std::path::Path;
@@ -25,14 +26,20 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
     let mut bt: f64 = 0.0;                                  // ps
     let mut et: f64 = f64::INFINITY;                        // ps
     let mut dt = 1000.0;                               // ps
-    let mut ie_multi = 10;                           // multipli
+    let mut ie_multi = 10;                             // multipli
     let unit_dt: f64 = tpr.dt * tpr.nstxout as f64;         // ps
     let ndx = Index::from(ndx_name);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
         println!("-10 Return");
         println!(" -1 Toggle whether to fix PBC conditions, current: {}", settings.fix_pbc);
-        println!("  0 Go to next step");
+        if receptor_grp.is_none() {
+            println!("{}", "  0 Go to next step (incomplete)".red().bold());
+        } else if ligand_grp.is_none() {
+            println!("{}", "  0 Go to next step (solvation only)".yellow().bold());
+        } else {
+            println!("{}", "  0 Go to next step (complete)".green().bold());
+        }
         println!("  1 Select receptor group, current:           {}", show_grp(receptor_grp, &ndx));
         println!("  2 Select ligand group, current:             {}", show_grp(ligand_grp, &ndx));
         println!("  3 Set start time to analyze, current:       {} ns", bt / 1000.0);
@@ -56,7 +63,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input receptor group num:");
-                receptor_grp = Some(get_input_selection().unwrap());
+                receptor_grp = get_input_selection().ok();
             }
             Ok(2) => {
                 println!("Current groups:");
