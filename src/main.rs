@@ -342,7 +342,7 @@ fn env_check() -> Settings {
         Some(settings_file) => {
             println!("Note: found settings.ini at {}.", settings_file.display());
             Settings::from(&settings_file)
-        }
+        },
         None => {
             println!("Note: no settings.ini found.");
             Settings::new()

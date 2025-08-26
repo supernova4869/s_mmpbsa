@@ -1,5 +1,6 @@
 use core::f64;
 use colored::*;
+use ndarray::{Array3, Axis};
 use std::process::{exit, Command, Stdio};
 use std::env::{self, current_exe};
 use std::path::Path;
@@ -370,6 +371,32 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
     let mut aps = AtomProperties::from_tpr(tpr, &ndx_com);
     println!("Collecting residues list...");
     let residues = get_residues_tpr(tpr, &ndx_com);
+
+    if trj.ends_with("pdb") {
+        let mut pdb = PDB::from(trj);
+        let mut coordinates: Array3<f64> = Array3::zeros((pdb.models.len(), pdb.models[0].atoms.len(), 3));
+        for (i, mut layer) in coordinates.axis_iter_mut(Axis(0)).enumerate() {
+            for (j, atoms) in pdb.models[i].atoms.iter_mut().enumerate() {
+                layer[[j, 0]] = atoms.x;
+                layer[[j, 1]] = atoms.y;
+                layer[[j, 2]] = atoms.z;
+            }
+        }
+        let time_list = (0..coordinates.shape()[0]).map(|t| (t + 1) as f64 * 1000.0).collect();
+        
+        println!("Normalizing index...");
+        let (ndx_rec, ndx_lig) = 
+            normalize_index(&ndx.groups[receptor_grp].indexes, match ligand_grp {
+                Some(ligand_grp) => Some(&ndx.groups[ligand_grp].indexes),
+                None => None
+            });
+        
+        // 需要处理一下atom_properties的id
+        aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
+
+        set_para_mmpbsa(&time_list, &time_list, &coordinates, &coordinates, 
+            tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+    }
 
     // pre-treat trajectory
     let trj_mmpbsa = append_new_name(trj, "_trj.xtc", "_MMPBSA_"); // get trj output file name
