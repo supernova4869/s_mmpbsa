@@ -79,7 +79,7 @@ impl Settings {
             "Y" => true,
             _ => false
         };
-        let gmx_path = parse_param(&setting_values, "gmx_path", "gmx".to_string());
+        let gmx_path = parse_param(&setting_values, "gmx_path", "\"built-in\"".to_string());
         let gmx_path = Some(gmx_path[1..gmx_path.len() - 1].to_string());
         let cfac = parse_param(&setting_values, "cfac", default_settings.cfac);
         let fadd = parse_param(&setting_values, "fadd", default_settings.fadd);

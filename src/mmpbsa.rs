@@ -17,7 +17,7 @@ use crate::apbs_param::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
-pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: &Array3<f64>, coordinates_ie: &Array3<f64>, 
+pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                                temp_dir: &PathBuf, sys_name: &String, aps: &AtomProperties,
                                ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path,
@@ -39,7 +39,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
 
     // calculate MM and PBSA
     println!("Calculating binding energy for {}...", sys_name);
-    let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates, coordinates_ie, aps, &temp_dir, &ndx_rec, &ndx_lig, residues,
+    let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates_ie, aps, &temp_dir, &ndx_rec, &ndx_lig, residues,
         sys_name, "WT", pbe_set, pba_set, settings);
     result_wt.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, "WT").as_str()));
 
@@ -50,9 +50,9 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
             && r.name.ne("GLY") && r.name.ne("ALA")).collect();     // gly not contain CB, ala no need to mutate
         let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
         for asr in as_res {
-            let (new_coordinates, new_aps, new_ndx_rec, new_ndx_lig) = 
-                ala_mutate(aps, asr, &exclude_list, coordinates, ndx_rec, ndx_lig);
-            let (new_coordinates_ie, _, _, _) = 
+            // let (new_coordinates, new_aps, new_ndx_rec, new_ndx_lig) = 
+            //     ala_mutate(aps, asr, &exclude_list, coordinates, ndx_rec, ndx_lig);
+            let (new_coordinates_ie, new_aps, new_ndx_rec, new_ndx_lig) = 
                 ala_mutate(aps, asr, &exclude_list, coordinates_ie, ndx_rec, ndx_lig);
 
             // After alanine mutation
@@ -67,7 +67,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
             let mutation = format!("{}{}A", mutation, asr.nr);
             let sys_name = format!("{}-{}", sys_name, mutation);
             println!("Calculating binding energy for {}...", sys_name);
-            let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates, &new_coordinates_ie,
+            let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates_ie,
                 &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
             result_as.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, mutation).as_str()));
@@ -170,7 +170,7 @@ pub fn set_style(pb: &ProgressBar) {
         .progress_chars("=>-"));
 }
 
-fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: &Array3<f64>, coordinates_ie: &Array3<f64>, 
+fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                     aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
                     residues: &Vec<Residue>, sys_name: &String, mutation: &str,
@@ -186,6 +186,33 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates: 
     // Time list of trajectory
     let times: Vec<f64> = time_list.iter().map(|t| t / 1000.0).collect();
     let times_ie: Vec<f64> = time_list_ie.iter().map(|t| t / 1000.0).collect();
+
+    // extract coordinates for PBSA from initial
+    let coordinates: Array3<f64> = {
+        let valid_frames: Vec<_> = coordinates_ie.axis_iter(Axis(0))
+            .into_par_iter()
+            .enumerate()
+            .filter_map(|(i, frame)| {
+                if times.iter().position(|&x| x == times_ie[i]).is_some() {
+                    Some(frame.to_owned()) // 需要克隆数据，因为 axis_iter 返回的是视图
+                } else {
+                    None
+                }
+            })
+            .collect();
+        
+        // 然后将有效的帧重新组合成 Array3
+        if valid_frames.is_empty() {
+            // 如果没有有效帧，返回一个空的 Array3
+            Array3::zeros((0, coordinates_ie.shape()[1], coordinates_ie.shape()[2]))
+        } else {
+            // 使用 stack 来组合所有帧
+            ndarray::stack(Axis(0), &valid_frames.iter()
+                .map(|arr| arr.view())
+                .collect::<Vec<_>>())
+                .expect("Failed to stack arrays")
+        }
+    };
 
     // set up environment
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());

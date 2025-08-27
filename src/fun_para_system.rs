@@ -230,7 +230,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
                 settings.fix_pbc = !settings.fix_pbc;
             }
             Ok(0) => {
-                set_para_mmpbsa(&time_list, &time_list, &coordinates, &coordinates, &tpr, &ndx, wd, 
+                set_para_mmpbsa(&time_list, &time_list, &coordinates, &tpr, &ndx, wd, 
                     &mut aps, &ndx_rec, &ndx_lig, 0, Some(1), &residues, settings);
             }
             Ok(1) => {
@@ -391,8 +391,8 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 None => None
             });
         
-        set_para_mmpbsa(&time_list, &time_list, &coordinates, &coordinates, 
-            tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+        set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, wd, 
+            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else if trj.ends_with("gro") {
         let gro = GRO::from(trj);
         let mut coordinates: Array3<f64> = Array3::zeros((1, gro.atoms.len(), 3));
@@ -410,8 +410,8 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 None => None
             });
         
-        set_para_mmpbsa(&time_list, &time_list, &coordinates, &coordinates, 
-            tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+        set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, wd, 
+            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else {
         // pre-treat trajectory
         let trj_mmpbsa = append_new_name(trj, "_trj.xtc", "_MMPBSA_"); // get trj output file name
@@ -510,10 +510,10 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         }
 
         let (time_list_ie, coordinates_ie) = read_coord_xvg(wd.join("_MMPBSA_coord_ie.xvg").to_str().unwrap());
-        let (time_list, coordinates) = read_coord_xvg(wd.join("_MMPBSA_coord_sol.xvg").to_str().unwrap());
+        let (time_list, _) = read_coord_xvg(wd.join("_MMPBSA_coord_sol.xvg").to_str().unwrap());
         
-        set_para_mmpbsa(&time_list, &time_list_ie, &coordinates, &coordinates_ie, 
-            tpr, &ndx, wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+        set_para_mmpbsa(&time_list, &time_list_ie, &coordinates_ie, tpr, &ndx, wd, 
+            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     };
 }
 
