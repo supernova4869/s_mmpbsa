@@ -1,8 +1,7 @@
 use std::fs::{self, File};
 use std::path::Path;
 use std::io::{BufWriter, Write};
-use std::fmt::Formatter;
-use std::fmt;
+use std::fmt::{self, Formatter};
 
 use ndarray::Array2;
 use regex::Regex;

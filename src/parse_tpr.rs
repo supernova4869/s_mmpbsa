@@ -11,8 +11,6 @@ use once_cell::sync::Lazy;
 use crate::settings::Settings;
 
 // 预编译所有正则表达式
-static RE_DT: Lazy<Regex> = Lazy::new(|| Regex::new(r"dt\s+=\s*(.*)").unwrap());
-static RE_NSTXOUT: Lazy<Regex> = Lazy::new(|| Regex::new(r"nstxout-compressed\s+=\s*(.*)").unwrap());
 static RE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name\\s*=\\s*\"(.*)\"").unwrap());
 static RE_ATOMS_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"#atoms\s*=\s*(\d+)").unwrap());
 static RE_MOLBLOCK: Lazy<Regex> = Lazy::new(|| Regex::new(r"#molblock\s*=\s*(\d+)").unwrap());
@@ -42,8 +40,6 @@ pub struct TPR {
     pub atom_types_num: usize,
     pub lj_sr_params: Vec<LJType>,
     pub molecules: Vec<Molecule>,
-    pub dt: f64,
-    pub nstxout: i32,
     pub temp: f64,
     pub coordinates: Array2<f64>,
 }
@@ -87,9 +83,7 @@ impl TPR {
         let mut molecules: Vec<Molecule> = Vec::new();
 
         // 模拟时间参数
-        let mut dt = 0.0;
-        let mut nstxout = 0;
-        let mut temp = 0.0;
+        let mut temperature = 0.0;
 
         println!("Loading dump file: {}\n", mdp);
         
@@ -98,10 +92,8 @@ impl TPR {
             let line = buf.trim();
             
             // 使用模式匹配提高可读性和性能
-            if line.starts_with("inputrec:") {
-                process_inputrec(&mut reader, &mut buf, &mut dt, &mut nstxout);
-            } else if line.starts_with("ref-t:") {
-                process_ref_t(line, &mut temp);
+            if line.starts_with("ref-t:") {
+                process_ref_t(line, &mut temperature);
             } else if line.starts_with("topology:") {
                 process_topology(&mut reader, &mut buf, &mut name, &mut atoms_num, 
                             &mut molecule_types_num, &mut molecule_types);
@@ -144,9 +136,7 @@ impl TPR {
             atom_types_num,
             lj_sr_params: fun_type,
             molecules,
-            dt,
-            nstxout,
-            temp,
+            temp: temperature,
             coordinates: Array2::from_shape_vec((atoms_num, 3), coordinates).unwrap()
         }
     }
@@ -283,21 +273,6 @@ fn read_line<R: BufRead>(reader: &mut R, buf: &mut String) -> usize {
 }
 
 // 分解的处理函数
-fn process_inputrec<R: BufRead>(reader: &mut R, buf: &mut String, dt: &mut f64, nstxout: &mut i32) {
-    while read_line(reader, buf) > 0 {
-        let line = buf.trim();
-        if line.starts_with("dt") {
-            if let Some(caps) = RE_DT.captures(line) {
-                *dt = caps[1].trim().parse().unwrap();
-            }
-        } else if line.starts_with("nstxout-compressed") {
-            if let Some(caps) = RE_NSTXOUT.captures(line) {
-                *nstxout = caps[1].trim().parse().unwrap();
-                break;
-            }
-        }
-    }
-}
 
 fn process_ref_t(line: &str, temp: &mut f64) {
     let parts: Vec<&str> = line.split_whitespace().collect();

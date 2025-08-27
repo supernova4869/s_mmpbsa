@@ -3,6 +3,7 @@ mod mmpbsa;
 mod parse_tpr;
 mod parse_xvg;
 mod parse_pdb;
+mod parse_gro;
 mod parse_pdbqt;
 mod parse_mol2;
 mod analyzation;
@@ -30,7 +31,7 @@ use utils::get_input;
 
 fn main() {
     let version = 0.8;
-    welcome(&version.to_string(), "2025-Aug-26");
+    welcome(&version.to_string(), "2025-Aug-27");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),

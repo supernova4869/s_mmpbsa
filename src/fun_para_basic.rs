@@ -83,7 +83,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
         } else {
             println!("{}", "  0 Go to next step (incomplete)".red().bold());
         }
-        println!("  1 Assign trajectory file (xtc, trr, pdb), current: {}", match trj.len() {
+        println!("  1 Assign trajectory file (xtc, trr, pdb, gro), current: {}", match trj.len() {
             0 => "undefined",
             _ => trj.as_str()
         });
@@ -96,7 +96,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
             Ok(-1) => settings.debug_mode = !settings.debug_mode,
             Ok(0) => {
                 if trj.is_empty() {
-                    println!("Please assign trajectory file, including xtc, trr or multi-frame pdb.");
+                    println!("Please assign trajectory file, including xtc, trr, gro or pdb.");
                 } else if ndx.is_empty() {
                     println!("Please assign index file.");
                 } else {
@@ -112,7 +112,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                     trj = "?md.xtc".to_string();
                 }
                 trj = convert_cur_dir(&trj, tpr_path);
-                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "pdb", "pdbqt"], tpr_path);
+                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "gro", "pdb", "pdbqt"], tpr_path);
             }
             Ok(2) => {
                 println!("Input index file path, default: ?index.ndx (\"?\" means the same directory as tpr):");
@@ -143,8 +143,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
     let mut ligand_path = String::from(init_ligand_path);
     let mut flex_path: Option<String> = None;
     let mut ff = String::from("amber14sb");
-    let mut method = String::from("B3LYP");
-    let mut basis = String::from("def2SVP");
+    let mut level = String::from("B3LYP/def2SVP em=GD3BJ");
     let mut total_charge = 0;
     let mut multiplicity = 1;
     loop {
@@ -175,10 +174,9 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             2 => "gaussian",
             _ => "Not selected (default)"
         });
-        println!("  6 Set theoretical method, current: {}", method);
-        println!("  7 Set basis, current: {}", basis);
-        println!("  8 Set ligand total charge, current: {}", total_charge);
-        println!("  9 Set ligand spin multiplicity, current: {}", multiplicity);
+        println!("  6 Set ligand total charge, current: {}", total_charge);
+        println!("  7 Set ligand spin multiplicity, current: {}", multiplicity);
+        println!("  8 Set theoretical method and basis (for gaussian), current: {}", level);
         let i = get_input_selection();
         match i {
             Ok(0) => {
@@ -188,7 +186,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                     println!("Receptor file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &flex_path, &ff, &method, &basis, total_charge, multiplicity, &wd, settings);
+                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &flex_path, &ff, &level, total_charge, multiplicity, &wd, settings);
                 }
             }
             Ok(1) => {
@@ -235,20 +233,16 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                 settings.chg_m = get_input_selection().unwrap();
             }
             Ok(6) => {
-                println!("Input calculation method, default: B3LYP");
-                method = get_input("B3LYP".to_string());
-            }
-            Ok(7) => {
-                println!("Input basis, default: def2SVP");
-                basis = get_input("def2SVP".to_string());
-            }
-            Ok(8) => {
                 println!("Input total charge of the ligand, should be integer:");
                 total_charge = get_input_selection().unwrap();
             }
-            Ok(9) => {
+            Ok(7) => {
                 println!("Input spin multiplicity of the ligand, should be integer:");
                 multiplicity = get_input_selection().unwrap();
+            }
+            Ok(8) => {
+                println!("Input gaussian level keywords, default: B3LYP/def2SVP em=GD3BJ");
+                level = get_input("B3LYP/def2SVP em=GD3BJ".to_string());
             }
             Ok(-10) => break,
             Ok(other) => {
