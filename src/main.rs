@@ -1,5 +1,6 @@
 mod index_parser;
 mod mmpbsa;
+mod parse_itp;
 mod parse_tpr;
 mod parse_xvg;
 mod parse_pdb;
@@ -31,7 +32,7 @@ use utils::get_input;
 
 fn main() {
     let version = 0.8;
-    welcome(&version.to_string(), "2025-Aug-27");
+    welcome(&version.to_string(), "2025-Aug-28");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),

@@ -143,9 +143,6 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
     let mut ligand_path = String::from(init_ligand_path);
     let mut flex_path: Option<String> = None;
     let mut ff = String::from("amber14sb");
-    let mut level = String::from("B3LYP/def2SVP em=GD3BJ");
-    let mut total_charge = 0;
-    let mut multiplicity = 1;
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
         println!("-10 Exit program");
@@ -167,16 +164,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
             None => "undefined",
             Some(p) => p.as_str()
         });
-        println!("  4 Select force field for receptor, current: {}", ff);
-        println!("  5 Set ligand atom charge calculation method, current: {}", match settings.chg_m {
-            0 => "openbabel",
-            1 => "antechamber",
-            2 => "gaussian",
-            _ => "Not selected (default)"
-        });
-        println!("  6 Set ligand total charge, current: {}", total_charge);
-        println!("  7 Set ligand spin multiplicity, current: {}", multiplicity);
-        println!("  8 Set theoretical method and basis (for gaussian), current: {}", level);
+        println!("  4 Select force field, current: {}", ff);
         let i = get_input_selection();
         match i {
             Ok(0) => {
@@ -186,7 +174,7 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                     println!("Receptor file not assigned.");
                 } else {
                     // go to next step
-                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &flex_path, &ff, &level, total_charge, multiplicity, &wd, settings);
+                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &flex_path, &ff, &wd, settings);
                 }
             }
             Ok(1) => {
@@ -222,27 +210,8 @@ pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &Stri
                 };
             }
             Ok(4) => {
-                println!("Input force field, default: amber14sb");
+                println!("Input force field (same as that in include/), default: amber14sb");
                 ff = get_input("amber14sb".to_string());
-            }
-            Ok(5) => {
-                println!("Input ligand atom charge calculation method:");
-                println!("0: openbabel (quick)");
-                println!("1: antechamber (moderate)");
-                println!("2: gaussian (accurate)");
-                settings.chg_m = get_input_selection().unwrap();
-            }
-            Ok(6) => {
-                println!("Input total charge of the ligand, should be integer:");
-                total_charge = get_input_selection().unwrap();
-            }
-            Ok(7) => {
-                println!("Input spin multiplicity of the ligand, should be integer:");
-                multiplicity = get_input_selection().unwrap();
-            }
-            Ok(8) => {
-                println!("Input gaussian level keywords, default: B3LYP/def2SVP em=GD3BJ");
-                level = get_input("B3LYP/def2SVP em=GD3BJ".to_string());
             }
             Ok(-10) => break,
             Ok(other) => {

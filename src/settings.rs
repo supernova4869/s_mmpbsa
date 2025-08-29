@@ -4,6 +4,7 @@ use std::str::FromStr;
 use regex::Regex;
 use toml::Value;
 
+#[allow(dead_code)]
 pub struct Settings {
     pub radius_type: usize,
     pub radius_ff_default: f64,

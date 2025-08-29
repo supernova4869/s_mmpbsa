@@ -1,24 +1,24 @@
 use core::f64;
 use colored::*;
 use ndarray::Array3;
-use std::process::{exit, Command, Stdio};
 use std::env::{self, current_exe};
 use std::path::Path;
 use std::fs::{self, File};
 use std::io::Write;
 use std::collections::HashSet;
 
+use crate::parse_itp::{Atomtype, Topology, TopologySection};
 use crate::{dump_tpr, parse_mol2::MOL2};
 use crate::parse_pdb::{PDBModel, PDB};
 use crate::parse_gro::GRO;
 use crate::settings::Settings;
-use crate::utils::{self, append_new_name, get_input_selection, make_ndx, multiwfn, obabel, sobtop, trajectory};
+use crate::utils::{append_new_name, editconf, get_input_selection, make_ndx, obabel, sobtop, trajectory};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::index_parser::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
-use crate::utils::{convert_tpr, convert_trj, trjconv, pdb2gmx, grompp, copy_dir};
+use crate::utils::{convert_tpr, convert_trj, trjconv, grompp, copy_dir};
 use crate::parse_xvg::read_coord_xvg;
 use crate::parse_pdbqt::{PdbqtModel, PDBQT};
 
@@ -155,11 +155,12 @@ fn copy_ff(ff: &String, temp_dir: &Path) {
         temp_dir.join("xlateat.dat")).unwrap();
     fs::copy(env::current_exe().unwrap().parent().unwrap().join("include").join("specbond.dat"), 
         temp_dir.join("specbond.dat")).unwrap();
+    fs::copy(env::current_exe().unwrap().parent().unwrap().join("include").join("topol.top"), 
+        temp_dir.join("topol.top")).unwrap();
 }
 
 pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_path: &Option<String>,
-                          ff: &String, level: &String, total_charge: i32, multiplicity: usize, 
-                          wd: &Path, settings: &mut Settings) {
+                          ff: &String, wd: &Path, settings: &mut Settings) {
     let receptor_file_path = Path::new(receptor_path);
     let rec_name = receptor_file_path.file_stem().unwrap().to_str().unwrap();
     let ligand_file_path = Path::new(ligand_path);
@@ -179,10 +180,11 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     // prepare pdbqt files
     copy_ff(ff, temp_dir);
     let model_num = fs::read_to_string(ligand_path).unwrap().split("\n").filter(|s| s.starts_with("MODEL")).count();
-    pdbqt2pdb(receptor_path, ligand_path, flex_path, model_num, rec_name, lig_name, ff, temp_dir, settings);
+    println!("Preparing structures...");
+    pdbqt2pdb(receptor_path, ligand_path, flex_path, model_num, rec_name, lig_name, temp_dir, settings);
 
     // fake tpr
-    prepare_system_tpr_pdb(rec_name, lig_name, &flex_name, ff, level, total_charge, multiplicity, temp_dir, settings);
+    prepare_system_tpr_pdb(rec_name, lig_name, temp_dir, settings);
     dump_tpr(&wd.join("md.tpr").display().to_string(), 
         &wd.join("md.dump").display().to_string(), 
         settings.gmx_path.as_ref().unwrap());
@@ -518,24 +520,44 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
 }
 
 fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, flex_path: &Option<String>, model_num: usize,
-            rec_name: &str, lig_name: &str, ff: &String, temp_dir: &Path, settings: &Settings) {
+            rec_name: &str, lig_name: &str, temp_dir: &Path, settings: &Settings) {
     let out_rec_name = append_new_name(rec_name, ".pdb", "MMPBSA_docking_");
     let out_lig_name = append_new_name(lig_name, ".pdb", "MMPBSA_docking_");
     // if flex docking, flex part must be combined into rigid part before obabel processing
     if let Some(flex_path) = flex_path {
         // combine flexible residues, prepare receptor with obabel then gmx pdb2gmx
-        println!("Preparing flexible residues...");
+        println!("Combining flexible residues...");
         let new_pdb = combine_flex(receptor_path, flex_path);
         for (i, model) in new_pdb.models.iter().enumerate() {
             let pro_name_pdb = format!("MMPBSA_docking_{}{}.pdb", rec_name, i + 1);
             model.to_pdb(temp_dir.join(&pro_name_pdb).to_str().unwrap());
-            pdb2gmx(&vec![], temp_dir, settings, &pro_name_pdb, &pro_name_pdb, ff, "spc");
+            obabel(&vec![], settings, 
+                &[temp_dir.join(&pro_name_pdb).to_str().unwrap(), "-opdb", 
+                format!("-O{}", temp_dir.join(&pro_name_pdb).to_str().unwrap()).as_str(), "-h"]);
+            // Fuck sobtop cannot read "1HD2"
+            let mut pdb_temp = PDB::from(temp_dir.join(&pro_name_pdb));
+            pdb_temp.simplify_atname();
+            pdb_temp.to_pdb(temp_dir.join(&pro_name_pdb));
         }
+        // gen first mol2 for top building
+        obabel(&vec![], settings, 
+            &[temp_dir.join(format!("MMPBSA_docking_{}1.pdb", rec_name)).to_str().unwrap(), "-omol2", 
+                format!("-O{}", temp_dir.join("REC.mol2").to_str().unwrap()).as_str()]);
     } else {
         // if rigid, prepare receptor with obabel then gmx pdb2gmx
         let rec_pdbqt = PDBQT::from(&receptor_path);
         rec_pdbqt.to_pdb(temp_dir.join(&out_rec_name).to_str().unwrap());
-        pdb2gmx(&vec![], temp_dir, settings, &out_rec_name, &out_rec_name, ff, "spc");
+        obabel(&vec![], settings, 
+            &[temp_dir.join(&out_rec_name).to_str().unwrap(), "-opdb", 
+            format!("-O{}", temp_dir.join(&out_rec_name).to_str().unwrap()).as_str(), "-h"]);
+        // Fuck sobtop cannot read "1HD2"
+        let mut pdb_temp = PDB::from(temp_dir.join(&out_rec_name));
+        pdb_temp.simplify_atname();
+        pdb_temp.to_pdb(temp_dir.join(&out_rec_name));
+        // gen mol2 for top building
+        obabel(&vec![], settings, 
+            &[temp_dir.join(&out_rec_name).to_str().unwrap(), "-omol2", 
+                format!("-O{}", temp_dir.join("REC.mol2").to_str().unwrap()).as_str()]);
     }
     // split ligand structures
     obabel(&vec![], settings, 
@@ -543,9 +565,14 @@ fn pdbqt2pdb(receptor_path: &String, ligand_path: &String, flex_path: &Option<St
             format!("-O{}", temp_dir.join(&out_lig_name).to_str().unwrap()).as_str(), "-m"]);
     // add H for ligands
     for i in 1..(model_num + 1) {
+        let lig_name = format!("MMPBSA_docking_{}{}.pdb", lig_name, i);
         obabel(&vec![], settings, 
-            &[temp_dir.join(format!("MMPBSA_docking_{}{}.pdb", lig_name, i)).to_str().unwrap(), "-opdb", 
-            format!("-O{}", temp_dir.join(format!("MMPBSA_docking_{}{}.pdb", lig_name, i)).to_str().unwrap()).as_str(), "-h"]);
+            &[temp_dir.join(&lig_name).to_str().unwrap(), "-opdb", 
+            format!("-O{}", temp_dir.join(&lig_name).to_str().unwrap()).as_str(), "-h"]);
+        // Fuck sobtop cannot read "1HD2"
+        let mut pdb_temp = PDB::from(temp_dir.join(&lig_name));
+        pdb_temp.simplify_atname();
+        pdb_temp.to_pdb(temp_dir.join(&lig_name));
     }
     // gen first mol2 for top building
     obabel(&vec![], settings, 
@@ -579,57 +606,91 @@ fn find_res_by_name_chain(pro_mdl: &PdbqtModel, ref_resid: i32, chain_id: &Strin
     cur_res.0
 }
 
-fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&str>, 
-                          ff: &String, level: &String, total_charge: i32, multiplicity: usize, 
-                          temp_dir: &Path, settings: &Settings) {
-    // prepare protein top
-    let protein_name = if flex_name.is_some() {
-        format!("MMPBSA_docking_{}1.pdb", rec_name)
-    } else {
-        format!("MMPBSA_docking_{}.pdb", rec_name)
-    };
-    let protein_out = append_new_name(&protein_name, ".gro", "");
-    pdb2gmx(&vec![], temp_dir, settings, &protein_name, &protein_out, ff, "spc");
+fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, settings: &Settings) {
+    // prepare receptor top
+    println!("Calculating receptor charge...");
+    let receptor_name = "REC.mol2";
+    let receptor_path = temp_dir.join(&receptor_name);
+    let receptor_path = receptor_path.to_str().unwrap().trim_start_matches(r"\\?\");
+    let new_rec = MOL2::from(temp_dir.join("REC.mol2").to_str().unwrap());
+    new_rec.to_chg(temp_dir.join("REC.chg").to_str().unwrap());
 
-    println!("Calculating ligand charge, be patient...");
+    println!("Preparing receptor topology...");
+    // prepare receptor top
+    let rec_gro_path = temp_dir.join(append_new_name(&receptor_name, ".gro", ""));
+    let rec_gro_path = rec_gro_path.to_str().unwrap();
+    let rec_itp_path = temp_dir.join(append_new_name(&receptor_name, ".itp", ""));
+    let rec_itp_path = rec_itp_path.to_str().unwrap();
+    let rec_top_path = temp_dir.join(append_new_name(&receptor_name, ".top", ""));
+    let rec_top_path = rec_top_path.to_str().unwrap();
+    sobtop(&vec!["7", "10", temp_dir.join("REC.chg").to_str().unwrap(), "0", 
+        "2", rec_gro_path, "1", "2", "4", rec_top_path, rec_itp_path, "0"], settings, receptor_path).expect("Cannot properly run Sobtop");
+
+    println!("Calculating ligand charge...");
     let ligand_name = "LIG.mol2";
     let ligand_path = temp_dir.join(&ligand_name);
     let ligand_path = ligand_path.to_str().unwrap().trim_start_matches(r"\\?\");
-    calc_charge(lig_name, temp_dir, level, total_charge, multiplicity, settings);
+    let new_lig = MOL2::from(temp_dir.join("LIG.mol2").to_str().unwrap());
+    new_lig.to_chg(temp_dir.join("LIG.chg").to_str().unwrap());
 
-    println!("Preparing docking parameters...");
+    println!("Preparing ligand topology...");
     // prepare ligand top
     let lig_gro_path = temp_dir.join(append_new_name(&ligand_name, ".gro", ""));
     let lig_gro_path = lig_gro_path.to_str().unwrap();
-    let itp_path = temp_dir.join(append_new_name(&ligand_name, ".itp", ""));
-    let itp_path = itp_path.to_str().unwrap();
-    let top_path = temp_dir.join(append_new_name(&ligand_name, ".top", ""));
-    let top_path = top_path.to_str().unwrap();
+    let lig_itp_path = temp_dir.join(append_new_name(&ligand_name, ".itp", ""));
+    let lig_itp_path = lig_itp_path.to_str().unwrap();
+    let lig_top_path = temp_dir.join(append_new_name(&ligand_name, ".top", ""));
+    let lig_top_path = lig_top_path.to_str().unwrap();
     sobtop(&vec!["7", "10", temp_dir.join("LIG.chg").to_str().unwrap(), "0", 
-        "2", lig_gro_path, "1", "2", "4", top_path, itp_path, "0"], settings, ligand_path).expect("Cannot properly run Sobtop");
+        "2", lig_gro_path, "1", "2", "4", lig_top_path, lig_itp_path, "0"], settings, ligand_path).expect("Cannot properly run Sobtop");
 
-    // include ligand top into protein
-    let protein_top = temp_dir.join("topol.top").display().to_string();
-    let topol = fs::read_to_string(protein_top).unwrap();
+    // merge atomtypes
+    let itp_lig = Topology::from(temp_dir.join(lig_itp_path));
+    let itp_rec = Topology::from(temp_dir.join(rec_itp_path));
+    let mut itp_lig_atom_types: Vec<Atomtype> = itp_lig.sections.iter().filter_map(|sec| match sec {
+        TopologySection::Atomtypes(atomtypes) => Some(atomtypes),
+        _ => None
+    }).flatten().cloned().collect();
+    let mut itp_rec_atom_types: Vec<Atomtype> = itp_rec.sections.iter().filter_map(|sec| match sec {
+        TopologySection::Atomtypes(atomtypes) => Some(atomtypes),
+        _ => None
+    }).flatten().cloned().collect();
+    itp_rec_atom_types.append(&mut itp_lig_atom_types);
+
+    // write each itp
+    itp_lig.to_itp(temp_dir.join("LIG.itp"), false).unwrap();
+    itp_rec.to_itp(temp_dir.join("REC.itp"), false).unwrap();
+
+    // include ligand top into receptor
+    let top_template = temp_dir.join("topol.top").display().to_string();
+    let topol = fs::read_to_string(top_template).unwrap();
     let mut top_contents: Vec<&str> = topol.split("\n").collect();
     let ln = top_contents.iter().enumerate().find_map(|(i, &t)| if t.starts_with("#include") {
         Some(i)
     } else {
         None
     }).unwrap();
-    let itp_line = format!("#include \"{}\"", itp_path.trim_start_matches(r"\\?\"));
-    top_contents.insert(ln + 1, itp_line.as_str());
-    top_contents.insert(top_contents.len() - 1, "LIG                 1");
+    // 得倒着写
+    // let itp_rec_line = format!("#include \"{}\"", rec_itp_path.trim_start_matches(r"\\?\"));
+    // top_contents.insert(ln + 1, itp_rec_line.as_str());
+    // let itp_lig_line = format!("#include \"{}\"", lig_itp_path.trim_start_matches(r"\\?\"));
+    // top_contents.insert(ln + 1, itp_lig_line.as_str());
+    let content: Vec<String> = itp_rec_atom_types.iter().map(|at| at.to_string()).collect();
+    let content = content.join("\n");
+    top_contents.insert(ln + 1, content.as_str());
+    top_contents.insert(ln + 1, "[ atomtypes ]");
+
+    // top_contents.insert(top_contents.len() - 1, "REC                 1");
+    // top_contents.insert(top_contents.len() - 1, "LIG                 1");
     let new_top = top_contents.join("\n");
     let mut new_top_file = File::create(temp_dir.join("topol.top")).unwrap();
     File::write_all(&mut new_top_file, new_top.as_bytes()).unwrap();
 
-    // include ligand structure into protein
-    let protein_gro = temp_dir.join(protein_out).display().to_string();
-    let structure = fs::read_to_string(protein_gro).unwrap();
+    // include ligand structure into receptor
+    let structure = fs::read_to_string(rec_gro_path).unwrap();
     let mut struct_contents: Vec<&str> = structure.split("\n").collect();
     let protein_atom_num: usize = struct_contents[1].trim().parse().unwrap();
-    let ligand_gro = fs::read_to_string(temp_dir.join("LIG.gro")).unwrap();
+    let ligand_gro = fs::read_to_string(lig_gro_path).unwrap();
     let ligand_gro: Vec<&str> = ligand_gro.split("\n").collect();
     let ligand_atoms_num: usize = ligand_gro[1].trim().parse().unwrap();
     let ligand_atoms_gro = ligand_gro[2..(ligand_atoms_num + 2)].to_vec().join("\n");
@@ -646,110 +707,111 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, flex_name: &Option<&st
     make_ndx(&vec!["q"], temp_dir, settings, complex_gro_path.to_str().unwrap(), "", "MMPBSA_index.ndx");
 
     // MD protocol
+    editconf(&vec![], temp_dir, settings, complex_gro_path.to_str().unwrap(), "5", temp_dir.join("box.gro").to_str().unwrap());
     let md_mdp = current_exe().unwrap().parent().unwrap().join("include").join("md.mdp");
-    grompp(&vec![], temp_dir, settings, md_mdp.to_str().unwrap(), complex_gro_path.to_str().unwrap(), "../md.tpr");
+    grompp(&vec![], temp_dir, settings, md_mdp.to_str().unwrap(), temp_dir.join("box.gro").to_str().unwrap(), "../md.tpr");
 }
 
-fn calc_charge(lig_name: &str, temp_dir: &Path, level: &String, total_charge: i32, multiplicity: usize, settings: &Settings) {
-    let lig_file = format!("MMPBSA_docking_{}1.pdb", lig_name) ;
-    let lig_pdb = PDB::from(temp_dir.join(&lig_file).to_str().unwrap());
-    let elements = lig_pdb.models[0].get_elements();
-    let coord = lig_pdb.models[0].get_coordinates();
+// fn calc_charge(lig_name: &str, temp_dir: &Path, level: &String, total_charge: i32, multiplicity: usize, settings: &Settings) {
+//     let lig_file = format!("MMPBSA_docking_{}1.pdb", lig_name) ;
+//     let lig_pdb = PDB::from(temp_dir.join(&lig_file).to_str().unwrap());
+//     let elements = lig_pdb.models[0].get_elements();
+//     let coord = lig_pdb.models[0].get_coordinates();
     
-    if settings.chg_m == 0 {
-        let new_lig = MOL2::from(temp_dir.join("LIG.mol2").to_str().unwrap());
-        new_lig.to_chg(temp_dir.join("LIG.chg").to_str().unwrap());
-    } else if settings.chg_m == 1 {
-        let amber_home = utils::get_program_path(settings.antechamber_path.as_ref().unwrap()).unwrap();
-        let amber_home = Path::new(&amber_home).parent().unwrap().parent().unwrap();
-        let amber_home = amber_home.display().to_string();
-        let amber_home = amber_home.replace(r"\", "/");     // Fuck "\"
-        // Add ENV Var
-        env::set_var("AMBERHOME", &amber_home);
-        if settings.debug_mode {
-            println!("AMBERHOME set to: {}", env::var("AMBERHOME").unwrap());
-        }
-        // Add PATH
-        let path = env::var("PATH").unwrap();
-        let antechamber_path = Path::new(&amber_home).join("bin");
-        env::set_var("PATH", format!("{}:{}", &path, &antechamber_path.to_str().unwrap()));
-        if settings.debug_mode {
-            println!("PATH set to: {}", env::var("PATH").unwrap());
-        }
-        Command::new(settings.antechamber_path.as_ref().unwrap())
-            .args(vec!["-i", "LIG.mol2", 
-                       "-fi", "mol2", 
-                       "-o", "LIG_c.mol2", 
-                       "-fo", "mol2", 
-                       "-nc", total_charge.to_string().as_str(), 
-                       "-m", multiplicity.to_string().as_str(), 
-                       "-s", "2", 
-                       "-df", "2", 
-                       "-at", "amber", 
-                       "-c", "bcc", 
-                       "-ek", "maxcyc=0", 
-                       "-pf", "y", 
-                       "-gn", settings.nkernels.to_string().as_str(),
-                       "-dr", if settings.debug_mode {"y"} else {"n"}
-            ])
-            .current_dir(temp_dir)
-            .stdin(Stdio::inherit())
-            .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })
-            .stderr(Stdio::inherit())
-            .status()
-            .expect("Cannot properly run antechamber");
-        let new_lig = MOL2::from(temp_dir.join("LIG_c.mol2").to_str().unwrap());
-        new_lig.to_chg(temp_dir.join("LIG.chg").to_str().unwrap());
-    } else if settings.chg_m == 2 {
-        // write gjf file
-        let mut gjf = File::create(temp_dir.join("LIG.gjf")).unwrap();
-        writeln!(&mut gjf, "%nproc={}", settings.nkernels * 2).unwrap();
-        writeln!(&mut gjf, "%chk=LIG.chk").unwrap();
-        writeln!(&mut gjf, "# {}", level).unwrap();
-        writeln!(&mut gjf, "").unwrap();
-        writeln!(&mut gjf, "{}", &lig_file).unwrap();
-        writeln!(&mut gjf, "").unwrap();
-        writeln!(&mut gjf, "{} {}", total_charge, multiplicity).unwrap();
-        for (i, a) in coord.rows().into_iter().enumerate() {
-            writeln!(&mut gjf, " {:2}{:27.8}{:14.8}{:14.8}", elements[i], a[0], a[1], a[2]).unwrap();
-        }
-        writeln!(&mut gjf, "").unwrap();
+//     if settings.chg_m == 0 {
+//         let new_lig = MOL2::from(temp_dir.join("LIG.mol2").to_str().unwrap());
+//         new_lig.to_chg(temp_dir.join("LIG.chg").to_str().unwrap());
+//     } else if settings.chg_m == 1 {
+//         let amber_home = utils::get_program_path(settings.antechamber_path.as_ref().unwrap()).unwrap();
+//         let amber_home = Path::new(&amber_home).parent().unwrap().parent().unwrap();
+//         let amber_home = amber_home.display().to_string();
+//         let amber_home = amber_home.replace(r"\", "/");     // Fuck "\"
+//         // Add ENV Var
+//         env::set_var("AMBERHOME", &amber_home);
+//         if settings.debug_mode {
+//             println!("AMBERHOME set to: {}", env::var("AMBERHOME").unwrap());
+//         }
+//         // Add PATH
+//         let path = env::var("PATH").unwrap();
+//         let antechamber_path = Path::new(&amber_home).join("bin");
+//         env::set_var("PATH", format!("{}:{}", &path, &antechamber_path.to_str().unwrap()));
+//         if settings.debug_mode {
+//             println!("PATH set to: {}", env::var("PATH").unwrap());
+//         }
+//         Command::new(settings.antechamber_path.as_ref().unwrap())
+//             .args(vec!["-i", "LIG.mol2", 
+//                        "-fi", "mol2", 
+//                        "-o", "LIG_c.mol2", 
+//                        "-fo", "mol2", 
+//                        "-nc", total_charge.to_string().as_str(), 
+//                        "-m", multiplicity.to_string().as_str(), 
+//                        "-s", "2", 
+//                        "-df", "2", 
+//                        "-at", "amber", 
+//                        "-c", "bcc", 
+//                        "-ek", "maxcyc=0", 
+//                        "-pf", "y", 
+//                        "-gn", settings.nkernels.to_string().as_str(),
+//                        "-dr", if settings.debug_mode {"y"} else {"n"}
+//             ])
+//             .current_dir(temp_dir)
+//             .stdin(Stdio::inherit())
+//             .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })
+//             .stderr(Stdio::inherit())
+//             .status()
+//             .expect("Cannot properly run antechamber");
+//         let new_lig = MOL2::from(temp_dir.join("LIG_c.mol2").to_str().unwrap());
+//         new_lig.to_chg(temp_dir.join("LIG.chg").to_str().unwrap());
+//     } else if settings.chg_m == 2 {
+//         // write gjf file
+//         let mut gjf = File::create(temp_dir.join("LIG.gjf")).unwrap();
+//         writeln!(&mut gjf, "%nproc={}", settings.nkernels * 2).unwrap();
+//         writeln!(&mut gjf, "%chk=LIG.chk").unwrap();
+//         writeln!(&mut gjf, "# {}", level).unwrap();
+//         writeln!(&mut gjf, "").unwrap();
+//         writeln!(&mut gjf, "{}", &lig_file).unwrap();
+//         writeln!(&mut gjf, "").unwrap();
+//         writeln!(&mut gjf, "{} {}", total_charge, multiplicity).unwrap();
+//         for (i, a) in coord.rows().into_iter().enumerate() {
+//             writeln!(&mut gjf, " {:2}{:27.8}{:14.8}{:14.8}", elements[i], a[0], a[1], a[2]).unwrap();
+//         }
+//         writeln!(&mut gjf, "").unwrap();
 
-        let infile = File::open(temp_dir.join("LIG.gjf")).unwrap();
-        let outfile = File::create(temp_dir.join("LIG.out")).unwrap();
-        let gauss_path = Path::new(settings.gaussian_path.as_ref().unwrap());
-        // Add ENV Var
-        env::set_var("GAUSS_EXEDIR", gauss_path.parent().unwrap().to_str().unwrap());
-        // Add PATH
-        let path = env::var("PATH").unwrap();
-        env::set_var("PATH", format!("{}:{}", path, gauss_path.parent().unwrap().to_str().unwrap()));
+//         let infile = File::open(temp_dir.join("LIG.gjf")).unwrap();
+//         let outfile = File::create(temp_dir.join("LIG.out")).unwrap();
+//         let gauss_path = Path::new(settings.gaussian_path.as_ref().unwrap());
+//         // Add ENV Var
+//         env::set_var("GAUSS_EXEDIR", gauss_path.parent().unwrap().to_str().unwrap());
+//         // Add PATH
+//         let path = env::var("PATH").unwrap();
+//         env::set_var("PATH", format!("{}:{}", path, gauss_path.parent().unwrap().to_str().unwrap()));
 
-        let gaussian_status = Command::new(gauss_path.to_str().unwrap())
-            .current_dir(temp_dir)
-            .stdin(Stdio::from(infile))
-            .stdout(Stdio::from(outfile))
-            .stderr(Stdio::inherit())
-            .status()
-            .expect("Cannot properly run gaussian");
-        if gaussian_status.code() != Some(0) {
-            println!("Gaussian not normally exited. Change calculation level.");
-            exit(1);
-        }
-        Command::new(gauss_path.parent().unwrap().join("formchk").to_str().unwrap())
-            .current_dir(temp_dir)
-            .arg("LIG.chk")
-            .stdout(Stdio::null())
-            .stderr(Stdio::inherit())
-            .status()
-            .expect("Cannot properly run formchk");
-        let fchk_path = if cfg!(windows) {
-            temp_dir.join("LIG.fch")
-        } else {
-            temp_dir.join("LIG.fchk")
-        };
-        multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, 
-                fchk_path.to_str().unwrap().trim_start_matches(r"\\?\"), 
-                Path::new(temp_dir.to_str().unwrap().trim_start_matches(r"\\?\")))
-                .expect("Cannot properly run Multiwfn");
-    }
-}
+//         let gaussian_status = Command::new(gauss_path.to_str().unwrap())
+//             .current_dir(temp_dir)
+//             .stdin(Stdio::from(infile))
+//             .stdout(Stdio::from(outfile))
+//             .stderr(Stdio::inherit())
+//             .status()
+//             .expect("Cannot properly run gaussian");
+//         if gaussian_status.code() != Some(0) {
+//             println!("Gaussian not normally exited. Change calculation level.");
+//             exit(1);
+//         }
+//         Command::new(gauss_path.parent().unwrap().join("formchk").to_str().unwrap())
+//             .current_dir(temp_dir)
+//             .arg("LIG.chk")
+//             .stdout(Stdio::null())
+//             .stderr(Stdio::inherit())
+//             .status()
+//             .expect("Cannot properly run formchk");
+//         let fchk_path = if cfg!(windows) {
+//             temp_dir.join("LIG.fch")
+//         } else {
+//             temp_dir.join("LIG.fchk")
+//         };
+//         multiwfn(&vec!["7", "18", "1", "y", "0", "0", "q"], settings, 
+//                 fchk_path.to_str().unwrap().trim_start_matches(r"\\?\"), 
+//                 Path::new(temp_dir.to_str().unwrap().trim_start_matches(r"\\?\")))
+//                 .expect("Cannot properly run Multiwfn");
+//     }
+// }

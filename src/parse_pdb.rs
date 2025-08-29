@@ -36,7 +36,14 @@ impl PDB {
         PDB { models }
     }
 
-    pub fn to_pdb(&self, out_file_path: &str) {
+    pub fn simplify_atname(&mut self) {
+        self.models.iter_mut().for_each(|m| m.atoms.iter_mut().for_each(|a| {
+            // a.atname = a.atname.trim().trim_matches(char::is_numeric).to_string()
+            a.atname = a.element.to_string()
+        }));
+    }
+
+    pub fn to_pdb<P: AsRef<Path>>(&self, out_file_path: P) {
         let pdb_file = File::create(out_file_path).unwrap();
         let mut writer = BufWriter::new(pdb_file);
         writeln!(writer, "REMARK   Created by s_mmpbsa (https://github.com/supernova4869/s_mmpbsa)").unwrap();

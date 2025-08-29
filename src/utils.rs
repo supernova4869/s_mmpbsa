@@ -91,8 +91,14 @@ pub fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[
     child.wait()
 }
 
+#[allow(dead_code)]
 pub fn pdb2gmx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, o: &str, ff: &str, water: &str) {
     let args = ["pdb2gmx", "-f", f, "-o", o, "-ff", ff, "-water", water, "-ignh", "-quiet"];
+    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
+}
+
+pub fn editconf(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, d: &str, o: &str) {
+    let args = ["editconf", "-f", f, "-d", d, "-o", o];
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
@@ -142,6 +148,7 @@ pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) -> Result<
     cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir)
 }
 
+#[allow(dead_code)]
 pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str, wd: &Path) -> Result<ExitStatus, std::io::Error> {
     let args = vec![infile];
     cmd_options(settings, settings.multiwfn_path.as_ref().unwrap(), options, &args, wd)
