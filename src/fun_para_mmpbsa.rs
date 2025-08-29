@@ -1,5 +1,6 @@
 use std::io::stdin;
 use std::path::Path;
+use colored::Colorize;
 use ndarray::Array3;
 
 use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca};
@@ -29,7 +30,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         println!(" -3 Output PBSA parameters");
         println!(" -2 Output LJ parameters");
         println!(" -1 Output structural parameters");
-        println!("  0 Start MM/PB-SA calculation");
+        println!("{}", "  0 Start MM/PB-SA calculation".green().bold());
         println!("  1 Choose electrostatic screening method, current: {}", match settings.elec_screen {
             1 => "Ding's method",
             2 => "Supernova's method",

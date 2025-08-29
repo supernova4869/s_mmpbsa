@@ -222,7 +222,7 @@ pub fn set_para_trj_pdbqt(receptor_path: &String, ligand_path: &String, flex_pat
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
         println!("-10 Return");
-        println!("  0 Go to next step");
+        println!("{}", "  0 Go to next step".green().bold());
         println!("  1 Set start pose to analyze, current:       {}", bt + 1);
         println!("  2 Set end pose to analyze, current:         {}", et + 1);
         let i = get_input_selection();
