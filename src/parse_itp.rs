@@ -38,7 +38,7 @@ pub struct Atomtype {
 // 实现 PartialEq
 impl PartialEq for Atomtype {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
+        self.name.eq(&other.name)
     }
 }
 

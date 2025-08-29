@@ -647,15 +647,15 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, setti
     // merge atomtypes
     let itp_lig = Topology::from(temp_dir.join(lig_itp_path));
     let itp_rec = Topology::from(temp_dir.join(rec_itp_path));
-    let mut itp_lig_atom_types: Vec<Atomtype> = itp_lig.sections.iter().filter_map(|sec| match sec {
+    let itp_lig_atom_types: HashSet<Atomtype> = itp_lig.sections.iter().filter_map(|sec| match sec {
         TopologySection::Atomtypes(atomtypes) => Some(atomtypes),
         _ => None
     }).flatten().cloned().collect();
-    let mut itp_rec_atom_types: Vec<Atomtype> = itp_rec.sections.iter().filter_map(|sec| match sec {
+    let itp_rec_atom_types: HashSet<Atomtype> = itp_rec.sections.iter().filter_map(|sec| match sec {
         TopologySection::Atomtypes(atomtypes) => Some(atomtypes),
         _ => None
     }).flatten().cloned().collect();
-    itp_rec_atom_types.append(&mut itp_lig_atom_types);
+    let itp_total: HashSet<Atomtype> = itp_rec_atom_types.union(&itp_lig_atom_types).cloned().collect();
 
     // write each itp
     itp_lig.to_itp(temp_dir.join("LIG.itp"), false).unwrap();
@@ -671,11 +671,7 @@ fn prepare_system_tpr_pdb(rec_name: &str, lig_name: &str, temp_dir: &Path, setti
         None
     }).unwrap();
     // 得倒着写
-    // let itp_rec_line = format!("#include \"{}\"", rec_itp_path.trim_start_matches(r"\\?\"));
-    // top_contents.insert(ln + 1, itp_rec_line.as_str());
-    // let itp_lig_line = format!("#include \"{}\"", lig_itp_path.trim_start_matches(r"\\?\"));
-    // top_contents.insert(ln + 1, itp_lig_line.as_str());
-    let content: Vec<String> = itp_rec_atom_types.iter().map(|at| at.to_string()).collect();
+    let content: Vec<String> = itp_total.iter().map(|at| at.to_string()).collect();
     let content = content.join("\n");
     top_contents.insert(ln + 1, content.as_str());
     top_contents.insert(ln + 1, "[ atomtypes ]");
