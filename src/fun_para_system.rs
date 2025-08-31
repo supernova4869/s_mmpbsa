@@ -332,16 +332,21 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             read_xtc(&trj_mmpbsa_ie)
         };
 
-        let time_list_ie: Vec<f64> = time_box_info.par_iter().map(|frame| frame.0 as f64).collect();
-        let coordinates_ie: Vec<Vec<[f32; 3]>> = time_box_info.par_iter().map(|frame| frame.1.clone()).collect();
-        let num_frames = coordinates_ie.len();
-        let num_atoms = coordinates_ie[0].len();
+        let (time_list_ie, coordinates_ie): (Vec<f64>, Vec<Vec<[f32; 3]>>) = time_box_info
+            .par_iter()
+            .map(|frame| (frame.0 as f64, frame.1.clone()))
+            .unzip();
+
+        let num_frames = time_box_info.len();
+        let num_atoms = if num_frames > 0 { time_box_info[0].1.len() } else { 0 };
         let coordinates_ie = Array3::from_shape_fn((num_frames, num_atoms, 3), |(i, j, k)| {
             coordinates_ie[i][j][k] as f64 * 10.0
         });
-        let time_list = Array1::linspace(time_list_ie[0], 
-            time_list_ie[time_list_ie.len() - 1], 
-            ((time_list_ie[time_list_ie.len() - 1] - time_list_ie[0]) / dt + 1.0) as usize).to_vec();
+
+        let start_time = time_list_ie.first().copied().unwrap_or(0.0);
+        let end_time = time_list_ie.last().copied().unwrap_or(0.0);
+        let num_time_points = ((end_time - start_time) / dt + 1.0) as usize;
+        let time_list = Array1::linspace(start_time, end_time, num_time_points).to_vec();
 
         set_para_mmpbsa(&time_list, &time_list_ie, &coordinates_ie, tpr, &ndx, wd, 
             &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
