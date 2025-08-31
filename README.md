@@ -138,7 +138,7 @@ a # analyzation mode
 The data was generated with .csv format and plotted as figures; The pdb files with inversed binding energy filled in B-factors column are drawn as png figures by PyMOL (if usable).
 
 ## Download
-Release file: https://github.com/supernova4869/s_mmpbsa/releases, where "s_mmpbsa.exe" and "s_mmpbsa" are s_mmpbsa executable files on Windows and Linux operation systems, respectively.
+Release file: https://github.com/supernova4869/s_mmpbsa/releases/latest, where "s_mmpbsa.exe" and "s_mmpbsa" are s_mmpbsa executable files on Windows and Linux operation systems, respectively.
 
 ## Citation
 The `s_mmpbsa` program should be properly cited if the work will be published. 
