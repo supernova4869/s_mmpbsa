@@ -1,12 +1,9 @@
-mod index_parser;
+mod parse_ndx;
 mod mmpbsa;
-mod parse_itp;
 mod parse_tpr;
 mod parse_xvg;
 mod parse_pdb;
 mod parse_gro;
-mod parse_pdbqt;
-mod parse_mol2;
 mod analyzation;
 mod fun_para_basic;
 mod fun_para_system;
@@ -31,8 +28,8 @@ use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 
 fn main() {
-    let version = 0.8;
-    welcome(&version.to_string(), "2025-Aug-29");
+    let version = env!("CARGO_PKG_VERSION");
+    welcome(&version.to_string(), "2025-Aug-31");
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -41,11 +38,9 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
     let mut input: String = String::new();
-    let mut ligand = String::new();
     match args.len() {
         1 => {
             println!("Input path of tpr file, e.g. D:/md.tpr");
-            println!("Or, input path of docking receptor file, e.g. D:/receptor.pdbqt");
             println!("Hint: input \"o\" to simply load last-opened file.");
             println!("Hint: input \"a\" to start analyzation mode.");
             stdin().read_line(&mut input).expect("Failed to get input file.");
@@ -68,23 +63,14 @@ fn main() {
         2 => {
             input = args[1].to_string();
         }
-        3 => {
-            input = args[1].to_string();
-            ligand = args[2].to_string();
-        }
         _ => {}
     }
 
     if Path::new(&input).is_file() {
-        let in_file = confirm_file_validity(&input, vec!["tpr", "pdbqt"], &input);
+        let in_file = confirm_file_validity(&input, vec!["tpr"], &input);
         change_settings_last_opened(&mut settings, &in_file);
-        if in_file.ends_with("tpr") {
-            let in_file = get_dump(&in_file, &settings);
-            fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
-        } else { // pdbqt
-            let wd = fs::canonicalize(Path::new(&in_file)).unwrap();
-            fun_para_basic::set_para_basic_pdbqt(&in_file, &ligand, &wd.parent().unwrap(), &mut settings);
-        };
+        let in_file = get_dump(&in_file, &settings);
+        fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
     } else if Path::new(&input).is_dir() {
         let wd = Path::new(&input);
         let sm_list: Vec<String> = fs::read_dir(wd).unwrap().into_iter().filter_map(|f| {
@@ -138,8 +124,7 @@ fn welcome(version: &str, today: &str) {
         Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
         Version {}, first release: 2022-Oct-17, current release: {}\n", version, today);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `s_mmpbsa Haibara_Ai.tpr` to load MD tpr file.\n\
-        Usage 3: run `s_mmpbsa Miyano_Shiho.pdbqt Kudo_Shinichi.pdbqt` (receptor first) to load docking results.\n");
+        Usage 2: run `s_mmpbsa Haibara_Ai.tpr` to load MD tpr file.\n");
 }
 
 pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
@@ -195,34 +180,6 @@ fn get_built_in_delphi() -> String {
         .display().to_string()
 }
 
-fn get_built_in_antechamber() -> String {
-    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-        .parent()
-        .expect("Cannot get current s_mmpbsa program directory.")
-        .join("programs").join("amber")
-        .join(if cfg!(windows) {"win"} else {"linux"})
-        .join("bin").join("antechamber")
-        .display().to_string()
-}
-
-fn get_built_in_sobtop() -> String {
-    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-        .parent()
-        .expect("Cannot get current s_mmpbsa program directory.")
-        .join("programs").join("sobtop")
-        .join("sobtop")
-        .display().to_string()
-}
-
-fn get_built_in_obabel() -> String {
-    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-        .parent()
-        .expect("Cannot get current s_mmpbsa program directory.")
-        .join("programs").join("openbabel")
-        .join("obabel")
-        .display().to_string()
-}
-
 fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<String> {
     if let Some(p) = p {
         let p = if p.eq("built-in") {
@@ -230,9 +187,6 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
                 "gromacs" => get_built_in_gmx(),
                 "apbs" => get_built_in_apbs(),
                 "delphi" => get_built_in_delphi(),
-                "antechamber" => get_built_in_antechamber(),
-                "sobtop" => get_built_in_sobtop(),
-                "obabel" => get_built_in_obabel(),
                 _ => String::from("")
             }
         } else {
@@ -267,27 +221,17 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
 }
 
 fn check_program_validity(program: &str) -> Result<String, ()> {
-    let version_arg = match program {
-        "obabel" => "-V",
-        _ => "--version"
-    };
-    let output = Command::new(program).arg(version_arg).output();
-    match output {
-        Ok(output) => {
-            // println!("{}", output.status.code().unwrap());
-            match output.status.code() {
-                Some(0) => Ok(program.to_string()),
-                Some(13) => Ok(program.to_string()),    // APBS
-                Some(127) => Ok(program.to_string()),    // APBS
-                Some(1) => Ok(program.to_string()),    // delphi
-                Some(24) => Ok(program.to_string()),    // sobtop
-                Some(69) => Ok(program.to_string()),    // ?
-                _ => {
-                    Err(())
-                }
-            }
-        }
-        Err(_) => Err(())
+    let output = Command::new(program)
+        .arg("--version")
+        .output()
+        .map_err(|_| ())?;
+    
+    // 定义可接受的退出码
+    let valid_codes = [0, 1, 13, 127];
+    
+    match output.status.code() {
+        Some(code) if valid_codes.contains(&code) => Ok(program.to_string()),
+        _ => Err(())
     }
 }
 
@@ -358,7 +302,9 @@ fn env_check() -> Settings {
         .unwrap();
 
     // check necessary dat path
-    if !Path::new(env::current_exe().unwrap().parent().unwrap().join("dat/").as_path()).is_dir() {
+    let cur_path = env::current_exe().unwrap();
+    let cur_path = cur_path.parent().unwrap();
+    if !Path::new(cur_path.join("dat/").as_path()).is_dir() {
         println!("Error: the dat/ folder with atom radius not found, please check and retry.");
         io::stdin().read_line(&mut String::new()).unwrap();
         std::process::exit(0);
@@ -366,8 +312,5 @@ fn env_check() -> Settings {
     settings.gmx_path = set_program(&settings.gmx_path, "gromacs", &settings);
     settings.apbs_path = set_program(&settings.apbs_path, "apbs", &settings);
     settings.delphi_path = set_program(&settings.delphi_path, "delphi", &settings);
-    settings.antechamber_path = set_program(&settings.antechamber_path, "antechamber", &settings);
-    settings.sobtop_path = set_program(&settings.sobtop_path, "sobtop", &settings);
-    settings.obabel_path = set_program(&settings.obabel_path, "obabel", &settings);
     settings
 }

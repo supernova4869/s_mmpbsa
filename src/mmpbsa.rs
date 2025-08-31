@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -19,7 +20,7 @@ use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                                temp_dir: &PathBuf, sys_name: &String, aps: &AtomProperties,
-                               ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>, 
+                               ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> (SMResult, Vec<SMResult>) {
@@ -90,8 +91,9 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     (result_wt, result_ala_scan)
 }
 
-fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordinates: &Array3<f64>, ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>)
-            -> (Array3<f64>, AtomProperties, Vec<usize>, Vec<usize>) {
+fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordinates: &Array3<f64>, 
+                ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>)
+                -> (Array3<f64>, AtomProperties, BTreeSet<usize>, Option<BTreeSet<usize>>) {
     let mut new_coordinates = coordinates.clone();
     let mut new_aps = aps.clone();
     let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
@@ -159,7 +161,7 @@ fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordi
     };
     let mut new_ndx_rec = ndx_rec.clone();
     new_ndx_rec.retain(|&x| !del_list.contains(&x) || xg_list.contains(&x));
-    let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, Some(ndx_lig));
+    let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, ndx_lig);
 
     return (new_coordinates.select(Axis(1), &retain_id).clone(), new_aps, new_ndx_rec, new_ndx_lig)
 }
@@ -172,7 +174,7 @@ pub fn set_style(pb: &ProgressBar) {
 
 fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                     aps: &AtomProperties, temp_dir: &PathBuf,
-                    ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
+                    ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                     residues: &Vec<Residue>, sys_name: &String, mutation: &str,
                     pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> SMResult {
     let mut elec_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
@@ -243,7 +245,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     for cur_frm in 0..time_list.len() {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
-        if ndx_lig[0] != ndx_rec[0] {
+        if let Some(ndx_lig) = ndx_lig {
             let (de_elec, de_vdw) = 
                 calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings);
             elec_atom.row_mut(frame_id).assign(&de_elec);
@@ -269,18 +271,17 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     }
     pgb.finish();
 
-    println!("Start IE calculation...");
-    let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
-    set_style(&pgb);
-    pgb.inc(0);
-    let calc_ie_per_frame = |frame: ArrayView2<f64>| {
-        let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings);
-        pgb.inc(1);
-        pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
-        de_elec.sum() + de_vdw.sum()
-    };
-
-    let mm_ie: Array1<f64> = if ndx_lig[0] != ndx_rec[0] {
+    let mm_ie: Array1<f64> = if let Some(ndx_lig) = ndx_lig {
+        println!("Start IE calculation...");
+        let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
+        set_style(&pgb);
+        pgb.inc(0);
+        let calc_ie_per_frame = |frame: ArrayView2<f64>| {
+            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings);
+            pgb.inc(1);
+            pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
+            de_elec.sum() + de_vdw.sum()
+        };
         let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
             .into_par_iter()
             .enumerate()
@@ -321,7 +322,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     )
 }
 
-fn calc_mm(ndx_rec: &[usize], ndx_lig: &[usize], aps: &AtomProperties, coord: &ArrayView2<f64>, 
+fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>, 
             coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
     let mut de_elec: Array1<f64> = Array1::zeros(n_atoms);
@@ -333,24 +334,17 @@ fn calc_mm(ndx_rec: &[usize], ndx_lig: &[usize], aps: &AtomProperties, coord: &A
     
     // 预提取坐标和属性到局部数组以提高缓存友好性
     let rec_coords: Vec<_> = ndx_rec.iter().map(|&i| {
-        (i, coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
+        (i, aps.atom_props[i].charge, aps.atom_props[i].type_id, 
+        coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
     }).collect();
     
     let lig_props: Vec<_> = ndx_lig.iter().map(|&j| {
         (j, aps.atom_props[j].charge, aps.atom_props[j].type_id, 
-         coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
+        coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
     }).collect();
     
-    for &(i, xi, yi, zi) in &rec_coords {
-        let qi = aps.atom_props[i].charge;
-        let ci = aps.atom_props[i].type_id;
-        
+    for &(i, qi, ci, xi, yi, zi) in &rec_coords {
         for &(j, qj, cj, xj, yj, zj) in &lig_props {
-            // 跳过不必要的计算
-            if i == j || (ndx_lig[0] == ndx_rec[0] && j <= i) {
-                continue;
-            }
-            
             // 使用平方距离进行快速筛选
             let dx = xi - xj;
             let dy = yi - yj;
@@ -386,84 +380,10 @@ fn calc_mm(ndx_rec: &[usize], ndx_lig: &[usize], aps: &AtomProperties, coord: &A
     (de_elec, de_vdw)
 }
 
-// fn calc_mm(ndx_rec: &[usize], ndx_lig: &[usize], aps: &AtomProperties, coord: &ArrayView2<f64>, 
-//             coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
-//     let n_atoms = aps.atom_props.len();
-    
-//     // 预计算常量
-//     let r_cutoff_sq = settings.r_cutoff.powi(2);
-//     let scale_factor = 1.0 / 10.0;
-    
-//     // 预提取数据
-//     let rec_coords: Vec<_> = ndx_rec.iter().map(|&i| {
-//         (i, coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
-//     }).collect();
-    
-//     let lig_props: Vec<_> = ndx_lig.iter().map(|&j| {
-//         (j, aps.atom_props[j].charge, aps.atom_props[j].type_id, 
-//          coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
-//     }).collect();
-    
-//     // 并行计算每个受体原子的贡献
-//     let results: Vec<(Array1<f64>, Array1<f64>)> = rec_coords.par_iter().map(|&(i, xi, yi, zi)| {
-//         let qi = aps.atom_props[i].charge;
-//         let ci = aps.atom_props[i].type_id;
-        
-//         let mut local_elec = Array1::zeros(n_atoms);
-//         let mut local_vdw = Array1::zeros(n_atoms);
-        
-//         for &(j, qj, cj, xj, yj, zj) in &lig_props {
-//             if i == j || (ndx_lig[0] == ndx_rec[0] && j <= i) {
-//                 continue;
-//             }
-            
-//             let dx = xi - xj;
-//             let dy = yi - yj;
-//             let dz = zi - zj;
-//             let r_sq = dx * dx + dy * dy + dz * dz;
-            
-//             if r_sq <= r_cutoff_sq {
-//                 let r = r_sq.sqrt() * scale_factor;
-//                 let r_inv = 1.0 / r;
-                
-//                 let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
-                
-//                 let r6_inv = r_inv.powi(6);
-//                 let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
-                
-//                 local_elec[i] += e_elec;
-//                 local_elec[j] += e_elec;
-//                 local_vdw[i] += e_vdw;
-//                 local_vdw[j] += e_vdw;
-//             }
-//         }
-        
-//         (local_elec, local_vdw)
-//     }).collect();
-    
-//     // 合并所有线程的结果
-//     let mut de_elec = Array1::zeros(n_atoms);
-//     let mut de_vdw = Array1::zeros(n_atoms);
-    
-//     for (elec, vdw) in results {
-//         de_elec += &elec;
-//         de_vdw += &vdw;
-//     }
-    
-//     // 应用缩放因子
-//     let elec_scale = coeff.f / coeff.pdie / 2.0;
-//     let vdw_scale = 0.5;
-    
-//     de_elec = de_elec * elec_scale;
-//     de_vdw = de_vdw * vdw_scale;
-    
-//     (de_elec, de_vdw)
-// }
-
 fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>, 
-            ndx_rec_norm: &Vec<usize>, ndx_lig_norm: &Vec<usize>, cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
+            ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
-    prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec_norm, ndx_lig_norm, aps);
+    prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
 
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
@@ -477,7 +397,7 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
                 return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
             }
             let apbs = settings.apbs_path.as_ref().unwrap();
-            write_apbs_input(ndx_rec_norm, ndx_lig_norm, coord, &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
+            write_apbs_input(ndx_rec, ndx_lig, coord, &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
                     pbe_set, pba_set, temp_dir, &f_name, settings);
             // invoke apbs program to do apbs calculations
             let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
@@ -489,7 +409,7 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
                 let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name))).expect("Failed to create err file.");
                 errfile.write_all(apbs_err.as_bytes()).expect("Failed to write apbs output.");
             }
-            // let apbs_result = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).expect("Failed to parse apbs output.");
+            // let apbs_result = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).expect("Failed to get apbs output file.");
     
             // preserve CALCULATION, Atom and SASA lines
             let apbs_result: Vec<&str> = apbs_result.split("\n").filter_map(|p|
@@ -501,11 +421,12 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             ).collect();
     
             // extract apbs results
-            let indexes: Vec<usize> = apbs_result.iter().enumerate().filter_map(|(i, &p)| match p.starts_with("CAL") {
-                true => Some(i),
-                false => None
-            }).collect();
-    
+            let indexes: Vec<usize> = apbs_result
+                .iter()
+                .enumerate()
+                .filter_map(|(i, p)| p.starts_with("CAL").then_some(i))
+                .collect();
+
             let mut com_pb_sol: Vec<f64> = vec![];
             let mut com_pb_vac: Vec<f64> = vec![];
             let mut rec_pb_sol: Vec<f64> = vec![];
@@ -516,7 +437,7 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             let mut rec_sa: Vec<f64> = vec![];
             let mut lig_sa: Vec<f64> = vec![];
     
-            let mut skip_pb = true;     // the first time PB calculation should be wasted
+            let mut skip_pb = true;     // the first time PB calculation should be dropped
             for (i, &idx) in indexes.iter().enumerate() {
                 let st = idx + 1;
                 let ed = match indexes.get(i + 1) {
@@ -563,30 +484,32 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             }
     
             let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
-            let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|i| gamma * *i + bias / com_sa.len() as f64).collect());
+            let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
             let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
-            let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|i| gamma * *i + bias / rec_sa.len() as f64).collect());
+            let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
             let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
-            let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|i| gamma * *i + bias / lig_sa.len() as f64).collect());
+            let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
     
-            if ndx_rec_norm[0] < ndx_lig_norm[0] {
-                rec_pb.append(Axis(0), lig_pb.view()).unwrap();
-                rec_sa.append(Axis(0), lig_sa.view()).unwrap();
-                return (com_pb - rec_pb, com_sa - rec_sa)
-            } else if ndx_rec_norm[0] > ndx_lig_norm[0] {
-                lig_pb.append(Axis(0), rec_pb.view()).unwrap();
-                lig_sa.append(Axis(0), rec_sa.view()).unwrap();
-                return (com_pb - lig_pb, com_sa - lig_sa)
+            if let Some(ndx_lig) = ndx_lig {
+                if ndx_rec.iter().min() < ndx_lig.iter().min() {
+                    rec_pb.append(Axis(0), lig_pb.view()).unwrap();
+                    rec_sa.append(Axis(0), lig_sa.view()).unwrap();
+                    (com_pb - rec_pb, com_sa - rec_sa)
+                } else {
+                    lig_pb.append(Axis(0), rec_pb.view()).unwrap();
+                    lig_sa.append(Axis(0), rec_sa.view()).unwrap();
+                    (com_pb - lig_pb, com_sa - lig_sa)
+                }
             } else {
-                return (rec_pb, rec_sa)
+                (rec_pb, rec_sa)
             }
         }
         else {
             println!("Currently Delphi kernel not available.");
-            return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
+            (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
         }
     } else {
-        return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
+        (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
     }
 }
 

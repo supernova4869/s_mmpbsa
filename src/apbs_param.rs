@@ -68,10 +68,9 @@ impl PBESet {
         return new_pbe_set;
     }
 
-    pub fn load_params<T: AsRef<Path>>(file: T) -> PBESet {
+    pub fn load_params<T: AsRef<Path>>(file: T) -> Result<PBESet, serde_yaml::Error> {
         let pbe_set = fs::read_to_string(&file).expect("Read PB parameters file error.");
-        let pbe_set: PBESet = serde_yaml::from_str(pbe_set.as_str()).expect("Error format with PB parameters file.");
-        pbe_set
+        serde_yaml::from_str(pbe_set.as_str())
     }
 
     pub fn save_params<T: AsRef<Path>>(&self, file: T) {
@@ -87,20 +86,20 @@ impl fmt::Display for PBESet {
             ions.push_str(format!("  ion {}\n", ion).as_str());
         }
         write!(f,
-            "  temp  {:7}  # 温度\
-            \n  pdie  {:7}  # 溶质介电常数\
-            \n  sdie  {:7}  # 溶剂介电常数, 真空1, 水78.4 (298.15 K)\
+            "  temp  {:7}  # Temperature\
+            \n  pdie  {:7}  # Solute dielectric constant\
+            \n  sdie  {:7}  # Solvent dielectric constant, vacuum 1, water 78.4 (298.15 K)\
             \n  \
-            \n  {}           # PB方程求解方法, lpbe(线性), npbe(非线性), smbpe(大小修正)\
-            \n  bcfl  {:>7}  # 粗略格点PB方程的边界条件, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\
-            \n  srfm  {:>7}  # 构建介质和离子边界的模型, mol(分子表面), smol(平滑分子表面), spl2/4(三次样条/7阶多项式)\
-            \n  chgm  {:>7}  # 电荷映射到格点的方法, spl0/2/4, 三线性插值, 立方/四次B样条离散\
-            \n  swin  {:7}  # 立方样条的窗口值, 仅用于 srfm=spl2/4\
+            \n  {}           # PB equation solving method, lpbe(linear), npbe(nonlinear), smbpe(size modified)\
+            \n  bcfl  {:>7}  # Boundary conditions for coarse-grid PB equation, zero, sdh/mdh(single/multiple Debye-Huckel), focus, map\
+            \n  srfm  {:>7}  # Model for constructing dielectric and ion boundaries, mol(molecular surface), smol(smooth molecular surface), spl2/4(cubic spline/7th order polynomial)\
+            \n  chgm  {:>7}  # Charge mapping to grid points method, spl0/2/4, trilinear interpolation, cubic/quartic B-spline discretization\
+            \n  swin  {:7}  # Cubic spline window value, only used for srfm=spl2/4\
             \n  \
-            \n  srad  {:7}  # 溶剂探测半径\
-            \n  sdens {:7}  # 表面密度, 每A^2的格点数, (srad=0)或(srfm=spl2/4)时不使用\
+            \n  srad  {:7}  # Solvent probe radius\
+            \n  sdens {:7}  # Surface density, grid points per A^2, not used when (srad=0) or (srfm=spl2/4)\
             \n  \
-            \n  # 离子电荷, 浓度, 半径\
+            \n  # Ion charge, concentration, radius\
             \n{}  \
             \n  calcforce  {}\
             \n  calcenergy {}", self.temp, self.pdie, self.sdie,
@@ -191,10 +190,9 @@ impl PBASet {
         }
     }
 
-    pub fn load_params<T: AsRef<Path>>(file: T) -> PBASet {
+    pub fn load_params<T: AsRef<Path>>(file: T) -> Result<PBASet, serde_yaml::Error> {
         let pba_set = fs::read_to_string(&file).expect("Read SA parameters file error.");
-        let pba_set: PBASet = serde_yaml::from_str(pba_set.as_str()).expect("Error format with SA parameters file.");
-        pba_set
+        serde_yaml::from_str(pba_set.as_str())
     }
 
     pub fn save_params<T: AsRef<Path>>(&self, file: T) {
@@ -207,15 +205,15 @@ impl PBASet {
 impl fmt::Display for PBASet {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f,
-            "  temp  {:7}  # 温度\
-            \n  srfm  {:>7}  # 构建溶剂相关表面或体积的模型\
-            \n  swin  {:7}  # 立方样条窗口(A), 用于定义样条表面\
+            "  temp  {:7}  # Temperature\
+            \n  srfm  {:>7}  # Model for constructing solvent-related surface or volume\
+            \n  swin  {:7}  # Cubic spline window (A), used to define spline surface\
             \n  \
-            \n  srad  {:7}  # 探测半径(A)\
-            \n  gamma {:7}  # 表面张力(kJ/mol-A^2)\
+            \n  srad  {:7}  # Probe radius (A)\
+            \n  gamma {:7}  # Surface tension (kJ/mol-A^2)\
             \n  \
-            \n  press {:7}  # 压力(kJ/mol-A^3)\
-            \n  bconc {:7}  # 溶剂本体密度(A^3)\
+            \n  press {:7}  # Pressure (kJ/mol-A^3)\
+            \n  bconc {:7}  # Solvent bulk density (A^3)\
             \n  sdens {:7}\
             \n  dpos  {:7}\
             \n  grid  {:7} {:5} {:5}\

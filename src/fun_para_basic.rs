@@ -5,7 +5,7 @@ use colored::*;
 use crate::settings::Settings;
 use crate::utils::{append_new_name, get_input, get_input_selection, make_ndx};
 use crate::{confirm_file_validity, convert_cur_dir, set_program};
-use crate::fun_para_system::{set_para_trj, set_para_trj_pdbqt};
+use crate::fun_para_system;
 use crate::parse_tpr::TPR;
 
 fn list_basic_programs(settings: &mut Settings) {
@@ -101,7 +101,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                     println!("Please assign index file.");
                 } else {
                     // go to next step
-                    set_para_trj(&trj, &mut tpr, &ndx, &wd, &tpr_path, settings);
+                    fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, &wd, &tpr_path, settings);
                 }
             }
             Ok(1) => {
@@ -128,90 +128,6 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                     make_ndx(&vec!["q"], wd, settings, &tpr_path, "", &ndx);
                 }
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_path);
-            }
-            Ok(-10) => break,
-            Ok(other) => {
-                set_basic_programs(other, settings);
-            },
-            Err(_) => {}
-        };
-    }
-}
-
-pub fn set_para_basic_pdbqt(init_receptor_path: &String, init_ligand_path: &String, wd: &Path, settings: &mut Settings) {
-    let mut receptor_path = String::from(init_receptor_path);
-    let mut ligand_path = String::from(init_ligand_path);
-    let mut flex_path: Option<String> = None;
-    let mut ff = String::from("amber14sb");
-    loop {
-        println!("\n                 ************ MM/PB-SA Files ************");
-        println!("-10 Exit program");
-        list_basic_programs(settings);
-        if !receptor_path.is_empty() && !ligand_path.is_empty() {
-            println!("{}", "  0 Go to next step (complete)".green().bold());
-        } else {
-            println!("{}", "  0 Go to next step (incomplete)".red().bold());
-        }
-        println!("  1 Assign docking receptor file, current: {}", match receptor_path.len() {
-            0 => "undefined",
-            _ => receptor_path.as_str()
-        });
-        println!("  2 Assign docking ligand file, current: {}", match ligand_path.len() {
-            0 => "undefined",
-            _ => ligand_path.as_str()
-        });
-        println!("  3 Assign docking flexible residues file, current: {}", match flex_path.as_ref() {
-            None => "undefined",
-            Some(p) => p.as_str()
-        });
-        println!("  4 Select force field, current: {}", ff);
-        let i = get_input_selection();
-        match i {
-            Ok(0) => {
-                if ligand_path.len() == 0 {
-                    println!("Ligand file not assigned.");
-                } else if receptor_path.len() == 0 {
-                    println!("Receptor file not assigned.");
-                } else {
-                    // go to next step
-                    set_para_trj_pdbqt(&receptor_path, &ligand_path, &flex_path, &ff, &wd, settings);
-                }
-            }
-            Ok(1) => {
-                println!("Input docking receptor file path, default: ?protein.pdbqt (\"?\" means the same directory as initial input):");
-                receptor_path.clear();
-                stdin().read_line(&mut receptor_path).expect("Failed while reading receptor file");
-                if receptor_path.trim().is_empty() {
-                    receptor_path = "?protein.pdbqt".to_string();
-                }
-                receptor_path = convert_cur_dir(&receptor_path, &init_receptor_path);
-                receptor_path = confirm_file_validity(&mut receptor_path, vec!["pdbqt"], &init_receptor_path);
-            }
-            Ok(2) => {
-                println!("Input docking ligand file path, default: ?DSDP_out.pdbqt (\"?\" means the same directory as initial input):");
-                ligand_path.clear();
-                stdin().read_line(&mut ligand_path).expect("Failed while reading ligand file");
-                if ligand_path.trim().is_empty() {
-                    ligand_path = "?DSDP_out.pdbqt".to_string();
-                }
-                ligand_path = convert_cur_dir(&ligand_path, &init_receptor_path);
-                ligand_path = confirm_file_validity(&mut ligand_path, vec!["pdbqt"], &init_receptor_path);
-            }
-            Ok(3) => {
-                println!("Input docking flexible residues file path, default: None:");
-                let mut s = String::new();
-                stdin().read_line(&mut s).expect("Failed while reading ligand file");
-                if s.trim().is_empty() {
-                    flex_path = None;
-                } else {
-                    s = convert_cur_dir(&s, &init_receptor_path);
-                    s = confirm_file_validity(&mut s, vec!["pdbqt"], &init_receptor_path);
-                    flex_path = Some(s);
-                };
-            }
-            Ok(4) => {
-                println!("Input force field (same as that in include/), default: amber14sb");
-                ff = get_input("amber14sb".to_string());
             }
             Ok(-10) => break,
             Ok(other) => {

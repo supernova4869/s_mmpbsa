@@ -1,10 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::io::{self, Write};
 use std::str::FromStr;
 use std::fmt::Debug;
 use std::process::{Command, ExitStatus, Stdio};
-use std::fs;
 use ndarray::{Array2, Axis};
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
@@ -91,28 +90,6 @@ pub fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[
     child.wait()
 }
 
-#[allow(dead_code)]
-pub fn pdb2gmx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, o: &str, ff: &str, water: &str) {
-    let args = ["pdb2gmx", "-f", f, "-o", o, "-ff", ff, "-water", water, "-ignh", "-quiet"];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
-pub fn editconf(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, d: &str, o: &str) {
-    let args = ["editconf", "-f", f, "-d", d, "-o", o];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
-pub fn grompp(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, c: &str, o: &str) {
-    let args = ["grompp", "-f", f, "-c", c, "-o", o, "-maxwarn", "10", "-quiet"];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
-#[allow(dead_code)]
-pub fn mdrun(options: &Vec<&str>, wd: &Path, settings: &Settings, name: &str, nt: &str) {
-    let args = ["mdrun", "-v", "-deffnm", name, "-nt", nt, "-quiet"];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
 pub fn convert_tpr(options: &Vec<&str>, wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o, "-quiet"];
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
@@ -139,24 +116,6 @@ pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n:
 pub fn trajectory(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, ox: &str) {
     let args = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox, "-quiet"].to_vec();
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
-pub fn sobtop(options: &Vec<&str>, settings: &Settings, infile: &str) -> Result<ExitStatus, std::io::Error> {
-    let args = vec![infile];
-    let sobtop_dir = Path::new(settings.sobtop_path.as_ref().unwrap()).parent().unwrap();
-    // sobtop must be used at its own directory
-    cmd_options(settings, sobtop_dir.join("sobtop").to_str().unwrap(), options, &args, &sobtop_dir)
-}
-
-#[allow(dead_code)]
-pub fn multiwfn(options: &Vec<&str>, settings: &Settings, infile: &str, wd: &Path) -> Result<ExitStatus, std::io::Error> {
-    let args = vec![infile];
-    cmd_options(settings, settings.multiwfn_path.as_ref().unwrap(), options, &args, wd)
-}
-
-pub fn obabel(options: &Vec<&str>, settings: &Settings, args: &[&str]) {
-    let obabel_dir = Path::new(settings.obabel_path.as_ref().unwrap()).parent().unwrap();
-    cmd_options(settings, settings.obabel_path.as_ref().unwrap(), options, &args, obabel_dir).unwrap();
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {
@@ -193,10 +152,15 @@ pub fn resname_3to1(name: &str) -> Option<String> {
     }
 }
 
-pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &Vec<usize>, cutoff: f64, 
+pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &BTreeSet<usize>, cutoff: f64, 
         atom_res: &Vec<usize>, atom_names: &Vec<String>, residues: &Vec<Residue>) -> Vec<usize> {
     let mut res_range: Vec<usize> = vec![];
-    let ligand_coord = coord.select(Axis(0), ref_ids);
+    let indices: Vec<usize> = ref_ids.iter()
+        .filter(|&&idx| idx < coord.nrows()) // 确保索引有效
+        .cloned()
+        .collect();
+    // 使用select宏选择行
+    let ligand_coord = coord.select(Axis(0), &indices);
     for res in residues {
         let cur_res_ca_id: Vec<usize> = atom_names.iter().enumerate()
             .filter_map(|(id, name)| if atom_res[id] == res.id && name.eq("CA") {
@@ -231,25 +195,4 @@ pub fn get_program_path(cmd: &str) -> Option<String> {
 
 pub fn show_famous_quotes() {
     println!("The s_mmpbsa program reminds you: \"We must know. We will know.\" (David Hilbert)");
-}
-
-pub fn copy_dir(src: &Path, dest: &Path) {
-    if !dest.is_dir() {
-        fs::create_dir_all(dest).unwrap();
-    }
-
-    // 读取源目录中的所有条目
-    for entry in fs::read_dir(src).unwrap() {
-        let entry = entry.unwrap();
-        let src_path = entry.path();
-        let dest_path = dest.join(entry.file_name());
-
-        if src_path.is_dir() {
-            // 递归复制子目录
-            copy_dir(&src_path, &dest_path);
-        } else {
-            // 复制文件
-            fs::copy(&src_path, &dest_path).unwrap();
-        }
-    }
 }

@@ -1,10 +1,11 @@
+use std::collections::BTreeSet;
 use std::io::stdin;
 use std::path::Path;
 use colored::Colorize;
 use ndarray::Array3;
 
 use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca};
-use crate::index_parser::Index;
+use crate::parse_ndx::Index;
 use crate::settings::Settings;
 use crate::apbs_param::{PBASet, PBESet};
 use std::io::Write;
@@ -16,7 +17,7 @@ use crate::analyzation;
 
 pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                        tpr: &TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
-                       ndx_rec: &Vec<usize>, ndx_lig: &Vec<usize>,
+                       ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        residues: &Vec<Residue>, settings: &mut Settings) {
     // kinds of radius types
@@ -142,61 +143,64 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 settings.elec_screen = get_input(1);
             }
             Ok(2) => {
-                println!("Select the residues for alanine scanning:");
-                println!(" 1 Select the residues within the first layer (0-4 A)");
-                println!(" 2 Select the residues within the second layer (4-6 A)");
-                println!(" 3 Select the residues within the third layer (6-8 A)");
-                println!(" 4 Select the residues within specific distance");
-                println!(" 5 Directly input the resudues list");
-                let i: i32 = get_input_selection().unwrap();
-                let receptor_res: Vec<Residue> = residues.iter().filter_map(|r| if r.id != aps.atom_props[ndx_lig[0]].resid {
-                    Some(r.clone())
+                if let Some(ndx_lig) = ndx_lig {
+                    println!("Select the residues for alanine scanning:");
+                    println!(" 1 Select the residues within the first layer (0-4 A)");
+                    println!(" 2 Select the residues within the second layer (4-6 A)");
+                    println!(" 3 Select the residues within the third layer (6-8 A)");
+                    println!(" 4 Select the residues within specific distance");
+                    println!(" 5 Directly input the resudues list");
+                    let i: i32 = get_input_selection().unwrap();
+                    let receptor_res: Vec<Residue> = residues.iter()
+                        .filter(|r| ndx_rec.contains(&r.id))
+                        .cloned()
+                        .collect();
+                    let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
+                    let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
+                    match i {
+                        1 => {
+                            let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
+                                &atom_res, &atom_names, &receptor_res);
+                            ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                        },
+                        2 => {
+                            let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
+                                &atom_res, &atom_names, &receptor_res);
+                            let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
+                                &atom_res, &atom_names, &receptor_res);
+                            ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
+                                Some(residues[i].nr)
+                            } else {
+                                None
+                            } ).collect();
+                        },
+                        3 => {
+                            let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, 
+                                &atom_res, &atom_names, &receptor_res);
+                            let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
+                                &atom_res, &atom_names, &receptor_res);
+                            ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
+                                Some(residues[i].nr)
+                            } else {
+                                None
+                            } ).collect();
+                        },
+                        4 => {
+                            println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
+                            let cutoff = get_input(4.0);
+                            let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, 
+                                &atom_res, &atom_names, &receptor_res);
+                            ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
+                        },
+                        5 => {
+                            println!("Input the residues list for alanine scanning:");
+                            let rs = get_input("".to_string());
+                            ala_list = utils::range2list(rs.as_str());
+                        },
+                        _ => {}
+                    }
                 } else {
-                    None
-                }).collect();
-                let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
-                let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
-                match i {
-                    1 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    2 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
-                            Some(residues[i].nr)
-                        } else {
-                            None
-                        } ).collect();
-                    },
-                    3 => {
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| if !inner_rs.contains(&i) {
-                            Some(residues[i].nr)
-                        } else {
-                            None
-                        } ).collect();
-                    },
-                    4 => {
-                        println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
-                        let cutoff = get_input(4.0);
-                        let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, 
-                            &atom_res, &atom_names, &receptor_res);
-                        ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
-                    },
-                    5 => {
-                        println!("Input the residues list for alanine scanning:");
-                        let rs = get_input("".to_string());
-                        ala_list = utils::range2list(rs.as_str());
-                    },
-                    _ => {}
+                    println!("No ligand selected.");
                 }
             }
             Ok(3) => {
@@ -269,18 +273,44 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             Ok(8) => {
                 let pb_fpath = wd.join("PB_settings.yaml");
                 pbe_set.save_params(&pb_fpath);
-                println!("PB parameters have been wrote to {0}.\n\
-                    Edit it and input its path to reload (default: {0}).", &pb_fpath.to_str().unwrap());
-                let pb_fpath = get_input(pb_fpath.to_str().unwrap().to_string());
-                pbe_set = PBESet::load_params(pb_fpath);
+                println!("PB parameters have been wrote to {}.\n\
+                    Edit it and press ENTER to reload).", &pb_fpath.to_str().unwrap().yellow().bold());
+                get_input("".to_string());
+                loop {
+                    let new_pbe_set = PBESet::load_params(&pb_fpath);
+                    match new_pbe_set {
+                        Ok(new_pbe_set) => {
+                            pbe_set = new_pbe_set;
+                            break;
+                        },
+                        Err(e) => {
+                            println!("Error format with PB parameters file, details:\n{}", e.to_string().red().bold());
+                            println!("Edit {} again and press ENTER to reload", &pb_fpath.to_str().unwrap());
+                            get_input("".to_string());
+                        }
+                    };
+                }
             }
             Ok(9) => {
                 let sa_fpath = wd.join("SA_settings.yaml");
                 pba_set.save_params(&sa_fpath);
-                println!("SA parameters have been wrote to {0}.\n\
-                    Edit it and input its path to reload (default: {0}).", &sa_fpath.to_str().unwrap());
-                let sa_fpath = get_input(sa_fpath.to_str().unwrap().to_string());
-                pba_set = PBASet::load_params(sa_fpath);
+                println!("SA parameters have been wrote to {}.\n\
+                    Edit it and press ENTER to reload).", &sa_fpath.to_str().unwrap().yellow().bold());
+                get_input("".to_string());
+                loop {
+                    let new_pba_set = PBASet::load_params(&sa_fpath);
+                    match new_pba_set {
+                        Ok(new_pba_set) => {
+                            pba_set = new_pba_set;
+                            break;
+                        },
+                        Err(e) => {
+                            println!("Error format with SA parameters file, details:\n{}", e.to_string().red().bold());
+                            println!("Edit {} again and press ENTER to reload", &sa_fpath.to_str().unwrap());
+                            get_input("".to_string());
+                        }
+                    };
+                }
             }
             _ => {}
         }
