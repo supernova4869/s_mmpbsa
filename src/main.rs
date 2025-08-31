@@ -1,7 +1,6 @@
 mod parse_ndx;
 mod mmpbsa;
 mod parse_tpr;
-mod parse_xvg;
 mod parse_pdb;
 mod parse_gro;
 mod read_xtc;
