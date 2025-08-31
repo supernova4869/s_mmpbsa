@@ -4,6 +4,7 @@ mod parse_tpr;
 mod parse_xvg;
 mod parse_pdb;
 mod parse_gro;
+mod read_xtc;
 mod analyzation;
 mod fun_para_basic;
 mod fun_para_system;

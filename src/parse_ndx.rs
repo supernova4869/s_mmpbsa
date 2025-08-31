@@ -1,4 +1,4 @@
-use std::{fs::{self, File}, io::Write};
+use std::{fs::{self, File}, io::Write, path::Path};
 use regex::Regex;
 use std::fmt::Formatter;
 use std::fmt;
@@ -11,8 +11,8 @@ pub struct IndexGroup {
 }
 
 impl IndexGroup {
-    pub fn new(name: &str, list: &BTreeSet<usize>) -> IndexGroup {
-        IndexGroup { name: name.to_string(), indexes: list.to_owned() }
+    pub fn new(name: &str, index_set: &BTreeSet<usize>) -> IndexGroup {
+        IndexGroup { name: name.to_string(), indexes: index_set.to_owned() }
     }
 }
 
@@ -73,7 +73,7 @@ impl Index {
         self.groups.push(ng.to_owned());
     }
 
-    pub fn to_ndx(&self, file_name: &str) {
+    pub fn to_ndx<P: AsRef<Path>>(&self, file_name: P) {
         let mut f = File::create(file_name).unwrap();
         for ig in &self.groups {
             writeln!(f, "[ {} ]", ig.name).unwrap();

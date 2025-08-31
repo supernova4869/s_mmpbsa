@@ -72,7 +72,6 @@ pub fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[
         .current_dir(wd)
         .stdin(Stdio::piped())  // 开启标准输入管道
         .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })  // 将标准输出继承自父进程
-        .stderr(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })  // 将标准输出继承自父进程
         .spawn()
         .expect("Failed to start process");
 
@@ -110,11 +109,6 @@ pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n:
         true => ["make_ndx", "-f", f, "-o", o, "-quiet"].to_vec(),
         false => ["make_ndx", "-f", f, "-n", n, "-o", o, "-quiet"].to_vec()
     };
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
-pub fn trajectory(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, ox: &str) {
-    let args = ["trajectory", "-f", f, "-s", s, "-n", n, "-ox", ox, "-quiet"].to_vec();
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 

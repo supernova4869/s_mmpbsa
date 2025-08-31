@@ -1,6 +1,7 @@
 use core::f64;
 use colored::*;
-use ndarray::Array3;
+use ndarray::{Array1, Array3};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::path::Path;
 use std::fs;
 use std::collections::BTreeSet;
@@ -8,14 +9,14 @@ use std::collections::BTreeSet;
 use crate::parse_pdb::PDB;
 use crate::parse_gro::GRO;
 use crate::settings::Settings;
-use crate::utils::{append_new_name, get_input_selection, make_ndx, trajectory};
+use crate::utils::{append_new_name, get_input_selection};
 use crate::fun_para_mmpbsa::set_para_mmpbsa;
 use crate::parse_ndx::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
 use crate::utils::{convert_tpr, convert_trj, trjconv};
-use crate::parse_xvg::read_coord_xvg;
+use crate::read_xtc::read_xtc;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
@@ -100,10 +101,10 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             }
             Ok(6) => {
                 println!("Input interpolation multiplier (positive integer) for IE:");
-                let mut new_ie_multi = get_input_selection::<i32>().unwrap();
+                let mut new_ie_multi = get_input_selection::<usize>().unwrap();
                 while new_ie_multi <= 0 {
                     println!("Must be positive integer, input again:");
-                    new_ie_multi = get_input_selection::<i32>().unwrap();
+                    new_ie_multi = get_input_selection::<usize>().unwrap();
                 }
                 ie_multi = new_ie_multi;
             }
@@ -252,34 +253,33 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 1: generate new index
         println!("Generating Index...");
         // gmx make_ndx -f md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
-        let ndx_whole = append_new_name(ndx_name, "_whole.ndx", "_MMPBSA_"); // get extracted index file name
-        if let Some(ligand_grp) = ligand_grp {
-            make_ndx(&vec![
-                format!("{} | {}", receptor_grp, ligand_grp).as_str(),
-                format!("name {} Complex", ndx.groups.len()).as_str(),
-                format!("name {} Receptor", receptor_grp).as_str(),
-                format!("name {} Ligand", ligand_grp).as_str(),
-                "q"
-            ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
+        let ndx_whole = if let Some(ndx_lig) = &ndx_lig {
+            Index::new(vec![
+                IndexGroup::new("Complex", &ndx_rec.union(&ndx_lig).cloned().collect()), 
+                IndexGroup::new("Receptor", &ndx_rec),
+                IndexGroup::new("Ligand", &ndx_lig)
+            ])
         } else {
-            make_ndx(&vec![
-                // complex is receptor
-                format!("name {} Complex", receptor_grp).as_str(),
-                "q"
-            ], wd, settings, &tpr_name, ndx_name, &ndx_whole);
-        }
+            Index::new(vec![
+                IndexGroup::new("Complex", &ndx_rec)
+            ])
+        };
+        let complex_ndx_name = append_new_name(ndx_name, "_complex.ndx", "_MMPBSA_");
+        ndx_whole.to_ndx(&wd.join(&complex_ndx_name));
         
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...");
         // currently use smaller dt_ie
-        trjconv(&vec!["Complex"], wd, settings, &trj, &tpr_name, &ndx_whole, &trj_mmpbsa, 
-            &vec!["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
+        convert_trj(&vec![], wd, settings, &trj, &tpr_name, &complex_ndx_name, &trj_mmpbsa, 
+            &vec!["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex"]);
+        // trjconv(&vec!["Complex"], wd, settings, &trj, &tpr_name, &complex_ndx_name, &trj_mmpbsa, 
+        //     &vec!["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
         
         // step 3: extract new tpr from old tpr
         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
-        convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &ndx_whole, &tpr_mmpbsa);
+        convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &complex_ndx_name, &tpr_mmpbsa);
         if !settings.debug_mode {
-            fs::remove_file(&ndx_whole).unwrap();
+            fs::remove_file(&complex_ndx_name).unwrap();
         }
         
         // step 4: generate new index with new tpr
@@ -306,12 +306,12 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 IndexGroup::new("Complex", &ndx_rec)
             ])
         };
-        ndx_mmpbsa.to_ndx(wd.join("_MMPBSA_index.ndx").to_str().unwrap());
+        ndx_mmpbsa.to_ndx(wd.join("_MMPBSA_index.ndx"));
         let ndx_mmpbsa = wd.join("_MMPBSA_index.ndx");
         let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
         // 在这里 remove pbc, convert-trj有bug, 不能处理不完整蛋白, 故先trjconv再convert-trj
         println!("Preparing trajectories for IE calculation...");
-        if settings.fix_pbc {
+        let time_box_info = if settings.fix_pbc {
             // 先生成ie用的小dt轨迹(直接消pbc)
             let trj_mmpbsa_pbc_ie = append_new_name(&trj, "_ie.xtc", "_MMPBSA_");
             convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_pbc_ie, 
@@ -319,30 +319,30 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             // 生成初始结构方便VMD查看
             let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
             trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
-            // 再进一步生成正常用的大dt轨迹(不用重新消pbc)
-            let trj_mmpbsa_pbc_sol = append_new_name(&trj, "_sol.xtc", "_MMPBSA_");
-            convert_trj(&vec![], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_pbc_sol, 
-                &vec!["-dt", &dt.to_string()]);
+            
             println!("Loading trajectory coordinates...");
-            trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_ie.xvg");
-            trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_sol, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_sol.xvg");
+            read_xtc(&trj_mmpbsa_pbc_ie)
         } else {
             let trj_mmpbsa_ie = append_new_name(&trj, "_ie.xtc", "_MMPBSA_");
             convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_ie, &[]);
             let init_struct = append_new_name(&trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
             trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa_ie, &tpr_mmpbsa, ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
-            // 生成正常用的大dt轨迹
-            let trj_mmpbsa_sol = append_new_name(&trj, "_sol.xtc", "_MMPBSA_");
-            convert_trj(&vec![], wd, settings, &trj_mmpbsa_ie, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_sol, 
-                &vec!["-dt", &dt.to_string()]);
+            
             println!("Loading trajectory coordinates...");
-            trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_ie, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_ie.xvg");
-            trajectory(&vec!["Complex"], wd, settings, &trj_mmpbsa_sol, &tpr_mmpbsa, ndx_mmpbsa, "_MMPBSA_coord_sol.xvg");
-        }
+            read_xtc(&trj_mmpbsa_ie)
+        };
 
-        let (time_list_ie, coordinates_ie) = read_coord_xvg(wd.join("_MMPBSA_coord_ie.xvg").to_str().unwrap());
-        let (time_list, _) = read_coord_xvg(wd.join("_MMPBSA_coord_sol.xvg").to_str().unwrap());
-        
+        let time_list_ie: Vec<f64> = time_box_info.par_iter().map(|frame| frame.0 as f64).collect();
+        let coordinates_ie: Vec<Vec<[f32; 3]>> = time_box_info.par_iter().map(|frame| frame.1.clone()).collect();
+        let num_frames = coordinates_ie.len();
+        let num_atoms = coordinates_ie[0].len();
+        let coordinates_ie = Array3::from_shape_fn((num_frames, num_atoms, 3), |(i, j, k)| {
+            coordinates_ie[i][j][k] as f64 * 10.0
+        });
+        let time_list = Array1::linspace(time_list_ie[0], 
+            time_list_ie[time_list_ie.len() - 1], 
+            ((time_list_ie[time_list_ie.len() - 1] - time_list_ie[0]) / dt + 1.0) as usize).to_vec();
+
         set_para_mmpbsa(&time_list, &time_list_ie, &coordinates_ie, tpr, &ndx, wd, 
             &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     };
