@@ -177,7 +177,7 @@ Author's Name. s_mmpbsa (version number). URL: https://github.com/your_username/
 More Information
 --------
 
-- :doc:`usage_en`：Usage Guide
-- :doc:`installation_en`：Installation Instructions
-- :doc:`api_en`：API Documentation
-- :doc:`quick_start_en`：Quick Start Guide
+- :doc:`usage`：Usage Guide
+- :doc:`installation`：Installation Instructions
+- :doc:`api`：API Documentation
+- :doc:`quick_start`：Quick Start Guide

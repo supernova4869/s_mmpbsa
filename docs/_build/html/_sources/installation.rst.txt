@@ -1,228 +1,170 @@
-安装
+====
+Installation
 ====
 
-本文档介绍s_mmpbsa的安装步骤、环境要求和配置方法，帮助用户快速搭建运行环境。
+This document introduces the installation steps, environment requirements and configuration methods of s_mmpbsa to help users quickly set up the running environment.
 
-系统要求
+System Requirements
 --------
 
-### 操作系统
+### Operating System
 
-s_mmpbsa支持以下操作系统：
+s_mmpbsa supports the following operating systems:
 
-- **Windows**：Windows 7/8/10/11
-- **Linux**：Ubuntu、Debian、CentOS、Rocky等主流Linux发行版
+- **Windows**: Windows 7/8/10/11
+- **Linux**: Ubuntu, Debian, CentOS, Rocky and other mainstream Linux distributions
 
-### 硬件要求
+### Hardware Requirements
 
-- **处理器**：多核处理器（推荐4核及以上）
-- **内存**：至少4GB RAM（大型系统推荐8GB及以上）
-- **磁盘空间**：至少500MB可用空间
+- **Processor**: Multi-core processor (4 cores or more recommended)
+- **Memory**: At least 4GB RAM (8GB or more recommended for large systems)
+- **Disk space**: At least 500MB available space
 
-软件依赖
+Software Dependencies
 --------
 
-### 基本依赖
+### Basic Dependencies
 
-s_mmpbsa的核心功能需要以下软件：
+s_mmpbsa's core functionality requires the following software:
 
-- **Gromacs**：用于处理分子动力学轨迹文件。s_mmpbsa支持多个版本的Gromacs，但建议使用较新版本以获得最佳兼容性。
+- **Gromacs**: Used to process molecular dynamics trajectory files. s_mmpbsa has a built-in Gromacs, but also supports using external Gromacs programs. Multiple versions of Gromacs are supported, but it is recommended to use newer versions for the best compatibility.
 
-可选依赖：
+Optional dependencies:
 
-- **Matplotlib**：用于绘制结果图表。如果您需要使用s_mmpbsa的分析和绘图功能，则需要安装。
-- **APBS**：用于计算泊松-玻尔兹曼表面面积。s_mmpbsa内置了APBS内核，但也支持使用外部APBS程序。
+- **Matplotlib**: Used to draw result charts. If you need to use s_mmpbsa's analysis and plotting functions, it needs to be installed.
+- **APBS**: Used to calculate Poisson-Boltzmann surface area. s_mmpbsa has a built-in APBS kernel, but also supports using external APBS programs.
+- **PyMOL**: Used to draw B-factor colored structures.
 
-### 分子对接重打分功能的特殊依赖
-
-- **PyMOL**：可选软件，用于绘制B因子着色的结构。
-- **Gaussian**：可选软件，用于RESP原子电荷计算的DFT计算。
-- **Multiwfn**：可选程序（已内置），用于拟合RESP原子电荷。
-
-安装步骤
+Installation Methods
 --------
 
-### Windows系统安装
+### Windows System
 
-1. **下载s_mmpbsa**
+1. **Download s_mmpbsa**
    
-   从GitHub发布页面下载最新版本的Windows可执行文件：
+   Download the latest version of the Windows executable file from the GitHub release page:
    
    .. code-block:: powershell
       
-      # 从GitHub下载s_mmpbsa.exe
-      # 访问: https://github.com/supernova4869/s_mmpbsa/releases/latest
+      # Download s_mmpbsa.exe from GitHub
+      # Visit: https://github.com/supernova4869/s_mmpbsa/releases/latest
    
-2. **添加到系统路径**
+2. **Add to System Path**
    
-   将s_mmpbsa.exe所在的文件夹添加到系统环境变量PATH中，以便在任何位置都能运行s_mmpbsa。
+   Add the folder containing s_mmpbsa.exe to the system environment variable PATH so that s_mmpbsa can be run from any location.
    
-3. **安装Gromacs**
-   
-   从Gromacs官方网站下载并安装适合您系统的Gromacs版本。
-   
-4. **安装可选依赖（如需使用分析功能）**
+3. **Install Optional Dependencies (If Analysis Features Are Needed)**
    
    .. code-block:: powershell
       
-      # 安装matplotlib
+      # Install matplotlib
       pip install matplotlib
 
-### Linux系统安装
+### Linux System
 
-#### Ubuntu/Debian系统
-
-1. **下载s_mmpbsa**
+1. **Download s_mmpbsa**
    
    .. code-block:: bash
       
-      # 从GitHub下载最新版本
+      # Download the latest version from GitHub
       wget https://github.com/supernova4869/s_mmpbsa/releases/latest/download/s_mmpbsa
       
-      # 添加执行权限
+      # Add execution permission
       chmod +x s_mmpbsa
    
-2. **添加到系统路径**
+2. **Add to System Path**
    
    .. code-block:: bash
       
-      # 将s_mmpbsa移动到/usr/local/bin或其他已在PATH中的目录
-      sudo mv s_mmpbsa /usr/local/bin/
+      # Add the folder containing s_mmpbsa to the system environment variable PATH so that s_mmpbsa can be run from any location.
+      export PATH=$PATH:/path/to/s_mmpbsa/
    
-3. **安装必要依赖**
+3. **Install Necessary Dependencies**
    
    .. code-block:: bash
       
-      # 安装Gromacs（如果尚未安装）
-      sudo apt-get update
-      sudo apt-get install gromacs
+      # Install matplotlib and other necessary Python packages
       
-      # 安装matplotlib和其他必要的Python包
+      #### Ubuntu/Debian systems
       sudo apt -y install python3-matplotlib build-essential python-pip
-
-#### CentOS/Rocky系统
-
-1. **下载s_mmpbsa**
-   
-   .. code-block:: bash
-      
-      # 从GitHub下载最新版本
-      wget https://github.com/supernova4869/s_mmpbsa/releases/latest/download/s_mmpbsa
-      
-      # 添加执行权限
-      chmod +x s_mmpbsa
-   
-2. **添加到系统路径**
-   
-   .. code-block:: bash
-      
-      # 将s_mmpbsa移动到/usr/local/bin或其他已在PATH中的目录
-      sudo mv s_mmpbsa /usr/local/bin/
-   
-3. **安装必要依赖**
-   
-   .. code-block:: bash
-      
-      # 安装Gromacs（可能需要从源码编译或使用EPEL仓库）
-      # 这里假设您已经安装了Gromacs
-      
-      # 安装matplotlib和其他必要的Python包
+      #### CentOS/Rocky systems
       sudo dnf -y install python3-matplotlib python-pip
 
-验证安装
+Verifying Installation
 --------
 
-安装完成后，可以通过以下方式验证s_mmpbsa是否正确安装：
+After installation is complete, you can verify whether s_mmpbsa is installed correctly by the following methods:
 
 .. code-block:: bash
    
-   # 在命令行中运行
+   # Run in command line
    s_mmpbsa --version
    
-   # 或者直接运行s_mmpbsa
+   # Or run s_mmpbsa directly
    s_mmpbsa
 
-如果安装成功，您将看到s_mmpbsa的欢迎信息和版本号。
+If the installation is successful, you will see the welcome message and version number of s_mmpbsa.
 
-配置s_mmpbsa
+Configuring s_mmpbsa
 -----------
 
-s_mmpbsa的配置文件为`settings.ini`，该文件包含了程序的各种设置参数。您可以根据需要修改这些参数以优化程序性能或调整计算设置。
+s_mmpbsa's configuration file is `settings.ini`, which contains various setting parameters of the program. You can modify these parameters as needed to optimize program performance or adjust calculation settings.
 
-### 配置文件位置
+### Configuration File Location
 
-- Windows系统：配置文件通常位于s_mmpbsa可执行文件所在的目录
-- Linux系统：配置文件通常位于`~/.s_mmpbsa/`目录
+- The configuration file is usually located in the directory where the s_mmpbsa executable file is located
+- The program will check the location of `settings.ini` when it starts, with priority: current directory > program directory.
+- If `settings.ini` is not found, the program will use default settings.
 
-### 主要配置参数
+### Main Configuration Parameters
 
-配置文件中包含以下主要参数：
+The configuration file contains the following main parameters:
 
-- **gmx_path**：Gromacs程序的路径
-- **apbs_path**：APBS程序的路径（如果使用外部APBS）
-- **nkernels**：并行计算使用的核心数
-- **debug_mode**：是否启用调试模式
-- **r_cutoff**：非键相互作用的截断距离
-- **elec_screen**：电荷筛选方法设置
+- **gmx_path**: Path to the Gromacs program. If it is "built-in", the program will use the gmx program in /programs/gmx/.
+- **apbs_path**: Path to the APBS program. If it is "built-in", the program will use the apbs program in /programs/apbs/.
+- **nkernels**: Number of cores used for parallel computing
+- **debug_mode**: Whether to enable debug mode (y/n). When enabled, intermediate files will not be deleted.
+- **r_cutoff**: Cutoff distance for non-bonded interactions. 0 means no cutoff.
+- **elec_screen**: Electrostatic shielding method setting. 0 means not using electrostatic shielding. 1 means using Debye-Hückel shielding.
 
-### 配置文件示例
-
-```ini
-[General]
-last_opened = ""
-debug_mode = false
-nkernels = 4
-
-[Program]
-gmx_path = "built-in"
-apbs_path = "built-in"
-delphi_path = ""
-
-[Parameters]
-r_cutoff = 1.2
-elec_screen = 0
-
-[Display]
-font_size = 12
-```
-
-常见安装问题
+Frequently Asked Questions
 ----------
 
-### Gromacs未找到
+### Gromacs Not Found
 
-如果s_mmpbsa无法找到Gromacs程序，请确保：
+If s_mmpbsa cannot find the Gromacs program, please ensure that:
 
-1. Gromacs已正确安装
-2. Gromacs的可执行文件所在目录已添加到系统环境变量PATH中
-3. 在settings.ini中正确设置了gmx_path参数
+1. Gromacs is installed correctly
+2. The directory containing the Gromacs executable file has been added to the system environment variable PATH
+3. The gmx_path parameter is set correctly in settings.ini
 
-### APBS相关错误
+### APBS Related Errors
 
-如果使用内置APBS内核出现问题，可以尝试：
+If there are issues with the built-in APBS kernel, you can try:
 
-1. 安装外部APBS程序
-2. 在settings.ini中设置apbs_path参数指向外部APBS程序
+1. Ensure that the built-in APBS program has executable permissions
+2. Install an external APBS program
+3. Set the apbs_path parameter in settings.ini to point to the external APBS program
 
-### Python/matplotlib相关错误
+### Python/matplotlib Related Errors
 
-如果在使用分析功能时出现Python或matplotlib相关错误，请确保：
+If Python or matplotlib related errors occur when using analysis functions, please ensure that:
 
-1. 已安装正确版本的Python（推荐Python 3.6及以上）
-2. 已安装matplotlib包：`pip install matplotlib`
+1. The correct version of Python is installed (Python 3.6 or higher recommended)
+2. The matplotlib package is installed
 
-### 性能问题
+### Performance Issues
 
-如果计算速度较慢，可以尝试：
+If the calculation speed is slow, you can try:
 
-1. 在settings.ini中增加nkernels参数的值，利用更多CPU核心
-2. 对于大型系统，考虑增加计算的时间间隔（即减少分析的帧数）
+1. Increase the value of the nkernels parameter in settings.ini to utilize more CPU cores
+2. For large systems, consider increasing the calculation time interval (i.e., reducing the number of analyzed frames)
 
-获取帮助
+Getting Help
 --------
 
-如果您在安装过程中遇到任何问题，可以：
+If you encounter any problems during the installation process, you can:
 
-- 查看GitHub仓库中的问题页面：https://github.com/supernova4869/s_mmpbsa/issues
-- 联系开发者：zhangjiaxing7137@tju.edu.cn
-- 加入QQ群：864191465
+- Check the issues page in the GitHub repository: https://github.com/supernova4869/s_mmpbsa/issues
+- Contact the developer: zhangjiaxing7137@tju.edu.cn
+- Join the QQ group: 864191465

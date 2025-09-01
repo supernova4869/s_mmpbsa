@@ -1,0 +1,310 @@
+
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en-US" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>安装 &mdash; s_mmpbsa 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/style.css?v=83ec55bd" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=855fc74a"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=31b82060"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+
+<script type="text/javascript">
+  // 添加页面加载完成后的操作
+  document.addEventListener('DOMContentLoaded', function() {
+    // 平滑滚动
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href')).scrollIntoView({
+          behavior: 'smooth'
+        });
+      });
+    });
+    
+    // 代码高亮增强
+    if (typeof hljs !== 'undefined') {
+      hljs.initHighlightingOnLoad();
+    }
+  });
+</script>
+
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+<a href="index.html" class="icon icon-home"><img src="_static/favicon.ico" style="vertical-align: middle; margin-right: 10px; width: 24px; height: 24px;">s_mmpbsa</a>
+
+<div class="searchbox" role="search">
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+    <span class="rst-current-version" data-toggle="rst-current-version">
+      <span class="fa fa-book"> 版本</span>
+      v: 1.0
+      <span class="fa fa-caret-down"></span>
+    </span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>版本</dt>
+        <dd><a href="https://s-mmpbsa.readthedocs.io/zh_CN/stable/">稳定版</a></dd>
+        <dd><a href="https://s-mmpbsa.readthedocs.io/zh_CN/latest/">开发版</a></dd>
+      </dl>
+    </div>
+  </div>
+</div>
+
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Content Overview</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Documentation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#project-structure">Project Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#main-module">main Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mmpbsa-module">mmpbsa Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#analyzation-module">analyzation Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#parse-tpr-module">parse_tpr Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#parse-ndx-module">parse_ndx Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#parse-xtc-module">parse_xtc Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#pdb-module">pdb Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#pbsa-module">pbsa Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mm-module">mm Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#utils-module">utils Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#settings-module">settings Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#key-data-structures">Key Data Structures</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#smresult-structure">SMResult Structure</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#using-s-mmpbsa-as-a-library">Using s_mmpbsa as a Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#extending-s-mmpbsa">Extending s_mmpbsa</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#contribution-guidelines">Contribution Guidelines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#more-information">More Information</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">s_mmpbsa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+<div role="main" class="document" itemscope="" itemtype="http://schema.org/Article">
+  <div itemprop="articleBody">
+    
+  <section id="id1">
+<h1>安装<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
+<p>本文档介绍s_mmpbsa的安装步骤、环境要求和配置方法，帮助用户快速搭建运行环境。</p>
+<section id="id2">
+<h2>系统要求<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>### 操作系统</p>
+<p>s_mmpbsa支持以下操作系统：</p>
+<ul class="simple">
+<li><p><strong>Windows</strong>：Windows 7/8/10/11</p></li>
+<li><p><strong>Linux</strong>：Ubuntu、Debian、CentOS、Rocky等主流Linux发行版</p></li>
+</ul>
+<p>### 硬件要求</p>
+<ul class="simple">
+<li><p><strong>处理器</strong>：多核处理器（推荐4核及以上）</p></li>
+<li><p><strong>内存</strong>：至少4GB RAM（大型系统推荐8GB及以上）</p></li>
+<li><p><strong>磁盘空间</strong>：至少500MB可用空间</p></li>
+</ul>
+</section>
+<section id="id3">
+<h2>软件依赖<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>### 基本依赖</p>
+<p>s_mmpbsa的核心功能需要以下软件：</p>
+<ul class="simple">
+<li><p><strong>Gromacs</strong>：用于处理分子动力学轨迹文件。s_mmpbsa内置了Gromacs，但也支持使用外部Gromacs程序。支持多个版本的Gromacs，但建议使用较新版本以获得最佳兼容性。</p></li>
+</ul>
+<p>可选依赖：</p>
+<ul class="simple">
+<li><p><strong>Matplotlib</strong>：用于绘制结果图表。如果您需要使用s_mmpbsa的分析和绘图功能，则需要安装。</p></li>
+<li><p><strong>APBS</strong>：用于计算泊松-玻尔兹曼表面面积。s_mmpbsa内置了APBS内核，但也支持使用外部APBS程序。</p></li>
+<li><p><strong>PyMOL</strong>：用于绘制B因子着色的结构。</p></li>
+</ul>
+</section>
+<section id="id4">
+<h2>部署方法<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p>### Windows系统</p>
+<ol class="arabic">
+<li><p><strong>下载s_mmpbsa</strong></p>
+<p>从GitHub发布页面下载最新版本的Windows可执行文件：</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="c"># 从GitHub下载s_mmpbsa.exe</span>
+<span class="c"># 访问: https://github.com/supernova4869/s_mmpbsa/releases/latest</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>添加到系统路径</strong></p>
+<p>将s_mmpbsa.exe所在的文件夹添加到系统环境变量PATH中，以便在任何位置都能运行s_mmpbsa。</p>
+</li>
+<li><p><strong>安装可选依赖（如需使用分析功能）</strong></p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="c"># 安装matplotlib</span>
+<span class="n">pip</span> <span class="n">install</span> <span class="n">matplotlib</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<p>### Linux系统</p>
+<ol class="arabic">
+<li><p><strong>下载s_mmpbsa</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 从GitHub下载最新版本</span>
+wget<span class="w"> </span>https://github.com/supernova4869/s_mmpbsa/releases/latest/download/s_mmpbsa
+
+<span class="c1"># 添加执行权限</span>
+chmod<span class="w"> </span>+x<span class="w"> </span>s_mmpbsa
+</pre></div>
+</div>
+</li>
+<li><p><strong>添加到系统路径</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 将s_mmpbsa所在的文件夹添加到系统环境变量PATH中，以便在任何位置都能运行s_mmpbsa。</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PATH</span>:/path/to/s_mmpbsa/
+</pre></div>
+</div>
+</li>
+<li><p><strong>安装必要依赖</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 安装matplotlib和其他必要的Python包</span>
+
+<span class="c1">#### Ubuntu/Debian系统</span>
+sudo<span class="w"> </span>apt<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>python3-matplotlib<span class="w"> </span>build-essential<span class="w"> </span>python-pip
+<span class="c1">#### CentOS/Rocky系统</span>
+sudo<span class="w"> </span>dnf<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>python3-matplotlib<span class="w"> </span>python-pip
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="id5">
+<h2>验证安装<a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<p>安装完成后，可以通过以下方式验证s_mmpbsa是否正确安装：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 在命令行中运行</span>
+s_mmpbsa<span class="w"> </span>--version
+
+<span class="c1"># 或者直接运行s_mmpbsa</span>
+s_mmpbsa
+</pre></div>
+</div>
+<p>如果安装成功，您将看到s_mmpbsa的欢迎信息和版本号。</p>
+</section>
+<section id="s-mmpbsa">
+<h2>配置s_mmpbsa<a class="headerlink" href="#s-mmpbsa" title="Link to this heading"></a></h2>
+<p>s_mmpbsa的配置文件为`settings.ini`，该文件包含了程序的各种设置参数。您可以根据需要修改这些参数以优化程序性能或调整计算设置。</p>
+<p>### 配置文件位置</p>
+<ul class="simple">
+<li><p>配置文件通常位于s_mmpbsa可执行文件所在的目录</p></li>
+<li><p>程序启动时会自行检查`settings.ini`的文件位置，优先级：当前目录 &gt; 程序所在目录。</p></li>
+<li><p>若找不到`settings.ini`，程序将使用默认设置。</p></li>
+</ul>
+<p>### 主要配置参数</p>
+<p>配置文件中包含以下主要参数：</p>
+<ul class="simple">
+<li><p><strong>gmx_path</strong>：Gromacs程序的路径。如果为”built-in”，程序将使用/programs/gmx/中的gmx程序。</p></li>
+<li><p><strong>apbs_path</strong>：APBS程序的路径。如果为”built-in”，程序将使用/programs/apbs/中的apbs程序。</p></li>
+<li><p><strong>nkernels</strong>：并行计算使用的核心数</p></li>
+<li><p><strong>debug_mode</strong>：是否启用调试模式(y/n)。启用后，中间文件不会删除。</p></li>
+<li><p><strong>r_cutoff</strong>：非键相互作用的截断距离。0为不截断。</p></li>
+<li><p><strong>elec_screen</strong>：静电屏蔽方法设置。0为不使用静电屏蔽。1为使用德拜-休克尔屏蔽。</p></li>
+</ul>
+</section>
+<section id="id6">
+<h2>常见问题<a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<p>### Gromacs未找到</p>
+<p>如果s_mmpbsa无法找到Gromacs程序，请确保：</p>
+<ol class="arabic simple">
+<li><p>Gromacs已正确安装</p></li>
+<li><p>Gromacs的可执行文件所在目录已添加到系统环境变量PATH中</p></li>
+<li><p>在settings.ini中正确设置了gmx_path参数</p></li>
+</ol>
+<p>### APBS相关错误</p>
+<p>如果使用内置APBS内核出现问题，可以尝试：</p>
+<ol class="arabic simple">
+<li><p>确保内置APBS程序具有可执行权限</p></li>
+<li><p>安装外部APBS程序</p></li>
+<li><p>在settings.ini中设置apbs_path参数指向外部APBS程序</p></li>
+</ol>
+<p>### Python/matplotlib相关错误</p>
+<p>如果在使用分析功能时出现Python或matplotlib相关错误，请确保：</p>
+<ol class="arabic simple">
+<li><p>已安装正确版本的Python（推荐Python 3.6及以上）</p></li>
+<li><p>已安装matplotlib包</p></li>
+</ol>
+<p>### 性能问题</p>
+<p>如果计算速度较慢，可以尝试：</p>
+<ol class="arabic simple">
+<li><p>在settings.ini中增加nkernels参数的值，利用更多CPU核心</p></li>
+<li><p>对于大型系统，考虑增加计算的时间间隔（即减少分析的帧数）</p></li>
+</ol>
+</section>
+<section id="id7">
+<h2>获取帮助<a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<p>如果您在安装过程中遇到任何问题，可以：</p>
+<ul class="simple">
+<li><p>查看GitHub仓库中的问题页面：<a class="reference external" href="https://github.com/supernova4869/s_mmpbsa/issues">https://github.com/supernova4869/s_mmpbsa/issues</a></p></li>
+<li><p>联系开发者：<a class="reference external" href="mailto:zhangjiaxing7137&#37;&#52;&#48;tju&#46;edu&#46;cn">zhangjiaxing7137<span>&#64;</span>tju<span>&#46;</span>edu<span>&#46;</span>cn</a></p></li>
+<li><p>加入QQ群：864191465</p></li>
+</ul>
+</section>
+</section>
+
+
+  </div>
+  <div class="articleComments">
+    
+    <!-- 这里可以添加评论系统 -->
+    
+  </div>
+</div>
+
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+<footer>
+  <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+    
+    
+  </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2025, Supernova.
+    </p>
+  </div>
+  由 <a href="https://www.sphinx-doc.org/" target="_blank">Sphinx</a> 8.1.3 和 <a href="https://github.com/readthedocs/sphinx_rtd_theme" target="_blank">RTD 主题</a>  构建.
+  <!-- 添加额外的页脚内容 -->
+  <div class="extrafooter">
+    <p>如有任何问题或建议，请在 <a href="https://github.com/your_username/s_mmpbsa/issues" target="_blank">GitHub Issues</a> 上提交。</p>
+  </div>
+  
+</footer>
+
+
+</body>
+</html>

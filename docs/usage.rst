@@ -338,7 +338,7 @@ When using s_mmpbsa, you need to pay attention to the following points:
 More Information
 --------
 
-- :doc:`quick_start_en`：Quick Start Guide
-- :doc:`installation_en`：Installation Instructions
+- :doc:`quick_start`：Quick Start Guide
+- :doc:`installation`：Installation Instructions
 - :doc:`api`：API Documentation (for developers)
 - :doc:`faq`：Frequently Asked Questions

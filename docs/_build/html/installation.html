@@ -2,12 +2,12 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="zh-CN" data-content_root="./">
+<html class="writer-html5" lang="en-US" data-content_root="./">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>安装 &mdash; s_mmpbsa 1.0.0 文档</title>
+  <title>Installation &mdash; s_mmpbsa 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
@@ -16,17 +16,14 @@
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=34088549"></script>
+      <script src="_static/documentation_options.js?v=855fc74a"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="_static/copybutton.js?v=31b82060"></script>
-      <script src="_static/translations.js?v=beaddf03"></script>
     <script src="_static/js/theme.js"></script>
-    <link rel="index" title="索引" href="genindex.html" />
-    <link rel="search" title="搜索" href="search.html" />
-    <link rel="next" title="快速入门" href="quick_start.html" />
-    <link rel="prev" title="介绍" href="introduction.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
 
 <script type="text/javascript">
   // 添加页面加载完成后的操作
@@ -74,70 +71,31 @@
   </div>
 </div>
 
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="导航菜单">
-              <p class="caption" role="heading"><span class="caption-text">内容概述</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">介绍</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#mm-pb-sa">MM/PB-SA方法简介</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#s-mmpbsa">为什么选择s_mmpbsa？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#id4">s_mmpbsa的基本工作流程</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#id5">应用场景</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#id6">理论创新点</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#id7">许可证信息</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#id8">引用s_mmpbsa</a></li>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Content Overview</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Documentation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#project-structure">Project Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#main-modules">Main Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#main-module">main Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mmpbsa-module">mmpbsa Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#analyzation-module">analyzation Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#parse-tpr-module">parse_tpr Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#parse-ndx-module">parse_ndx Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#parse-xtc-module">parse_xtc Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#pdb-module">pdb Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#pbsa-module">pbsa Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mm-module">mm Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#utils-module">utils Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#settings-module">settings Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#key-data-structures">Key Data Structures</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#smresult-structure">SMResult Structure</a></li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">安装</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#id2">系统要求</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#id3">软件依赖</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#id4">安装步骤</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#id5">验证安装</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#s-mmpbsa">配置s_mmpbsa</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#id16">常见安装问题</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#id17">获取帮助</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="quick_start.html">快速入门</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#s-mmpbsa">启动s_mmpbsa</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id2">基本工作流程</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id3">加载输入文件</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id4">设置轨迹参数</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#mm-pb-sa">设置MM/PB-SA参数</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id5">执行计算</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id6">分析结果</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id7">使用分析模式</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id8">示例：计算蛋白质-配体结合能</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id9">使用技巧</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#id10">常见问题解答</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">使用指南</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id2">命令行参数</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id3">交互式命令行界面</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id4">文件加载</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id5">轨迹参数设置</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#mm-pb-sa">MM/PB-SA参数设置</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="usage.html#pb">PB参数设置</a></li>
-<li class="toctree-l3"><a class="reference internal" href="usage.html#sa">SA参数设置</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id6">执行计算</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id7">结果分析</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id8">使用分析模式</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id9">丙氨酸扫描</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id10">对接重打分</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id11">计算结果解读</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id12">注意事项</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#id13">更多信息</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="faq.html">常见问题解答</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="faq.html#id2">安装问题</a></li>
-<li class="toctree-l2"><a class="reference internal" href="faq.html#id3">使用问题</a></li>
-<li class="toctree-l2"><a class="reference internal" href="faq.html#id4">技术问题</a></li>
-<li class="toctree-l2"><a class="reference internal" href="faq.html#id5">结果分析问题</a></li>
-<li class="toctree-l2"><a class="reference internal" href="faq.html#id6">其他问题</a></li>
-<li class="toctree-l2"><a class="reference internal" href="faq.html#id7">更多信息</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#using-s-mmpbsa-as-a-library">Using s_mmpbsa as a Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#extending-s-mmpbsa">Extending s_mmpbsa</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#contribution-guidelines">Contribution Guidelines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#more-information">More Information</a></li>
 </ul>
 </li>
 </ul>
@@ -146,7 +104,7 @@
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="移动版导航菜单" >
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">s_mmpbsa</a>
       </nav>
@@ -155,206 +113,156 @@
 <div role="main" class="document" itemscope="" itemtype="http://schema.org/Article">
   <div itemprop="articleBody">
     
-  <section id="id1">
-<h1>安装<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
-<p>本文档介绍s_mmpbsa的安装步骤、环境要求和配置方法，帮助用户快速搭建运行环境。</p>
-<section id="id2">
-<h2>系统要求<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
-<p>### 操作系统</p>
-<p>s_mmpbsa支持以下操作系统：</p>
+  <section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h1>
+<p>This document introduces the installation steps, environment requirements and configuration methods of s_mmpbsa to help users quickly set up the running environment.</p>
+<section id="system-requirements">
+<h2>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading"></a></h2>
+<p>### Operating System</p>
+<p>s_mmpbsa supports the following operating systems:</p>
 <ul class="simple">
-<li><p><strong>Windows</strong>：Windows 7/8/10/11</p></li>
-<li><p><strong>Linux</strong>：Ubuntu、Debian、CentOS、Rocky等主流Linux发行版</p></li>
+<li><p><strong>Windows</strong>: Windows 7/8/10/11</p></li>
+<li><p><strong>Linux</strong>: Ubuntu, Debian, CentOS, Rocky and other mainstream Linux distributions</p></li>
 </ul>
-<p>### 硬件要求</p>
+<p>### Hardware Requirements</p>
 <ul class="simple">
-<li><p><strong>处理器</strong>：多核处理器（推荐4核及以上）</p></li>
-<li><p><strong>内存</strong>：至少4GB RAM（大型系统推荐8GB及以上）</p></li>
-<li><p><strong>磁盘空间</strong>：至少500MB可用空间</p></li>
-</ul>
-</section>
-<section id="id3">
-<h2>软件依赖<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
-<p>### 基本依赖</p>
-<p>s_mmpbsa的核心功能需要以下软件：</p>
-<ul class="simple">
-<li><p><strong>Gromacs</strong>：用于处理分子动力学轨迹文件。s_mmpbsa支持多个版本的Gromacs，但建议使用较新版本以获得最佳兼容性。</p></li>
-</ul>
-<p>可选依赖：</p>
-<ul class="simple">
-<li><p><strong>Matplotlib</strong>：用于绘制结果图表。如果您需要使用s_mmpbsa的分析和绘图功能，则需要安装。</p></li>
-<li><p><strong>APBS</strong>：用于计算泊松-玻尔兹曼表面面积。s_mmpbsa内置了APBS内核，但也支持使用外部APBS程序。</p></li>
-</ul>
-<p>### 分子对接重打分功能的特殊依赖</p>
-<ul class="simple">
-<li><p><strong>PyMOL</strong>：可选软件，用于绘制B因子着色的结构。</p></li>
-<li><p><strong>Gaussian</strong>：可选软件，用于RESP原子电荷计算的DFT计算。</p></li>
-<li><p><strong>Multiwfn</strong>：可选程序（已内置），用于拟合RESP原子电荷。</p></li>
+<li><p><strong>Processor</strong>: Multi-core processor (4 cores or more recommended)</p></li>
+<li><p><strong>Memory</strong>: At least 4GB RAM (8GB or more recommended for large systems)</p></li>
+<li><p><strong>Disk space</strong>: At least 500MB available space</p></li>
 </ul>
 </section>
-<section id="id4">
-<h2>安装步骤<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
-<p>### Windows系统安装</p>
+<section id="software-dependencies">
+<h2>Software Dependencies<a class="headerlink" href="#software-dependencies" title="Link to this heading"></a></h2>
+<p>### Basic Dependencies</p>
+<p>s_mmpbsa’s core functionality requires the following software:</p>
+<ul class="simple">
+<li><p><strong>Gromacs</strong>: Used to process molecular dynamics trajectory files. s_mmpbsa has a built-in Gromacs, but also supports using external Gromacs programs. Multiple versions of Gromacs are supported, but it is recommended to use newer versions for the best compatibility.</p></li>
+</ul>
+<p>Optional dependencies:</p>
+<ul class="simple">
+<li><p><strong>Matplotlib</strong>: Used to draw result charts. If you need to use s_mmpbsa’s analysis and plotting functions, it needs to be installed.</p></li>
+<li><p><strong>APBS</strong>: Used to calculate Poisson-Boltzmann surface area. s_mmpbsa has a built-in APBS kernel, but also supports using external APBS programs.</p></li>
+<li><p><strong>PyMOL</strong>: Used to draw B-factor colored structures.</p></li>
+</ul>
+</section>
+<section id="installation-methods">
+<h2>Installation Methods<a class="headerlink" href="#installation-methods" title="Link to this heading"></a></h2>
+<p>### Windows System</p>
 <ol class="arabic">
-<li><p><strong>下载s_mmpbsa</strong></p>
-<p>从GitHub发布页面下载最新版本的Windows可执行文件：</p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="c"># 从GitHub下载s_mmpbsa.exe</span>
-<span class="c"># 访问: https://github.com/supernova4869/s_mmpbsa/releases/latest</span>
+<li><p><strong>Download s_mmpbsa</strong></p>
+<p>Download the latest version of the Windows executable file from the GitHub release page:</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="c"># Download s_mmpbsa.exe from GitHub</span>
+<span class="c"># Visit: https://github.com/supernova4869/s_mmpbsa/releases/latest</span>
 </pre></div>
 </div>
 </li>
-<li><p><strong>添加到系统路径</strong></p>
-<p>将s_mmpbsa.exe所在的文件夹添加到系统环境变量PATH中，以便在任何位置都能运行s_mmpbsa。</p>
+<li><p><strong>Add to System Path</strong></p>
+<p>Add the folder containing s_mmpbsa.exe to the system environment variable PATH so that s_mmpbsa can be run from any location.</p>
 </li>
-<li><p><strong>安装Gromacs</strong></p>
-<p>从Gromacs官方网站下载并安装适合您系统的Gromacs版本。</p>
-</li>
-<li><p><strong>安装可选依赖（如需使用分析功能）</strong></p>
-<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="c"># 安装matplotlib</span>
+<li><p><strong>Install Optional Dependencies (If Analysis Features Are Needed)</strong></p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="c"># Install matplotlib</span>
 <span class="n">pip</span> <span class="n">install</span> <span class="n">matplotlib</span>
 </pre></div>
 </div>
 </li>
 </ol>
-<p>### Linux系统安装</p>
-<p>#### Ubuntu/Debian系统</p>
+<p>### Linux System</p>
 <ol class="arabic">
-<li><p><strong>下载s_mmpbsa</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 从GitHub下载最新版本</span>
+<li><p><strong>Download s_mmpbsa</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download the latest version from GitHub</span>
 wget<span class="w"> </span>https://github.com/supernova4869/s_mmpbsa/releases/latest/download/s_mmpbsa
 
-<span class="c1"># 添加执行权限</span>
+<span class="c1"># Add execution permission</span>
 chmod<span class="w"> </span>+x<span class="w"> </span>s_mmpbsa
 </pre></div>
 </div>
 </li>
-<li><p><strong>添加到系统路径</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 将s_mmpbsa移动到/usr/local/bin或其他已在PATH中的目录</span>
-sudo<span class="w"> </span>mv<span class="w"> </span>s_mmpbsa<span class="w"> </span>/usr/local/bin/
+<li><p><strong>Add to System Path</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Add the folder containing s_mmpbsa to the system environment variable PATH so that s_mmpbsa can be run from any location.</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="nv">$PATH</span>:/path/to/s_mmpbsa/
 </pre></div>
 </div>
 </li>
-<li><p><strong>安装必要依赖</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 安装Gromacs（如果尚未安装）</span>
-sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>gromacs
+<li><p><strong>Install Necessary Dependencies</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install matplotlib and other necessary Python packages</span>
 
-<span class="c1"># 安装matplotlib和其他必要的Python包</span>
+<span class="c1">#### Ubuntu/Debian systems</span>
 sudo<span class="w"> </span>apt<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>python3-matplotlib<span class="w"> </span>build-essential<span class="w"> </span>python-pip
-</pre></div>
-</div>
-</li>
-</ol>
-<p>#### CentOS/Rocky系统</p>
-<ol class="arabic">
-<li><p><strong>下载s_mmpbsa</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 从GitHub下载最新版本</span>
-wget<span class="w"> </span>https://github.com/supernova4869/s_mmpbsa/releases/latest/download/s_mmpbsa
-
-<span class="c1"># 添加执行权限</span>
-chmod<span class="w"> </span>+x<span class="w"> </span>s_mmpbsa
-</pre></div>
-</div>
-</li>
-<li><p><strong>添加到系统路径</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 将s_mmpbsa移动到/usr/local/bin或其他已在PATH中的目录</span>
-sudo<span class="w"> </span>mv<span class="w"> </span>s_mmpbsa<span class="w"> </span>/usr/local/bin/
-</pre></div>
-</div>
-</li>
-<li><p><strong>安装必要依赖</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 安装Gromacs（可能需要从源码编译或使用EPEL仓库）</span>
-<span class="c1"># 这里假设您已经安装了Gromacs</span>
-
-<span class="c1"># 安装matplotlib和其他必要的Python包</span>
+<span class="c1">#### CentOS/Rocky systems</span>
 sudo<span class="w"> </span>dnf<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>python3-matplotlib<span class="w"> </span>python-pip
 </pre></div>
 </div>
 </li>
 </ol>
 </section>
-<section id="id5">
-<h2>验证安装<a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
-<p>安装完成后，可以通过以下方式验证s_mmpbsa是否正确安装：</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 在命令行中运行</span>
+<section id="verifying-installation">
+<h2>Verifying Installation<a class="headerlink" href="#verifying-installation" title="Link to this heading"></a></h2>
+<p>After installation is complete, you can verify whether s_mmpbsa is installed correctly by the following methods:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run in command line</span>
 s_mmpbsa<span class="w"> </span>--version
 
-<span class="c1"># 或者直接运行s_mmpbsa</span>
+<span class="c1"># Or run s_mmpbsa directly</span>
 s_mmpbsa
 </pre></div>
 </div>
-<p>如果安装成功，您将看到s_mmpbsa的欢迎信息和版本号。</p>
+<p>If the installation is successful, you will see the welcome message and version number of s_mmpbsa.</p>
 </section>
-<section id="s-mmpbsa">
-<h2>配置s_mmpbsa<a class="headerlink" href="#s-mmpbsa" title="Link to this heading"></a></h2>
-<p>s_mmpbsa的配置文件为`settings.ini`，该文件包含了程序的各种设置参数。您可以根据需要修改这些参数以优化程序性能或调整计算设置。</p>
-<p>### 配置文件位置</p>
+<section id="configuring-s-mmpbsa">
+<h2>Configuring s_mmpbsa<a class="headerlink" href="#configuring-s-mmpbsa" title="Link to this heading"></a></h2>
+<p>s_mmpbsa’s configuration file is <cite>settings.ini</cite>, which contains various setting parameters of the program. You can modify these parameters as needed to optimize program performance or adjust calculation settings.</p>
+<p>### Configuration File Location</p>
 <ul class="simple">
-<li><p>Windows系统：配置文件通常位于s_mmpbsa可执行文件所在的目录</p></li>
-<li><p>Linux系统：配置文件通常位于`~/.s_mmpbsa/<a href="#id6"><span class="problematic" id="id7">`</span></a>目录</p></li>
+<li><p>The configuration file is usually located in the directory where the s_mmpbsa executable file is located</p></li>
+<li><p>The program will check the location of <cite>settings.ini</cite> when it starts, with priority: current directory &gt; program directory.</p></li>
+<li><p>If <cite>settings.ini</cite> is not found, the program will use default settings.</p></li>
 </ul>
-<p>### 主要配置参数</p>
-<p>配置文件中包含以下主要参数：</p>
+<p>### Main Configuration Parameters</p>
+<p>The configuration file contains the following main parameters:</p>
 <ul class="simple">
-<li><p><strong>gmx_path</strong>：Gromacs程序的路径</p></li>
-<li><p><strong>apbs_path</strong>：APBS程序的路径（如果使用外部APBS）</p></li>
-<li><p><strong>nkernels</strong>：并行计算使用的核心数</p></li>
-<li><p><strong>debug_mode</strong>：是否启用调试模式</p></li>
-<li><p><strong>r_cutoff</strong>：非键相互作用的截断距离</p></li>
-<li><p><strong>elec_screen</strong>：电荷筛选方法设置</p></li>
+<li><p><strong>gmx_path</strong>: Path to the Gromacs program. If it is “built-in”, the program will use the gmx program in /programs/gmx/.</p></li>
+<li><p><strong>apbs_path</strong>: Path to the APBS program. If it is “built-in”, the program will use the apbs program in /programs/apbs/.</p></li>
+<li><p><strong>nkernels</strong>: Number of cores used for parallel computing</p></li>
+<li><p><strong>debug_mode</strong>: Whether to enable debug mode (y/n). When enabled, intermediate files will not be deleted.</p></li>
+<li><p><strong>r_cutoff</strong>: Cutoff distance for non-bonded interactions. 0 means no cutoff.</p></li>
+<li><p><strong>elec_screen</strong>: Electrostatic shielding method setting. 0 means not using electrostatic shielding. 1 means using Debye-Hückel shielding.</p></li>
 </ul>
-<p>### 配置文件示例</p>
-<p><a href="#id8"><span class="problematic" id="id9">``</span></a><a href="#id10"><span class="problematic" id="id11">`</span></a>ini
-[General]
-last_opened = &quot;&quot;
-debug_mode = false
-nkernels = 4</p>
-<p>[Program]
-gmx_path = &quot;built-in&quot;
-apbs_path = &quot;built-in&quot;
-delphi_path = &quot;&quot;</p>
-<p>[Parameters]
-r_cutoff = 1.2
-elec_screen = 0</p>
-<p>[Display]
-font_size = 12
-<a href="#id12"><span class="problematic" id="id13">``</span></a><a href="#id14"><span class="problematic" id="id15">`</span></a></p>
 </section>
-<section id="id16">
-<h2>常见安装问题<a class="headerlink" href="#id16" title="Link to this heading"></a></h2>
-<p>### Gromacs未找到</p>
-<p>如果s_mmpbsa无法找到Gromacs程序，请确保：</p>
+<section id="frequently-asked-questions">
+<h2>Frequently Asked Questions<a class="headerlink" href="#frequently-asked-questions" title="Link to this heading"></a></h2>
+<p>### Gromacs Not Found</p>
+<p>If s_mmpbsa cannot find the Gromacs program, please ensure that:</p>
 <ol class="arabic simple">
-<li><p>Gromacs已正确安装</p></li>
-<li><p>Gromacs的可执行文件所在目录已添加到系统环境变量PATH中</p></li>
-<li><p>在settings.ini中正确设置了gmx_path参数</p></li>
+<li><p>Gromacs is installed correctly</p></li>
+<li><p>The directory containing the Gromacs executable file has been added to the system environment variable PATH</p></li>
+<li><p>The gmx_path parameter is set correctly in settings.ini</p></li>
 </ol>
-<p>### APBS相关错误</p>
-<p>如果使用内置APBS内核出现问题，可以尝试：</p>
+<p>### APBS Related Errors</p>
+<p>If there are issues with the built-in APBS kernel, you can try:</p>
 <ol class="arabic simple">
-<li><p>安装外部APBS程序</p></li>
-<li><p>在settings.ini中设置apbs_path参数指向外部APBS程序</p></li>
+<li><p>Ensure that the built-in APBS program has executable permissions</p></li>
+<li><p>Install an external APBS program</p></li>
+<li><p>Set the apbs_path parameter in settings.ini to point to the external APBS program</p></li>
 </ol>
-<p>### Python/matplotlib相关错误</p>
-<p>如果在使用分析功能时出现Python或matplotlib相关错误，请确保：</p>
+<p>### Python/matplotlib Related Errors</p>
+<p>If Python or matplotlib related errors occur when using analysis functions, please ensure that:</p>
 <ol class="arabic simple">
-<li><p>已安装正确版本的Python（推荐Python 3.6及以上）</p></li>
-<li><p>已安装matplotlib包：<cite>pip install matplotlib</cite></p></li>
+<li><p>The correct version of Python is installed (Python 3.6 or higher recommended)</p></li>
+<li><p>The matplotlib package is installed</p></li>
 </ol>
-<p>### 性能问题</p>
-<p>如果计算速度较慢，可以尝试：</p>
+<p>### Performance Issues</p>
+<p>If the calculation speed is slow, you can try:</p>
 <ol class="arabic simple">
-<li><p>在settings.ini中增加nkernels参数的值，利用更多CPU核心</p></li>
-<li><p>对于大型系统，考虑增加计算的时间间隔（即减少分析的帧数）</p></li>
+<li><p>Increase the value of the nkernels parameter in settings.ini to utilize more CPU cores</p></li>
+<li><p>For large systems, consider increasing the calculation time interval (i.e., reducing the number of analyzed frames)</p></li>
 </ol>
 </section>
-<section id="id17">
-<h2>获取帮助<a class="headerlink" href="#id17" title="Link to this heading"></a></h2>
-<p>如果您在安装过程中遇到任何问题，可以：</p>
+<section id="getting-help">
+<h2>Getting Help<a class="headerlink" href="#getting-help" title="Link to this heading"></a></h2>
+<p>If you encounter any problems during the installation process, you can:</p>
 <ul class="simple">
-<li><p>查看GitHub仓库中的问题页面：<a class="reference external" href="https://github.com/supernova4869/s_mmpbsa/issues">https://github.com/supernova4869/s_mmpbsa/issues</a></p></li>
-<li><p>联系开发者：<a class="reference external" href="mailto:zhangjiaxing7137&#37;&#52;&#48;tju&#46;edu&#46;cn">zhangjiaxing7137<span>&#64;</span>tju<span>&#46;</span>edu<span>&#46;</span>cn</a></p></li>
-<li><p>加入QQ群：864191465</p></li>
+<li><p>Check the issues page in the GitHub repository: <a class="reference external" href="https://github.com/supernova4869/s_mmpbsa/issues">https://github.com/supernova4869/s_mmpbsa/issues</a></p></li>
+<li><p>Contact the developer: <a class="reference external" href="mailto:zhangjiaxing7137&#37;&#52;&#48;tju&#46;edu&#46;cn">zhangjiaxing7137<span>&#64;</span>tju<span>&#46;</span>edu<span>&#46;</span>cn</a></p></li>
+<li><p>Join the QQ group: 864191465</p></li>
 </ul>
 </section>
 </section>
@@ -379,10 +287,6 @@ font_size = 12
 <footer>
   <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
     
-    <a href="quick_start.html" class="btn btn-neutral float-right" title="快速入门">下一章 <span class="fa fa-arrow-right"></span></a>
-    
-    
-    <a href="introduction.html" class="btn btn-neutral float-left" title="介绍"><span class="fa fa-arrow-left"></span> 上一章</a>
     
   </div>
 

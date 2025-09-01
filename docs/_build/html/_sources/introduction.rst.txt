@@ -1,95 +1,96 @@
-介绍
+====
+Introduction
 ====
 
-本文档介绍s_mmpbsa的背景、原理和基本概念，帮助用户理解该工具的工作原理和应用场景。
+This document introduces the background, principles and basic concepts of s_mmpbsa to help users understand the working principle and application scenarios of this tool.
 
-MM/PB-SA方法简介
+Introduction to MM/PB-SA Method
 ----------------
 
-**MM/PB-SA**（Molecular Mechanics/Poisson-Boltzmann Surface Area）是一种广泛用于计算生物分子结合自由能的方法。该方法结合了分子力学（MM）和连续溶剂模型（PB-SA），能够快速准确地预测生物分子间的相互作用强度。
+**MM/PB-SA** (Molecular Mechanics/Poisson-Boltzmann Surface Area) is a widely used method for calculating binding free energy of biomolecules. This method combines molecular mechanics (MM) and continuum solvent model (PB-SA), which can quickly and accurately predict the interaction strength between biomolecules.
 
-MM/PB-SA方法的基本原理是通过计算结合前后的自由能变化来评估分子间的结合强度。具体而言，结合自由能（ΔG）可以表示为：
+The basic principle of the MM/PB-SA method is to evaluate the binding strength between molecules by calculating the free energy change before and after binding. Specifically, the binding free energy (ΔG) can be expressed as:
 
 .. math::
 
    \Delta G_{binding} = \Delta G_{complex} - (\Delta G_{receptor} + \Delta G_{ligand})
 
-其中，每个分子的自由能（G）由以下几个部分组成：
+Where the free energy (G) of each molecule consists of the following components:
 
 .. math::
 
    G = E_{MM} + G_{solv} - T\Delta S
 
-- **E_{MM}**：分子力学能量，包括键能、角度能、二面角能、范德华能和静电能
-- **G_{solv}**：溶剂化自由能，包括极性溶剂化能（通过泊松-玻尔兹曼方程计算）和非极性溶剂化能（通过表面积计算）
-- **TΔS**：熵贡献项，通常通过正常模式分析计算
+- **E_{MM}**: Molecular mechanics energy, including bond energy, angle energy, dihedral energy, van der Waals energy and electrostatic energy
+- **G_{solv}**: Solvation free energy, including polar solvation energy (calculated via Poisson-Boltzmann equation) and non-polar solvation energy (calculated via surface area)
+- **TΔS**: Entropy contribution term, usually calculated via normal mode analysis
 
-为什么选择s_mmpbsa？
+Why Choose s_mmpbsa?
 -------------------
 
-尽管Gromacs是一种广泛使用的分子动力学模拟软件，但它并没有官方支持MM/PB-SA计算。目前市场上有许多可以处理Gromacs轨迹的MM/PB-SA工具，但它们大多存在以下局限性：
+Although Gromacs is a widely used molecular dynamics simulation software, it does not officially support MM/PB-SA calculations. There are many MM/PB-SA tools on the market that can handle Gromacs trajectories, but most of them have the following limitations:
 
-1. **安装和使用复杂**
-2. **不支持新版本的Gromacs**
-3. **计算速度慢**
-4. **不支持跨平台**
+1. **Complex installation and usage**
+2. **Not supporting new versions of Gromacs**
+3. **Slow calculation speed**
+4. **Not cross-platform**
 
-相比之下，s_mmpbsa提供了以下优势：
+In contrast, s_mmpbsa offers the following advantages:
 
-- **简单易用**：交互式操作界面，无需编写复杂的参数文件
-- **高效计算**：使用Rust语言开发，计算速度快
-- **跨平台**：支持Windows和Linux操作系统
-- **功能丰富**：支持电荷筛选效应和构象熵计算
-- **易于集成**：可通过脚本调用，支持批量处理
+- **Simple and easy to use**: Interactive operation interface, no need to write complex parameter files
+- **Efficient calculation**: Developed in Rust language, with fast calculation speed
+- **Cross-platform**: Supports Windows and Linux operating systems
+- **Rich features**: Supports charge screening effect and conformational entropy calculation
+- **Easy integration**: Can be called via scripts and supports batch processing
 
-s_mmpbsa的基本工作流程
----------------------
+s_mmpbsa's Basic Workflow
+--------------------- 
 
-s_mmpbsa的工作流程主要包括以下几个步骤：
+s_mmpbsa's workflow mainly includes the following steps:
 
-1. **输入处理**：读取Gromacs的tpr、xtc和ndx文件
-2. **轨迹处理**：处理分子动力学轨迹，包括提取坐标和处理周期性边界条件
-3. **MM计算**：计算分子力学能量（键能、范德华能和静电能等）
-4. **PB-SA计算**：计算溶剂化自由能（极性和非极性）
-5. **熵计算**：计算构象熵贡献（可选）
-6. **结果分析**：生成结合自由能报告和可视化结果
+1. **Input processing**: Read Gromacs tpr, xtc and ndx files
+2. **Trajectory processing**: Process molecular dynamics trajectories, including extracting coordinates and handling periodic boundary conditions
+3. **MM calculation**: Calculate molecular mechanics energy (bond energy, van der Waals energy, electrostatic energy, etc.)
+4. **PB-SA calculation**: Calculate solvation free energy (polar and non-polar)
+5. **Entropy calculation**: Calculate conformational entropy contribution (optional)
+6. **Result analysis**: Generate binding free energy reports and visualization results
 
-应用场景
+Application Scenarios
 --------
 
-s_mmpbsa适用于以下研究场景：
+s_mmpbsa is suitable for the following research scenarios:
 
-1. **药物设计**：评估药物分子与靶点的结合强度，指导药物优化
-2. **蛋白质-蛋白质相互作用**：研究蛋白质复合物的稳定性和相互作用机制
-3. **酶-底物相互作用**：分析酶催化反应中的结合自由能变化
-4. **突变效应预测**：通过丙氨酸扫描评估蛋白质中关键残基对结合的贡献
-5. **分子对接结果验证**：为分子对接结果提供更准确的结合能预测
+1. **Drug design**: Evaluate the binding strength between drug molecules and targets, guide drug optimization
+2. **Protein-protein interactions**: Study the stability and interaction mechanism of protein complexes
+3. **Enzyme-substrate interactions**: Analyze binding free energy changes in enzyme-catalyzed reactions
+4. **Mutation effect prediction**: Evaluate the contribution of key residues in proteins to binding through alanine scanning
+5. **Molecular docking result validation**: Provide more accurate binding energy predictions for molecular docking results
 
-理论创新点
+Theoretical Innovations
 ----------
 
-s_mmpbsa在传统MM/PB-SA方法的基础上进行了以下改进：
+s_mmpbsa has made the following improvements on the basis of the traditional MM/PB-SA method:
 
-1. **电荷筛选效应**：考虑了生物分子环境中的电荷筛选效应，提高了极性相互作用计算的准确性（参考文献：J. Chem. Inf. Model. 2021, 61, 2454）
+1. **Charge screening effect**: Considered the charge screening effect in biomolecular environments, improving the accuracy of polar interaction calculations (Reference: J. Chem. Inf. Model. 2021, 61, 2454)
 
-2. **构象熵计算**：实现了高效的构象熵计算方法，为结合自由能预测提供更全面的热力学信息（参考文献：J. Chem. Phys. 2017, 146, 124124）
+2. **Conformational entropy calculation**: Implemented an efficient conformational entropy calculation method, providing more comprehensive thermodynamic information for binding free energy prediction (Reference: J. Chem. Phys. 2017, 146, 124124)
 
-3. **并行计算优化**：通过Rust语言的并行特性，显著提高了计算效率，特别是对于大型生物分子系统
+3. **Parallel computing optimization**: Through the parallel features of the Rust language, significantly improved computing efficiency, especially for large biomolecular systems
 
-4. **结果可视化**：提供了丰富的结果分析和可视化功能，便于用户理解和解释计算结果
+4. **Result visualization**: Provided rich result analysis and visualization functions, facilitating users to understand and interpret calculation results
 
-许可证信息
+License Information
 ----------
 
-s_mmpbsa遵循LGPL许可证，可以免费用于学术研究目的。如果您在商业环境中使用s_mmpbsa，请确保遵守LGPL许可证的相关规定。
+s_mmpbsa follows the LGPL license and can be used free of charge for academic research purposes. If you use s_mmpbsa in a commercial environment, please ensure that you comply with the relevant provisions of the LGPL license.
 
-引用s_mmpbsa
+Citing s_mmpbsa
 -----------
 
-如果您在研究工作中使用了s_mmpbsa，请按照以下格式引用：
+If you use s_mmpbsa in your research work, please cite it in the following format:
 
 .. code-block:: text
 
    Jiaxing Zhang, s_mmpbsa, Version [your version], https://github.com/supernova4869/s_mmpbsa (accessed on yy-mm-dd)
 
-我们正在准备关于s_mmpbsa的详细学术论文，发表后请引用相应的论文。
+We are preparing a detailed academic paper on s_mmpbsa, and please cite the corresponding paper after its publication.

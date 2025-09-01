@@ -1,289 +1,285 @@
-使用指南
+========
+Usage
 ========
 
-本文档详细介绍s_mmpbsa的各项功能和使用方法，帮助您深入了解并充分利用该工具进行结合自由能计算。
+This document details the various functions and usage methods of s_mmpbsa to help you deeply understand and fully utilize this tool for binding free energy calculations.
 
-命令行参数
+Command Line Parameters
 ----------
 
-s_mmpbsa支持以下命令行参数：
+s_mmpbsa supports the following command line parameters:
 
 .. code-block:: bash
    
-   # 基本用法
-   s_mmpbsa [options] [tpr文件]
+   # Basic usage
+   s_mmpbsa [options] [tpr file]
    
-   # 选项
-   -h, --help      显示帮助信息
-   -v, --version   显示版本信息
-   -a, --analysis  直接进入分析模式
-   -c, --config    指定配置文件路径
+   # Options
+   --version   Display version information
 
-交互式命令行界面
+Interactive Command Line Interface
 ----------------
 
-s_mmpbsa的交互式命令行界面分为以下几个主要部分：
+s_mmpbsa's interactive command line interface is divided into the following main parts:
 
-1. **文件加载**：加载tpr、xtc和ndx文件
-2. **轨迹参数设置**：设置受体、配体组和时间间隔等
-3. **MM/PB-SA参数设置**：设置计算相关的各种参数
-4. **计算执行**：执行MM/PB-SA计算
-5. **结果分析**：分析和可视化计算结果
+1. **File loading**: Load tpr, xtc and ndx files
+2. **Trajectory parameter setting**: Set receptor, ligand groups, time interval, etc.
+3. **MM/PB-SA parameter setting**: Set various parameters related to calculation
+4. **Calculation execution**: Execute MM/PB-SA calculation
+5. **Result analysis**: Analyze and visualize calculation results
 
-下面详细介绍每个部分的操作方法和参数设置。
+The operation methods and parameter settings of each part are described in detail below.
 
-文件加载
+File Loading
 --------
 
-在启动s_mmpbsa后，首先需要加载必要的输入文件：
+After starting s_mmpbsa, you first need to load the necessary input files:
 
-- **tpr文件**：Gromacs的拓扑参数文件，包含系统的拓扑信息和原子参数
-- **xtc文件**：Gromacs的轨迹文件，包含系统的坐标信息
-- **ndx文件**：Gromacs的索引文件，包含系统的分组信息
+- **tpr file**: Gromacs topology parameter file, containing system topology information and atomic parameters
+- **xtc file**: Gromacs trajectory file, containing system coordinate information
+- **ndx file**: Gromacs index file, containing system grouping information
 
-加载文件的示例操作：
+Example operations for loading files:
 
 .. code-block:: bash
    
-   # 输入tpr文件路径（可以是绝对路径或相对路径）
+   # Input tpr file path (can be absolute or relative path)
    md.tpr
    
-   # 选择加载xtc文件
+   # Choose to load xtc file
    1
-   md_centered.xtc  # 输入xtc文件路径，按回车使用默认的md.xtc
+   md_centered.xtc  # Input xtc file path, press Enter to use default md.xtc
    
-   # 选择加载ndx文件
+   # Choose to load ndx file
    2
-   index.ndx  # 输入ndx文件路径，按回车使用默认的index.ndx
+   index.ndx  # Input ndx file path, press Enter to use default index.ndx
    
-   # 进入下一步
+   # Proceed to next step
    0
 
-轨迹参数设置
+Trajectory Parameter Setting
 ------------
 
-加载文件后，需要设置轨迹参数，主要包括：
+After loading files, you need to set trajectory parameters, mainly including:
 
-- **受体组**：选择哪个组作为受体
-- **配体组**：选择哪个组作为配体
-- **时间间隔**：设置分析的时间间隔
-- **跳过的帧数**：设置开始分析前跳过的帧数
-- **结束分析的时间点**：设置结束分析的时间点
+- **Receptor group**: Choose which group to use as the receptor
+- **Ligand group**: Choose which group to use as the ligand
+- **Time interval**: Set the time interval for analysis
+- **Skipped frames**: Set the number of frames to skip before starting analysis
+- **End analysis time point**: Set the time point to end analysis
 
-设置轨迹参数的示例操作：
+Example operations for setting trajectory parameters:
 
 .. code-block:: bash
    
-   # 选择受体组
+   # Select receptor group
    1
-   1  # 输入受体组的编号，例如1表示Protein组
+   1  # Input the number of the receptor group, for example 1 represents Protein group
    
-   # 选择配体组
+   # Select ligand group
    2
-   13  # 输入配体组的编号，例如13表示配体
+   13  # Input the number of the ligand group, for example 13 represents ligand
    
-   # 设置跳过的帧数
+   # Set start time
    3
-   0  # 输入要跳过的帧数，默认为0
+   0  # Input the number of frames to skip, default is 0
    
-   # 设置结束分析的时间点
+   # Set end time
    4
-   0  # 输入结束时间点，0表示分析到轨迹结束
+   0  # Input end time point, 0 means analyze until the end of the trajectory
    
-   # 设置时间间隔（单位：ns）
+   # Set time interval (unit: ns)
    5
-   1  # 输入时间间隔，例如1表示每1ns分析一次
+   1  # Input time interval, for example 1 means analyze once every 1ns
    
-   # 进入下一步
+   # Proceed to next step
    0
 
-MM/PB-SA参数设置
+MM/PB-SA Parameter Setting
 --------------
 
-接下来，设置MM/PB-SA计算的相关参数。s_mmpbsa提供了多种参数设置选项：
+Next, set the relevant parameters for MM/PB-SA calculation. s_mmpbsa provides multiple parameter setting options:
 
 .. code-block:: bash
    
-   # 显示当前参数设置
+   # Display current parameter settings
    1
    
-   # 设置温度（单位：K）
+   # Set temperature (unit: K)
    2
-   298.15  # 输入温度，默认为298.15K
+   298.15  # Input temperature, default is 298.15K
    
-   # 设置KCl浓度（单位：mol/L）
+   # Set NaCl concentration (unit: mol/L)
    3
-   0.15  # 输入KCl浓度，默认为0.15mol/L
+   0.15  # Input KCl concentration, default is 0.15mol/L
    
-   # 设置盐桥搜索距离（单位：Å）
+   # Set salt bridge search distance (unit: Å)
    4
-   4.0  # 输入盐桥搜索距离，默认为4.0Å
+   4.0  # Input salt bridge search distance, default is 4.0Å
    
-   # 设置氢键搜索距离（单位：Å）
+   # Set hydrogen bond search distance (unit: Å)
    5
-   3.5  # 输入氢键搜索距离，默认为3.5Å
+   3.5  # Input hydrogen bond search distance, default is 3.5Å
    
-   # 设置范德华截断距离（单位：Å）
+   # Set van der Waals cutoff distance (unit: Å)
    6
-   14.0  # 输入范德华截断距离，默认为14.0Å
+   14.0  # Input van der Waals cutoff distance, default is 14.0Å
    
-   # 设置MM计算的并行核数
+   # Set number of parallel cores for MM calculation
    7
-   4  # 输入并行核数，默认为系统CPU核心数
+   4  # Input number of parallel cores, default is the number of system CPU cores
    
-   # 设置PB参数
+   # Set PB parameters
    8
-   # 输入PB参数设置子菜单（详见下文）
+   # Enter PB parameter setting submenu (see below for details)
    
-   # 设置SA参数
+   # Set SA parameters
    9
-   # 输入SA参数设置子菜单（详见下文）
+   # Enter SA parameter setting submenu (see below for details)
    
-   # 进入下一步
+   # Proceed to next step
    0
 
-PB参数设置
+PB Parameter Setting
 ~~~~~~~~~
 
-在PB参数设置子菜单中，可以设置以下参数：
+In the PB parameter setting submenu, you can set the following parameters:
 
 .. code-block:: bash
    
-   # 显示当前PB参数设置
+   # Display current PB parameter settings
    1
    
-   # 设置溶剂介电常数
+   # Set solvent dielectric constant
    2
-   78.54  # 输入溶剂介电常数，默认为78.54
+   78.54  # Input solvent dielectric constant, default is 78.54
    
-   # 设置溶质介电常数
+   # Set solute dielectric constant
    3
-   1.0  # 输入溶质介电常数，默认为1.0
+   1.0  # Input solute dielectric constant, default is 1.0
    
-   # 设置网格间距（单位：Å）
+   # Set grid spacing (unit: Å)
    4
-   0.5  # 输入网格间距，默认为0.5Å
+   0.5  # Input grid spacing, default is 0.5Å
    
-   # 设置APBS可执行文件路径
+   # Set APBS executable file path
    5
-   /usr/local/bin/apbs  # 输入APBS可执行文件路径，按回车使用内置路径
+   /usr/local/bin/apbs  # Input APBS executable file path, press Enter to use built-in path
    
-   # 返回上一级菜单
+   # Return to previous menu
    0
 
-SA参数设置
+SA Parameter Setting
 ~~~~~~~~~
 
-在SA参数设置子菜单中，可以设置以下参数：
+In the SA parameter setting submenu, you can set the following parameters:
 
 .. code-block:: bash
    
-   # 显示当前SA参数设置
+   # Display current SA parameter settings
    1
    
-   # 设置表面张力（单位：kJ/(mol·Å²)）
+   # Set surface tension (unit: kJ/(mol·Å²))
    2
-   0.0379  # 输入表面张力，默认为0.0379 kJ/(mol·Å²)
+   0.0379  # Input surface tension, default is 0.0379 kJ/(mol·Å²)
    
-   # 设置非极性溶剂化参数（单位：kJ/(mol·Å³)）
+   # Set non-polar solvation parameter (unit: kJ/(mol·Å³))
    3
-   0.0  # 输入非极性溶剂化参数，默认为0.0 kJ/(mol·Å³)
+   0.0  # Input non-polar solvation parameter, default is 0.0 kJ/(mol·Å³)
    
-   # 设置SAS计算方法（0：Shrake-Rupley，1：MSMS）
+   # Set SAS calculation method (0: Shrake-Rupley, 1: MSMS)
    4
-   0  # 输入SAS计算方法，默认为0（Shrake-Rupley）
+   0  # Input SAS calculation method, default is 0 (Shrake-Rupley)
    
-   # 返回上一级菜单
+   # Return to previous menu
    0
 
-执行计算
+Executing Calculation
 --------
 
-设置完成后，开始执行MM/PB-SA计算。在计算前，需要输入系统名称：
+After setting up, start executing the MM/PB-SA calculation. Before calculation, you need to input the system name:
 
 .. code-block:: bash
    
-   # 输入系统名称
-   protein_ligand  # 输入系统名称，默认为system
+   # Input system name
+   system  # Input system name, default is system
    
-   # 计算过程中会显示进度条和当前能量值
-   # 计算完成后，会自动进入分析模式
+   # A progress bar and current energy value will be displayed during calculation
+   # After calculation is complete, you will automatically enter analysis mode
 
-结果分析
+Result Analysis
 --------
 
-计算完成后，可以进行结果分析。s_mmpbsa提供了多种分析选项：
+After calculation is complete, you can analyze the results. s_mmpbsa provides multiple analysis options:
 
 .. code-block:: bash
    
-   # 生成包含残基结合能信息的pdb文件
+   # Generate pdb file containing residue binding energy information
    -1
-   0  # 输入时间点，0表示平均值
+   0  # Input time point, 0 means average value
    
-   # 查看结果摘要
+   # View result summary
    1
    
-   # 输出能量随时间变化的数据
+   # Output energy change data over time
    2
    
-   # 输出特定时间点的残基结合能
+   # Output residue binding energy at a specific time point
    3
-   0  # 输入时间点，0表示平均值
-   1  # 选择输出3Å范围内的残基（0：全部残基，1：3Å范围，2：5Å范围，3：10Å范围）
+   0  # Input time point, 0 means average value
+   1  # Choose to output residues within 3Å range (0: all residues, 1: 3Å range, 2: 5Å range, 3: 10Å range)
    
-   # 输出配体原子的结合能
+   # Output binding energy of ligand atoms
    4
    
-   # 输出氢键和盐桥信息
+   # Output hydrogen bond and salt bridge information
    5
    
-   # 输出相互作用能矩阵
+   # Output interaction energy matrix
    6
    
-   # 退出程序
+   # Exit program
    0
 
-使用分析模式
+Using Analysis Mode
 ------------
 
-s_mmpbsa还提供了专门的分析模式，可以对已计算的结果进行重新分析，而无需重新计算：
+s_mmpbsa also provides a special analysis mode, which can re-analyze already calculated results without re-calculating:
 
 .. code-block:: bash
    
-   # 启动分析模式
-   s_mmpbsa -a  # 使用命令行参数直接进入分析模式
-   # 或者
+   # Start analysis mode
    s_mmpbsa
-   a  # 在交互式界面中输入a进入分析模式
+   a  # Input 'a' in the interactive interface to enter analysis mode
    
-   # 输入工作目录路径
-   ./results  # 输入包含.sm结果文件的目录，默认为当前目录
+   # Input working directory path
+   ./results  # Input the directory containing .sm result files, default is current directory
    
-   # 输入温度（单位：K）
-   298.15  # 输入温度，默认为298.15K
+   # Input temperature (unit: K)
+   298.15  # Input temperature, default is 298.15K
    
-   # 输入系统名称
-   protein_ligand  # 输入之前计算时使用的系统名称，默认为system
+   # Input system name
+   system  # Input the system name used during previous calculation, default is system
    
-   # 之后的分析操作与正常计算完成后的分析操作相同
+   # Subsequent analysis operations are the same as after normal calculation completion
 
-丙氨酸扫描
+Alanine Scanning
 ----------
 
-s_mmpbsa还支持丙氨酸扫描功能，可以系统性地将蛋白质残基突变为丙氨酸，并计算突变前后的结合自由能变化。
+s_mmpbsa also supports alanine scanning function, which can systematically mutate protein residues to alanine and calculate the binding free energy change before and after mutation.
 
-进行丙氨酸扫描的步骤如下：
+Steps for performing alanine scanning:
 
 .. code-block:: bash
    
-   # 准备工作目录
+   # Prepare working directory
    mkdir -p ala_scan
    cd ala_scan
    
-   # 复制必要的输入文件
+   # Copy necessary input files
    cp ../md.tpr ../md_centered.xtc ../index.ndx .
    
-   # 执行丙氨酸扫描
+   # Execute alanine scanning
    s_mmpbsa md.tpr
    1
    md_centered.xtc
@@ -291,93 +287,58 @@ s_mmpbsa还支持丙氨酸扫描功能，可以系统性地将蛋白质残基突
    index.ndx
    0
    1
-   1  # 选择受体组（蛋白质）
+   1  # Select receptor group (protein)
    2
-   13  # 选择配体组
+   13  # Select ligand group
    5
    1
    0
    0
-   protein_ligand  # 系统名称
-   -1  # 生成pdb文件（可选）
-   0  # 退出分析
-   a  # 进入分析模式
-   .  # 使用当前目录
-   298.15  # 温度
-   protein_ligand  # 系统名称
-   0  # 退出分析
+   system  # System name
+   -1  # Generate pdb file (optional)
+   0  # Exit analysis
+   a  # Enter analysis mode
+   .  # Use current directory
+   298.15  # Temperature
+   system  # System name
+   0  # Exit analysis
    
-   # 现在可以查看丙氨酸扫描的结果
-   # 结果文件为protein_ligand_sm_ala_results.csv
+   # Now you can view the results of alanine scanning
 
-对接重打分
---------
-
-s_mmpbsa也支持对接重打分功能，可以对分子对接的结果进行MM/PB-SA计算，评估不同构象的结合强度。
-
-进行对接重打分的步骤如下：
-
-.. code-block:: bash
-   
-   # 准备工作目录
-   mkdir -p docking_rescoring
-   cd docking_rescoring
-   
-   # 确保有对接后的pdb文件（例如docked.pdb）
-   
-   # 执行对接重打分
-   s_mmpbsa md.tpr
-   1
-   docked.pdb  # 输入对接后的pdb文件代替轨迹文件
-   2
-   index.ndx
-   0
-   1
-   1  # 选择受体组（蛋白质）
-   2
-   13  # 选择配体组
-   5
-   0.1  # 时间间隔（对于pdb文件，此参数不影响结果）
-   0
-   0
-   docking_rescore  # 系统名称
-   -1  # 生成pdb文件（可选）
-   0  # 退出分析
-
-计算结果解读
+Interpretation of Calculation Results
 ------------
 
-s_mmpbsa的计算结果主要包括以下能量项：
+s_mmpbsa's calculation results mainly include the following energy terms:
 
-- **ΔG_bind**：总结合自由能
-- **ΔH**：焓变
-- **TΔS**：熵贡献（注意：s_mmpbsa目前不直接计算熵，此值通常设为0或通过其他方法估算）
-- **ΔE_vdw**：范德华相互作用能
-- **ΔE_elec**：静电相互作用能
-- **ΔG_polar**：极性溶剂化自由能
-- **ΔG_nonpolar**：非极性溶剂化自由能
+- **ΔG_bind**: Total binding free energy
+- **ΔH**: Enthalpy change
+- **TΔS**: Entropy contribution (Note: s_mmpbsa does not directly calculate entropy at present, this value is usually set to 0 or estimated through other methods)
+- **ΔE_vdw**: Van der Waals interaction energy
+- **ΔE_elec**: Electrostatic interaction energy
+- **ΔG_polar**: Polar solvation free energy
+- **ΔG_nonpolar**: Non-polar solvation free energy
 
-结合自由能的负值越大，表示结合越强。通常，ΔG_bind < -10 kJ/mol表示较强的结合。
+A larger negative value of binding free energy indicates stronger binding. Usually, ΔG_bind < -10 kJ/mol indicates strong binding.
 
-注意事项
+Notes
 --------
 
-在使用s_mmpbsa时，需要注意以下几点：
+When using s_mmpbsa, you need to pay attention to the following points:
 
-1. **轨迹质量**：确保轨迹质量良好，已正确处理PBC、中心化和拟合等操作。
+1. **Trajectory quality**: Ensure good trajectory quality, with correct PBC handling, centering and fitting operations.
 
-2. **索引文件**：确保索引文件包含正确的受体和配体组。
+2. **Index file**: Ensure that the index file contains correct receptor and ligand groups.
 
-3. **参数选择**：对于不同的系统，可能需要调整参数以获得更准确的结果。
+3. **Parameter selection**: For different systems, parameters may need to be adjusted to obtain more accurate results.
 
-4. **并行计算**：在settings.ini中设置适当的nkernels值，可以利用多核CPU加速计算。
+4. **Parallel computing**: Setting an appropriate nkernels value in settings.ini can utilize multi-core CPU to accelerate calculation.
 
-5. **结果验证**：建议与实验数据或其他计算方法的结果进行比较，验证计算结果的可靠性。
+5. **Result verification**: It is recommended to compare with experimental data or results from other calculation methods to verify the reliability of calculation results.
 
-更多信息
+More Information
 --------
 
-- :doc:`quick_start`：快速入门指南
-- :doc:`installation`：安装说明
-- :doc:`api`：API文档（适用于开发者）
-- :doc:`faq`：常见问题解答
+- :doc:`quick_start`：Quick Start Guide
+- :doc:`installation`：Installation Instructions
+- :doc:`api`：API Documentation (for developers)
+- :doc:`faq`：Frequently Asked Questions

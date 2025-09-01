@@ -11,16 +11,12 @@ Welcome to s_mmpbsa Documentation
    :maxdepth: 2
    :caption: Content Overview
 
-   introduction_en
-   installation_en
-   quick_start_en
-   usage_en
-   features
-   examples
-   api_reference
-   faq_en
-   contribution
-   authors
+   introduction
+   installation
+   quick_start
+   usage
+   api
+   faq
 
 Introduction
 ----
@@ -48,9 +44,9 @@ Features
 Getting Started
 --------
 
-Please refer to the :doc:`installation_en` chapter to install s_mmpbsa, and then check the :doc:`quick_start_en` chapter to learn the basic usage流程.
+Please refer to the :doc:`installation` chapter to install s_mmpbsa, and then check the :doc:`quick_start` chapter to learn the basic usage流程.
 
-For detailed usage instructions, please refer to the :doc:`usage_en` chapter, which contains usage methods and examples of various functions.
+For detailed usage instructions, please refer to the :doc:`usage` chapter, which contains usage methods and examples of various functions.
 
 Getting Help
 --------

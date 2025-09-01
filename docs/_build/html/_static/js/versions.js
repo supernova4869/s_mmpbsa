@@ -35,7 +35,7 @@ if (themeFlyoutDisplay === "attached") {
     }
     const versionsHTML = `
       <dl>
-        <dt>版本</dt>
+        <dt>Versions</dt>
         ${config.versions.active
           .map(
             (version) => `
@@ -62,7 +62,7 @@ if (themeFlyoutDisplay === "attached") {
 
     const downloadsHTML = `
       <dl>
-        <dt>下载</dt>
+        <dt>Downloads</dt>
         ${Object.entries(config.versions.current.downloads)
           .map(
             ([name, url]) => `
@@ -93,27 +93,27 @@ if (themeFlyoutDisplay === "attached") {
             ${renderVersions(config)}
             ${renderDownloads(config)}
             <dl>
-              <dt>托管于 Read the Docs</dt>
+              <dt>On Read the Docs</dt>
               <dd>
-                <a href="${config.projects.current.urls.home}">项目主页</a>
+                <a href="${config.projects.current.urls.home}">Project Home</a>
               </dd>
               <dd>
-                <a href="${config.projects.current.urls.builds}">构建</a>
+                <a href="${config.projects.current.urls.builds}">Builds</a>
               </dd>
               <dd>
-                <a href="${config.projects.current.urls.downloads}">下载</a>
+                <a href="${config.projects.current.urls.downloads}">Downloads</a>
               </dd>
             </dl>
             <dl>
-              <dt>搜索</dt>
+              <dt>Search</dt>
               <dd>
                 <form id="flyout-search-form">
                   <input
                     class="wy-form"
                     type="text"
                     name="q"
-                    aria-label="搜索文档"
-                    placeholder="搜索文档"
+                    aria-label="Search docs"
+                    placeholder="Search docs"
                     />
                 </form>
               </dd>

@@ -316,6 +316,6 @@ Before submitting code, please ensure that your code complies with the project's
 More Information
 --------
 
-- :doc:`usage_en`：Usage Guide
-- :doc:`installation_en`：Installation Instructions
+- :doc:`usage`：Usage Guide
+- :doc:`installation`：Installation Instructions
 - :doc:`faq`：Frequently Asked Questions

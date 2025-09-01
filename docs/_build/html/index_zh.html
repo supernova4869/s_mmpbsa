@@ -4,9 +4,10 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en-US" data-content_root="./">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Index &mdash; s_mmpbsa 1.0.0 documentation</title>
+  <title>欢迎使用 s_mmpbsa 文档 &mdash; s_mmpbsa 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
@@ -20,8 +21,9 @@
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="_static/copybutton.js?v=31b82060"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
-    <link rel="index" title="Index" href="#" />
+    <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
 
 <script type="text/javascript">
@@ -174,12 +176,129 @@
 <div role="main" class="document" itemscope="" itemtype="http://schema.org/Article">
   <div itemprop="articleBody">
     
-
-<h1 id="index">Index</h1>
-
-<div class="genindex-jumpbox">
- 
+  <section id="s-mmpbsa">
+<h1>欢迎使用 s_mmpbsa 文档<a class="headerlink" href="#s-mmpbsa" title="Link to this heading"></a></h1>
+<p><strong>s_mmpbsa</strong> 是一个用于计算生物分子结合自由能的高效工具，专门用于分析Gromacs轨迹，采用分子力学泊松-玻尔兹曼表面积（MM/PB-SA）方法。</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">内容概述</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#introduction-to-mm-pb-sa-method">Introduction to MM/PB-SA Method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#why-choose-s-mmpbsa">Why Choose s_mmpbsa?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#s-mmpbsa-s-basic-workflow">s_mmpbsa’s Basic Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#application-scenarios">Application Scenarios</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#theoretical-innovations">Theoretical Innovations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#license-information">License Information</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#citing-s-mmpbsa">Citing s_mmpbsa</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#system-requirements">System Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#software-dependencies">Software Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installation-methods">Installation Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#verifying-installation">Verifying Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#configuring-s-mmpbsa">Configuring s_mmpbsa</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#frequently-asked-questions">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#getting-help">Getting Help</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="quick_start.html">Quick Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#starting-s-mmpbsa">Starting s_mmpbsa</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#basic-workflow">Basic Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#loading-input-files">Loading Input Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#setting-trajectory-parameters">Setting Trajectory Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#setting-mm-pb-sa-parameters">Setting MM/PB-SA Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#executing-calculation">Executing Calculation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#analyzing-results">Analyzing Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#using-analysis-mode">Using Analysis Mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#example-calculating-protein-ligand-binding-energy">Example: Calculating Protein-Ligand Binding Energy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#usage-tips">Usage Tips</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#frequently-asked-questions">Frequently Asked Questions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#command-line-parameters">Command Line Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#interactive-command-line-interface">Interactive Command Line Interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#file-loading">File Loading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#trajectory-parameter-setting">Trajectory Parameter Setting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#mm-pb-sa-parameter-setting">MM/PB-SA Parameter Setting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#executing-calculation">Executing Calculation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#result-analysis">Result Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#using-analysis-mode">Using Analysis Mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#alanine-scanning">Alanine Scanning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#interpretation-of-calculation-results">Interpretation of Calculation Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#notes">Notes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#more-information">More Information</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#installation-issues">Installation Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#usage-issues">Usage Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#technical-issues">Technical Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#result-analysis-issues">Result Analysis Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#other-issues">Other Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#more-information">More Information</a></li>
+</ul>
+</li>
+</ul>
 </div>
+<section id="id1">
+<h2>简介<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p><strong>s_mmpbsa</strong> 提供了一个便捷的界面（类似 <cite>Multiwfn</cite>）来计算Gromacs轨迹的结合自由能。相比于其他同类工具，它具有安装简便、运行高效、跨平台等优势，且支持多种高级功能，如电荷筛选效应和构象熵的计算。</p>
+</section>
+<section id="id2">
+<h2>主要功能<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>MD模拟结合能计算</strong>：从分子动力学模拟结果计算生物分子间的结合自由能</p></li>
+<li><p><strong>分子对接结果重打分</strong>：为分子对接结果提供更准确的结合能预测</p></li>
+<li><p><strong>蛋白质-配体复合物丙氨酸扫描</strong>：分析蛋白质中关键残基对结合的贡献</p></li>
+</ul>
+</section>
+<section id="id3">
+<h2>特点<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>开源免费，遵循LGPL许可证</p></li>
+<li><p>环境依赖少，Linux系统仅需Gromacs程序，绘图功能需Python环境</p></li>
+<li><p>使用Rust语言开发，性能优异</p></li>
+<li><p>交互式操作，无需编写参数文件</p></li>
+<li><p>考虑电荷筛选效应，如文献 [J. Chem. Inf. Model. 2021, 61, 2454] 所述</p></li>
+<li><p>考虑构象熵，如文献 [J. Chem. Phys. 2017, 146, 124124] 所述</p></li>
+<li><p>可存储分析结果，便于进一步的可重复分析</p></li>
+</ul>
+</section>
+<section id="id4">
+<h2>开始使用<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p>请参考 <a class="reference internal" href="installation.html"><span class="doc">Installation</span></a> 章节安装s_mmpbsa，然后查看 <a class="reference internal" href="quick_start.html"><span class="doc">Quick Start</span></a> 章节了解基本使用流程。</p>
+<p>对于详细的使用说明，请参阅 <a class="reference internal" href="usage.html"><span class="doc">Usage</span></a> 章节，其中包含了各种功能的使用方法和实例。</p>
+</section>
+<section id="id5">
+<h2>获取帮助<a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<p>如果您在使用过程中遇到任何问题，或者有任何改进建议，请联系开发者或加入QQ群：</p>
+<ul class="simple">
+<li><p><strong>开发者</strong>：张嘉兴博士 (<a class="reference external" href="mailto:zhangjiaxing7137&#37;&#52;&#48;tju&#46;edu&#46;cn">zhangjiaxing7137<span>&#64;</span>tju<span>&#46;</span>edu<span>&#46;</span>cn</a>, 天津大学)</p></li>
+<li><p><strong>QQ群</strong>：864191465</p></li>
+</ul>
+</section>
+<section id="id6">
+<h2>引用<a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<p>如果您在研究工作中使用了s_mmpbsa，请按照以下格式引用：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Jiaxing Zhang, s_mmpbsa, Version [your version], https://github.com/supernova4869/s_mmpbsa (accessed on yy-mm-dd)
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>当s_mmpbsa的详细论文发表后，请引用相应的论文而非此处的网页。</p>
+</div>
+</section>
+<section id="id7">
+<h2>索引与表格<a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+</section>
 
 
   </div>
