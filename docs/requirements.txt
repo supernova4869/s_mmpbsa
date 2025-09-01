@@ -1,0 +1,28 @@
+# Sphinx文档构建依赖
+sphinx>=6.0.0
+sphinx-rtd-theme>=1.2.0
+sphinx-autodoc-typehints>=1.19.0
+sphinx-copybutton>=0.5.2
+sphinx-issues>=3.0.1
+sphinxcontrib-applehelp>=1.0.4
+sphinxcontrib-devhelp>=1.0.2
+sphinxcontrib-htmlhelp>=2.0.1
+sphinxcontrib-jsmath>=1.0.1
+sphinxcontrib-qthelp>=1.0.3
+sphinxcontrib-serializinghtml>=1.1.5
+
+# 可选依赖（用于PDF/EPUB输出）
+sphinx-latexpdf>=1.0.0
+sphinx-epub3>=2.0.0
+
+# 其他可能需要的包
+docutils>=0.19.0
+Pygments>=2.15.0
+Jinja2>=3.1.2
+MarkupSafe>=2.1.2
+packaging>=23.0
+requests>=2.28.2
+urllib3>=1.26.14
+charset-normalizer>=3.1.0
+idna>=3.4
+certifi>=2022.12.7

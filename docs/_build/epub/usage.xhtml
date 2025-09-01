@@ -1,0 +1,444 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>使用指南</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/epub.css" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="_static/style.css" />
+
+<script type="text/javascript">
+  // 添加页面加载完成后的操作
+  document.addEventListener('DOMContentLoaded', function() {
+    // 平滑滚动
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href')).scrollIntoView({
+          behavior: 'smooth'
+        });
+      });
+    });
+    
+    // 代码高亮增强
+    if (typeof hljs !== 'undefined') {
+      hljs.initHighlightingOnLoad();
+    }
+  });
+</script>
+
+  </head><body>
+<div class="wy-header-stacked">
+  <div class="wy-header-stacked-top">
+    
+<div class="header">
+  <div class="headertitle">
+    使用指南
+  </div>
+</div>
+  </div>
+  <div class="wy-header-stacked-bottom">
+    
+  </div>
+</div>
+
+<div role="main" class="document" itemscope="" itemtype="http://schema.org/Article">
+  <div itemprop="articleBody">
+    
+  <section id="id1">
+<h1>使用指南</h1>
+<p>本文档详细介绍s_mmpbsa的各项功能和使用方法，帮助您深入了解并充分利用该工具进行结合自由能计算。</p>
+<section id="id2">
+<h2>命令行参数</h2>
+<p>s_mmpbsa支持以下命令行参数：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 基本用法</span>
+s_mmpbsa<span class="w"> </span><span class="o">[</span>options<span class="o">]</span><span class="w"> </span><span class="o">[</span>tpr文件<span class="o">]</span>
+
+<span class="c1"># 选项</span>
+-h,<span class="w"> </span>--help<span class="w">      </span>显示帮助信息
+-v,<span class="w"> </span>--version<span class="w">   </span>显示版本信息
+-a,<span class="w"> </span>--analysis<span class="w">  </span>直接进入分析模式
+-c,<span class="w"> </span>--config<span class="w">    </span>指定配置文件路径
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h2>交互式命令行界面</h2>
+<p>s_mmpbsa的交互式命令行界面分为以下几个主要部分：</p>
+<ol class="arabic simple">
+<li><p><strong>文件加载</strong>：加载tpr、xtc和ndx文件</p></li>
+<li><p><strong>轨迹参数设置</strong>：设置受体、配体组和时间间隔等</p></li>
+<li><p><strong>MM/PB-SA参数设置</strong>：设置计算相关的各种参数</p></li>
+<li><p><strong>计算执行</strong>：执行MM/PB-SA计算</p></li>
+<li><p><strong>结果分析</strong>：分析和可视化计算结果</p></li>
+</ol>
+<p>下面详细介绍每个部分的操作方法和参数设置。</p>
+</section>
+<section id="id4">
+<h2>文件加载</h2>
+<p>在启动s_mmpbsa后，首先需要加载必要的输入文件：</p>
+<ul class="simple">
+<li><p><strong>tpr文件</strong>：Gromacs的拓扑参数文件，包含系统的拓扑信息和原子参数</p></li>
+<li><p><strong>xtc文件</strong>：Gromacs的轨迹文件，包含系统的坐标信息</p></li>
+<li><p><strong>ndx文件</strong>：Gromacs的索引文件，包含系统的分组信息</p></li>
+</ul>
+<p>加载文件的示例操作：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 输入tpr文件路径（可以是绝对路径或相对路径）</span>
+md.tpr
+
+<span class="c1"># 选择加载xtc文件</span>
+<span class="m">1</span>
+md_centered.xtc<span class="w">  </span><span class="c1"># 输入xtc文件路径，按回车使用默认的md.xtc</span>
+
+<span class="c1"># 选择加载ndx文件</span>
+<span class="m">2</span>
+index.ndx<span class="w">  </span><span class="c1"># 输入ndx文件路径，按回车使用默认的index.ndx</span>
+
+<span class="c1"># 进入下一步</span>
+<span class="m">0</span>
+</pre></div>
+</div>
+</section>
+<section id="id5">
+<h2>轨迹参数设置</h2>
+<p>加载文件后，需要设置轨迹参数，主要包括：</p>
+<ul class="simple">
+<li><p><strong>受体组</strong>：选择哪个组作为受体</p></li>
+<li><p><strong>配体组</strong>：选择哪个组作为配体</p></li>
+<li><p><strong>时间间隔</strong>：设置分析的时间间隔</p></li>
+<li><p><strong>跳过的帧数</strong>：设置开始分析前跳过的帧数</p></li>
+<li><p><strong>结束分析的时间点</strong>：设置结束分析的时间点</p></li>
+</ul>
+<p>设置轨迹参数的示例操作：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 选择受体组</span>
+<span class="m">1</span>
+<span class="m">1</span><span class="w">  </span><span class="c1"># 输入受体组的编号，例如1表示Protein组</span>
+
+<span class="c1"># 选择配体组</span>
+<span class="m">2</span>
+<span class="m">13</span><span class="w">  </span><span class="c1"># 输入配体组的编号，例如13表示配体</span>
+
+<span class="c1"># 设置跳过的帧数</span>
+<span class="m">3</span>
+<span class="m">0</span><span class="w">  </span><span class="c1"># 输入要跳过的帧数，默认为0</span>
+
+<span class="c1"># 设置结束分析的时间点</span>
+<span class="m">4</span>
+<span class="m">0</span><span class="w">  </span><span class="c1"># 输入结束时间点，0表示分析到轨迹结束</span>
+
+<span class="c1"># 设置时间间隔（单位：ns）</span>
+<span class="m">5</span>
+<span class="m">1</span><span class="w">  </span><span class="c1"># 输入时间间隔，例如1表示每1ns分析一次</span>
+
+<span class="c1"># 进入下一步</span>
+<span class="m">0</span>
+</pre></div>
+</div>
+</section>
+<section id="mm-pb-sa">
+<h2>MM/PB-SA参数设置</h2>
+<p>接下来，设置MM/PB-SA计算的相关参数。s_mmpbsa提供了多种参数设置选项：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 显示当前参数设置</span>
+<span class="m">1</span>
+
+<span class="c1"># 设置温度（单位：K）</span>
+<span class="m">2</span>
+<span class="m">298</span>.15<span class="w">  </span><span class="c1"># 输入温度，默认为298.15K</span>
+
+<span class="c1"># 设置KCl浓度（单位：mol/L）</span>
+<span class="m">3</span>
+<span class="m">0</span>.15<span class="w">  </span><span class="c1"># 输入KCl浓度，默认为0.15mol/L</span>
+
+<span class="c1"># 设置盐桥搜索距离（单位：Å）</span>
+<span class="m">4</span>
+<span class="m">4</span>.0<span class="w">  </span><span class="c1"># 输入盐桥搜索距离，默认为4.0Å</span>
+
+<span class="c1"># 设置氢键搜索距离（单位：Å）</span>
+<span class="m">5</span>
+<span class="m">3</span>.5<span class="w">  </span><span class="c1"># 输入氢键搜索距离，默认为3.5Å</span>
+
+<span class="c1"># 设置范德华截断距离（单位：Å）</span>
+<span class="m">6</span>
+<span class="m">14</span>.0<span class="w">  </span><span class="c1"># 输入范德华截断距离，默认为14.0Å</span>
+
+<span class="c1"># 设置MM计算的并行核数</span>
+<span class="m">7</span>
+<span class="m">4</span><span class="w">  </span><span class="c1"># 输入并行核数，默认为系统CPU核心数</span>
+
+<span class="c1"># 设置PB参数</span>
+<span class="m">8</span>
+<span class="c1"># 输入PB参数设置子菜单（详见下文）</span>
+
+<span class="c1"># 设置SA参数</span>
+<span class="m">9</span>
+<span class="c1"># 输入SA参数设置子菜单（详见下文）</span>
+
+<span class="c1"># 进入下一步</span>
+<span class="m">0</span>
+</pre></div>
+</div>
+<section id="pb">
+<h3>PB参数设置</h3>
+<p>在PB参数设置子菜单中，可以设置以下参数：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 显示当前PB参数设置</span>
+<span class="m">1</span>
+
+<span class="c1"># 设置溶剂介电常数</span>
+<span class="m">2</span>
+<span class="m">78</span>.54<span class="w">  </span><span class="c1"># 输入溶剂介电常数，默认为78.54</span>
+
+<span class="c1"># 设置溶质介电常数</span>
+<span class="m">3</span>
+<span class="m">1</span>.0<span class="w">  </span><span class="c1"># 输入溶质介电常数，默认为1.0</span>
+
+<span class="c1"># 设置网格间距（单位：Å）</span>
+<span class="m">4</span>
+<span class="m">0</span>.5<span class="w">  </span><span class="c1"># 输入网格间距，默认为0.5Å</span>
+
+<span class="c1"># 设置APBS可执行文件路径</span>
+<span class="m">5</span>
+/usr/local/bin/apbs<span class="w">  </span><span class="c1"># 输入APBS可执行文件路径，按回车使用内置路径</span>
+
+<span class="c1"># 返回上一级菜单</span>
+<span class="m">0</span>
+</pre></div>
+</div>
+</section>
+<section id="sa">
+<h3>SA参数设置</h3>
+<p>在SA参数设置子菜单中，可以设置以下参数：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 显示当前SA参数设置</span>
+<span class="m">1</span>
+
+<span class="c1"># 设置表面张力（单位：kJ/(mol·Å²)）</span>
+<span class="m">2</span>
+<span class="m">0</span>.0379<span class="w">  </span><span class="c1"># 输入表面张力，默认为0.0379 kJ/(mol·Å²)</span>
+
+<span class="c1"># 设置非极性溶剂化参数（单位：kJ/(mol·Å³)）</span>
+<span class="m">3</span>
+<span class="m">0</span>.0<span class="w">  </span><span class="c1"># 输入非极性溶剂化参数，默认为0.0 kJ/(mol·Å³)</span>
+
+<span class="c1"># 设置SAS计算方法（0：Shrake-Rupley，1：MSMS）</span>
+<span class="m">4</span>
+<span class="m">0</span><span class="w">  </span><span class="c1"># 输入SAS计算方法，默认为0（Shrake-Rupley）</span>
+
+<span class="c1"># 返回上一级菜单</span>
+<span class="m">0</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="id6">
+<h2>执行计算</h2>
+<p>设置完成后，开始执行MM/PB-SA计算。在计算前，需要输入系统名称：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 输入系统名称</span>
+protein_ligand<span class="w">  </span><span class="c1"># 输入系统名称，默认为system</span>
+
+<span class="c1"># 计算过程中会显示进度条和当前能量值</span>
+<span class="c1"># 计算完成后，会自动进入分析模式</span>
+</pre></div>
+</div>
+</section>
+<section id="id7">
+<h2>结果分析</h2>
+<p>计算完成后，可以进行结果分析。s_mmpbsa提供了多种分析选项：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 生成包含残基结合能信息的pdb文件</span>
+-1
+<span class="m">0</span><span class="w">  </span><span class="c1"># 输入时间点，0表示平均值</span>
+
+<span class="c1"># 查看结果摘要</span>
+<span class="m">1</span>
+
+<span class="c1"># 输出能量随时间变化的数据</span>
+<span class="m">2</span>
+
+<span class="c1"># 输出特定时间点的残基结合能</span>
+<span class="m">3</span>
+<span class="m">0</span><span class="w">  </span><span class="c1"># 输入时间点，0表示平均值</span>
+<span class="m">1</span><span class="w">  </span><span class="c1"># 选择输出3Å范围内的残基（0：全部残基，1：3Å范围，2：5Å范围，3：10Å范围）</span>
+
+<span class="c1"># 输出配体原子的结合能</span>
+<span class="m">4</span>
+
+<span class="c1"># 输出氢键和盐桥信息</span>
+<span class="m">5</span>
+
+<span class="c1"># 输出相互作用能矩阵</span>
+<span class="m">6</span>
+
+<span class="c1"># 退出程序</span>
+<span class="m">0</span>
+</pre></div>
+</div>
+</section>
+<section id="id8">
+<h2>使用分析模式</h2>
+<p>s_mmpbsa还提供了专门的分析模式，可以对已计算的结果进行重新分析，而无需重新计算：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 启动分析模式</span>
+s_mmpbsa<span class="w"> </span>-a<span class="w">  </span><span class="c1"># 使用命令行参数直接进入分析模式</span>
+<span class="c1"># 或者</span>
+s_mmpbsa
+a<span class="w">  </span><span class="c1"># 在交互式界面中输入a进入分析模式</span>
+
+<span class="c1"># 输入工作目录路径</span>
+./results<span class="w">  </span><span class="c1"># 输入包含.sm结果文件的目录，默认为当前目录</span>
+
+<span class="c1"># 输入温度（单位：K）</span>
+<span class="m">298</span>.15<span class="w">  </span><span class="c1"># 输入温度，默认为298.15K</span>
+
+<span class="c1"># 输入系统名称</span>
+protein_ligand<span class="w">  </span><span class="c1"># 输入之前计算时使用的系统名称，默认为system</span>
+
+<span class="c1"># 之后的分析操作与正常计算完成后的分析操作相同</span>
+</pre></div>
+</div>
+</section>
+<section id="id9">
+<h2>丙氨酸扫描</h2>
+<p>s_mmpbsa还支持丙氨酸扫描功能，可以系统性地将蛋白质残基突变为丙氨酸，并计算突变前后的结合自由能变化。</p>
+<p>进行丙氨酸扫描的步骤如下：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 准备工作目录</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>ala_scan
+<span class="nb">cd</span><span class="w"> </span>ala_scan
+
+<span class="c1"># 复制必要的输入文件</span>
+cp<span class="w"> </span>../md.tpr<span class="w"> </span>../md_centered.xtc<span class="w"> </span>../index.ndx<span class="w"> </span>.
+
+<span class="c1"># 执行丙氨酸扫描</span>
+s_mmpbsa<span class="w"> </span>md.tpr
+<span class="m">1</span>
+md_centered.xtc
+<span class="m">2</span>
+index.ndx
+<span class="m">0</span>
+<span class="m">1</span>
+<span class="m">1</span><span class="w">  </span><span class="c1"># 选择受体组（蛋白质）</span>
+<span class="m">2</span>
+<span class="m">13</span><span class="w">  </span><span class="c1"># 选择配体组</span>
+<span class="m">5</span>
+<span class="m">1</span>
+<span class="m">0</span>
+<span class="m">0</span>
+protein_ligand<span class="w">  </span><span class="c1"># 系统名称</span>
+-1<span class="w">  </span><span class="c1"># 生成pdb文件（可选）</span>
+<span class="m">0</span><span class="w">  </span><span class="c1"># 退出分析</span>
+a<span class="w">  </span><span class="c1"># 进入分析模式</span>
+.<span class="w">  </span><span class="c1"># 使用当前目录</span>
+<span class="m">298</span>.15<span class="w">  </span><span class="c1"># 温度</span>
+protein_ligand<span class="w">  </span><span class="c1"># 系统名称</span>
+<span class="m">0</span><span class="w">  </span><span class="c1"># 退出分析</span>
+
+<span class="c1"># 现在可以查看丙氨酸扫描的结果</span>
+<span class="c1"># 结果文件为protein_ligand_sm_ala_results.csv</span>
+</pre></div>
+</div>
+</section>
+<section id="id10">
+<h2>对接重打分</h2>
+<p>s_mmpbsa也支持对接重打分功能，可以对分子对接的结果进行MM/PB-SA计算，评估不同构象的结合强度。</p>
+<p>进行对接重打分的步骤如下：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 准备工作目录</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>docking_rescoring
+<span class="nb">cd</span><span class="w"> </span>docking_rescoring
+
+<span class="c1"># 确保有对接后的pdb文件（例如docked.pdb）</span>
+
+<span class="c1"># 执行对接重打分</span>
+s_mmpbsa<span class="w"> </span>md.tpr
+<span class="m">1</span>
+docked.pdb<span class="w">  </span><span class="c1"># 输入对接后的pdb文件代替轨迹文件</span>
+<span class="m">2</span>
+index.ndx
+<span class="m">0</span>
+<span class="m">1</span>
+<span class="m">1</span><span class="w">  </span><span class="c1"># 选择受体组（蛋白质）</span>
+<span class="m">2</span>
+<span class="m">13</span><span class="w">  </span><span class="c1"># 选择配体组</span>
+<span class="m">5</span>
+<span class="m">0</span>.1<span class="w">  </span><span class="c1"># 时间间隔（对于pdb文件，此参数不影响结果）</span>
+<span class="m">0</span>
+<span class="m">0</span>
+docking_rescore<span class="w">  </span><span class="c1"># 系统名称</span>
+-1<span class="w">  </span><span class="c1"># 生成pdb文件（可选）</span>
+<span class="m">0</span><span class="w">  </span><span class="c1"># 退出分析</span>
+</pre></div>
+</div>
+</section>
+<section id="id11">
+<h2>计算结果解读</h2>
+<p>s_mmpbsa的计算结果主要包括以下能量项：</p>
+<ul class="simple">
+<li><p><strong>ΔG_bind</strong>：总结合自由能</p></li>
+<li><p><strong>ΔH</strong>：焓变</p></li>
+<li><p><strong>TΔS</strong>：熵贡献（注意：s_mmpbsa目前不直接计算熵，此值通常设为0或通过其他方法估算）</p></li>
+<li><p><strong>ΔE_vdw</strong>：范德华相互作用能</p></li>
+<li><p><strong>ΔE_elec</strong>：静电相互作用能</p></li>
+<li><p><strong>ΔG_polar</strong>：极性溶剂化自由能</p></li>
+<li><p><strong>ΔG_nonpolar</strong>：非极性溶剂化自由能</p></li>
+</ul>
+<p>结合自由能的负值越大，表示结合越强。通常，ΔG_bind &lt; -10 kJ/mol表示较强的结合。</p>
+</section>
+<section id="id12">
+<h2>注意事项</h2>
+<p>在使用s_mmpbsa时，需要注意以下几点：</p>
+<ol class="arabic simple">
+<li><p><strong>轨迹质量</strong>：确保轨迹质量良好，已正确处理PBC、中心化和拟合等操作。</p></li>
+<li><p><strong>索引文件</strong>：确保索引文件包含正确的受体和配体组。</p></li>
+<li><p><strong>参数选择</strong>：对于不同的系统，可能需要调整参数以获得更准确的结果。</p></li>
+<li><p><strong>并行计算</strong>：在settings.ini中设置适当的nkernels值，可以利用多核CPU加速计算。</p></li>
+<li><p><strong>结果验证</strong>：建议与实验数据或其他计算方法的结果进行比较，验证计算结果的可靠性。</p></li>
+</ol>
+</section>
+<section id="id13">
+<h2>更多信息</h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="quick_start.xhtml"><span class="doc">快速入门</span></a>：快速入门指南</p></li>
+<li><p><a class="reference internal" href="installation.xhtml"><span class="doc">安装</span></a>：安装说明</p></li>
+<li><p><a class="reference internal" href="api.xhtml"><span class="doc">API文档</span></a>：API文档（适用于开发者）</p></li>
+<li><p><a class="reference internal" href="faq.xhtml"><span class="doc">常见问题解答</span></a>：常见问题解答</p></li>
+</ul>
+</section>
+</section>
+<p class="rubric">Footnotes</p>
+
+
+  </div>
+  <div class="articleComments">
+    
+    <!-- 这里可以添加评论系统 -->
+    
+  </div>
+</div>
+
+<footer>
+  <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+    
+    <a href="faq.xhtml" class="btn btn-neutral float-right" title="常见问题解答">下一章 <span class="fa fa-arrow-right"></span></a>
+    
+    
+    <a href="quick_start.xhtml" class="btn btn-neutral float-left" title="快速入门"><span class="fa fa-arrow-left"></span> 上一章</a>
+    
+  </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2025, Supernova.
+    </p>
+  </div>
+  由 <a href="https://www.sphinx-doc.org/" target="_blank">Sphinx</a> 8.1.3 和 <a href="https://github.com/readthedocs/sphinx_rtd_theme" target="_blank">RTD 主题</a>  构建.
+  <!-- 添加额外的页脚内容 -->
+  <div class="extrafooter">
+    <p>如有任何问题或建议，请在 <a href="https://github.com/your_username/s_mmpbsa/issues" target="_blank">GitHub Issues</a> 上提交。</p>
+  </div>
+  
+</footer>
+
+  </body>
+</html>

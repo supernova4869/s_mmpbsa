@@ -1,0 +1,10 @@
+{# 面包屑导航模板，适配所有文档格式 #}
+{%- if parents %}
+<div class="breadcrumb">
+  {%- for parent in parents %}
+  <a href="{{ parent.link|e }}">{{ parent.title }}</a>
+  {%- if not loop.last %} &raquo; {% endif %}
+  {%- endfor %}
+  {%- if title %} &raquo; {{ title }}{% endif %}
+</div>
+{%- endif %}

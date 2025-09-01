@@ -1,0 +1,362 @@
+<?xml version="1.0"?>
+<ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/">
+  <head>
+    <meta name="dtb:uid" content="unknown"/>
+    <meta name="dtb:depth" content="3"/>
+    <meta name="dtb:totalPageCount" content="0"/>
+    <meta name="dtb:maxPageNumber" content="0"/>
+  </head>
+  <docTitle>
+    <text>s_mmpbsa</text>
+  </docTitle>
+  <navMap>    
+    <navPoint id="navPoint1" playOrder="1">
+      <navLabel>
+        <text>欢迎使用 s_mmpbsa 文档</text>
+      </navLabel>
+      <content src="index.xhtml" />  
+    </navPoint>
+    <navPoint id="navPoint2" playOrder="2">
+      <navLabel>
+        <text>介绍</text>
+      </navLabel>
+      <content src="introduction.xhtml" />  
+      <navPoint id="navPoint3" playOrder="2">
+        <navLabel>
+          <text>介绍</text>
+        </navLabel>
+        <content src="introduction.xhtml" />  
+      </navPoint>
+      <navPoint id="navPoint4" playOrder="3">
+        <navLabel>
+          <text>MM/PB-SA方法简介</text>
+        </navLabel>
+        <content src="introduction.xhtml#mm-pb-sa" />  
+      </navPoint>
+      <navPoint id="navPoint5" playOrder="4">
+        <navLabel>
+          <text>为什么选择s_mmpbsa？</text>
+        </navLabel>
+        <content src="introduction.xhtml#s-mmpbsa" />  
+      </navPoint>
+      <navPoint id="navPoint6" playOrder="5">
+        <navLabel>
+          <text>s_mmpbsa的基本工作流程</text>
+        </navLabel>
+        <content src="introduction.xhtml#id4" />  
+      </navPoint>
+      <navPoint id="navPoint7" playOrder="6">
+        <navLabel>
+          <text>应用场景</text>
+        </navLabel>
+        <content src="introduction.xhtml#id5" />  
+      </navPoint>
+      <navPoint id="navPoint8" playOrder="7">
+        <navLabel>
+          <text>理论创新点</text>
+        </navLabel>
+        <content src="introduction.xhtml#id6" />  
+      </navPoint>
+      <navPoint id="navPoint9" playOrder="8">
+        <navLabel>
+          <text>许可证信息</text>
+        </navLabel>
+        <content src="introduction.xhtml#id7" />  
+      </navPoint>
+      <navPoint id="navPoint10" playOrder="9">
+        <navLabel>
+          <text>引用s_mmpbsa</text>
+        </navLabel>
+        <content src="introduction.xhtml#id8" />  
+      </navPoint>
+    </navPoint>
+    <navPoint id="navPoint11" playOrder="10">
+      <navLabel>
+        <text>安装</text>
+      </navLabel>
+      <content src="installation.xhtml" />  
+      <navPoint id="navPoint12" playOrder="10">
+        <navLabel>
+          <text>安装</text>
+        </navLabel>
+        <content src="installation.xhtml" />  
+      </navPoint>
+      <navPoint id="navPoint13" playOrder="11">
+        <navLabel>
+          <text>系统要求</text>
+        </navLabel>
+        <content src="installation.xhtml#id2" />  
+      </navPoint>
+      <navPoint id="navPoint14" playOrder="12">
+        <navLabel>
+          <text>软件依赖</text>
+        </navLabel>
+        <content src="installation.xhtml#id3" />  
+      </navPoint>
+      <navPoint id="navPoint15" playOrder="13">
+        <navLabel>
+          <text>安装步骤</text>
+        </navLabel>
+        <content src="installation.xhtml#id4" />  
+      </navPoint>
+      <navPoint id="navPoint16" playOrder="14">
+        <navLabel>
+          <text>验证安装</text>
+        </navLabel>
+        <content src="installation.xhtml#id5" />  
+      </navPoint>
+      <navPoint id="navPoint17" playOrder="15">
+        <navLabel>
+          <text>配置s_mmpbsa</text>
+        </navLabel>
+        <content src="installation.xhtml#s-mmpbsa" />  
+      </navPoint>
+      <navPoint id="navPoint18" playOrder="16">
+        <navLabel>
+          <text>常见安装问题</text>
+        </navLabel>
+        <content src="installation.xhtml#id16" />  
+      </navPoint>
+      <navPoint id="navPoint19" playOrder="17">
+        <navLabel>
+          <text>获取帮助</text>
+        </navLabel>
+        <content src="installation.xhtml#id17" />  
+      </navPoint>
+    </navPoint>
+    <navPoint id="navPoint20" playOrder="18">
+      <navLabel>
+        <text>快速入门</text>
+      </navLabel>
+      <content src="quick_start.xhtml" />  
+      <navPoint id="navPoint21" playOrder="18">
+        <navLabel>
+          <text>快速入门</text>
+        </navLabel>
+        <content src="quick_start.xhtml" />  
+      </navPoint>
+      <navPoint id="navPoint22" playOrder="19">
+        <navLabel>
+          <text>启动s_mmpbsa</text>
+        </navLabel>
+        <content src="quick_start.xhtml#s-mmpbsa" />  
+      </navPoint>
+      <navPoint id="navPoint23" playOrder="20">
+        <navLabel>
+          <text>基本工作流程</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id2" />  
+      </navPoint>
+      <navPoint id="navPoint24" playOrder="21">
+        <navLabel>
+          <text>加载输入文件</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id3" />  
+      </navPoint>
+      <navPoint id="navPoint25" playOrder="22">
+        <navLabel>
+          <text>设置轨迹参数</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id4" />  
+      </navPoint>
+      <navPoint id="navPoint26" playOrder="23">
+        <navLabel>
+          <text>设置MM/PB-SA参数</text>
+        </navLabel>
+        <content src="quick_start.xhtml#mm-pb-sa" />  
+      </navPoint>
+      <navPoint id="navPoint27" playOrder="24">
+        <navLabel>
+          <text>执行计算</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id5" />  
+      </navPoint>
+      <navPoint id="navPoint28" playOrder="25">
+        <navLabel>
+          <text>分析结果</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id6" />  
+      </navPoint>
+      <navPoint id="navPoint29" playOrder="26">
+        <navLabel>
+          <text>使用分析模式</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id7" />  
+      </navPoint>
+      <navPoint id="navPoint30" playOrder="27">
+        <navLabel>
+          <text>示例：计算蛋白质-配体结合能</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id8" />  
+      </navPoint>
+      <navPoint id="navPoint31" playOrder="28">
+        <navLabel>
+          <text>使用技巧</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id9" />  
+      </navPoint>
+      <navPoint id="navPoint32" playOrder="29">
+        <navLabel>
+          <text>常见问题解答</text>
+        </navLabel>
+        <content src="quick_start.xhtml#id10" />  
+      </navPoint>
+    </navPoint>
+    <navPoint id="navPoint33" playOrder="30">
+      <navLabel>
+        <text>使用指南</text>
+      </navLabel>
+      <content src="usage.xhtml" />  
+      <navPoint id="navPoint34" playOrder="30">
+        <navLabel>
+          <text>使用指南</text>
+        </navLabel>
+        <content src="usage.xhtml" />  
+      </navPoint>
+      <navPoint id="navPoint35" playOrder="31">
+        <navLabel>
+          <text>命令行参数</text>
+        </navLabel>
+        <content src="usage.xhtml#id2" />  
+      </navPoint>
+      <navPoint id="navPoint36" playOrder="32">
+        <navLabel>
+          <text>交互式命令行界面</text>
+        </navLabel>
+        <content src="usage.xhtml#id3" />  
+      </navPoint>
+      <navPoint id="navPoint37" playOrder="33">
+        <navLabel>
+          <text>文件加载</text>
+        </navLabel>
+        <content src="usage.xhtml#id4" />  
+      </navPoint>
+      <navPoint id="navPoint38" playOrder="34">
+        <navLabel>
+          <text>轨迹参数设置</text>
+        </navLabel>
+        <content src="usage.xhtml#id5" />  
+      </navPoint>
+      <navPoint id="navPoint39" playOrder="35">
+        <navLabel>
+          <text>MM/PB-SA参数设置</text>
+        </navLabel>
+        <content src="usage.xhtml#mm-pb-sa" />  
+        <navPoint id="navPoint40" playOrder="35">
+          <navLabel>
+            <text>MM/PB-SA参数设置</text>
+          </navLabel>
+          <content src="usage.xhtml#mm-pb-sa" />  
+        </navPoint>
+        <navPoint id="navPoint41" playOrder="36">
+          <navLabel>
+            <text>PB参数设置</text>
+          </navLabel>
+          <content src="usage.xhtml#pb" />  
+        </navPoint>
+        <navPoint id="navPoint42" playOrder="37">
+          <navLabel>
+            <text>SA参数设置</text>
+          </navLabel>
+          <content src="usage.xhtml#sa" />  
+        </navPoint>
+      </navPoint>
+      <navPoint id="navPoint43" playOrder="38">
+        <navLabel>
+          <text>执行计算</text>
+        </navLabel>
+        <content src="usage.xhtml#id6" />  
+      </navPoint>
+      <navPoint id="navPoint44" playOrder="39">
+        <navLabel>
+          <text>结果分析</text>
+        </navLabel>
+        <content src="usage.xhtml#id7" />  
+      </navPoint>
+      <navPoint id="navPoint45" playOrder="40">
+        <navLabel>
+          <text>使用分析模式</text>
+        </navLabel>
+        <content src="usage.xhtml#id8" />  
+      </navPoint>
+      <navPoint id="navPoint46" playOrder="41">
+        <navLabel>
+          <text>丙氨酸扫描</text>
+        </navLabel>
+        <content src="usage.xhtml#id9" />  
+      </navPoint>
+      <navPoint id="navPoint47" playOrder="42">
+        <navLabel>
+          <text>对接重打分</text>
+        </navLabel>
+        <content src="usage.xhtml#id10" />  
+      </navPoint>
+      <navPoint id="navPoint48" playOrder="43">
+        <navLabel>
+          <text>计算结果解读</text>
+        </navLabel>
+        <content src="usage.xhtml#id11" />  
+      </navPoint>
+      <navPoint id="navPoint49" playOrder="44">
+        <navLabel>
+          <text>注意事项</text>
+        </navLabel>
+        <content src="usage.xhtml#id12" />  
+      </navPoint>
+      <navPoint id="navPoint50" playOrder="45">
+        <navLabel>
+          <text>更多信息</text>
+        </navLabel>
+        <content src="usage.xhtml#id13" />  
+      </navPoint>
+    </navPoint>
+    <navPoint id="navPoint51" playOrder="46">
+      <navLabel>
+        <text>常见问题解答</text>
+      </navLabel>
+      <content src="faq.xhtml" />  
+      <navPoint id="navPoint52" playOrder="46">
+        <navLabel>
+          <text>常见问题解答</text>
+        </navLabel>
+        <content src="faq.xhtml" />  
+      </navPoint>
+      <navPoint id="navPoint53" playOrder="47">
+        <navLabel>
+          <text>安装问题</text>
+        </navLabel>
+        <content src="faq.xhtml#id2" />  
+      </navPoint>
+      <navPoint id="navPoint54" playOrder="48">
+        <navLabel>
+          <text>使用问题</text>
+        </navLabel>
+        <content src="faq.xhtml#id3" />  
+      </navPoint>
+      <navPoint id="navPoint55" playOrder="49">
+        <navLabel>
+          <text>技术问题</text>
+        </navLabel>
+        <content src="faq.xhtml#id4" />  
+      </navPoint>
+      <navPoint id="navPoint56" playOrder="50">
+        <navLabel>
+          <text>结果分析问题</text>
+        </navLabel>
+        <content src="faq.xhtml#id5" />  
+      </navPoint>
+      <navPoint id="navPoint57" playOrder="51">
+        <navLabel>
+          <text>其他问题</text>
+        </navLabel>
+        <content src="faq.xhtml#id6" />  
+      </navPoint>
+      <navPoint id="navPoint58" playOrder="52">
+        <navLabel>
+          <text>更多信息</text>
+        </navLabel>
+        <content src="faq.xhtml#id7" />  
+      </navPoint>
+    </navPoint>
+  </navMap>
+</ncx>
