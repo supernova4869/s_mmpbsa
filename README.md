@@ -76,36 +76,6 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 0 # exit s_mmpbsa program
 ```
 
-### Docking Rescoring function:
-``` bash
-receptor.pdbqt
-2 # load ligand file
-[return] # default DSDP.pdbqt
-3 # load flexible residues file (flexible docking only)
-[flexible residues file name]
-# other functions are used to prepare the complex system
-# if the ligand is charged, do NOT forget to change option 8
-0 # go to next step
-1 # select start model
-[start model number]
-2 # select end model
-[end model number]
-0 # go to next step (MM/PB-SA Parameters)
-# Other options usually no need to change. The PB and SA parameters could be modified by 8 and 9
-0 # go to next step (start calculation)
-[return] # use default system name or input your name
-# Wait for calculation finish
--1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
- # input the time point (default average)
-1 # view summary (Here the ΔG and TΔS values are useless)
-2 # output energy by time
-3 # output energy by residue
- # input the time point (default average)
-1 # write residues within 3 A (also try other options)
-4 # output energy by ligand atoms
-0 # exit s_mmpbsa program
-```
-
 ### Alanine scanning:
 ```bash
 # At MM/PB-SA Parameters page
