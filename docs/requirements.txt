@@ -11,8 +11,6 @@ sphinxcontrib-jsmath>=1.0.1
 sphinxcontrib-qthelp>=1.0.3
 sphinxcontrib-serializinghtml>=1.1.5
 
-# 可选依赖（用于EPUB输出）
-sphinx-epub3>=2.0.0
 
 # 其他可能需要的包
 docutils>=0.19.0
