@@ -1,66 +1,64 @@
-# s_mmpbsa 文档
+This document is the official documentation for the s_mmpbsa project, providing detailed project introduction, installation guides, usage methods, API references, and more.
 
-本文档是s_mmpbsa项目的官方文档，提供了项目的详细介绍、安装指南、使用方法和API参考等内容。
+## Building the Documentation
 
-## 构建文档
+To build the documentation locally, you first need to install Python and Sphinx. Here are the steps to build the documentation:
 
-要构建本地文档，您需要先安装Python和Sphinx。以下是构建文档的步骤：
+### 1. Install Dependencies
 
-### 1. 安装依赖
-
-首先，安装文档构建所需的Python依赖：
+First, install the Python dependencies required for building the documentation:
 
 ```bash
-# 在项目根目录下执行
+# Execute in the project root directory
 pip install -r docs/requirements.txt
 ```
 
-### 2. 构建HTML文档
+### 2. Build HTML Documentation
 
-#### 在Linux/Mac系统上：
+#### On Linux/Mac Systems:
 
 ```bash
 cd docs
 make html
 ```
 
-#### 在Windows系统上：
+#### On Windows Systems:
 
 ```batch
 cd docs
 make.bat html
 ```
 
-### 3. 查看文档
+### 3. View Documentation
 
-构建完成后，可以在`docs/_build/html`目录中找到生成的HTML文档。使用浏览器打开`index.html`文件即可查看完整文档。
+After building is complete, you can find the generated HTML documentation in the `docs/_build/html` directory. Open the `index.html` file with a browser to view the complete documentation.
 
-## 文档结构
+## Documentation Structure
 
-本文档包含以下几个主要部分：
+This documentation contains the following main sections:
 
-- **首页**：项目概述和主要功能介绍
-- **简介**：MM/PB-SA方法的基本原理和s_mmpbsa的优势
-- **安装**：系统要求和安装步骤
-- **快速入门**：基本使用流程和示例
-- **使用指南**：详细的功能说明和参数设置
-- **API文档**：开发者参考文档
-- **常见问题**：常见问题解答
+- **Homepage**: Project overview and main feature introduction
+- **Introduction**: Basic principles of the MM/PB-SA method and advantages of s_mmpbsa
+- **Installation**: System requirements and installation steps
+- **Quick Start**: Basic usage流程 and examples
+- **Usage Guide**: Detailed feature descriptions and parameter settings
+- **API Documentation**: Developer reference documentation
+- **FAQ**: Frequently asked questions and answers
 
-## 贡献文档
+## Contributing to Documentation
 
-如果您发现文档中有错误或有改进建议，欢迎贡献您的力量：
+If you find errors in the documentation or have suggestions for improvement, we welcome your contributions:
 
-1. 提出Issue描述问题或建议
-2. 提交Pull Request修复问题或添加新内容
+1. Raise an Issue describing the problem or suggestion
+2. Submit a Pull Request to fix the problem or add new content
 
-## 联系方式
+## Contact Information
 
-如有任何问题，请联系项目维护者：
+If you have any questions, please contact the project maintainer:
 
-- 电子邮件：email@example.com
-- QQ群：123456789
+- Email: email@example.com
+- QQ Group: 123456789
 
 ## License
 
-文档内容使用与项目相同的License发布。
+The documentation content is published under the same License as the project.

@@ -1,251 +1,252 @@
-API文档
+=======
+API Documentation
 =======
 
-本文档为开发者提供s_mmpbsa的内部结构和主要功能的详细信息，帮助您理解、扩展或修改s_mmpbsa的功能。
+This document provides detailed information about the internal structure and main functions of s_mmpbsa for developers, helping you understand, extend or modify the functionality of s_mmpbsa.
 
-项目结构
+Project Structure
 --------
 
-s_mmpbsa的项目结构如下：
+s_mmpbsa's project structure is as follows:
 
 .. code-block:: bash
    
    s_mmpbsa/
    ├── src/
-   │   ├── main.rs           # 程序入口点
-   │   ├── mmpbsa.rs         # MM/PB-SA计算的主要实现
-   │   ├── analyzation.rs    # 结果分析功能
-   │   ├── parse_tpr.rs      # TPR文件解析
-   │   ├── parse_ndx.rs      # NDX文件解析
-   │   ├── parse_xtc.rs      # XTC文件解析
-   │   ├── pdb.rs            # PDB文件处理
-   │   ├── pbsa.rs           # PB/SA计算
-   │   ├── mm.rs             # MM计算
-   │   ├── utils.rs          # 工具函数
-   │   └── settings.rs       # 设置管理
-   ├── examples/             # 示例文件
-   ├── docs/                 # 文档
-   ├── Cargo.toml            # Rust依赖管理
-   └── README.md             # 项目说明
+   │   ├── main.rs           # Program entry point
+   │   ├── mmpbsa.rs         # Main implementation of MM/PB-SA calculations
+   │   ├── analyzation.rs    # Result analysis functionality
+   │   ├── parse_tpr.rs      # TPR file parsing
+   │   ├── parse_ndx.rs      # NDX file parsing
+   │   ├── parse_xtc.rs      # XTC file parsing
+   │   ├── pdb.rs            # PDB file processing
+   │   ├── pbsa.rs           # PB/SA calculations
+   │   ├── mm.rs             # MM calculations
+   │   ├── utils.rs          # Utility functions
+   │   └── settings.rs       # Settings management
+   ├── examples/             # Example files
+   ├── docs/                 # Documentation
+   ├── Cargo.toml            # Rust dependency management
+   └── README.md             # Project description
 
-主要模块
+Main Modules
 --------
 
-下面详细介绍s_mmpbsa的主要模块及其功能。
+The main modules of s_mmpbsa and their functions are described in detail below.
 
-main模块
+main Module
 --------
 
-main模块是程序的入口点，负责处理命令行参数、初始化环境并协调其他模块的工作。
+The main module is the program's entry point, responsible for handling command line parameters, initializing the environment and coordinating the work of other modules.
 
-**主要功能**:
-- 解析命令行参数
-- 初始化程序环境
-- 加载输入文件
-- 协调MM/PB-SA计算
-- 提供交互式命令行界面
+**Main Functions**:
+- Parse command line parameters
+- Initialize program environment
+- Load input files
+- Coordinate MM/PB-SA calculations
+- Provide interactive command line interface
 
-**核心函数**:
+**Core Functions**:
 
 .. code-block:: rust
    
-   // 程序入口点
+   // Program entry point
    fn main() {}
    
-   // 显示欢迎信息
+   // Display welcome message
    fn welcome() {}
    
-   // 验证文件是否有效
+   // Verify file validity
    fn confirm_file_validity(path: &str) -> bool {}
    
-   // 获取内置程序路径
+   // Get built-in program path
    fn get_built_in_gmx() -> String {}
 
-mmpbsa模块
+mmpbsa Module
 ----------
 
-mmpbsa模块实现了MM/PB-SA计算的核心功能，包括能量计算、丙氨酸扫描等。
+The mmpbsa module implements the core functionality of MM/PB-SA calculations, including energy calculation, alanine scanning, etc.
 
-**主要功能**:
-- 执行MM/PB-SA计算
-- 实现丙氨酸扫描
-- 管理临时文件
-- 协调MM和PB/SA计算
+**Main Functions**:
+- Execute MM/PB-SA calculations
+- Implement alanine scanning
+- Manage temporary files
+- Coordinate MM and PB/SA calculations
 
-**核心函数**:
+**Core Functions**:
 
 .. code-block:: rust
    
-   // 执行MM/PB-SA计算
+   // Execute MM/PB-SA calculations
    pub fn fun_mmpbsa_calculations(tpr_path: &str, ...) -> Result<SMResult, Box<dyn Error>> {}
    
-   // 实现丙氨酸突变
+   // Implement alanine mutation
    pub fn ala_mutate(tpr_path: &str, ...) -> Result<(), Box<dyn Error>> {}
    
-   // 设置进度条样式
+   // Set progress bar style
    fn set_style() -> indicatif::ProgressStyle {}
    
-   // 计算MM/PB-SA能量
+   // Calculate MM/PB-SA energy
    fn calculate_mmpbsa(...) -> Result<SMResult, Box<dyn Error>> {}
    
-   // 计算MM能量
+   // Calculate MM energy
    fn calc_mm(...) -> Result<(Array1<f64>, Array1<f64>), Box<dyn Error>> {}
    
-   // 计算PB/SA能量
+   // Calculate PB/SA energy
    fn calc_pbsa(...) -> Result<(Array1<f64>, Array1<f64>), Box<dyn Error>> {}
 
-analyzation模块
+analyzation Module
 ---------------
 
-analyzation模块实现了结果分析功能，包括结果的处理、可视化和导出。
+The analyzation module implements result analysis functionality, including processing, visualization and export of results.
 
-**主要功能**:
-- 处理MM/PB-SA计算结果
-- 提供结果可视化
-- 导出结果数据
-- 支持各种分析操作
+**Main Functions**:
+- Process MM/PB-SA calculation results
+- Provide result visualization
+- Export result data
+- Support various analysis operations
 
-**核心数据结构和函数**:
+**Core Data Structures and Functions**:
 
 .. code-block:: rust
    
-   // 存储MM/PB-SA计算结果的数据结构
+   // Data structure for storing MM/PB-SA calculation results
    pub struct SMResult {
-       pub dh: Array1<f64>,          // 焓变
-       pub mm: Array1<f64>,          // MM能量
-       pub pb: Array1<f64>,          // PB能量
-       pub sa: Array1<f64>,          // SA能量
-       pub time: Array1<f64>,        // 时间点
-       pub residues: Vec<String>,    // 残基名称
-       pub res_energy: Array2<f64>,  // 残基能量
-       // ... 其他字段
+       pub dh: Array1<f64>,          // Enthalpy change
+       pub mm: Array1<f64>,          // MM energy
+       pub pb: Array1<f64>,          // PB energy
+       pub sa: Array1<f64>,          // SA energy
+       pub time: Array1<f64>,        // Time points
+       pub residues: Vec<String>,    // Residue names
+       pub res_energy: Array2<f64>,  // Residue energies
+       // ... other fields
    }
    
-   // 分析功能主控制器
+   // Main controller for analysis functionality
    pub fn analyze_controller(result: &SMResult, ...) -> Result<(), Box<dyn Error>> {}
    
-   // 获取时间范围
+   // Get time range
    pub fn get_time_range(result: &SMResult) -> (f64, f64) {}
    
-   // 获取时间点对应的索引
+   // Get index corresponding to time point
    pub fn get_time_index(result: &SMResult, time: f64) -> usize {}
 
-parse_tpr模块
--------------
-
-parse_tpr模块负责解析Gromacs的TPR文件，提取系统的拓扑信息和原子参数。
-
-**主要功能**:
-- 解析TPR文件格式
-- 提取原子类型、电荷、质量等信息
-- 构建系统拓扑结构
-- 提供对拓扑数据的访问接口
-
-parse_ndx模块
--------------
-
-parse_ndx模块负责解析Gromacs的NDX文件，提取系统的分组信息。
-
-**主要功能**:
-- 解析NDX文件格式
-- 提取分组名称和原子索引
-- 提供对分组数据的访问接口
-
-parse_xtc模块
--------------
-
-parse_xtc模块负责解析Gromacs的XTC文件，提取系统的坐标信息。
-
-**主要功能**:
-- 解析XTC文件格式
-- 提取原子坐标数据
-- 支持轨迹的随机访问
-- 处理大型轨迹文件
-
-pdb模块
--------
-
-pdb模块负责处理PDB文件，包括读取、修改和写入PDB文件。
-
-**主要功能**:
-- 读取PDB文件
-- 修改PDB文件中的原子坐标和属性
-- 写入PDB文件
-- 支持将能量信息编码到PDB文件中
-
-pbsa模块
---------
-
-pbsa模块实现了PB和SA能量计算的功能，包括调用外部程序（如APBS）进行计算。
-
-**主要功能**:
-- 准备PB计算的输入文件
-- 调用APBS进行PB计算
-- 计算SA能量
-- 处理PB/SA计算的结果
-
-mm模块
-------
-
-mm模块实现了MM能量计算的功能，包括范德华和静电相互作用的计算。
-
-**主要功能**:
-- 计算范德华相互作用能
-- 计算静电相互作用能
-- 实现距离截断优化
-- 支持并行计算
-
-utils模块
----------
-
-utils模块提供了各种通用工具函数，供其他模块使用。
-
-**主要功能**:
-- 文件操作
-- 字符串处理
-- 数学计算
-- 系统调用
-
-settings模块
+parse_tpr Module
 ------------
 
-settings模块负责管理程序的设置，包括读取、修改和保存设置。
+The parse_tpr module is responsible for parsing Gromacs TPR files and extracting system topology information and atomic parameters.
 
-**主要功能**:
-- 读取settings.ini文件
-- 提供设置的访问接口
-- 保存设置更改
-- 管理程序路径配置
+**Main Functions**:
+- Parse TPR file format
+- Extract atomic types, charges, masses, etc.
+- Build system topology structure
+- Provide access interface to topology data
 
-关键数据结构
--------------
+parse_ndx Module
+------------
 
-SMResult结构体
+The parse_ndx module is responsible for parsing Gromacs NDX files and extracting system grouping information.
+
+**Main Functions**:
+- Parse NDX file format
+- Extract group names and atomic indices
+- Provide access interface to grouping data
+
+parse_xtc Module
+------------
+
+The parse_xtc module is responsible for parsing Gromacs XTC files and extracting system coordinate information.
+
+**Main Functions**:
+- Parse XTC file format
+- Extract atomic coordinate data
+- Support random access of trajectories
+- Handle large trajectory files
+
+pdb Module
+--------
+
+The pdb module is responsible for handling PDB files, including reading, modifying and writing PDB files.
+
+**Main Functions**:
+- Read PDB files
+- Modify atomic coordinates and properties in PDB files
+- Write PDB files
+- Support encoding energy information into PDB files
+
+pbsa Module
+--------
+
+The pbsa module implements the functionality of PB and SA energy calculations, including calling external programs (such as APBS) for calculations.
+
+**Main Functions**:
+- Prepare input files for PB calculations
+- Call APBS for PB calculations
+- Calculate SA energy
+- Process PB/SA calculation results
+
+mm Module
+--------
+
+The mm module implements the functionality of MM energy calculations, including van der Waals and electrostatic interaction calculations.
+
+**Main Functions**:
+- Calculate van der Waals interaction energy
+- Calculate electrostatic interaction energy
+- Implement distance cutoff optimization
+- Support parallel computing
+
+utils Module
+--------
+
+The utils module provides various general utility functions for use by other modules.
+
+**Main Functions**:
+- File operations
+- String processing
+- Mathematical calculations
+- System calls
+
+settings Module
+------------
+
+The settings module is responsible for managing program settings, including reading, modifying and saving settings.
+
+**Main Functions**:
+- Read settings.ini file
+- Provide access interface to settings
+- Save setting changes
+- Manage program path configuration
+
+Key Data Structures
+------------
+
+SMResult Structure
 ~~~~~~~~~~~~~
 
-SMResult结构体是s_mmpbsa的核心数据结构，用于存储MM/PB-SA计算的结果。
+The SMResult structure is the core data structure of s_mmpbsa, used to store the results of MM/PB-SA calculations.
 
-**主要字段**:
-- **dh**: 焓变数组
-- **mm**: MM能量数组
-- **pb**: PB能量数组
-- **sa**: SA能量数组
-- **time**: 时间点数组
-- **residues**: 残基名称列表
-- **res_energy**: 残基能量矩阵
-- **atom_energy**: 原子能量矩阵
+**Main Fields**:
+- **dh**: Enthalpy change array
+- **mm**: MM energy array
+- **pb**: PB energy array
+- **sa**: SA energy array
+- **time**: Time point array
+- **residues**: Residue name list
+- **res_energy**: Residue energy matrix
+- **atom_energy**: Atomic energy matrix
 
-**主要方法**:
-- **new()**: 创建SMResult实例
-- **to_bin()**: 将结果序列化到二进制文件
-- **from_bin()**: 从二进制文件反序列化结果
+**Main Methods**:
+- **new()**: Create SMResult instance
+- **to_bin()**: Serialize results to binary file
+- **from_bin()**: Deserialize results from binary file
 
-使用s_mmpbsa作为库
+Using s_mmpbsa as a Library
 -----------------
 
-s_mmpbsa也可以作为Rust库使用，供其他Rust程序调用其功能。
+s_mmpbsa can also be used as a Rust library for other Rust programs to call its functions.
 
-**示例代码**:
+**Example Code**:
 
 .. code-block:: rust
    
@@ -253,17 +254,17 @@ s_mmpbsa也可以作为Rust库使用，供其他Rust程序调用其功能。
    use s_mmpbsa::analyzation::SMResult;
    
    fn main() -> Result<(), Box<dyn std::error::Error>> {
-       // 设置计算参数
+       // Set calculation parameters
        let tpr_path = "path/to/md.tpr";
        let xtc_path = "path/to/md_xtc.xtc";
        let ndx_path = "path/to/index.ndx";
-       let rec_group = 0;  // 受体组索引
-       let lig_group = 1;  // 配体组索引
-       let time_interval = 1.0;  // 时间间隔（ns）
-       let temp = 298.15;  // 温度（K）
-       let conc = 0.15;    // 盐浓度（mol/L）
+       let rec_group = 0;  // Receptor group index
+       let lig_group = 1;  // Ligand group index
+       let time_interval = 1.0;  // Time interval (ns)
+       let temp = 298.15;  // Temperature (K)
+       let conc = 0.15;    // Salt concentration (mol/L)
        
-       // 执行MM/PB-SA计算
+       // Execute MM/PB-SA calculation
        let result = fun_mmpbsa_calculations(
            tpr_path,
            xtc_path,
@@ -275,46 +276,46 @@ s_mmpbsa也可以作为Rust库使用，供其他Rust程序调用其功能。
            conc,
        )?;
        
-       // 处理计算结果
-       println!("平均结合能: {:.2} kJ/mol", result.dh.mean().unwrap());
+       // Process calculation results
+       println!("Average binding energy: {:.2} kJ/mol", result.dh.mean().unwrap());
        
-       // 保存结果到文件
+       // Save results to file
        result.to_bin("result.sm")?;
        
        Ok(())
    }
 
-扩展s_mmpbsa
+Extending s_mmpbsa
 -----------
 
-如果您想扩展s_mmpbsa的功能，可以考虑以下几个方面：
+If you want to extend the functionality of s_mmpbsa, you can consider the following aspects:
 
-1. **添加新的能量计算方法**：可以在mm模块和pbsa模块中添加新的能量计算方法。
+1. **Add new energy calculation methods**: You can add new energy calculation methods in the mm module and pbsa module.
 
-2. **支持新的输入文件格式**：可以在parse_tpr、parse_ndx和parse_xtc模块中添加对新文件格式的支持。
+2. **Support new input file formats**: You can add support for new file formats in the parse_tpr, parse_ndx and parse_xtc modules.
 
-3. **增强分析功能**：可以在analyzation模块中添加新的分析方法和可视化功能。
+3. **Enhance analysis functionality**: You can add new analysis methods and visualization functions in the analyzation module.
 
-4. **优化性能**：可以优化计算核心，提高计算速度和内存使用效率。
+4. **Optimize performance**: You can optimize the calculation core to improve calculation speed and memory usage efficiency.
 
-5. **添加新的溶剂化模型**：可以添加对其他溶剂化模型的支持，如GB模型、3D-RISM等。
+5. **Add new solvation models**: You can add support for other solvation models, such as GB model, 3D-RISM, etc.
 
-贡献指南
+Contribution Guidelines
 --------
 
-如果您想为s_mmpbsa项目做出贡献，请遵循以下步骤：
+If you want to contribute to the s_mmpbsa project, please follow these steps:
 
-1. Fork GitHub仓库
-2. 创建您的特性分支
-3. 提交您的更改
-4. 推送到您的分支
-5. 创建新的Pull Request
+1. Fork the GitHub repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to your branch
+5. Create a new Pull Request
 
-在提交代码前，请确保您的代码符合项目的编码规范，并且通过了所有测试。
+Before submitting code, please ensure that your code complies with the project's coding standards and passes all tests.
 
-更多信息
+More Information
 --------
 
-- :doc:`usage`：使用指南
-- :doc:`installation`：安装说明
-- :doc:`faq`：常见问题解答
+- :doc:`usage_en`：Usage Guide
+- :doc:`installation_en`：Installation Instructions
+- :doc:`faq`：Frequently Asked Questions

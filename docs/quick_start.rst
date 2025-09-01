@@ -1,164 +1,165 @@
-快速入门
+========
+Quick Start
 ========
 
-本文档提供s_mmpbsa的基本使用流程，帮助您快速上手该工具进行结合自由能计算。
+This document provides the basic usage process of s_mmpbsa to help you quickly get started with this tool for binding free energy calculations.
 
-启动s_mmpbsa
+Starting s_mmpbsa
 ------------
 
-安装完成后，可以通过以下方式启动s_mmpbsa：
+After installation, you can start s_mmpbsa in the following ways:
 
 .. code-block:: bash
    
-   # 在命令行中直接运行
+   # Run directly in the command line
    s_mmpbsa
    
-   # 或者直接指定tpr文件路径
+   # Or specify the tpr file path directly
    s_mmpbsa md.tpr
 
-启动后，您将看到s_mmpbsa的欢迎信息，然后进入交互式界面。
+After starting, you will see the welcome message of s_mmpbsa and then enter the interactive interface.
 
-基本工作流程
+Basic Workflow
 ------------
 
-s_mmpbsa的基本工作流程包括以下几个步骤：
+s_mmpbsa's basic workflow includes the following steps:
 
-1. 加载输入文件（tpr、xtc和ndx文件）
-2. 设置轨迹参数（选择受体和配体组）
-3. 设置MM/PB-SA参数
-4. 执行计算
-5. 分析结果
+1. Load input files (tpr, xtc and ndx files)
+2. Set trajectory parameters (select receptor and ligand groups)
+3. Set MM/PB-SA parameters
+4. Execute calculation
+5. Analyze results
 
-下面我们将详细介绍每个步骤的操作方法。
+We will detail the operation method of each step below.
 
-加载输入文件
+Loading Input Files
 ------------
 
-启动s_mmpbsa后，首先需要加载必要的输入文件：
+After starting s_mmpbsa, you first need to load the necessary input files:
 
 .. code-block:: bash
    
-   # 输入tpr文件路径
+   # Input tpr file path
    md.tpr
    
-   # 加载xtc文件（选项1）
+   # Load xtc file (option 1)
    1
-   md_centered.xtc  # 如果轨迹已处理过PBC，可以直接输入；否则按回车使用默认的md.xtc
+   md_centered.xtc  # If the trajectory has been processed with PBC, you can input it directly; otherwise press Enter to use the default md.xtc
    
-   # 加载ndx文件（选项2）
+   # Load ndx file (option 2)
    2
-   index.ndx  # 按回车使用默认的index.ndx
+   index.ndx  # Press Enter to use the default index.ndx
    
-   # 进入下一步（选项0）
+   # Proceed to the next step (option 0)
    0
 
-设置轨迹参数
+Setting Trajectory Parameters
 ------------
 
-加载输入文件后，需要设置轨迹参数，主要是选择受体和配体组：
+After loading input files, you need to set trajectory parameters, mainly selecting receptor and ligand groups:
 
 .. code-block:: bash
    
-   # 选择受体组（选项1）
+   # Select receptor group (option 1)
    1
-   [选择受体组的编号，例如1表示Protein]
+   [Select the number of the receptor group, for example 1 represents Protein]
    
-   # 选择配体组（选项2）
+   # Select ligand group (option 2)
    2
-   [选择配体组的编号，例如13表示配体]
+   [Select the number of the ligand group, for example 13 represents ligand]
    
-   # 设置时间间隔（选项5），通常每1ns分析一次
+   # Set time interval (option 5), usually analyze once every 1ns
    5
-   1  # 时间间隔，单位为ns
+   1  # Time interval, unit is ns
    
-   # 进入下一步（选项0）
+   # Proceed to the next step (option 0)
    0
 
-设置MM/PB-SA参数
+Setting MM/PB-SA Parameters
 --------------
 
-接下来，设置MM/PB-SA计算的相关参数：
+Next, set the relevant parameters for MM/PB-SA calculation:
 
 .. code-block:: bash
    
-   # 通常情况下，使用默认参数即可
-   # 如需修改PB参数，可以选择选项8
-   # 如需修改SA参数，可以选择选项9
+   # Under normal circumstances, you can use the default parameters
+   # If you need to modify PB parameters, you can select option 8
+   # If you need to modify SA parameters, you can select option 9
    
-   # 进入下一步（选项0）
+   # Proceed to the next step (option 0)
    0
 
-执行计算
+Executing Calculation
 --------
 
-设置完成后，开始执行计算：
+After setting up, start executing the calculation:
 
 .. code-block:: bash
    
-   # 输入系统名称（默认为system）
-   [按回车使用默认名称或输入自定义名称]
+   # Input system name (default is system)
+   [Press Enter to use the default name or input a custom name]
    
-   # 等待计算完成
-   # 计算过程中会显示进度条和当前能量值
+   # Wait for calculation to complete
+   # A progress bar and current energy value will be displayed during calculation
 
-分析结果
+Analyzing Results
 --------
 
-计算完成后，可以进行结果分析：
+After calculation is complete, you can analyze the results:
 
 .. code-block:: bash
    
-   # 生成包含残基结合能信息的pdb文件（选项-1）
+   # Generate pdb file containing residue binding energy information (option -1)
    -1
-   [按回车使用默认时间点（平均值）或输入特定时间点]
+   [Press Enter to use the default time point (average value) or input a specific time point]
    
-   # 查看结果摘要（选项1）
+   # View result summary (option 1)
    1
    
-   # 输出能量随时间变化的数据（选项2）
+   # Output energy change data over time (option 2)
    2
    
-   # 输出特定时间点的残基结合能（选项3）
+   # Output residue binding energy at a specific time point (option 3)
    3
-   [按回车使用默认时间点（平均值）或输入特定时间点]
-   1  # 选择输出3Å范围内的残基
+   [Press Enter to use the default time point (average value) or input a specific time point]
+   1  # Select to output residues within 3Å range
    
-   # 输出配体原子的结合能（选项4）
+   # Output binding energy of ligand atoms (option 4)
    4
    
-   # 退出程序（选项0）
+   # Exit program (option 0)
    0
 
-使用分析模式
+Using Analysis Mode
 ------------
 
-s_mmpbsa还提供了专门的分析模式，可以对已计算的结果进行重新分析：
+s_mmpbsa also provides a special analysis mode, which can re-analyze already calculated results:
 
 .. code-block:: bash
    
-   # 启动分析模式
+   # Start analysis mode
    s_mmpbsa
-   a  # 输入a进入分析模式
+   a  # Input 'a' to enter analysis mode
    
-   # 输入工作目录路径（默认为当前目录）
-   [按回车使用当前目录或输入包含.sm结果文件的目录]
+   # Input working directory path (default is current directory)
+   [Press Enter to use current directory or input the directory containing .sm result files]
    
-   # 输入温度（默认为298.15K）
-   [按回车使用默认温度或输入自定义温度]
+   # Input temperature (default is 298.15K)
+   [Press Enter to use default temperature or input custom temperature]
    
-   # 输入系统名称（默认为system）
-   [按回车使用默认名称或输入之前计算时使用的系统名称]
+   # Input system name (default is system)
+   [Press Enter to use default name or input the system name used during previous calculation]
    
-   # 之后的分析操作与正常计算完成后的分析操作相同
+   # Subsequent analysis operations are the same as after normal calculation completion
 
-示例：计算蛋白质-配体结合能
+Example: Calculating Protein-Ligand Binding Energy
 -------------------------
 
-下面是一个计算蛋白质-配体结合能的完整示例：
+The following is a complete example of calculating protein-ligand binding energy:
 
 .. code-block:: bash
    
-   # 启动s_mmpbsa并加载文件
+   # Start s_mmpbsa and load files
    s_mmpbsa
    md.tpr
    1
@@ -167,22 +168,22 @@ s_mmpbsa还提供了专门的分析模式，可以对已计算的结果进行重
    index.ndx
    0
    
-   # 设置轨迹参数
+   # Set trajectory parameters
    1
-   1  # 假设1是Protein组
+   1  # Assume 1 is the Protein group
    2
-   13  # 假设13是配体组
+   13  # Assume 13 is the ligand group
    5
    1
    0
    
-   # 设置MM/PB-SA参数（使用默认值）
+   # Set MM/PB-SA parameters (use default values)
    0
    
-   # 执行计算
-   protein_ligand  # 系统名称
+   # Execute calculation
+   protein_ligand  # System name
    
-   # 分析结果
+   # Analyze results
    -1
    1
    2
@@ -191,48 +192,48 @@ s_mmpbsa还提供了专门的分析模式，可以对已计算的结果进行重
    4
    0
 
-使用技巧
+Usage Tips
 --------
 
-1. **轨迹准备**：在计算前，建议使用Gromacs的trjconv工具对轨迹进行处理，包括去除PBC、中心化和拟合等操作，以获得更好的计算结果。
+1. **Trajectory preparation**: Before calculation, it is recommended to use Gromacs' trjconv tool to process the trajectory, including removing PBC, centering and fitting operations, to obtain better calculation results.
 
-2. **索引文件**：确保索引文件包含正确的受体和配体组。如果没有现成的索引文件，可以使用Gromacs的make_ndx工具创建。
+2. **Index file**: Ensure that the index file contains correct receptor and ligand groups. If there is no ready-made index file, you can use Gromacs' make_ndx tool to create one.
 
-3. **时间间隔**：对于长时间的MD模拟，可以适当增加时间间隔，减少计算量。通常每1-2ns分析一次即可获得较好的统计结果。
+3. **Time interval**: For long MD simulations, you can appropriately increase the time interval to reduce the calculation amount. Usually analyzing once every 1-2ns can obtain good statistical results.
 
-4. **并行计算**：在settings.ini中设置适当的nkernels值，可以利用多核CPU加速计算。
+4. **Parallel computing**: Setting an appropriate nkernels value in settings.ini can utilize multi-core CPU to accelerate calculation.
 
-5. **结果可视化**：生成的pdb文件可以用PyMOL等软件打开，查看残基结合能的分布情况（通过B因子着色）。
+5. **Result visualization**: The generated pdb file can be opened with software such as PyMOL to view the distribution of residue binding energy (colored by B factor).
 
-常见问题解答
+Frequently Asked Questions
 ----------
 
-### 如何处理大型系统？
+### How to handle large systems?
 
-对于大型系统，可以尝试以下优化措施：
+For large systems, you can try the following optimization measures:
 
-- 增加时间间隔，减少分析的帧数
-- 增加nkernels值，利用更多CPU核心
-- 使用较小的截断距离（通过修改r_cutoff参数）
+- Increase the time interval to reduce the number of analyzed frames
+- Increase the nkernels value to utilize more CPU cores
+- Use smaller cutoff distance (by modifying the r_cutoff parameter)
 
-### 如何提高计算精度？
+### How to improve calculation accuracy?
 
-提高计算精度的方法包括：
+Methods to improve calculation accuracy include:
 
-- 确保轨迹质量良好，已正确处理PBC
-- 增加采样点数，即减小时间间隔
-- 调整PB参数，如网格大小、溶剂介电常数等
+- Ensure good trajectory quality and correct PBC handling
+- Increase the number of sampling points, i.e., reduce the time interval
+- Adjust PB parameters, such as grid size, solvent dielectric constant, etc.
 
-### 计算结果如何解读？
+### How to interpret calculation results?
 
-结合自由能的负值越大，表示结合越强。通常，计算结果会给出以下能量项：
+A larger negative value of binding free energy indicates stronger binding. Usually, the calculation results will give the following energy terms:
 
-- ΔG_bind：总结合自由能
-- ΔH：焓变
-- TΔS：熵贡献
-- ΔE_vdw：范德华相互作用能
-- ΔE_elec：静电相互作用能
-- ΔG_polar：极性溶剂化自由能
-- ΔG_nonpolar：非极性溶剂化自由能
+- ΔG_bind: Total binding free energy
+- ΔH: Enthalpy change
+- TΔS: Entropy contribution
+- ΔE_vdw: Van der Waals interaction energy
+- ΔE_elec: Electrostatic interaction energy
+- ΔG_polar: Polar solvation free energy
+- ΔG_nonpolar: Non-polar solvation free energy
 
-更多详细信息，请参考 :doc:`usage` 章节。
+For more detailed information, please refer to the :doc:`usage` chapter.
