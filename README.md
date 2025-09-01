@@ -3,6 +3,10 @@ s_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajec
 
 The s_mmpbsa program follows LGPL license, and can be freely used for academic purposes.
 
+## Documentation
+The detailed documentations could be found here. 
+https://s-mmpbsa.readthedocs.io/en/latest/
+
 ## Introduction
 MM/PB-SA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convenient interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
 
