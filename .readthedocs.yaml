@@ -6,9 +6,9 @@ version: 2
 
 # Set the OS, Python version, and other tools you might need
 build:
-  os: Rocky-9.4
+  os: Rocky-24.04
   tools:
-    python: "3.12"
+    python: "3.13"
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
