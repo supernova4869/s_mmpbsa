@@ -17,7 +17,6 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 
 ## Main function
 - Binding energy calculation from MD simulation.
-- Molecular docking results rescoring.
 - Alanine scanning of protein-ligand complex.
 
 ## Requirement
@@ -26,6 +25,7 @@ MM/PB-SA method is the most popular method to rapidly calculate binding free ene
 - Gromacs: The gromacs program is needed.
 - Matplotlib: (Optional) The matplotlib python package is essential during analyzation if plotting figures.
 - APBS: (Optional) The default PBSA kernel (already built-in, but it is also supported to use other version of APBS programs).
+- PyMOL is an optional software to plot the B-factor colored structure.
 
 On Debian/Ubuntu/Linux, run:
 ```
@@ -35,11 +35,6 @@ On CentOS/Rocky, run:
 ```
 sudo dnf -y install python3-matplotlib python-pip
 ```
-
-### Special requirements of molecular docking rescoring:
-- PyMOL is an optional software to plot the B-factor colored structure.
-- Gaussian is an optional software to do DFT calculations for RESP atom charge calculation.
-- Multiwfn is an optional program (already built-in) to fit RESP atom charge.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
