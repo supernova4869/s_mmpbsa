@@ -4,7 +4,7 @@
 body {
     font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "WenQuanYi Micro Hei", sans-serif;
     font-size: 16px;
-    line-height: 1.6;
+    line-height: 1.5; /* 减小行距，使内容更紧凑 */
     color: #333;
     background-color: #f8f9fa;
 }
@@ -13,8 +13,8 @@ body {
 h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
     color: #2c3e50;
-    margin-top: 1.5em;
-    margin-bottom: 0.8em;
+    margin-top: 1.2em; /* 减小标题上边距 */
+    margin-bottom: 0.6em; /* 减小标题下边距 */
 }
 
 h1 {
@@ -39,7 +39,7 @@ h4 {
 
 /* 段落样式 */
 p {
-    margin-bottom: 1em;
+    margin-bottom: 0.8em; /* 减小段落间距 */
     text-align: justify;
 }
 
@@ -70,9 +70,10 @@ code {
 
 pre {
     padding: 1em;
-    margin-bottom: 1.5em;
+    margin-bottom: 1.2em; /* 减小代码块间距 */
     overflow-x: auto;
     border: 1px solid #e1e4e8;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* 添加轻微阴影 */
 }
 
 pre code {
@@ -85,8 +86,9 @@ pre code {
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 1.5em;
+    margin-bottom: 1.2em; /* 减小表格间距 */
     font-size: 0.95em;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* 添加轻微阴影 */
 }
 
 th, td {
@@ -111,7 +113,7 @@ tr:hover {
 
 /* 引用样式 */
 blockquote {
-    margin: 1.5em 0;
+    margin: 1.2em 0; /* 减小引用块间距 */
     padding: 0.5em 1em;
     border-left: 4px solid #3498db;
     background-color: #f9f9f9;
@@ -121,12 +123,12 @@ blockquote {
 
 /* 列表样式 */
 ul, ol {
-    margin-bottom: 1.5em;
+    margin-bottom: 1.2em; /* 减小列表间距 */
     padding-left: 1.5em;
 }
 
 li {
-    margin-bottom: 0.5em;
+    margin-bottom: 0.4em; /* 减小列表项间距 */
 }
 
 /* 警告框样式 */
@@ -134,24 +136,27 @@ li {
     background-color: #fff3cd;
     border-left: 4px solid #ffc107;
     padding: 1em;
-    margin: 1.5em 0;
+    margin: 1.2em 0; /* 减小警告框间距 */
     border-radius: 0 4px 4px 0;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* 添加轻微阴影 */
 }
 
 .tip {
     background-color: #d4edda;
     border-left: 4px solid #28a745;
     padding: 1em;
-    margin: 1.5em 0;
+    margin: 1.2em 0; /* 减小提示框间距 */
     border-radius: 0 4px 4px 0;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* 添加轻微阴影 */
 }
 
 .danger {
     background-color: #f8d7da;
     border-left: 4px solid #dc3545;
     padding: 1em;
-    margin: 1.5em 0;
+    margin: 1.2em 0; /* 减小危险框间距 */
     border-radius: 0 4px 4px 0;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); /* 添加轻微阴影 */
 }
 
 /* 响应式设计 */
@@ -198,7 +203,6 @@ li {
     }
     
     .wy-nav-content {
-        max-width: 100%;
         margin: 0;
         padding: 0;
     }
@@ -213,36 +217,104 @@ li {
 .wy-menu-vertical a {
     color: #b3b3b3;
     font-size: 0.9em;
+    padding: 0.4em 1.618em;
+    transition: all 0.2s ease-in-out;
 }
 
 .wy-menu-vertical a:hover {
     color: #fff;
     background-color: #3498db;
+    padding-left: 1.8em; /* 鼠标悬停时轻微缩进效果 */
 }
 
-.wy-menu-vertical li.current a {
+/* 减少侧边栏色块背景，只在当前项使用较柔和的背景 */
+.wy-menu-vertical li.current > a {
     color: #fff;
     background-color: #3498db;
+    border-right: 3px solid #2980b9;
+}
+
+.wy-menu-vertical li.current ul.submenu li a {
+    background-color: transparent; /* 子菜单不使用色块背景 */
+    color: #b3b3b3;
+}
+
+.wy-menu-vertical li.current ul.submenu li a:hover {
+    background-color: rgba(52, 152, 219, 0.2); /* 子菜单悬停时使用半透明背景 */
+    color: #fff;
+}
+
+.wy-menu-vertical li.current ul.submenu li.toctree-l2.current > a {
+    background-color: rgba(52, 152, 219, 0.3); /* 子菜单当前项使用较浅的背景 */
+    color: #fff;
+}
+
+/* 主页目录样式优化 */
+/* 减小主页中toctree-l2元素的样式定义，减小它们之间的间隔 */
+.wy-nav-content .toctree-l2 {
+    margin-bottom: 0.2em !important;
+    line-height: 1.0;
+}
+
+.wy-nav-content .toctree-l2 a {
+    padding: 0.2em 0;
+    display: inline-block;
 }
 
 /* 搜索框样式 */
 .wy-side-nav-search {
     background-color: #3498db;
+    padding: 1.5em 0;
 }
 
 .wy-side-nav-search input[type="text"] {
     border-color: #2980b9;
+    border-radius: 4px;
+    width: 85%;
 }
 
 /* 页脚样式 */
 .rst-footer-buttons {
-    margin-top: 2em;
+    margin-top: 1.5em;
 }
 
 footer {
-    margin-top: 3em;
+    margin-top: 2em;
     padding-top: 1em;
     border-top: 1px solid #eaecef;
     color: #666;
     font-size: 0.9em;
+}
+
+/* 内容区域优化 */
+.wy-nav-content {
+    background: #fff;
+    max-width: 900px;
+    padding: 2em 3em;
+}
+
+/* 面包屑导航优化 */
+.wy-breadcrumbs {
+    padding: 0.6em 0;
+    background-color: #f8f9fa;
+    font-size: 0.9em;
+}
+
+/* 滚动条样式优化 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
 }
