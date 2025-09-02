@@ -41,7 +41,7 @@ struct Cli {
     analyze: bool,
     
     /// assign config file path
-    #[arg(short, long)]
+    #[arg(short, long, default_value = None)]
     config: Option<String>,
     
     /// show version info
