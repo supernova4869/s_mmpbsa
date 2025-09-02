@@ -33,7 +33,7 @@ use clap::Parser;
 #[command(disable_version_flag = true)]
 struct Cli {
     /// input tpr file path
-    #[arg(short, long, value_name = "md.tpr")]
+    #[arg(short, long, value_name = "md.tpr", default_value = None)]
     input: Option<String>,
     
     /// enter analyzation mode
@@ -41,7 +41,7 @@ struct Cli {
     analyze: bool,
     
     /// assign config file path
-    #[arg(short, long, default_value = None)]
+    #[arg(short, long, value_name = "config.yaml", default_value = None)]
     config: Option<String>,
     
     /// show version info
