@@ -1,6 +1,6 @@
 [package]
 name = "s_mmpbsa"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,3 +20,4 @@ rayon = "1.7.0"
 plotpy = "1.11.0"
 colored = "2.1"
 once_cell = "1.21.3"
+clap = { version = "4.0", features = ["derive", "env"] }

@@ -26,54 +26,61 @@ use analyzation::SMResult;
 use regex::Regex;
 use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(name = "s_mmpbsa")]
+#[command(disable_version_flag = true)]
+struct Cli {
+    /// input tpr file path
+    #[arg(short, long, value_name = "md.tpr")]
+    input: Option<String>,
+    
+    /// enter analyzation mode
+    #[arg(short, long)]
+    analyze: bool,
+    
+    /// assign config file path
+    #[arg(short, long)]
+    config: Option<String>,
+    
+    /// show version info
+    #[arg(short = 'V', long)]
+    version: bool,
+}
 
 fn main() {
-    let version = env!("CARGO_PKG_VERSION");
-    welcome(&version.to_string(), "2025-Aug-31");
+    let cli = Cli::parse();
+    let compile_date = "2025-Sep-02";
+    welcome(&env!("CARGO_PKG_VERSION"), compile_date);
+
     let mut settings = env_check();
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
         false => println!("Debug mode off.\n"),
     }
 
-    let args: Vec<String> = env::args().collect();
-    let mut input: String = String::new();
-    match args.len() {
-        1 => {
-            println!("Input path of tpr file, e.g. D:/md.tpr");
-            println!("Hint: input \"o\" to simply load last-opened file.");
-            println!("Hint: input \"a\" to start analyzation mode.");
-            stdin().read_line(&mut input).expect("Failed to get input file.");
-            if input.trim().eq("o") {
-                input = settings.last_opened.to_string();
-                if input.len() == 0 {
-                    println!("Last-opened tpr not found.");
-                }
-            } else if input.trim().eq("a") {
-                input = env::current_dir().unwrap().to_str().unwrap().to_string();
-                println!("Input path of working dir with .sm results (default: current dir):");
-                let temp = get_input("".to_string());
-                if temp.len() != 0 {
-                    input = temp;
-                }
-            } else {
-                input = input.trim().to_string();
-            }
+    if cli.version {
+        utils::show_famous_quotes();
+    } else if cli.input.is_some() {
+        process_tpr_input(&cli.input.unwrap(), &mut settings);
+    } else if cli.config.is_some() {
+        println!("Config file: {}", cli.config.as_deref().unwrap());
+        println!("In development.");
+    } else if cli.analyze {
+        println!("Input path of working dir with .sm results (default: current dir):");
+        let input = get_input("".to_string());
+        let wd = if input.is_empty() {
+            env::current_dir().unwrap()
+        } else {
+            Path::new(&input).to_path_buf()
+        };
+        if !wd.is_dir() {
+            println!("Input {} not directory. Please check.", Path::new(&input).to_str().unwrap());
+            get_input("".to_string());
+            exit(0);
         }
-        2 => {
-            input = args[1].to_string();
-        }
-        _ => {}
-    }
-
-    if Path::new(&input).is_file() {
-        let in_file = confirm_file_validity(&input, vec!["tpr"], &input);
-        change_settings_last_opened(&mut settings, &in_file);
-        let in_file = get_dump(&in_file, &settings);
-        fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), &mut settings);
-    } else if Path::new(&input).is_dir() {
-        let wd = Path::new(&input);
-        let sm_list: Vec<String> = fs::read_dir(wd).unwrap().into_iter().filter_map(|f| {
+        let sm_list: Vec<String> = fs::read_dir(&wd).unwrap().into_iter().filter_map(|f| {
             let f = f.unwrap().path();
             if let Some(ext) = f.extension() {
                 if ext.to_str().unwrap().eq("sm") {
@@ -103,14 +110,36 @@ fn main() {
                 let f_name = Path::new(f).file_name().unwrap().to_str().unwrap();
                 f_name.starts_with(&format!("_MMPBSA_{}", sys_name)) && !f_name.ends_with("_WT.sm")
             }).map(|f| SMResult::from(f)).collect();
-            analyzation::analyze_controller(&result_wt, &result_as, temperature, &sys_name, wd, &settings);
+            analyzation::analyze_controller(&result_wt, &result_as, temperature, &sys_name, &wd, &settings);
         } else {
             println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
         }
-    } else if input.eq("--version") {
-        utils::show_famous_quotes();
     } else {
-        println!("Input {} not file or directory. Please check.", Path::new(&input).to_str().unwrap());
+        println!("Input path of tpr file, e.g. D:/md.tpr");
+        println!("Hint: input \"o\" to simply load last-opened file.");
+        let mut input = String::new();
+        stdin().read_line(&mut input).expect("Failed to get input file.");
+        if input.trim().eq("o") {
+            input = settings.last_opened.to_string();
+            if input.is_empty() {
+                println!("Last-opened tpr not found.");
+            }
+        }
+        process_tpr_input(&input, &mut settings);
+    }
+}
+
+fn process_tpr_input(input: &String, settings: &mut Settings) {
+    if Path::new(input).is_file() {
+        let in_file = confirm_file_validity(&input, vec!["tpr"], &input);
+        change_settings_last_opened(settings, &in_file);
+        let in_file = get_dump(&in_file, &settings);
+        fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), settings);
+    } else {
+        println!("Input {} not file. Please check.", Path::new(&input).to_str().unwrap());
+        println!("Press ENTER to exit.");
+        get_input("".to_string());
+        exit(0);
     }
 }
 
@@ -121,6 +150,7 @@ fn welcome(version: &str, today: &str) {
         | molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method |\n\
         ========================================================================\n\
         Website: https://github.com/supernova4869/s_mmpbsa\n\
+        Latest documentation: https://s-mmpbsa.readthedocs.io/en/latest/\n\
         Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
         Version {}, first release: 2022-Oct-17, current release: {}\n", version, today);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
