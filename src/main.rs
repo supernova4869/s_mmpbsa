@@ -53,6 +53,11 @@ fn main() {
     let cli = Cli::parse();
     let compile_date = "2025-Sep-02";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
+    
+    if cli.version {
+        utils::show_famous_quotes();
+        exit(0);
+    }
 
     let mut settings = env_check();
     match settings.debug_mode {
@@ -60,9 +65,7 @@ fn main() {
         false => println!("Debug mode off.\n"),
     }
 
-    if cli.version {
-        utils::show_famous_quotes();
-    } else if cli.input.is_some() {
+    if cli.input.is_some() {
         process_tpr_input(&cli.input.unwrap(), &mut settings);
     } else if cli.config.is_some() {
         println!("Config file: {}", cli.config.as_deref().unwrap());
