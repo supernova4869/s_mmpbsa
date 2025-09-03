@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
+    pub program_set: ProgramSet,
     pub mm_set: MMSet,
     pub pbe_set: PBESet,
     pub pba_set: PBASet,
@@ -16,6 +17,7 @@ pub struct Config {
 impl Config {
     pub fn new() -> Config {
         Config {
+            program_set: ProgramSet::new(),
             mm_set: MMSet::new(),
             pbe_set: PBESet::new(298.15),
             pba_set: PBASet::new(298.15),
@@ -34,14 +36,28 @@ impl Config {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MMSet {
-    pub cutoff: f64,
-    pub electric_screening: usize,
-    pub radius_type: String,
-    pub radius_default: f64,
+pub struct ProgramSet {
     pub cfac: i32,
     pub fadd: f64,
     pub df: f64,
+    pub radius_type: String,
+}
+
+impl ProgramSet {
+    pub fn new() -> ProgramSet {
+        ProgramSet {
+            cfac: 3,
+            fadd: 10.0,
+            df: 0.5,
+            radius_type: "mBondi".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MMSet {
+    pub cutoff: f64,
+    pub electric_screening: usize,
 }
 
 impl MMSet {
@@ -49,11 +65,6 @@ impl MMSet {
         MMSet {
             cutoff: f64::INFINITY,
             electric_screening: 1,
-            radius_type: "mBondi".to_string(),
-            radius_default: 1.5,
-            cfac: 3,
-            fadd: 10.0,
-            df: 0.5,
         }
     }
 }

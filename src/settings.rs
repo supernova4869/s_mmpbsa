@@ -7,7 +7,6 @@ use toml::Value;
 #[allow(dead_code)]
 pub struct Settings {
     pub radius_type: usize,
-    pub radius_ff_default: f64,
     pub r_cutoff: f64,
     pub fix_pbc: bool,
     pub elec_screen: usize,
@@ -35,7 +34,6 @@ impl Settings {
         Settings {
             elec_screen: 1,
             radius_type: 3,
-            radius_ff_default: 1.5,
             r_cutoff: 0.0,
             fix_pbc: true,
             gmx_path: Some("gmx".to_string()),
@@ -67,7 +65,6 @@ impl Settings {
         // Read settings
         let elec_screen = parse_param(&setting_values, "screen_method", default_settings.elec_screen);
         let radius_type = parse_param(&setting_values, "radius_type", default_settings.radius_type);
-        let radius_ff_default = parse_param(&setting_values, "radius_default", default_settings.radius_ff_default);
         let r_cutoff = parse_param(&setting_values, "r_cutoff", default_settings.r_cutoff);
         let r_cutoff = if r_cutoff == 0.0 {
             f64::INFINITY
@@ -117,7 +114,6 @@ impl Settings {
         Settings {
             elec_screen,
             radius_type,
-            radius_ff_default,
             r_cutoff,
             fix_pbc,
             gmx_path,

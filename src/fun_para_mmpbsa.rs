@@ -34,11 +34,11 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
     };
     if config.is_some() {
         settings.elec_screen = config.as_ref().unwrap().mm_set.electric_screening;
-        settings.radius_type = radius_types.iter().position(|&r| r.eq(&config.as_ref().unwrap().mm_set.radius_type)).unwrap_or(3);
+        settings.radius_type = radius_types.iter().position(|&r| r.eq(&config.as_ref().unwrap().program_set.radius_type)).unwrap_or(3);
         settings.r_cutoff = config.as_ref().unwrap().mm_set.cutoff;
-        settings.cfac = config.as_ref().unwrap().mm_set.cfac;
-        settings.fadd = config.as_ref().unwrap().mm_set.fadd;
-        settings.df = config.as_ref().unwrap().mm_set.df;
+        settings.cfac = config.as_ref().unwrap().program_set.cfac;
+        settings.fadd = config.as_ref().unwrap().program_set.fadd;
+        settings.df = config.as_ref().unwrap().program_set.df;
     }
     let mut ala_list: Vec<i32> = vec![];
     loop {

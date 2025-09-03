@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use once_cell::sync::Lazy;
 
-use crate::settings::Settings;
-
 // 预编译所有正则表达式
 static RE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name\\s*=\\s*\"(.*)\"").unwrap());
 static RE_ATOMS_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"#atoms\s*=\s*(\d+)").unwrap());
@@ -55,7 +53,7 @@ impl fmt::Display for TPR {
 }
 
 impl TPR {
-    pub fn from(mdp: &str, settings: &Settings) -> TPR {
+    pub fn from(mdp: &str) -> TPR {
         let mut name = String::new();
         let mut atoms_num = 0;
         let mut molecule_types_num = 0;
@@ -100,7 +98,7 @@ impl TPR {
             } else if line.starts_with("ffparams:") {
                 process_ffparams(&mut reader, &mut buf, &mut atom_types_num, 
                             &mut fun_type, &mut sigma, &mut epsilon, 
-                            &mut radius, settings);
+                            &mut radius);
             } else if line.starts_with("moltype (") {
                 process_moltype(&mut reader, &mut buf, &mut molecules, 
                             &mut atom_resids, &mut atom_types, &mut atom_radii,
@@ -339,7 +337,6 @@ fn process_ffparams<R: BufRead>(
     sigma: &mut Vec<f64>, 
     epsilon: &mut Vec<f64>, 
     radius: &mut Vec<f64>, 
-    settings: &Settings
 ) {
     read_line(reader, buf);
     if let Some(caps) = RE_ATNR.captures(&buf) {
@@ -374,7 +371,7 @@ fn process_ffparams<R: BufRead>(
                     } else {
                         sigma.push(0.0);
                         epsilon.push(0.0);
-                        radius.push(settings.radius_ff_default);
+                        radius.push(1.5);
                     }
                 }
             }

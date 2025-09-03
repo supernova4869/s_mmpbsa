@@ -72,7 +72,7 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
 pub fn set_para_basic_tpr(tpr_path: &String, config: &Option<Config>, wd: &Path, settings: &mut Settings) {
     let mut trj = String::new();
     let mut ndx = String::new();
-    let mut tpr = TPR::from(&tpr_path, &settings);
+    let mut tpr = TPR::from(&tpr_path);
     println!("\nFinished loading input file.");
 
     loop {
