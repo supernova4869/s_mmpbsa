@@ -9,7 +9,7 @@ mod fun_para_basic;
 mod fun_para_system;
 mod fun_para_mmpbsa;
 mod atom_radius;
-mod apbs_param;
+mod parameters;
 mod prepare_apbs;
 mod settings;
 mod atom_property;
@@ -23,25 +23,32 @@ use std::io::{stdin, Write};
 use std::path::Path;
 use std::process::{exit, Command};
 use analyzation::SMResult;
+use colored::Colorize;
 use regex::Regex;
 use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 use clap::Parser;
+
+use crate::parameters::Config;
 
 #[derive(Parser)]
 #[command(name = "s_mmpbsa")]
 #[command(disable_version_flag = true)]
 struct Cli {
     /// input tpr file path
-    #[arg(short, long, value_name = "md.tpr", default_value = None)]
-    input: Option<String>,
+    #[arg(short = 's', long, value_name = "md.tpr", default_value = None)]
+    tpr: Option<String>,
     
     /// enter analyzation mode
     #[arg(short, long)]
     analyze: bool,
     
+    /// generate template config file
+    #[arg(short = 'p', long, value_name = "template")]
+    template: bool,
+    
     /// assign config file path
-    #[arg(short, long, value_name = "config.yaml", default_value = None)]
+    #[arg(short, long, value_name = "config.yaml", default_value = "config.yaml")]
     config: Option<String>,
     
     /// show version info
@@ -51,11 +58,22 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2025-Sep-02";
+    let compile_date = "2025-Sep-03";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
+    // Show version info
     if cli.version {
         utils::show_famous_quotes();
+        exit(0);
+    }
+
+    // Build template
+    if cli.template {
+        // 在当前路径生成一个config模板
+        let config = Config::new();
+        config.save(&Path::new(&env::current_dir().unwrap()).join("config.yaml"));
+        println!("Template config has been written to {}", "config.yaml".cyan().bold());
+        println!("You can edit and use it by `{}`", "s_mmpbsa -c config.yaml".red().bold());
         exit(0);
     }
 
@@ -65,12 +83,8 @@ fn main() {
         false => println!("Debug mode off.\n"),
     }
 
-    if cli.input.is_some() {
-        process_tpr_input(&cli.input.unwrap(), &mut settings);
-    } else if cli.config.is_some() {
-        println!("Config file: {}", cli.config.as_deref().unwrap());
-        println!("In development.");
-    } else if cli.analyze {
+    // Analyzation mode
+    if cli.analyze {
         println!("Input path of working dir with .sm results (default: current dir):");
         let input = get_input("".to_string());
         let wd = if input.is_empty() {
@@ -117,6 +131,10 @@ fn main() {
         } else {
             println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
         }
+    };
+
+    let tpr = if cli.tpr.is_some() {
+        cli.tpr.unwrap().to_string()
     } else {
         println!("Input path of tpr file, e.g. D:/md.tpr");
         println!("Hint: input \"o\" to simply load last-opened file.");
@@ -128,18 +146,35 @@ fn main() {
                 println!("Last-opened tpr not found.");
             }
         }
-        process_tpr_input(&input, &mut settings);
-    }
-}
-
-fn process_tpr_input(input: &String, settings: &mut Settings) {
-    if Path::new(input).is_file() {
-        let in_file = confirm_file_validity(&input, vec!["tpr"], &input);
-        change_settings_last_opened(settings, &in_file);
-        let in_file = get_dump(&in_file, &settings);
-        fun_para_basic::set_para_basic_tpr(&in_file, &Path::new(&in_file).parent().unwrap(), settings);
+        input
+    };
+    
+    // Config file
+    let config = if cli.config.is_some() {
+        println!("Loading config file: {}", cli.config.as_deref().unwrap().cyan().bold());
+        let mut config = Config::load(&cli.config.as_deref().unwrap());
+        loop {
+            match config {
+                Ok(_) => break,
+                Err(e) => {
+                    println!("Error format with config file, details:\n{}", e.to_string().red().bold());
+                    println!("Edit {} again and press ENTER to reload", &cli.config.as_deref().unwrap());
+                    get_input("".to_string());
+                    config = Config::load(&cli.config.as_deref().unwrap());
+                }
+            };
+        }
+        config.ok()
     } else {
-        println!("Input {} not file. Please check.", Path::new(&input).to_str().unwrap());
+        None
+    };
+    if Path::new(&tpr).is_file() {
+        let in_file = confirm_file_validity(&tpr, vec!["tpr"], &tpr);
+        change_settings_last_opened(&mut settings, &in_file);
+        let in_file = get_dump(&in_file, &settings);
+        fun_para_basic::set_para_basic_tpr(&in_file, &config, &Path::new(&in_file).parent().unwrap(), &mut settings);
+    } else {
+        println!("Input {} not file. Please check.", Path::new(&tpr).to_str().unwrap());
         println!("Press ENTER to exit.");
         get_input("".to_string());
         exit(0);

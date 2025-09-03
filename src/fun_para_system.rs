@@ -6,6 +6,7 @@ use std::path::Path;
 use std::fs;
 use std::collections::BTreeSet;
 
+use crate::parameters::Config;
 use crate::parse_pdb::PDB;
 use crate::parse_gro::GRO;
 use crate::settings::Settings;
@@ -18,7 +19,8 @@ use crate::parse_tpr::Residue;
 use crate::utils::{convert_tpr, convert_trj, trjconv};
 use crate::read_xtc::read_xtc;
 
-pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, tpr_name: &str, settings: &mut Settings) {
+pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Option<Config>, 
+                    wd: &Path, tpr_name: &str, settings: &mut Settings) {
     let mut receptor_grp: Option<usize> = None;
     let mut ligand_grp: Option<usize> = None;
     let mut bt: f64 = 0.0;                                  // ps
@@ -52,7 +54,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, wd: &Path, t
             Ok(0) => {
                 if let Some(receptor_grp) = receptor_grp {
                     prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, tpr_name, ndx_name, bt, et, dt, 
-                        dt / ie_multi as f64, wd, settings);
+                        dt / ie_multi as f64, config, wd, settings);
                 } else {
                     println!("Please select receptor groups.");
                 };
@@ -180,8 +182,8 @@ fn show_grp(grp_id: Option<usize>, ndx: &Index) -> String {
 
 fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>, 
                   trj: &String, tpr: &mut TPR, ndx: &Index, 
-                  tpr_name: &str, ndx_name: &String, 
-                  bt: f64, et: f64, dt: f64, dt_ie: f64,
+                  tpr_name: &str, ndx_name: &String, bt: f64, et: f64, 
+                  dt: f64, dt_ie: f64, config: &Option<Config>,
                   wd: &Path, settings: &mut Settings) {
     // atom indexes
     println!("Preparing atom indexes...");
@@ -223,8 +225,8 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         let (ndx_rec, ndx_lig) = 
             normalize_index(&ndx.groups[receptor_grp].indexes, &ndx_lig);
         
-        set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, wd, 
-            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+        set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, config,
+            wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else if trj.ends_with("gro") {
         let gro = GRO::from(trj);
         let mut coordinates: Array3<f64> = Array3::zeros((1, gro.atoms.len(), 3));
@@ -243,8 +245,8 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         let (ndx_rec, ndx_lig) = 
             normalize_index(&ndx.groups[receptor_grp].indexes, &ndx_lig);
         
-        set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, wd, 
-            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+        set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, config,
+            wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else {
         // pre-treat trajectory
         let trj_mmpbsa = append_new_name(trj, "_trj.xtc", "_MMPBSA_"); // get trj output file name
@@ -348,7 +350,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         let num_time_points = ((end_time - start_time) / dt + 1.0) as usize;
         let time_list = Array1::linspace(start_time, end_time, num_time_points).to_vec();
 
-        set_para_mmpbsa(&time_list, &time_list_ie, &coordinates_ie, tpr, &ndx, wd, 
-            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+        set_para_mmpbsa(&time_list, &time_list_ie, &coordinates_ie, tpr, &ndx, config,
+            wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     };
 }

@@ -7,7 +7,7 @@ use ndarray::Array3;
 use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca};
 use crate::parse_ndx::Index;
 use crate::settings::Settings;
-use crate::apbs_param::{PBASet, PBESet};
+use crate::parameters::{Config, PBASet, PBESet};
 use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperties;
@@ -16,14 +16,30 @@ use crate::mmpbsa;
 use crate::analyzation;
 
 pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
-                       tpr: &TPR, ndx: &Index, wd: &Path, aps: &mut AtomProperties,
+                       tpr: &TPR, ndx: &Index, config: &Option<Config>, wd: &Path, aps: &mut AtomProperties,
                        ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        residues: &Vec<Residue>, settings: &mut Settings) {
     // kinds of radius types
     let radius_types = vec!["ff", "amber", "Bondi", "mBondi", "mBondi2"];
-    let mut pbe_set = PBESet::new(tpr.temp);
-    let mut pba_set = PBASet::new(tpr.temp);
+    let mut pbe_set = if let Some(config) = config {
+        config.pbe_set.clone()
+    } else {
+        PBESet::new(tpr.temp)
+    };
+    let mut pba_set = if let Some(config) = config {
+        config.pba_set.clone()
+    } else {
+        PBASet::new(tpr.temp)
+    };
+    if config.is_some() {
+        settings.elec_screen = config.as_ref().unwrap().mm_set.electric_screening;
+        settings.radius_type = radius_types.iter().position(|&r| r.eq(&config.as_ref().unwrap().mm_set.radius_type)).unwrap_or(3);
+        settings.r_cutoff = config.as_ref().unwrap().mm_set.cutoff;
+        settings.cfac = config.as_ref().unwrap().mm_set.cfac;
+        settings.fadd = config.as_ref().unwrap().mm_set.fadd;
+        settings.df = config.as_ref().unwrap().mm_set.df;
+    }
     let mut ala_list: Vec<i32> = vec![];
     loop {
         println!("\n                 ************ MM/PB-SA Parameters ************");
@@ -88,15 +104,19 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 println!("Forcefield parameters have been written to paras_LJ.txt");
             }
             Ok(-3) => {
-                let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
-                paras.write_all(format!("Electrostatic screening method: {}\n", settings.elec_screen).as_bytes()).unwrap();
-                paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
-                paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
-                paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
-                paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
-                paras.write_all(format!("Fine mesh spacing (df): {} A\n\n", settings.df).as_bytes()).unwrap();
-                paras.write_all(format!("PB settings:\n{}\n\n", pbe_set).as_bytes()).unwrap();
-                paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
+                if let Some(config) = config {
+                    config.save("paras_pbsa.txt");
+                } else {
+                    let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
+                    paras.write_all(format!("Electrostatic screening method: {}\n", settings.elec_screen).as_bytes()).unwrap();
+                    paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
+                    paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
+                    paras.write_all(format!("Coarse grid expand factor (cfac): {}\n", settings.cfac).as_bytes()).unwrap();
+                    paras.write_all(format!("Fine grid expand amount (fadd): {} A\n", settings.fadd).as_bytes()).unwrap();
+                    paras.write_all(format!("Fine mesh spacing (df): {} A\n\n", settings.df).as_bytes()).unwrap();
+                    paras.write_all(format!("PB settings:\n{}\n\n", pbe_set).as_bytes()).unwrap();
+                    paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
+                }
                 println!("PBSA parameters have been written to paras_pbsa.txt");
             }
             Ok(0) => {
@@ -245,7 +265,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    settings.cfac = 3.0;
+                    settings.cfac = 3;
                 } else {
                     settings.cfac = s.trim().parse().expect("Input not valid number.");
                 }
@@ -272,12 +292,12 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             }
             Ok(8) => {
                 let pb_fpath = wd.join("PB_settings.yaml");
-                pbe_set.save_params(&pb_fpath);
+                pbe_set.save(&pb_fpath);
                 println!("PB parameters have been wrote to {}.\n\
                     Edit it and press ENTER to reload).", &pb_fpath.to_str().unwrap().yellow().bold());
                 get_input("".to_string());
                 loop {
-                    let new_pbe_set = PBESet::load_params(&pb_fpath);
+                    let new_pbe_set = PBESet::load(&pb_fpath);
                     match new_pbe_set {
                         Ok(new_pbe_set) => {
                             pbe_set = new_pbe_set;
@@ -293,12 +313,12 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             }
             Ok(9) => {
                 let sa_fpath = wd.join("SA_settings.yaml");
-                pba_set.save_params(&sa_fpath);
+                pba_set.save(&sa_fpath);
                 println!("SA parameters have been wrote to {}.\n\
                     Edit it and press ENTER to reload).", &sa_fpath.to_str().unwrap().yellow().bold());
                 get_input("".to_string());
                 loop {
-                    let new_pba_set = PBASet::load_params(&sa_fpath);
+                    let new_pba_set = PBASet::load(&sa_fpath);
                     match new_pba_set {
                         Ok(new_pba_set) => {
                             pba_set = new_pba_set;

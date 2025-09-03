@@ -14,7 +14,7 @@ use chrono::{Local, Duration};
 use crate::coefficients::{self, Coefficients};
 use crate::analyzation::SMResult;
 use crate::parse_tpr::Residue;
-use crate::apbs_param::{PBASet, PBESet};
+use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 

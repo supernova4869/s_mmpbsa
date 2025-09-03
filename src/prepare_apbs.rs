@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use ndarray::{Array1, ArrayView2};
-use crate::apbs_param::*;
+use crate::parameters::*;
 use crate::atom_property::AtomProperties;
 use crate::settings::Settings;
 
@@ -152,9 +152,9 @@ pub fn dim_apbs(file: &str, mol_index: i32, box_: [f64;6],
     let z_len = (max_z - min_z).max(0.1);
     let z_center = (max_z + min_z) / 2.0;
 
-    let c_x = x_len * cfac;
-    let c_y = y_len * cfac;
-    let c_z = z_len * cfac;
+    let c_x = x_len * cfac as f64;
+    let c_y = y_len * cfac as f64;
+    let c_z = z_len * cfac as f64;
     let f_x = (x_len + fadd).min(c_x);
     let f_y = (y_len + fadd).min(c_y);
     let f_z = (z_len + fadd).min(c_z);
