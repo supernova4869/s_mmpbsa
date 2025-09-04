@@ -63,12 +63,30 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
                 ndx.list_groups();
                 println!("Input receptor group num:");
                 receptor_grp = get_input_selection().ok();
+                // 处理输入，直到获得有效值或 None
+                while let Some(grp_num) = receptor_grp {
+                    if grp_num < ndx.groups.len() {
+                        break; // 输入有效，退出循环
+                    } else {
+                        println!("Error with group {} (maximum {}), input again", grp_num, ndx.groups.len() - 1);
+                        receptor_grp = get_input_selection().ok();
+                    }
+                }
             }
             Ok(2) => {
                 println!("Current groups:");
                 ndx.list_groups();
                 println!("Input ligand group num (directly enter for nothing):");
                 ligand_grp = get_input_selection().ok();
+                // 处理输入，直到获得有效值或 None
+                while let Some(grp_num) = ligand_grp {
+                    if grp_num < ndx.groups.len() {
+                        break; // 输入有效，退出循环
+                    } else {
+                        println!("Error with group {} (maximum {}), input again", grp_num, ndx.groups.len() - 1);
+                        ligand_grp = get_input_selection().ok();
+                    }
+                }
             }
             Ok(3) => {
                 println!("Input start time (in ns):");
