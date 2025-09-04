@@ -3,7 +3,6 @@ use colored::*;
 use ndarray::{Array1, Array3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::path::Path;
-use std::fs;
 use std::collections::BTreeSet;
 
 use crate::parameters::Config;
@@ -249,12 +248,11 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else {
         // pre-treat trajectory
-        let trj_mmpbsa = append_new_name(trj, "_trj.xtc", "_MMPBSA_"); // get trj output file name
+        let trj_mmpbsa = append_new_name(trj, ".xtc", "_MMPBSA_"); // get trj output file name
         let tpr_name = append_new_name(tpr_name, ".tpr", ""); // fuck the passed tpr name is dump
         
         // step 1: generate new index
         println!("Generating Index...");
-        // gmx make_ndx -f md.tpr -n index.idx -o md_trj_whole.xtc -pbc whole
         let ndx_whole = if let Some(ndx_lig) = &ndx_lig {
             Index::new(vec![
                 IndexGroup::new("Complex", &ndx_rec.union(&ndx_lig).cloned().collect()), 
@@ -266,23 +264,26 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 IndexGroup::new("Complex", &ndx_rec)
             ])
         };
-        let complex_ndx_name = append_new_name(ndx_name, "_complex.ndx", "_MMPBSA_");
-        ndx_whole.to_ndx(&wd.join(&complex_ndx_name));
+        let ndx_mmpbsa = append_new_name(ndx_name, ".ndx", "_MMPBSA_");
+        ndx_whole.to_ndx(&wd.join(&ndx_mmpbsa));
         
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...");
         // currently use smaller dt_ie
-        convert_trj(&vec![], wd, settings, &trj, &tpr_name, &complex_ndx_name, &trj_mmpbsa, 
-            &vec!["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex"]);
-        // trjconv(&vec!["Complex"], wd, settings, &trj, &tpr_name, &complex_ndx_name, &trj_mmpbsa, 
-        //     &vec!["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
+        if settings.fix_pbc {
+            convert_trj(&vec![], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex", "-rmpbc"]);
+        } else {
+            convert_trj(&vec![], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex"]);
+        }
+        // 生成初始结构方便查看
+        let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
+        trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
         // step 3: extract new tpr from old tpr
         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
-        convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &complex_ndx_name, &tpr_mmpbsa);
-        if !settings.debug_mode {
-            fs::remove_file(&complex_ndx_name).unwrap();
-        }
+        convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
         println!("Normalizing index...");
@@ -296,44 +297,10 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         // 需要处理一下atom_properties的id
         aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
         
-        // extract index file
-        let ndx_mmpbsa = if let Some(ndx_lig) = &ndx_lig {
-            Index::new(vec![
-                IndexGroup::new("Complex", &ndx_rec.union(&ndx_lig).cloned().collect()), 
-                IndexGroup::new("Receptor", &ndx_rec),
-                IndexGroup::new("Ligand", &ndx_lig)
-            ])
-        } else {
-            Index::new(vec![
-                IndexGroup::new("Complex", &ndx_rec)
-            ])
-        };
-        ndx_mmpbsa.to_ndx(wd.join("_MMPBSA_index.ndx"));
-        let ndx_mmpbsa = wd.join("_MMPBSA_index.ndx");
-        let ndx_mmpbsa = ndx_mmpbsa.to_str().unwrap();
-        // 在这里 remove pbc, convert-trj有bug, 不能处理不完整蛋白, 故先trjconv再convert-trj
+        // step 5: Read trajectory and get time and coordinate
         println!("Preparing trajectories for IE calculation...");
-        let time_box_info = if settings.fix_pbc {
-            // 先生成ie用的小dt轨迹(直接消pbc)
-            let trj_mmpbsa_pbc_ie = append_new_name(&trj, "_ie.xtc", "_MMPBSA_");
-            convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_pbc_ie, 
-                &vec!["-rmpbc", "-select", "Complex"]);
-            // 生成初始结构方便VMD查看
-            let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
-            trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa_pbc_ie, &tpr_mmpbsa, ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
-            
-            println!("Loading trajectory coordinates...");
-            read_xtc(&trj_mmpbsa_pbc_ie)
-        } else {
-            let trj_mmpbsa_ie = append_new_name(&trj, "_ie.xtc", "_MMPBSA_");
-            convert_trj(&vec![], wd, settings, &trj_mmpbsa, &tpr_mmpbsa, ndx_mmpbsa, &trj_mmpbsa_ie, &[]);
-            let init_struct = append_new_name(&trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
-            trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa_ie, &tpr_mmpbsa, ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
-            
-            println!("Loading trajectory coordinates...");
-            read_xtc(&trj_mmpbsa_ie)
-        };
-
+        println!("Loading trajectory coordinates...");
+        let time_box_info = read_xtc(&trj_mmpbsa);
         let (time_list_ie, coordinates_ie): (Vec<f64>, Vec<Vec<[f32; 3]>>) = time_box_info
             .par_iter()
             .map(|frame| (frame.0 as f64, frame.1.clone()))

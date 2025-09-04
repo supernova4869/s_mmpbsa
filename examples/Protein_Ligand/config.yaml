@@ -1,11 +1,11 @@
-mm_set:
-  cutoff: .inf
-  electric_screening: 0
-  radius_type: mBondi
-  radius_default: 1.5
+program_set:
   cfac: 3
   fadd: 10.0
   df: 0.5
+  radius_type: mBondi
+mm_set:
+  cutoff: .inf
+  electric_screening: 1
 pbe_set:
   temp: 298.15
   pdie: 2.0

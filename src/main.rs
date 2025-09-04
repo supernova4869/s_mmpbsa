@@ -48,7 +48,7 @@ struct Cli {
     template: bool,
     
     /// assign config file path
-    #[arg(short, long, value_name = "config.yaml", default_value = "config.yaml")]
+    #[arg(short, long, value_name = "config.yaml")]
     config: Option<String>,
     
     /// show version info
