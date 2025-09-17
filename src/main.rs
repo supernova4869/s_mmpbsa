@@ -192,7 +192,7 @@ fn welcome(version: &str, today: &str) {
         Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
         Version {}, first release: 2022-Oct-17, current release: {}\n", version, today);
     println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `s_mmpbsa Haibara_Ai.tpr` to load MD tpr file.\n");
+        Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.\n");
 }
 
 pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
