@@ -241,7 +241,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     } else {
         ndx_rec.len()
     };
-    const PARALLEL_THRESHOLD: usize = 10000;
+    const PARALLEL_THRESHOLD: usize = 100000;
     let use_parallal = total_iterations > PARALLEL_THRESHOLD;
     if use_parallal {
         println!("Since there are too many atoms (> {}), will ues parallel computation for MM.", PARALLEL_THRESHOLD);
@@ -289,7 +289,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         set_style(&pgb);
         pgb.inc(0);
         let calc_ie_per_frame = |frame: ArrayView2<f64>| {
-            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, use_parallal);
+            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, false);
             pgb.inc(1);
             pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
             de_elec.sum() + de_vdw.sum()
@@ -303,11 +303,11 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 } else {
                     calc_ie_per_frame(frame)
                 }).collect();
+        pgb.finish();
         Array1::from_vec(atoms_ie)
     } else {
         Array1::zeros(coordinates_ie.shape()[0])
     };
-    pgb.finish();
 
     // end calculation
     let t_end = Local::now();
