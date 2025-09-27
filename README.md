@@ -47,7 +47,7 @@ Although s_mmpbsa supports fixing PBC conditions to trajectory `_MMPBSA_[name].x
 ``` bash
 # Firstly, add s_mmpbsa folder to $PATH.
 # Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
-s_mmpbsa -i md.tpr
+s_mmpbsa -s md.tpr
 1 # load xtc file
 md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 2 # load ndx file
