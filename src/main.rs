@@ -35,9 +35,17 @@ use crate::parameters::Config;
 #[command(name = "s_mmpbsa")]
 #[command(disable_version_flag = true)]
 struct Cli {
+    /// input xtc file path
+    #[arg(short = 'f', long, value_name = "md.xtc", default_value = None)]
+    xtc: Option<String>,
+
     /// input tpr file path
     #[arg(short = 's', long, value_name = "md.tpr", default_value = None)]
     tpr: Option<String>,
+
+    /// input ndx file path
+    #[arg(short = 'n', long, value_name = "index.ndx", default_value = None)]
+    ndx: Option<String>,
     
     /// enter analyzation mode
     #[arg(short, long)]
@@ -58,7 +66,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2025-Sep-04";
+    let compile_date = "2025-Sep-27";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -148,6 +156,9 @@ fn main() {
         }
         input
     };
+
+    let trj = cli.xtc;
+    let ndx = cli.ndx;
     
     // Config file
     let config = if cli.config.is_some() {
@@ -169,10 +180,10 @@ fn main() {
         None
     };
     if Path::new(&tpr).is_file() {
-        let in_file = confirm_file_validity(&tpr, vec!["tpr"], &tpr);
-        change_settings_last_opened(&mut settings, &in_file);
-        let in_file = get_dump(&in_file, &settings);
-        fun_para_basic::set_para_basic_tpr(&in_file, &config, &Path::new(&in_file).parent().unwrap(), &mut settings);
+        let tpr = confirm_file_validity(&tpr, vec!["tpr"], &tpr);
+        change_settings_last_opened(&mut settings, &tpr);
+        let tpr = get_dump(&tpr, &settings);
+        fun_para_basic::set_para_basic_tpr(&tpr, &trj, &ndx, &config, &Path::new(&tpr).parent().unwrap(), &mut settings);
     } else {
         println!("Input {} not file. Please check.", Path::new(&tpr).to_str().unwrap());
         println!("Press ENTER to exit.");

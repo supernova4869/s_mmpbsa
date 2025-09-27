@@ -69,9 +69,10 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
     }
 }
 
-pub fn set_para_basic_tpr(tpr_path: &String, config: &Option<Config>, wd: &Path, settings: &mut Settings) {
-    let mut trj = String::new();
-    let mut ndx = String::new();
+pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path: &Option<String>, 
+                            config: &Option<Config>, wd: &Path, settings: &mut Settings) {
+    let mut trj = trj_path.clone().unwrap_or(String::new());
+    let mut ndx = ndx_path.clone().unwrap_or(String::new());
     let mut tpr = TPR::from(&tpr_path);
     println!("\nFinished loading input file.");
 
