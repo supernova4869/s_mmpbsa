@@ -293,7 +293,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex", "-rmpbc"]);
         } else {
             convert_trj(&vec![], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
-                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex"]);
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex", "-normpbc"]);
         }
         // 生成初始结构方便查看
         let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name

@@ -292,7 +292,7 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
     println!("ΔG: {:.3} kJ/mol", dg);
     println!("Ki: {:.9e} nM", ki);
 
-    let def_name = format!("MMPBSA_{}.csv", sys_name);
+    let def_name = format!("MMPBSA_{}({}-{}ns).csv", sys_name, results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]);
     println!("Writing binding energy terms...");
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
     write!(energy_sum, "Energy Term,value,std.P,info ({}-{} ns)\n", results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]).unwrap();
