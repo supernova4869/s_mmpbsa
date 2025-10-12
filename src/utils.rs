@@ -91,23 +91,17 @@ pub fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[
 
 pub fn convert_tpr(options: &Vec<&str>, wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o, "-quiet"];
-    println!("\x1b[90m");   // turn gray
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-    println!("\x1b[0m");   // reset
 }
 
 pub fn convert_trj(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let args: Vec<&str> = ["convert-trj", "-f", f, "-s", s, "-n", n, "-o", o, "-quiet"].iter().chain(others.iter()).cloned().collect();
-    println!("\x1b[90m");   // turn gray
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-    println!("\x1b[0m");   // reset
 }
 
 pub fn trjconv(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o, "-quiet"].iter().chain(others.iter()).cloned().collect();
-    println!("\x1b[90m");   // turn gray
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-    println!("\x1b[0m");   // reset
 }
 
 pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n: &str, o: &str) {
@@ -115,9 +109,7 @@ pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n:
         true => ["make_ndx", "-f", f, "-o", o, "-quiet"].to_vec(),
         false => ["make_ndx", "-f", f, "-n", n, "-o", o, "-quiet"].to_vec()
     };
-    println!("\x1b[90m");   // turn gray
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-    println!("\x1b[0m");   // reset
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {

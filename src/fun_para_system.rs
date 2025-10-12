@@ -286,7 +286,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         ndx_whole.to_ndx(&wd.join(&ndx_mmpbsa));
         
         // step 2: extract new trj with old tpr and new index
-        println!("Extracting trajectory, be patient...");
+        println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
         if settings.fix_pbc {
             convert_trj(&vec![], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
@@ -304,7 +304,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
-        println!("Normalizing index...");
+        println!("\x1b[0mNormalizing index...");   // turn white
         let ndx_lig = match ligand_grp {
             Some(ligand_grp) => Some(ndx.groups[ligand_grp].indexes.clone()),
             None => None
