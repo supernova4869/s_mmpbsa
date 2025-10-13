@@ -65,7 +65,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         match i {
             Ok(-10) => return,
             Ok(-1) => {
-                let mut paras = File::create(wd.join("paras_atom_properties.txt")).unwrap();
+                let mut paras = File::create(wd.join("_paras_atom_properties.txt")).unwrap();
                 paras.write_all(format!("Receptor group: {}\n", 
                     ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
                 match ligand_grp {
@@ -83,10 +83,10 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
                         ap.id, ap.name, ap.type_id, ap.charge, ap.radius, ap.resid + 1, ap.resname).as_bytes()).unwrap();
                 }
-                println!("Structural parameters have been written to paras_atom_properties.txt");
+                println!("Structural parameters have been written to _paras_atom_properties.txt");
             }
             Ok(-2) => {
-                let mut paras = File::create(wd.join("paras_LJ.txt")).unwrap();
+                let mut paras = File::create(wd.join("_paras_LJ.txt")).unwrap();
                 paras.write_all("c6:\n".as_bytes()).unwrap();
                 for i in 0..aps.c6.shape()[0] {
                     for j in 0..aps.c6.shape()[1] {
@@ -101,13 +101,13 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     }
                     paras.write_all("\n".as_bytes()).unwrap();
                 }
-                println!("Forcefield parameters have been written to paras_LJ.txt");
+                println!("Forcefield parameters have been written to _paras_LJ.txt");
             }
             Ok(-3) => {
                 if let Some(config) = config {
-                    config.save("paras_pbsa.txt");
+                    config.save("_paras_pbsa.txt");
                 } else {
-                    let mut paras = File::create(wd.join("paras_pbsa.txt")).unwrap();
+                    let mut paras = File::create(wd.join("_paras_pbsa.txt")).unwrap();
                     paras.write_all(format!("Electrostatic screening method: {}\n", settings.elec_screen).as_bytes()).unwrap();
                     paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                     paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
@@ -117,7 +117,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     paras.write_all(format!("PB settings:\n{}\n\n", pbe_set).as_bytes()).unwrap();
                     paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
                 }
-                println!("PBSA parameters have been written to paras_pbsa.txt");
+                println!("PBSA parameters have been written to _paras_pbsa.txt");
             }
             Ok(0) => {
                 // Apply atom radius

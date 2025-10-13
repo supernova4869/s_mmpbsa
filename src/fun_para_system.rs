@@ -26,6 +26,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
     let mut et: f64 = f64::INFINITY;                        // ps
     let mut dt = 1000.0;                               // ps
     let mut ie_multi = 10;                             // multipli
+    println!("Reading {} file...", ndx_name);
     let ndx = Index::from(ndx_name);
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
@@ -161,8 +162,8 @@ pub fn get_residues_tpr(tpr: &TPR, ndx_com: &BTreeSet<usize>) -> Vec<Residue> {
     let mut idx = 0;
     let mut resind_offset = 0;
     
-    for mol in &tpr.molecules {
-        let mol_type = &tpr.molecule_types[mol.molecule_type_id];
+    for mol in &tpr.molecule_types {
+        let mol_type = &tpr.molecule_blocks[mol.molecule_type_id];
         for _ in 0..mol_type.molecules_num {
             for atom in &mol.atoms {
                 idx += 1;
@@ -295,16 +296,14 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             convert_trj(&vec![], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
                 &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex", "-normpbc"]);
         }
-        // 生成初始结构方便查看
-        let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
-        trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
         // step 3: extract new tpr from old tpr
         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
         convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
-        println!("\x1b[0mNormalizing index...");   // turn white
+        // must normalize index here after trajectory extracion, or the traj may contain less atoms
+        println!("\x1b[0mNormalizing index...\x1b[90m");   // turn white
         let ndx_lig = match ligand_grp {
             Some(ligand_grp) => Some(ndx.groups[ligand_grp].indexes.clone()),
             None => None
@@ -312,11 +311,28 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         let (ndx_rec, ndx_lig) = 
             normalize_index(&ndx.groups[receptor_grp].indexes, &ndx_lig);
 
+        let ndx_whole = if let Some(ndx_lig) = &ndx_lig {
+            Index::new(vec![
+                IndexGroup::new("Complex", &ndx_rec.union(&ndx_lig).cloned().collect()), 
+                IndexGroup::new("Receptor", &ndx_rec),
+                IndexGroup::new("Ligand", &ndx_lig)
+            ])
+        } else {
+            Index::new(vec![
+                IndexGroup::new("Complex", &ndx_rec)
+            ])
+        };
+        ndx_whole.to_ndx(&wd.join(&ndx_mmpbsa));
+        
         // 需要处理一下atom_properties的id
         aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
         
+        // 生成初始结构方便查看
+        let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
+        trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
+        
         // step 5: Read trajectory and get time and coordinate
-        println!("Preparing trajectories for IE calculation...");
+        println!("\x1b[0mPreparing trajectories for IE calculation...");
         println!("Loading trajectory coordinates...");
         let time_box_info = read_xtc(&trj_mmpbsa);
         let (time_list_ie, coordinates_ie): (Vec<f64>, Vec<Vec<[f32; 3]>>) = time_box_info

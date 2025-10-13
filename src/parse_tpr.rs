@@ -33,21 +33,20 @@ static RE_RESIDUE_COUNT: Lazy<Regex> = Lazy::new(|| Regex::new(r"residue \((\d+)
 pub struct TPR {
     pub name: String,
     pub n_atoms: usize,
-    pub molecule_types_num: usize,
-    pub molecule_types: Vec<MolType>,
+    pub molecule_blocks_num: usize,
+    pub molecule_blocks: Vec<MolBlock>,
     pub atom_types_num: usize,
     pub lj_sr_params: Vec<LJType>,
-    pub molecules: Vec<Molecule>,
+    pub molecule_types: Vec<MoleculeType>,
     pub temp: f64,
     pub coordinates: Array2<f64>,
 }
 
 impl fmt::Display for TPR {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}, with\n{} atoms,\n{} type(s) of molecules,\n{} atom types,\n{} LJ types,\n{}x{} coordinate",
-               self.name, self.n_atoms, self.molecule_types_num,
-               self.atom_types_num, self.lj_sr_params.len(), 
-               self.coordinates.shape()[0], self.coordinates.shape()[1]
+        write!(f, "{}, with\n{} atoms,\n{} molecule blocks, \n{} molecule types, \n{} atom types,\n{} LJ types",
+               self.name, self.n_atoms, self.molecule_blocks_num, self.molecule_types.len(),
+               self.atom_types_num, self.lj_sr_params.len()
         )
     }
 }
@@ -56,9 +55,9 @@ impl TPR {
     pub fn from(mdp: &str) -> TPR {
         let mut name = String::new();
         let mut atoms_num = 0;
-        let mut molecule_types_num = 0;
+        let mut molecule_blocks_num = 0;
         let mut atom_types_num = 0;
-        let mut molecule_types: Vec<MolType> = Vec::new();
+        let mut molecule_blocks: Vec<MolBlock> = Vec::new();
 
         // 使用BufReader高效读取文件
         let file = File::open(mdp).unwrap();
@@ -78,7 +77,7 @@ impl TPR {
         let mut atom_names: Vec<String> = Vec::new();
         let mut type_names: Vec<String> = Vec::new();
         let mut coordinates: Vec<f64> = Vec::new();
-        let mut molecules: Vec<Molecule> = Vec::new();
+        let mut molecule_types: Vec<MoleculeType> = Vec::new();
 
         // 模拟时间参数
         let mut temperature = 0.0;
@@ -94,13 +93,13 @@ impl TPR {
                 process_ref_t(line, &mut temperature);
             } else if line.starts_with("topology:") {
                 process_topology(&mut reader, &mut buf, &mut name, &mut atoms_num, 
-                            &mut molecule_types_num, &mut molecule_types);
+                            &mut molecule_blocks_num, &mut molecule_blocks);
             } else if line.starts_with("ffparams:") {
                 process_ffparams(&mut reader, &mut buf, &mut atom_types_num, 
                             &mut fun_type, &mut sigma, &mut epsilon, 
                             &mut radius);
             } else if line.starts_with("moltype (") {
-                process_moltype(&mut reader, &mut buf, &mut molecules, 
+                process_moltype(&mut reader, &mut buf, &mut molecule_types, 
                             &mut atom_resids, &mut atom_types, &mut atom_radii,
                             &mut atom_charges, &mut atom_names, &mut type_names,
                             &radius);
@@ -121,34 +120,34 @@ impl TPR {
         }
         writer.flush().unwrap();
 
-        println!("System molecular composition:");
-        for mol in &molecules {
-            println!("Molecule {}: {}", mol.molecule_type_id, mol);
+        println!("System molecular types:");
+        for mol in &molecule_types {
+            println!("Molecule type {}: {}", mol.molecule_type_id, mol);
         }
 
         TPR {
             name,
             n_atoms: atoms_num,
-            molecule_types_num,
-            molecule_types,
+            molecule_blocks_num,
+            molecule_blocks,
             atom_types_num,
             lj_sr_params: fun_type,
-            molecules,
+            molecule_types,
             temp: temperature,
             coordinates: Array2::from_shape_vec((atoms_num, 3), coordinates).unwrap()
         }
     }
 }
 
-pub struct MolType {
+pub struct MolBlock {
     pub id: usize,
     pub name: String,
     pub molecules_num: i64,
 }
 
-impl MolType {
-    fn new(id: usize, name: String, molecules_num: i64) -> MolType {
-        MolType {
+impl MolBlock {
+    fn new(id: usize, name: String, molecules_num: i64) -> MolBlock {
+        MolBlock {
             id,
             name,
             molecules_num,
@@ -156,9 +155,9 @@ impl MolType {
     }
 }
 
-impl fmt::Display for MolType {
+impl fmt::Display for MolBlock {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Molecule type {}: {}, #{} in the system", self.id, self.name, self.molecules_num)
+        write!(f, "Molecule block {}: {}, #{} in system", self.id, self.name, self.molecules_num)
     }
 }
 
@@ -176,7 +175,7 @@ impl LJType {
     }
 }
 
-pub struct Molecule {
+pub struct MoleculeType {
     pub molecule_type_id: usize,
     pub molecule_name: String,
     pub atoms_num: usize,
@@ -184,10 +183,10 @@ pub struct Molecule {
     pub residues: Vec<Residue>,
 }
 
-impl Molecule {
+impl MoleculeType {
     fn new(molecule_type_id: usize, molecule_name: String, atoms_num: usize,
-           atoms: &Vec<Atom>, residues: &Vec<Residue>) -> Molecule {
-        Molecule {
+           atoms: &Vec<Atom>, residues: &Vec<Residue>) -> MoleculeType {
+        MoleculeType {
             molecule_type_id,
             molecule_name,
             atoms_num,
@@ -197,7 +196,7 @@ impl Molecule {
     }
 }
 
-impl fmt::Display for Molecule {
+impl fmt::Display for MoleculeType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Molecule {}, with {} atoms, {} residues",
                self.molecule_name, self.atoms_num, self.residues.len())
@@ -284,8 +283,8 @@ fn process_topology<R: BufRead>(
     buf: &mut String, 
     name: &mut String, 
     atoms_num: &mut usize, 
-    molecule_types_num: &mut usize, 
-    molecule_types: &mut Vec<MolType>
+    molecule_blocks_num: &mut usize, 
+    molecule_blocks: &mut Vec<MolBlock>
 ) {
     // name
     read_line(reader, buf);
@@ -301,14 +300,14 @@ fn process_topology<R: BufRead>(
     }
     println!("Total atoms number: {}", atoms_num);
 
-    // molecule types num
+    // molecule blocks num
     read_line(reader, buf);
     if let Some(caps) = RE_MOLBLOCK.captures(&buf) {
-        *molecule_types_num = caps[1].trim().parse().unwrap();
+        *molecule_blocks_num = caps[1].trim().parse().unwrap();
     }
 
-    println!("System molecular types:");
-    for mt_id in 0..*molecule_types_num {
+    println!("System molecular blocks:");
+    for mt_id in 0..*molecule_blocks_num {
         loop {
             read_line(reader, buf);
             if buf.trim().starts_with("molblock (") {
@@ -318,9 +317,9 @@ fn process_topology<R: BufRead>(
                     read_line(reader, buf);
                     if let Some(caps) = RE_MOLECULES_NUM.captures(&buf) {
                         let molecules_num: i64 = caps[1].parse().unwrap();
-                        let moltype = MolType::new(mt_id, mol_name, molecules_num);
+                        let moltype = MolBlock::new(mt_id, mol_name, molecules_num);
                         println!("{}", moltype);
-                        molecule_types.push(moltype);
+                        molecule_blocks.push(moltype);
                         break;
                     }
                 }
@@ -383,7 +382,7 @@ fn process_ffparams<R: BufRead>(
 fn process_moltype<R: BufRead>(
     reader: &mut R, 
     buf: &mut String, 
-    molecules: &mut Vec<Molecule>, 
+    molecule_types: &mut Vec<MoleculeType>, 
     atom_resids: &mut Vec<usize>, 
     atom_types: &mut Vec<usize>, 
     atom_radii: &mut Vec<f64>, 
@@ -394,11 +393,11 @@ fn process_moltype<R: BufRead>(
 ) {
     let mut atoms: Vec<Atom> = Vec::new();
     let mut residues: Vec<Residue> = Vec::new();
-    let offset: usize = molecules.iter().map(|p| p.atoms_num).sum();
+    let offset: usize = molecule_types.iter().map(|p| p.atoms_num).sum();
 
     if let Some(caps) = RE_MOLTYPE_ID.captures(&buf) {
         let molecule_type_id: usize = caps[1].parse().unwrap();
-        println!("Reading molecule {} information...", molecule_type_id);
+        println!("Reading molecule type {} information...", molecule_type_id);
         
         read_line(reader, buf);
         let molecule_name = if let Some(caps) = RE_NAME.captures(&buf) {
@@ -523,7 +522,7 @@ fn process_moltype<R: BufRead>(
             ));
         }
 
-        molecules.push(Molecule::new(molecule_type_id, molecule_name, atoms_num, &atoms, &residues));
+        molecule_types.push(MoleculeType::new(molecule_type_id, molecule_name, atoms_num, &atoms, &residues));
     }
 }
 

@@ -48,9 +48,14 @@ pub fn get_radii(radii_table: &HashMap<String, f64>, at_type: &str) -> f64 {
 impl TPR {
     pub fn get_at_list(&self) -> Vec<String> {
         let mut atom_radius: Vec<String> = vec![];
-        for mol in &self.molecules {
-            for _ in 0..self.molecule_types[mol.molecule_type_id].molecules_num {
-                for atom in &mol.atoms {
+        for mol in &self.molecule_blocks {
+            let mol_type = self.molecule_types.iter().find_map(|mt| if mt.molecule_name.eq(&mol.name) {
+                Some(mt)
+            } else {
+                None
+            }).unwrap();
+            for _ in 0..mol.molecules_num {
+                for atom in &mol_type.atoms {
                     let at = atom.name.to_uppercase();
                     atom_radius.push(at);
                 }

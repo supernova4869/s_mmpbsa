@@ -74,7 +74,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path
     let mut trj = trj_path.clone().unwrap_or(String::new());
     let mut ndx = ndx_path.clone().unwrap_or(String::new());
     let mut tpr = TPR::from(&tpr_path);
-    println!("\nFinished loading input file.");
+    println!("\nFinished loading tpr file: {}", tpr);
 
     loop {
         println!("\n                 ************ MM/PB-SA Files ************");
