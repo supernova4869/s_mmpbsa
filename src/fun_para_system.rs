@@ -91,40 +91,40 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             }
             Ok(3) => {
                 println!("Input start time (in ns):");
-                let mut new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
+                let mut new_bt = get_input_selection::<f64>().unwrap_or(0.0) * 1000.0;
                 while new_bt < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_bt / 1000.0);
                     println!("Input start time (in ns) again:");
-                    new_bt = get_input_selection::<f64>().unwrap() * 1000.0;
+                    new_bt = get_input_selection::<f64>().unwrap_or(0.0) * 1000.0;
                 }
                 bt = new_bt;
             }
             Ok(4) => {
                 println!("Input end time (in ns):");
-                let mut new_et = get_input_selection::<f64>().unwrap() * 1000.0;
+                let mut new_et = get_input_selection::<f64>().unwrap_or(f64::INFINITY) * 1000.0;
                 while new_et < 0.0 {
                     println!("The input {} ns not a valid time in trajectory.", new_et / 1000.0);
                     println!("Input end time (in ns) again:");
-                    new_et = get_input_selection::<f64>().unwrap() * 1000.0;
+                    new_et = get_input_selection::<f64>().unwrap_or(f64::INFINITY) * 1000.0;
                 }
                 et = new_et;
             }
             Ok(5) => {
                 println!("Input interval time (in ns) for MM/PB-SA:");
-                let mut new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
+                let mut new_dt = get_input_selection::<f64>().unwrap_or(1.0) * 1000.0;
                 while new_dt < 0.0 {
                     println!("The input {} ns is not a valid interval time.", new_dt / 1000.0);
                     println!("Input interval time (in ns) again:");
-                    new_dt = get_input_selection::<f64>().unwrap() * 1000.0;
+                    new_dt = get_input_selection::<f64>().unwrap_or(1.0) * 1000.0;
                 }
                 dt = new_dt;
             }
             Ok(6) => {
                 println!("Input interpolation multiplier (positive integer) for IE:");
-                let mut new_ie_multi = get_input_selection::<usize>().unwrap();
+                let mut new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
                 while new_ie_multi <= 0 {
                     println!("Must be positive integer, input again:");
-                    new_ie_multi = get_input_selection::<usize>().unwrap();
+                    new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
                 }
                 ie_multi = new_ie_multi;
             }

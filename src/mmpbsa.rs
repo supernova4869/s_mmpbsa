@@ -244,7 +244,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     const PARALLEL_THRESHOLD: usize = 100000;
     let use_parallal = total_iterations > PARALLEL_THRESHOLD;
     if use_parallal {
-        println!("Since there are too many atoms (> {}), will use parallel computation for MM.", PARALLEL_THRESHOLD);
+        println!("Since there are too many atom pairs (> {}), will use parallel computation for MM.", PARALLEL_THRESHOLD);
     }
 
     let t_start = Local::now();
