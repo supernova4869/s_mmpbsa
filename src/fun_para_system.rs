@@ -15,7 +15,7 @@ use crate::parse_ndx::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
-use crate::utils::{convert_tpr, convert_trj, trjconv};
+use crate::utils::{convert_tpr, trjconv};
 use crate::read_xtc::read_xtc;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Option<Config>, 
@@ -290,11 +290,11 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
         if settings.fix_pbc {
-            convert_trj(&vec![], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
-                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex", "-rmpbc"]);
+            trjconv(&vec!["Complex", "Complex", "Complex"], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
         } else {
-            convert_trj(&vec![], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
-                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-select", "Complex", "-normpbc"]);
+            trjconv(&vec!["Complex"], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
         }
         
         // step 3: extract new tpr from old tpr
