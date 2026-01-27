@@ -141,6 +141,15 @@ pub fn resname_3to1(name: &str) -> Option<String> {
     }
 }
 
+pub fn is_amino(name: &str) -> bool {
+    name.eq("CYS") || name.eq("ASP") || name.eq("GLU") 
+        || name.eq("PHE") || name.eq("HIS") || name.eq("ILE")
+        || name.eq("LYS") || name.eq("LEU") || name.eq("MET") 
+        || name.eq("ASN") || name.eq("PRO") || name.eq("GLN")
+        || name.eq("ARG") || name.eq("SER") || name.eq("THR")
+        || name.eq("VAL") || name.eq("TRP") || name.eq("TYR")
+}
+
 pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &BTreeSet<usize>, cutoff: f64, 
         atom_res: &Vec<usize>, atom_names: &Vec<String>, residues: &Vec<Residue>) -> Vec<usize> {
     let mut res_range: Vec<usize> = vec![];

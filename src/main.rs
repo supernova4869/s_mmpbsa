@@ -67,7 +67,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2025.01.27";
+    let compile_date = "2025.01.28";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -95,32 +95,29 @@ fn main() {
     // Analyzation mode
     if cli.analyze.is_some() {
         let sm_path = cli.analyze.unwrap();
-        let sm = Path::new(&sm_path);
-        let wd = Path::new(&sm_path).parent().unwrap();
+        let sm = fs::canonicalize(Path::new(&sm_path)).unwrap();
+        let wd = Path::new(&sm).parent().unwrap();
         let sm = sm.file_name().unwrap().to_str().unwrap();
         let name_stems: Vec<&str> = sm.split("_").collect();
         let sys_name = name_stems[2];
         println!("Loading MM-PBSA results...");
         let result_wt = SMResult::from(&sm_path);
-        let result_as: Vec<SMResult> = fs::read_dir(&wd)
-            .ok()
-            .into_iter()
-            .flatten()  // 将 Option<ReadDir> 转换为 ReadDir 的迭代器
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| path.extension() == Some(OsStr::new("sm")))
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .map_or(false, |name| {
-                        name.starts_with(&format!("_MMPBSA_{}", sys_name)) 
-                            && !name.ends_with("_WT.sm")
+        let result_as: Vec<SMResult> = fs::read_dir(&wd).unwrap()
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension() == Some(OsStr::new("sm")))
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map_or(false, |n| {
+                        n.starts_with(&format!("_MMPBSA_{}", sys_name)) && !n.ends_with("_WT.sm")
                     })
             })
-            .filter_map(|path| path.to_str().map(SMResult::from))
+            .filter_map(|p| p.to_str().map(SMResult::from))
             .collect();
 
-        println!("Found {} mutations of {}, collecting them.", result_as.len(), sys_name);
+        if !result_as.is_empty() {
+            println!("Found {} mutations of {}, collecting them.", result_as.len(), sys_name);
+        }
         analyzation::analyze_controller(&result_wt, &result_as, &sys_name.to_string(), &wd, &settings);
     };
 

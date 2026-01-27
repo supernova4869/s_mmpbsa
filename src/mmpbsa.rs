@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use crate::fun_para_system::normalize_index;
 use crate::settings::Settings;
-use crate::utils;
+use crate::utils::{self, is_amino};
 use ndarray::parallel::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
 use std::process::Command;
@@ -27,7 +27,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     println!("Running MM-PBSA calculations of {}...", sys_name);
     if ala_list.len() > 0 {
         let as_res: Vec<String> = residues.iter().filter_map(
-            |r| if ala_list.contains(&r.nr) && r.name.ne("GLY") && r.name.ne("ALA") {
+            |r| if ala_list.contains(&r.nr) && is_amino(&r.name) {
                 match utils::resname_3to1(&r.name) {
                     Some(mutation) => Some(format!("{}{}A", mutation, r.nr)),
                     None => Some(format!("{}{}A", r.name.to_string(), r.nr))
@@ -49,7 +49,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     if ala_list.len() > 0 {
         // main chain atoms number
         let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
-            && r.name.ne("GLY") && r.name.ne("ALA")).collect();     // gly not contain CB, ala no need to mutate
+            && is_amino(&r.name)).collect();     // gly not contain CB, ala no need to mutate
         let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
         for asr in as_res {
             // let (new_coordinates, new_aps, new_ndx_rec, new_ndx_lig) = 
@@ -67,12 +67,12 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
             new_residues[asr.id].name = "ALA".to_string();
 
             let mutation = format!("{}{}A", mutation, asr.nr);
-            let sys_name = format!("{}-{}", sys_name, mutation);
+            let sys_name = format!("{}_{}", sys_name, mutation);
             println!("Calculating binding energy for {}...", sys_name);
             let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates_ie,
                 &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues, temperature,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
-            result_as.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, mutation).as_str()));
+            result_as.to_bin(&wd.join(format!("_MMPBSA_{}.sm", sys_name).as_str()));
             result_ala_scan.push(result_as);
         }
     };

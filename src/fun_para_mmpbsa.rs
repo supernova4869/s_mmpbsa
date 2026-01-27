@@ -165,12 +165,14 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             Ok(2) => {
                 if let Some(ndx_lig) = ndx_lig {
                     println!("Select the residues for alanine scanning:");
-                    println!(" 1 Select the residues within the first layer (0-4 A)");
-                    println!(" 2 Select the residues within the second layer (4-6 A)");
-                    println!(" 3 Select the residues within the third layer (6-8 A)");
-                    println!(" 4 Select the residues within specific distance");
-                    println!(" 5 Directly input the resudues list");
-                    let i: i32 = get_input_selection().unwrap();
+                    println!("-1 Clear residues list");
+                    println!(" 0 Return");
+                    println!(" 1 Select residues within the first layer (0-4 A)");
+                    println!(" 2 Select residues within the second layer (4-6 A)");
+                    println!(" 3 Select residues within the third layer (6-8 A)");
+                    println!(" 4 Select residues within specific distance");
+                    println!(" 5 Directly input residues list");
+                    let i = get_input_selection();
                     let receptor_res: Vec<Residue> = residues.iter()
                         .filter(|r| ndx_rec.contains(&r.id))
                         .cloned()
@@ -178,12 +180,14 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
                     let atom_names = &aps.atom_props.iter().map(|a| a.name.to_string()).collect();
                     match i {
-                        1 => {
+                        Ok(-1) => ala_list.clear(),
+                        Ok(0) => {},
+                        Ok(1) => {
                             let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
                                 &atom_res, &atom_names, &receptor_res);
                             ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
                         },
-                        2 => {
+                        Ok(2) => {
                             let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
                                 &atom_res, &atom_names, &receptor_res);
                             let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 4.0, 
@@ -194,7 +198,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                                 None
                             } ).collect();
                         },
-                        3 => {
+                        Ok(3) => {
                             let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 8.0, 
                                 &atom_res, &atom_names, &receptor_res);
                             let inner_rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, 6.0, 
@@ -205,14 +209,14 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                                 None
                             } ).collect();
                         },
-                        4 => {
+                        Ok(4) => {
                             println!("Input the cut-off distance you want to expand from ligand, default: 4 A");
                             let cutoff = get_input(4.0);
                             let rs = get_residue_range_ca(&tpr.coordinates, ndx_lig, cutoff, 
                                 &atom_res, &atom_names, &receptor_res);
                             ala_list = rs.iter().filter_map(|&i| Some(residues[i].nr)).collect();
                         },
-                        5 => {
+                        Ok(5) => {
                             println!("Input the residues list for alanine scanning:");
                             let rs = get_input("".to_string());
                             ala_list = utils::range2list(rs.as_str());
@@ -220,7 +224,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                         _ => {}
                     }
                 } else {
-                    println!("No ligand selected.");
+                    println!("No ligand.");
                 }
             }
             Ok(3) => {
