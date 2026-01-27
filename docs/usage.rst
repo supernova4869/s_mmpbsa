@@ -24,8 +24,8 @@ s_mmpbsa's interactive command line interface is divided into the following main
 
 1. **File loading**: Load tpr, xtc and ndx files
 2. **Trajectory parameter setting**: Set receptor, ligand groups, time interval, etc.
-3. **MM/PB-SA parameter setting**: Set various parameters related to calculation
-4. **Calculation execution**: Execute MM/PB-SA calculation
+3. **MM-PBSA parameter setting**: Set various parameters related to calculation
+4. **Calculation execution**: Execute MM-PBSA calculation
 5. **Result analysis**: Analyze and visualize calculation results
 
 The operation methods and parameter settings of each part are described in detail below.
@@ -95,10 +95,10 @@ Example operations for setting trajectory parameters:
    # Proceed to next step
    0
 
-MM/PB-SA Parameter Setting
+MM-PBSA Parameter Setting
 --------------
 
-Next, set the relevant parameters for MM/PB-SA calculation. s_mmpbsa provides multiple parameter setting options:
+Next, set the relevant parameters for MM-PBSA calculation. s_mmpbsa provides multiple parameter setting options:
 
 .. code-block:: bash
    
@@ -197,7 +197,7 @@ In the SA parameter setting submenu, you can set the following parameters:
 Executing Calculation
 --------
 
-After setting up, start executing the MM/PB-SA calculation. Before calculation, you need to input the system name:
+After setting up, start executing the MM-PBSA calculation. Before calculation, you need to input the system name:
 
 .. code-block:: bash
    

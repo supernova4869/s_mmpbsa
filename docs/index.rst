@@ -1,7 +1,7 @@
 Welcome to s_mmpbsa Documentation
 ======================
 
-**s_mmpbsa** is an efficient tool for calculating biomolecular binding free energy, specifically designed for analyzing Gromacs trajectories using the Molecular Mechanics Poisson-Boltzmann Surface Area (MM/PB-SA) method.
+**s_mmpbsa** is an efficient tool for calculating biomolecular binding free energy, specifically designed for analyzing Gromacs trajectories using the Molecular Mechanics Poisson-Boltzmann Surface Area (MM-PBSA) method.
 
 .. toctree::
    :maxdepth: 2

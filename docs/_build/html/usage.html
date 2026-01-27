@@ -77,7 +77,7 @@
               <p class="caption" role="heading"><span class="caption-text">Content Overview</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#introduction-to-mm-pb-sa-method">Introduction to MM/PB-SA Method</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#introduction-to-mm-pb-sa-method">Introduction to MM-PBSA Method</a></li>
 <li class="toctree-l2"><a class="reference internal" href="introduction.html#why-choose-s-mmpbsa">Why Choose s_mmpbsa?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="introduction.html#s-mmpbsa-s-basic-workflow">s_mmpbsa’s Basic Workflow</a></li>
 <li class="toctree-l2"><a class="reference internal" href="introduction.html#application-scenarios">Application Scenarios</a></li>
@@ -101,7 +101,7 @@
 <li class="toctree-l2"><a class="reference internal" href="quick_start.html#basic-workflow">Basic Workflow</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quick_start.html#loading-input-files">Loading Input Files</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quick_start.html#setting-trajectory-parameters">Setting Trajectory Parameters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quick_start.html#setting-mm-pb-sa-parameters">Setting MM/PB-SA Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick_start.html#setting-mm-pb-sa-parameters">Setting MM-PBSA Parameters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quick_start.html#executing-calculation">Executing Calculation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quick_start.html#analyzing-results">Analyzing Results</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quick_start.html#using-analysis-mode">Using Analysis Mode</a></li>
@@ -115,7 +115,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#interactive-command-line-interface">Interactive Command Line Interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#file-loading">File Loading</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#trajectory-parameter-setting">Trajectory Parameter Setting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#mm-pb-sa-parameter-setting">MM/PB-SA Parameter Setting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#mm-pb-sa-parameter-setting">MM-PBSA Parameter Setting</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#pb-parameter-setting">PB Parameter Setting</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#sa-parameter-setting">SA Parameter Setting</a></li>
 </ul>
@@ -197,8 +197,8 @@ s_mmpbsa<span class="w"> </span><span class="o">[</span>options<span class="o">]
 <ol class="arabic simple">
 <li><p><strong>File loading</strong>: Load tpr, xtc and ndx files</p></li>
 <li><p><strong>Trajectory parameter setting</strong>: Set receptor, ligand groups, time interval, etc.</p></li>
-<li><p><strong>MM/PB-SA parameter setting</strong>: Set various parameters related to calculation</p></li>
-<li><p><strong>Calculation execution</strong>: Execute MM/PB-SA calculation</p></li>
+<li><p><strong>MM-PBSA parameter setting</strong>: Set various parameters related to calculation</p></li>
+<li><p><strong>Calculation execution</strong>: Execute MM-PBSA calculation</p></li>
 <li><p><strong>Result analysis</strong>: Analyze and visualize calculation results</p></li>
 </ol>
 <p>The operation methods and parameter settings of each part are described in detail below.</p>
@@ -265,8 +265,8 @@ index.ndx<span class="w">  </span><span class="c1"># Input ndx file path, press 
 </div>
 </section>
 <section id="mm-pb-sa-parameter-setting">
-<h2>MM/PB-SA Parameter Setting<a class="headerlink" href="#mm-pb-sa-parameter-setting" title="Link to this heading"></a></h2>
-<p>Next, set the relevant parameters for MM/PB-SA calculation. s_mmpbsa provides multiple parameter setting options:</p>
+<h2>MM-PBSA Parameter Setting<a class="headerlink" href="#mm-pb-sa-parameter-setting" title="Link to this heading"></a></h2>
+<p>Next, set the relevant parameters for MM-PBSA calculation. s_mmpbsa provides multiple parameter setting options:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Display current parameter settings</span>
 <span class="m">1</span>
 
@@ -359,7 +359,7 @@ index.ndx<span class="w">  </span><span class="c1"># Input ndx file path, press 
 </section>
 <section id="executing-calculation">
 <h2>Executing Calculation<a class="headerlink" href="#executing-calculation" title="Link to this heading"></a></h2>
-<p>After setting up, start executing the MM/PB-SA calculation. Before calculation, you need to input the system name:</p>
+<p>After setting up, start executing the MM-PBSA calculation. Before calculation, you need to input the system name:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Input system name</span>
 system<span class="w">  </span><span class="c1"># Input system name, default is system</span>
 

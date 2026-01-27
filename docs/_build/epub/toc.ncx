@@ -29,7 +29,7 @@
       </navPoint>
       <navPoint id="navPoint4" playOrder="3">
         <navLabel>
-          <text>MM/PB-SA方法简介</text>
+          <text>MM-PBSA方法简介</text>
         </navLabel>
         <content src="introduction.xhtml#mm-pb-sa" />  
       </navPoint>
@@ -161,7 +161,7 @@
       </navPoint>
       <navPoint id="navPoint26" playOrder="23">
         <navLabel>
-          <text>设置MM/PB-SA参数</text>
+          <text>设置MM-PBSA参数</text>
         </navLabel>
         <content src="quick_start.xhtml#mm-pb-sa" />  
       </navPoint>
@@ -239,12 +239,12 @@
       </navPoint>
       <navPoint id="navPoint39" playOrder="35">
         <navLabel>
-          <text>MM/PB-SA参数设置</text>
+          <text>MM-PBSA参数设置</text>
         </navLabel>
         <content src="usage.xhtml#mm-pb-sa" />  
         <navPoint id="navPoint40" playOrder="35">
           <navLabel>
-            <text>MM/PB-SA参数设置</text>
+            <text>MM-PBSA参数设置</text>
           </navLabel>
           <content src="usage.xhtml#mm-pb-sa" />  
         </navPoint>

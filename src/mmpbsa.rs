@@ -21,10 +21,10 @@ use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                                temp_dir: &PathBuf, sys_name: &String, aps: &AtomProperties,
                                ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
-                               ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path,
+                               ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path, temperature: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> (SMResult, Vec<SMResult>) {
-    println!("Running MM/PB-SA calculations of {}...", sys_name);
+    println!("Running MM-PBSA calculations of {}...", sys_name);
     if ala_list.len() > 0 {
         let as_res: Vec<String> = residues.iter().filter_map(
             |r| if ala_list.contains(&r.nr) && r.name.ne("GLY") && r.name.ne("ALA") {
@@ -40,7 +40,8 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
 
     // calculate MM and PBSA
     println!("Calculating binding energy for {}...", sys_name);
-    let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates_ie, aps, &temp_dir, &ndx_rec, &ndx_lig, residues,
+    let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates_ie, aps, &temp_dir, 
+        &ndx_rec, &ndx_lig, residues, temperature,
         sys_name, "WT", pbe_set, pba_set, settings);
     result_wt.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, "WT").as_str()));
 
@@ -69,7 +70,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
             let sys_name = format!("{}-{}", sys_name, mutation);
             println!("Calculating binding energy for {}...", sys_name);
             let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates_ie,
-                &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues,
+                &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues, temperature,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
             result_as.to_bin(&wd.join(format!("_MMPBSA_{}_{}.sm", sys_name, mutation).as_str()));
             result_ala_scan.push(result_as);
@@ -175,7 +176,7 @@ pub fn set_style(pb: &ProgressBar) {
 fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                     aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
-                    residues: &Vec<Residue>, sys_name: &String, mutation: &str,
+                    residues: &Vec<Residue>, temperature: f64, sys_name: &String, mutation: &str,
                     pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> SMResult {
     let mut elec_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut vdw_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
@@ -300,7 +301,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     // end calculation
     let t_end = Local::now();
     let t_spend = Duration::from(t_end - t_start).num_seconds();
-    println!("MM/PB-SA calculation of {} finished. Total time cost: {} s", sys_name, t_spend);
+    println!("MM-PBSA calculation of {} finished. Total time cost: {} s", sys_name, t_spend);
     env::remove_var("OMP_NUM_THREADS");
 
     let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
@@ -314,6 +315,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         &times_ie,
         &coordinates,
         mutation,
+        temperature,
         &elec_atom,
         &vdw_atom,
         &pb_atom,

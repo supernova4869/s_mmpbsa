@@ -71,7 +71,7 @@ Q: How to improve calculation speed?
 
 A: You can improve the calculation speed of s_mmpbsa through the following methods:
 
-1. Increase the number of parallel cores (nkernels) in MM/PB-SA parameter settings
+1. Increase the number of parallel cores (nkernels) in MM-PBSA parameter settings
 2. Increase the time interval to reduce the number of analyzed frames
 3. Increase the van der Waals cutoff distance (r_cutoff) to reduce the number of interaction pairs calculated (this has a smaller impact)
 4. Use larger grid spacing for PB calculations (not recommended)
@@ -142,7 +142,7 @@ A: If the calculation results of residue binding energy do not match expectation
 
 1. Check the quality of input files and ensure that trajectory files have been correctly processed with PBC
 2. Check the index file and ensure that the selection of receptor and ligand groups is correct
-3. Adjust MM/PB-SA parameters, such as cutoff distance, grid spacing, etc.
+3. Adjust MM-PBSA parameters, such as cutoff distance, grid spacing, etc.
 4. Consider using different solvation model parameters
 5. Increase the number of sampling points to improve statistical accuracy
 

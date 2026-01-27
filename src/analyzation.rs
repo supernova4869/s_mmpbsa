@@ -12,6 +12,7 @@ use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2l
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SMResult {
+    pub temperature: f64,
     pub mutation: String,
     pub atom_names: Vec<String>,
     pub atom_res: Vec<usize>,
@@ -38,7 +39,8 @@ pub struct SMResult {
 impl SMResult {
     pub fn new(atom_names: &Vec<String>, atom_res: &Vec<usize>, 
                residues: &Vec<Residue>, ndx_lig: &Option<BTreeSet<usize>>, 
-               times: &Vec<f64>, times_ie: &Vec<f64>, coordinates: &Array3<f64>, mutation: &str,
+               times: &Vec<f64>, times_ie: &Vec<f64>, coordinates: &Array3<f64>, 
+               mutation: &str, temperature: f64, 
                elec_atom: &Array2<f64>, vdw_atom: &Array2<f64>, 
                pb_atom: &Array2<f64>, sa_atom: &Array2<f64>,
                mm_ie: &Array1<f64>) -> SMResult {
@@ -61,6 +63,7 @@ impl SMResult {
         let dh_atom: Array2<f64> = &mm_atom + pb_atom + sa_atom;
 
         SMResult {
+            temperature,
             mutation: mutation.to_string(),
             atom_names: atom_names.to_vec(),
             atom_res: atom_res.to_vec(),
@@ -97,7 +100,7 @@ impl SMResult {
     }
 }
 
-pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, temperature: f64, sys_name: &String, wd: &Path, settings: &Settings) {
+pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_name: &String, wd: &Path, settings: &Settings) {
     let mut results = result_as.clone();
     results.insert(0, result_wt.clone());
     loop {
@@ -140,7 +143,7 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, tempe
                 println!("Input the time period (in ns, e.g. 0-40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
                 for result in &results {
-                    analyze_summary(result, temperature, wd, &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
+                    analyze_summary(result, wd, &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
                 }
             },
             Ok(2) => {
@@ -250,7 +253,7 @@ fn write_atom_line(result: &SMResult, id: usize, name: &String, res_id: usize, t
                 reverse * dh_avg[id], name.get(0..1).unwrap()).unwrap();
 }
 
-fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &String, tmin: f64, tmax: f64) {
+fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, tmax: f64) {
     let ts_ids = get_time_index(&results.times, tmin, tmax);
     let ts_ie_ids = get_time_index(&results.times_ie, tmin, tmax);
     if ts_ids.is_empty() {
@@ -258,7 +261,7 @@ fn analyze_summary(results: &SMResult, temperature: f64, wd: &Path, sys_name: &S
         return;
     }
 
-    let beta_kj = 1000.0 / 8.314462618 / temperature;
+    let beta_kj = 1000.0 / 8.314462618 / results.temperature;
     let dh_avg = results.dh.select(Axis(0), &ts_ids).mean().unwrap();
     let dh_err = results.dh.select(Axis(0), &ts_ids).std(0.0);
     let mm_avg = results.mm.select(Axis(0), &ts_ids).mean().unwrap();

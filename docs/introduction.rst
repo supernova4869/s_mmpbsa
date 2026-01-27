@@ -4,12 +4,12 @@ Introduction
 
 This document introduces the background, principles and basic concepts of s_mmpbsa to help users understand the working principle and application scenarios of this tool.
 
-Introduction to MM/PB-SA Method
+Introduction to MM-PBSA Method
 ----------------
 
-**MM/PB-SA** (Molecular Mechanics/Poisson-Boltzmann Surface Area) is a widely used method for calculating binding free energy of biomolecules. This method combines molecular mechanics (MM) and continuum solvent model (PB-SA), which can quickly and accurately predict the interaction strength between biomolecules.
+**MM-PBSA** (Molecular Mechanics/Poisson-Boltzmann Surface Area) is a widely used method for calculating binding free energy of biomolecules. This method combines molecular mechanics (MM) and continuum solvent model (PB-SA), which can quickly and accurately predict the interaction strength between biomolecules.
 
-The basic principle of the MM/PB-SA method is to evaluate the binding strength between molecules by calculating the free energy change before and after binding. Specifically, the binding free energy (ΔG) can be expressed as:
+The basic principle of the MM-PBSA method is to evaluate the binding strength between molecules by calculating the free energy change before and after binding. Specifically, the binding free energy (ΔG) can be expressed as:
 
 .. math::
 
@@ -28,7 +28,7 @@ Where the free energy (G) of each molecule consists of the following components:
 Why Choose s_mmpbsa?
 -------------------
 
-Although Gromacs is a widely used molecular dynamics simulation software, it does not officially support MM/PB-SA calculations. There are many MM/PB-SA tools on the market that can handle Gromacs trajectories, but most of them have the following limitations:
+Although Gromacs is a widely used molecular dynamics simulation software, it does not officially support MM-PBSA calculations. There are many MM-PBSA tools on the market that can handle Gromacs trajectories, but most of them have the following limitations:
 
 1. **Complex installation and usage**
 2. **Not supporting new versions of Gromacs**
@@ -69,7 +69,7 @@ s_mmpbsa is suitable for the following research scenarios:
 Theoretical Innovations
 ----------
 
-s_mmpbsa has made the following improvements on the basis of the traditional MM/PB-SA method:
+s_mmpbsa has made the following improvements on the basis of the traditional MM-PBSA method:
 
 1. **Charge screening effect**: Considered the charge screening effect in biomolecular environments, improving the accuracy of polar interaction calculations (Reference: J. Chem. Inf. Model. 2021, 61, 2454)
 

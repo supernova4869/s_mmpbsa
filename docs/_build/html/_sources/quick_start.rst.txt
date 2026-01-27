@@ -26,7 +26,7 @@ s_mmpbsa's basic workflow includes the following steps:
 
 1. Load input files (tpr, xtc and ndx files)
 2. Set trajectory parameters (select receptor and ligand groups)
-3. Set MM/PB-SA parameters
+3. Set MM-PBSA parameters
 4. Execute calculation
 5. Analyze results
 
@@ -75,10 +75,10 @@ After loading input files, you need to set trajectory parameters, mainly selecti
    # Proceed to the next step (option 0)
    0
 
-Setting MM/PB-SA Parameters
+Setting MM-PBSA Parameters
 --------------
 
-Next, set the relevant parameters for MM/PB-SA calculation:
+Next, set the relevant parameters for MM-PBSA calculation:
 
 .. code-block:: bash
    
@@ -177,7 +177,7 @@ The following is a complete example of calculating protein-ligand binding energy
    1
    0
    
-   # Set MM/PB-SA parameters (use default values)
+   # Set MM-PBSA parameters (use default values)
    0
    
    # Execute calculation

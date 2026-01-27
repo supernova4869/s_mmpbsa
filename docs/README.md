@@ -38,7 +38,7 @@ After building is complete, you can find the generated HTML documentation in the
 This documentation contains the following main sections:
 
 - **Homepage**: Project overview and main feature introduction
-- **Introduction**: Basic principles of the MM/PB-SA method and advantages of s_mmpbsa
+- **Introduction**: Basic principles of the MM-PBSA method and advantages of s_mmpbsa
 - **Installation**: System requirements and installation steps
 - **Quick Start**: Basic usage流程 and examples
 - **Usage Guide**: Detailed feature descriptions and parameter settings

@@ -26,12 +26,12 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
     let mut pba_set = PBASet::new(tpr.temp);
     let mut ala_list: Vec<i32> = vec![];
     loop {
-        println!("\n                 ************ MM/PB-SA Parameters ************");
+        println!("\n                 ************ MM-PBSA Parameters ************");
         println!("-10 Return");
         println!(" -3 Output PBSA parameters");
         println!(" -2 Output LJ parameters");
         println!(" -1 Output structural parameters");
-        println!("{}", "  0 Start MM/PB-SA calculation".green().bold());
+        println!("{}", "  0 Start MM-PBSA calculation".green().bold());
         println!("  1 Choose electrostatic screening method, current: {}", match settings.elec_screen {
             1 => "Ding's method",
             2 => "Supernova's method",
@@ -130,12 +130,12 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     println!("Note: Since APBS not found, solvation energy will not be calculated.");
                 };
                 
-                // run MM/PB-SA calculations
+                // run MM-PBSA calculations
                 let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
                                                                 coordinates_ie, &temp_dir, &sys_name, &aps,
-                                                                &ndx_rec, &ndx_lig, &ala_list, &residues, wd,
+                                                                &ndx_rec, &ndx_lig, &ala_list, &residues, wd, tpr.temp,
                                                                 &pbe_set, &pba_set, settings);
-                analyzation::analyze_controller(&result_wt, &result_as, pbe_set.temp, &sys_name, wd, settings);
+                analyzation::analyze_controller(&result_wt, &result_as, &sys_name, wd, settings);
             }
             Ok(1) => {
                 println!("Input the electrostatic screening method:");

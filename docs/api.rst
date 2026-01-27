@@ -14,7 +14,7 @@ s_mmpbsa's project structure is as follows:
    s_mmpbsa/
    ├── src/
    │   ├── main.rs           # Program entry point
-   │   ├── mmpbsa.rs         # Main implementation of MM/PB-SA calculations
+   │   ├── mmpbsa.rs         # Main implementation of MM-PBSA calculations
    │   ├── analyzation.rs    # Result analysis functionality
    │   ├── parse_tpr.rs      # TPR file parsing
    │   ├── parse_ndx.rs      # NDX file parsing
@@ -43,7 +43,7 @@ The main module is the program's entry point, responsible for handling command l
 - Parse command line parameters
 - Initialize program environment
 - Load input files
-- Coordinate MM/PB-SA calculations
+- Coordinate MM-PBSA calculations
 - Provide interactive command line interface
 
 **Core Functions**:
@@ -65,10 +65,10 @@ The main module is the program's entry point, responsible for handling command l
 mmpbsa Module
 ----------
 
-The mmpbsa module implements the core functionality of MM/PB-SA calculations, including energy calculation, alanine scanning, etc.
+The mmpbsa module implements the core functionality of MM-PBSA calculations, including energy calculation, alanine scanning, etc.
 
 **Main Functions**:
-- Execute MM/PB-SA calculations
+- Execute MM-PBSA calculations
 - Implement alanine scanning
 - Manage temporary files
 - Coordinate MM and PB/SA calculations
@@ -77,7 +77,7 @@ The mmpbsa module implements the core functionality of MM/PB-SA calculations, in
 
 .. code-block:: rust
    
-   // Execute MM/PB-SA calculations
+   // Execute MM-PBSA calculations
    pub fn fun_mmpbsa_calculations(tpr_path: &str, ...) -> Result<SMResult, Box<dyn Error>> {}
    
    // Implement alanine mutation
@@ -86,7 +86,7 @@ The mmpbsa module implements the core functionality of MM/PB-SA calculations, in
    // Set progress bar style
    fn set_style() -> indicatif::ProgressStyle {}
    
-   // Calculate MM/PB-SA energy
+   // Calculate MM-PBSA energy
    fn calculate_mmpbsa(...) -> Result<SMResult, Box<dyn Error>> {}
    
    // Calculate MM energy
@@ -101,7 +101,7 @@ analyzation Module
 The analyzation module implements result analysis functionality, including processing, visualization and export of results.
 
 **Main Functions**:
-- Process MM/PB-SA calculation results
+- Process MM-PBSA calculation results
 - Provide result visualization
 - Export result data
 - Support various analysis operations
@@ -110,7 +110,7 @@ The analyzation module implements result analysis functionality, including proce
 
 .. code-block:: rust
    
-   // Data structure for storing MM/PB-SA calculation results
+   // Data structure for storing MM-PBSA calculation results
    pub struct SMResult {
        pub dh: Array1<f64>,          // Enthalpy change
        pub mm: Array1<f64>,          // MM energy
@@ -224,7 +224,7 @@ Key Data Structures
 SMResult Structure
 ~~~~~~~~~~~~~
 
-The SMResult structure is the core data structure of s_mmpbsa, used to store the results of MM/PB-SA calculations.
+The SMResult structure is the core data structure of s_mmpbsa, used to store the results of MM-PBSA calculations.
 
 **Main Fields**:
 - **dh**: Enthalpy change array
@@ -264,7 +264,7 @@ s_mmpbsa can also be used as a Rust library for other Rust programs to call its 
        let temp = 298.15;  // Temperature (K)
        let conc = 0.15;    // Salt concentration (mol/L)
        
-       // Execute MM/PB-SA calculation
+       // Execute MM-PBSA calculation
        let result = fun_mmpbsa_calculations(
            tpr_path,
            xtc_path,

@@ -118,9 +118,9 @@
 <h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h1>
 <p>This document introduces the background, principles and basic concepts of s_mmpbsa to help users understand the working principle and application scenarios of this tool.</p>
 <section id="introduction-to-mm-pb-sa-method">
-<h2>Introduction to MM/PB-SA Method<a class="headerlink" href="#introduction-to-mm-pb-sa-method" title="Link to this heading"></a></h2>
-<p><strong>MM/PB-SA</strong> (Molecular Mechanics/Poisson-Boltzmann Surface Area) is a widely used method for calculating binding free energy of biomolecules. This method combines molecular mechanics (MM) and continuum solvent model (PB-SA), which can quickly and accurately predict the interaction strength between biomolecules.</p>
-<p>The basic principle of the MM/PB-SA method is to evaluate the binding strength between molecules by calculating the free energy change before and after binding. Specifically, the binding free energy (ΔG) can be expressed as:</p>
+<h2>Introduction to MM-PBSA Method<a class="headerlink" href="#introduction-to-mm-pb-sa-method" title="Link to this heading"></a></h2>
+<p><strong>MM-PBSA</strong> (Molecular Mechanics/Poisson-Boltzmann Surface Area) is a widely used method for calculating binding free energy of biomolecules. This method combines molecular mechanics (MM) and continuum solvent model (PB-SA), which can quickly and accurately predict the interaction strength between biomolecules.</p>
+<p>The basic principle of the MM-PBSA method is to evaluate the binding strength between molecules by calculating the free energy change before and after binding. Specifically, the binding free energy (ΔG) can be expressed as:</p>
 <div class="math notranslate nohighlight">
 \[\Delta G_{binding} = \Delta G_{complex} - (\Delta G_{receptor} + \Delta G_{ligand})\]</div>
 <p>Where the free energy (G) of each molecule consists of the following components:</p>
@@ -134,7 +134,7 @@
 </section>
 <section id="why-choose-s-mmpbsa">
 <h2>Why Choose s_mmpbsa?<a class="headerlink" href="#why-choose-s-mmpbsa" title="Link to this heading"></a></h2>
-<p>Although Gromacs is a widely used molecular dynamics simulation software, it does not officially support MM/PB-SA calculations. There are many MM/PB-SA tools on the market that can handle Gromacs trajectories, but most of them have the following limitations:</p>
+<p>Although Gromacs is a widely used molecular dynamics simulation software, it does not officially support MM-PBSA calculations. There are many MM-PBSA tools on the market that can handle Gromacs trajectories, but most of them have the following limitations:</p>
 <ol class="arabic simple">
 <li><p><strong>Complex installation and usage</strong></p></li>
 <li><p><strong>Not supporting new versions of Gromacs</strong></p></li>
@@ -175,7 +175,7 @@
 </section>
 <section id="theoretical-innovations">
 <h2>Theoretical Innovations<a class="headerlink" href="#theoretical-innovations" title="Link to this heading"></a></h2>
-<p>s_mmpbsa has made the following improvements on the basis of the traditional MM/PB-SA method:</p>
+<p>s_mmpbsa has made the following improvements on the basis of the traditional MM-PBSA method:</p>
 <ol class="arabic simple">
 <li><p><strong>Charge screening effect</strong>: Considered the charge screening effect in biomolecular environments, improving the accuracy of polar interaction calculations (Reference: J. Chem. Inf. Model. 2021, 61, 2454)</p></li>
 <li><p><strong>Conformational entropy calculation</strong>: Implemented an efficient conformational entropy calculation method, providing more comprehensive thermodynamic information for binding free energy prediction (Reference: J. Chem. Phys. 2017, 146, 124124)</p></li>

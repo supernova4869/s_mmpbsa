@@ -75,7 +75,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
     println!("\nFinished loading input file.");
 
     loop {
-        println!("\n                 ************ MM/PB-SA Files ************");
+        println!("\n                 ************ MM-PBSA Files ************");
         println!("-10 Exit program");
         list_basic_programs(settings);
         if !trj.is_empty() && !ndx.is_empty() {

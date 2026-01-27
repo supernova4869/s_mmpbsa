@@ -59,7 +59,7 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>s_mmpbsa/
 ├──<span class="w"> </span>src/
 │<span class="w">   </span>├──<span class="w"> </span>main.rs<span class="w">           </span><span class="c1"># 程序入口点</span>
-│<span class="w">   </span>├──<span class="w"> </span>mmpbsa.rs<span class="w">         </span><span class="c1"># MM/PB-SA计算的主要实现</span>
+│<span class="w">   </span>├──<span class="w"> </span>mmpbsa.rs<span class="w">         </span><span class="c1"># MM-PBSA计算的主要实现</span>
 │<span class="w">   </span>├──<span class="w"> </span>analyzation.rs<span class="w">    </span><span class="c1"># 结果分析功能</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_tpr.rs<span class="w">      </span><span class="c1"># TPR文件解析</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_ndx.rs<span class="w">      </span><span class="c1"># NDX文件解析</span>
@@ -87,7 +87,7 @@
 - 解析命令行参数
 - 初始化程序环境
 - 加载输入文件
-- 协调MM/PB-SA计算
+- 协调MM-PBSA计算
 - 提供交互式命令行界面</p>
 <p><strong>核心函数</strong>:</p>
 <div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="c1">// 程序入口点</span>
@@ -106,14 +106,14 @@
 </section>
 <section id="mmpbsa">
 <h2>mmpbsa模块</h2>
-<p>mmpbsa模块实现了MM/PB-SA计算的核心功能，包括能量计算、丙氨酸扫描等。</p>
+<p>mmpbsa模块实现了MM-PBSA计算的核心功能，包括能量计算、丙氨酸扫描等。</p>
 <p><strong>主要功能</strong>:
-- 执行MM/PB-SA计算
+- 执行MM-PBSA计算
 - 实现丙氨酸扫描
 - 管理临时文件
 - 协调MM和PB/SA计算</p>
 <p><strong>核心函数</strong>:</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="c1">// 执行MM/PB-SA计算</span>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="c1">// 执行MM-PBSA计算</span>
 <span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">fun_mmpbsa_calculations</span><span class="p">(</span><span class="n">tpr_path</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">SMResult</span><span class="p">,</span><span class="w"> </span><span class="nb">Box</span><span class="o">&lt;</span><span class="k">dyn</span><span class="w"> </span><span class="n">Error</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{}</span>
 
 <span class="c1">// 实现丙氨酸突变</span>
@@ -122,7 +122,7 @@
 <span class="c1">// 设置进度条样式</span>
 <span class="k">fn</span><span class="w"> </span><span class="nf">set_style</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">indicatif</span><span class="p">::</span><span class="n">ProgressStyle</span><span class="w"> </span><span class="p">{}</span>
 
-<span class="c1">// 计算MM/PB-SA能量</span>
+<span class="c1">// 计算MM-PBSA能量</span>
 <span class="k">fn</span><span class="w"> </span><span class="nf">calculate_mmpbsa</span><span class="p">(</span><span class="o">..</span><span class="p">.)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">SMResult</span><span class="p">,</span><span class="w"> </span><span class="nb">Box</span><span class="o">&lt;</span><span class="k">dyn</span><span class="w"> </span><span class="n">Error</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{}</span>
 
 <span class="c1">// 计算MM能量</span>
@@ -137,12 +137,12 @@
 <h2>analyzation模块</h2>
 <p>analyzation模块实现了结果分析功能，包括结果的处理、可视化和导出。</p>
 <p><strong>主要功能</strong>:
-- 处理MM/PB-SA计算结果
+- 处理MM-PBSA计算结果
 - 提供结果可视化
 - 导出结果数据
 - 支持各种分析操作</p>
 <p><strong>核心数据结构和函数</strong>:</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="c1">// 存储MM/PB-SA计算结果的数据结构</span>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="c1">// 存储MM-PBSA计算结果的数据结构</span>
 <span class="k">pub</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">SMResult</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">dh</span><span class="p">:</span><span class="w"> </span><span class="nc">Array1</span><span class="o">&lt;</span><span class="kt">f64</span><span class="o">&gt;</span><span class="p">,</span><span class="w">          </span><span class="c1">// 焓变</span>
 <span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">mm</span><span class="p">:</span><span class="w"> </span><span class="nc">Array1</span><span class="o">&lt;</span><span class="kt">f64</span><span class="o">&gt;</span><span class="p">,</span><span class="w">          </span><span class="c1">// MM能量</span>
@@ -240,7 +240,7 @@
 <h2>关键数据结构</h2>
 <section id="smresult">
 <h3>SMResult结构体</h3>
-<p>SMResult结构体是s_mmpbsa的核心数据结构，用于存储MM/PB-SA计算的结果。</p>
+<p>SMResult结构体是s_mmpbsa的核心数据结构，用于存储MM-PBSA计算的结果。</p>
 <p><strong>主要字段</strong>:
 - <strong>dh</strong>: 焓变数组
 - <strong>mm</strong>: MM能量数组
@@ -274,7 +274,7 @@
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">temp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">298.15</span><span class="p">;</span><span class="w">  </span><span class="c1">// 温度（K）</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">conc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.15</span><span class="p">;</span><span class="w">    </span><span class="c1">// 盐浓度（mol/L）</span>
 
-<span class="w">    </span><span class="c1">// 执行MM/PB-SA计算</span>
+<span class="w">    </span><span class="c1">// 执行MM-PBSA计算</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fun_mmpbsa_calculations</span><span class="p">(</span>
 <span class="w">        </span><span class="n">tpr_path</span><span class="p">,</span>
 <span class="w">        </span><span class="n">xtc_path</span><span class="p">,</span>

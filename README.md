@@ -1,5 +1,5 @@
 # s_mmpbsa
-s_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajectory, using molecular mechanics Poisson-Boltzmann surface area (MM/PB-SA) method.
+s_mmpbsa: Supernova's tool of binding free energy calculation for Gromacs trajectory, using molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method.
 
 The s_mmpbsa program follows LGPL license, and can be freely used for academic purposes.
 
@@ -8,7 +8,7 @@ The detailed documentations could be found here.
 https://s-mmpbsa.readthedocs.io/en/latest/
 
 ## Introduction
-MM/PB-SA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM/PB-SA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convenient interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
+MM-PBSA method is the most popular method to rapidly calculate binding free energy, especially for biological systems. However, as a widely-used MD program, Gromacs has not officially support MM-PBSA calculation. Although there have been numerous programs that can calculate binding free energy with GROMACS trajectory, most of them have some limitations at different aspects, for example: (1) Difficult to use and install (2) Lack of support for new version of Gromacs (3) Too slow (4) Not cross-platform. Instead, s_mmpbsa provides a convenient interface (like [Multiwfn](http://sobereva.com/multiwfn/)) to calculate binding free energy for GROMACS trajectory. 
 
 ## Features of s_mmpbsa
 - Open source and freely available.
@@ -59,7 +59,7 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 [ligand group number]
 5 # set time interval, usually analysis per 1 ns
 1
-0 # go to next step (MM/PB-SA Parameters)
+0 # go to next step (MM-PBSA Parameters)
 # Other options usually no need to change. The PB and SA parameters could be modified by 8 and 9
 0 # go to next step (start calculation)
 [return] # use default system name or input your name
@@ -77,7 +77,7 @@ md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
 
 ### Alanine scanning:
 ```bash
-# At MM/PB-SA Parameters page
+# At MM-PBSA Parameters page
 2 # Do alanine scanning
 1 # Select mutation residues by layers (ACS Catal. 2024, 14, 15, 11447–11456)
 0 # Start calculation

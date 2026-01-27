@@ -13,7 +13,7 @@ s_mmpbsa的项目结构如下：
    s_mmpbsa/
    ├── src/
    │   ├── main.rs           # 程序入口点
-   │   ├── mmpbsa.rs         # MM/PB-SA计算的主要实现
+   │   ├── mmpbsa.rs         # MM-PBSA计算的主要实现
    │   ├── analyzation.rs    # 结果分析功能
    │   ├── parse_tpr.rs      # TPR文件解析
    │   ├── parse_ndx.rs      # NDX文件解析
@@ -42,7 +42,7 @@ main模块是程序的入口点，负责处理命令行参数、初始化环境�
 - 解析命令行参数
 - 初始化程序环境
 - 加载输入文件
-- 协调MM/PB-SA计算
+- 协调MM-PBSA计算
 - 提供交互式命令行界面
 
 **核心函数**:
@@ -64,10 +64,10 @@ main模块是程序的入口点，负责处理命令行参数、初始化环境�
 mmpbsa模块
 ----------
 
-mmpbsa模块实现了MM/PB-SA计算的核心功能，包括能量计算、丙氨酸扫描等。
+mmpbsa模块实现了MM-PBSA计算的核心功能，包括能量计算、丙氨酸扫描等。
 
 **主要功能**:
-- 执行MM/PB-SA计算
+- 执行MM-PBSA计算
 - 实现丙氨酸扫描
 - 管理临时文件
 - 协调MM和PB/SA计算
@@ -76,7 +76,7 @@ mmpbsa模块实现了MM/PB-SA计算的核心功能，包括能量计算、丙氨
 
 .. code-block:: rust
    
-   // 执行MM/PB-SA计算
+   // 执行MM-PBSA计算
    pub fn fun_mmpbsa_calculations(tpr_path: &str, ...) -> Result<SMResult, Box<dyn Error>> {}
    
    // 实现丙氨酸突变
@@ -85,7 +85,7 @@ mmpbsa模块实现了MM/PB-SA计算的核心功能，包括能量计算、丙氨
    // 设置进度条样式
    fn set_style() -> indicatif::ProgressStyle {}
    
-   // 计算MM/PB-SA能量
+   // 计算MM-PBSA能量
    fn calculate_mmpbsa(...) -> Result<SMResult, Box<dyn Error>> {}
    
    // 计算MM能量
@@ -100,7 +100,7 @@ analyzation模块
 analyzation模块实现了结果分析功能，包括结果的处理、可视化和导出。
 
 **主要功能**:
-- 处理MM/PB-SA计算结果
+- 处理MM-PBSA计算结果
 - 提供结果可视化
 - 导出结果数据
 - 支持各种分析操作
@@ -109,7 +109,7 @@ analyzation模块实现了结果分析功能，包括结果的处理、可视化
 
 .. code-block:: rust
    
-   // 存储MM/PB-SA计算结果的数据结构
+   // 存储MM-PBSA计算结果的数据结构
    pub struct SMResult {
        pub dh: Array1<f64>,          // 焓变
        pub mm: Array1<f64>,          // MM能量
@@ -223,7 +223,7 @@ settings模块负责管理程序的设置，包括读取、修改和保存设置
 SMResult结构体
 ~~~~~~~~~~~~~
 
-SMResult结构体是s_mmpbsa的核心数据结构，用于存储MM/PB-SA计算的结果。
+SMResult结构体是s_mmpbsa的核心数据结构，用于存储MM-PBSA计算的结果。
 
 **主要字段**:
 - **dh**: 焓变数组
@@ -263,7 +263,7 @@ s_mmpbsa也可以作为Rust库使用，供其他Rust程序调用其功能。
        let temp = 298.15;  // 温度（K）
        let conc = 0.15;    // 盐浓度（mol/L）
        
-       // 执行MM/PB-SA计算
+       // 执行MM-PBSA计算
        let result = fun_mmpbsa_calculations(
            tpr_path,
            xtc_path,
