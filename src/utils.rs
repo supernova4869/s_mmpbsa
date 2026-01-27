@@ -94,11 +94,6 @@ pub fn convert_tpr(options: &Vec<&str>, wd: &Path, settings: &Settings, s: &str,
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
-pub fn convert_trj(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
-    let args: Vec<&str> = ["convert-trj", "-f", f, "-s", s, "-n", n, "-o", o, "-quiet"].iter().chain(others.iter()).cloned().collect();
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
 pub fn trjconv(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o, "-quiet"].iter().chain(others.iter()).cloned().collect();
     cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();

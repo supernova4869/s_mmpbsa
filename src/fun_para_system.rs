@@ -110,7 +110,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
                 et = new_et;
             }
             Ok(5) => {
-                println!("Input interval time (in ns) for MM/PB-SA:");
+                println!("Input interval time (in ns) for MM-PBSA:");
                 let mut new_dt = get_input_selection::<f64>().unwrap_or(1.0) * 1000.0;
                 while new_dt < 0.0 {
                     println!("The input {} ns is not a valid interval time.", new_dt / 1000.0);

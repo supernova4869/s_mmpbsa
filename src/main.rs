@@ -67,7 +67,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2025-Sep-02";
+    let compile_date = "2025.01.27";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -92,58 +92,40 @@ fn main() {
         false => println!("Debug mode off.\n"),
     }
 
-    if cli.input.is_some() {
-        process_tpr_input(&cli.input.unwrap(), &mut settings);
-    } else if cli.config.is_some() {
-        println!("Config file: {}", cli.config.as_deref().unwrap());
-        println!("In development.");
-    } else if cli.analyze {
-        println!("Input path of working dir with .sm results (default: current dir):");
-        let input = get_input("".to_string());
-        let wd = if input.is_empty() {
-            env::current_dir().unwrap()
-        } else {
-            Path::new(&input).to_path_buf()
-        };
-        if !wd.is_dir() {
-            println!("Input {} not directory. Please check.", Path::new(&input).to_str().unwrap());
-            get_input("".to_string());
-            exit(0);
-        }
-        let sm_list: Vec<String> = fs::read_dir(&wd).unwrap().into_iter().filter_map(|f| {
-            let f = f.unwrap().path();
-            if let Some(ext) = f.extension() {
-                if ext.to_str().unwrap().eq("sm") {
-                    Some(f.to_str().unwrap().to_string())
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }).collect();
-        if !sm_list.is_empty() {
-            println!("Please input MD temperature (default: 298.15):");
-            let temperature = get_input(298.15);
-            println!("Please input system name (default: system):");
-            let sys_name = get_input("system".to_string());
-            println!("Loading MM/PB-SA results...");
-            let result_wt = sm_list.iter().find(|f| {
-                let f_name = Path::new(f).file_name().unwrap().to_str().unwrap();
-                f_name.starts_with(&format!("_MMPBSA_{}", sys_name)) && f_name.ends_with("_WT.sm")
-            }).ok_or_else(|| {
-                println!("The required _MMPBSA_{}_WT.sm file not found. Please check.", sys_name);
-                exit(0);
-            });
-            let result_wt = SMResult::from(result_wt.unwrap());
-            let result_as: Vec<SMResult> = sm_list.iter().filter(|&f| {
-                let f_name = Path::new(f).file_name().unwrap().to_str().unwrap();
-                f_name.starts_with(&format!("_MMPBSA_{}", sys_name)) && !f_name.ends_with("_WT.sm")
-            }).map(|f| SMResult::from(f)).collect();
-            analyzation::analyze_controller(&result_wt, &result_as, temperature, &sys_name, &wd, &settings);
-        } else {
-            println!("There is no MM/PB-SA results at {}. Please run MM/PB-SA calculations first.", &input);
-        }
+    // Analyzation mode
+    if cli.analyze.is_some() {
+        let sm_path = cli.analyze.unwrap();
+        let sm = Path::new(&sm_path);
+        let wd = Path::new(&sm_path).parent().unwrap();
+        let sm = sm.file_name().unwrap().to_str().unwrap();
+        let name_stems: Vec<&str> = sm.split("_").collect();
+        let sys_name = name_stems[2];
+        println!("Loading MM-PBSA results...");
+        let result_wt = SMResult::from(&sm_path);
+        let result_as: Vec<SMResult> = fs::read_dir(&wd)
+            .ok()
+            .into_iter()
+            .flatten()  // 将 Option<ReadDir> 转换为 ReadDir 的迭代器
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension() == Some(OsStr::new("sm")))
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map_or(false, |name| {
+                        name.starts_with(&format!("_MMPBSA_{}", sys_name)) 
+                            && !name.ends_with("_WT.sm")
+                    })
+            })
+            .filter_map(|path| path.to_str().map(SMResult::from))
+            .collect();
+
+        println!("Found {} mutations of {}, collecting them.", result_as.len(), sys_name);
+        analyzation::analyze_controller(&result_wt, &result_as, &sys_name.to_string(), &wd, &settings);
+    };
+
+    let tpr = if cli.tpr.is_some() {
+        cli.tpr.unwrap().to_string()
     } else {
         println!("Input path of tpr file, e.g. D:/md.tpr");
         println!("Hint: input \"o\" to simply load last-opened file.");
