@@ -1,4 +1,4 @@
-use crate::apbs_param::PBESet;
+use crate::parameters::PBESet;
 
 pub struct Coefficients {
     pub f: f64,

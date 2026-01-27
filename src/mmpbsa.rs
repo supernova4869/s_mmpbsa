@@ -14,7 +14,7 @@ use chrono::{Local, Duration};
 use crate::coefficients::{self, Coefficients};
 use crate::analyzation::SMResult;
 use crate::parse_tpr::Residue;
-use crate::apbs_param::{PBASet, PBESet};
+use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
@@ -236,6 +236,18 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         }
     }
 
+    // Decide whether to use parallel
+    let total_iterations = if let Some(ndx_lig) = ndx_lig {
+        ndx_rec.len() * ndx_lig.len()
+    } else {
+        ndx_rec.len()
+    };
+    const PARALLEL_THRESHOLD: usize = 100000;
+    let use_parallal = total_iterations > PARALLEL_THRESHOLD;
+    if use_parallal {
+        println!("Since there are too many atom pairs (> {}), will use parallel computation for MM.", PARALLEL_THRESHOLD);
+    }
+
     let t_start = Local::now();
     
     let pgb = ProgressBar::new(time_list.len() as u64);
@@ -248,7 +260,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if let Some(ndx_lig) = ndx_lig {
             let (de_elec, de_vdw) = 
-                calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings);
+                calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallal);
             elec_atom.row_mut(frame_id).assign(&de_elec);
             vdw_atom.row_mut(frame_id).assign(&de_vdw);
         }
@@ -278,7 +290,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         set_style(&pgb);
         pgb.inc(0);
         let calc_ie_per_frame = |frame: ArrayView2<f64>| {
-            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings);
+            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, false);
             pgb.inc(1);
             pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
             de_elec.sum() + de_vdw.sum()
@@ -292,11 +304,11 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 } else {
                     calc_ie_per_frame(frame)
                 }).collect();
+        pgb.finish();
         Array1::from_vec(atoms_ie)
     } else {
         Array1::zeros(coordinates_ie.shape()[0])
     };
-    pgb.finish();
 
     // end calculation
     let t_end = Local::now();
@@ -325,17 +337,17 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 }
 
 fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>, 
-            coeff: &Coefficients, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
+            coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
     let mut de_elec: Array1<f64> = Array1::zeros(n_atoms);
     let mut de_vdw: Array1<f64> = Array1::zeros(n_atoms);
     
-    // 预计算一些常量
-    let r_cutoff_sq = settings.r_cutoff.powi(2); // 使用平方避免开方
-    let scale_factor = 1.0 / 10.0; // 单位转换因子
+    // 预计算常量
+    let r_cutoff_sq = settings.r_cutoff.powi(2);
+    let scale_factor = 1.0 / 10.0;
     
-    // 预提取坐标和属性到局部数组以提高缓存友好性
-    let rec_coords: Vec<_> = ndx_rec.iter().map(|&i| {
+    // 预提取数据
+    let rec_props: Vec<_> = ndx_rec.iter().map(|&i| {
         (i, aps.atom_props[i].charge, aps.atom_props[i].type_id, 
         coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
     }).collect();
@@ -345,29 +357,69 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
         coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
     }).collect();
     
-    for &(i, qi, ci, xi, yi, zi) in &rec_coords {
-        for &(j, qj, cj, xj, yj, zj) in &lig_props {
-            // 使用平方距离进行快速筛选
-            let dx = xi - xj;
-            let dy = yi - yj;
-            let dz = zi - zj;
-            let r_sq = dx * dx + dy * dy + dz * dz;
-            
-            if r_sq <= r_cutoff_sq {
-                let r = r_sq.sqrt() * scale_factor;
-                let r_inv = 1.0 / r;
+    if use_parallel {
+        // 并行版本
+        let (par_elec, par_vdw): (Vec<f64>, Vec<f64>) = rec_props.par_iter()
+            .map(|&(i, qi, ci, xi, yi, zi)| {
+                let mut local_elec = vec![0.0; n_atoms];
+                let mut local_vdw = vec![0.0; n_atoms];
                 
-                // 静电相互作用
-                let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+                for &(j, qj, cj, xj, yj, zj) in &lig_props {
+                    let dx = xi - xj;
+                    let dy = yi - yj;
+                    let dz = zi - zj;
+                    let r_sq = dx * dx + dy * dy + dz * dz;
+                    
+                    if r_sq <= r_cutoff_sq {
+                        let r = r_sq.sqrt() * scale_factor;
+                        let r_inv = 1.0 / r;
+                        
+                        let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+                        let r6_inv = r_inv.powi(6);
+                        let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
+                        
+                        local_elec[i] += e_elec;
+                        local_elec[j] += e_elec;
+                        local_vdw[i] += e_vdw;
+                        local_vdw[j] += e_vdw;
+                    }
+                }
                 
-                // 范德华相互作用 - 预计算 r^-6
-                let r6_inv = r_inv.powi(6);
-                let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
+                (local_elec, local_vdw)
+            })
+            .reduce(|| (vec![0.0; n_atoms], vec![0.0; n_atoms]),
+                    |(mut acc_elec, mut acc_vdw), (elec, vdw)| {
+                        for i in 0..n_atoms {
+                            acc_elec[i] += elec[i];
+                            acc_vdw[i] += vdw[i];
+                        }
+                        (acc_elec, acc_vdw)
+                    });
+        
+        de_elec = Array1::from_vec(par_elec);
+        de_vdw = Array1::from_vec(par_vdw);
+    } else {
+        // 串行版本
+        for &(i, qi, ci, xi, yi, zi) in &rec_props {
+            for &(j, qj, cj, xj, yj, zj) in &lig_props {
+                let dx = xi - xj;
+                let dy = yi - yj;
+                let dz = zi - zj;
+                let r_sq = dx * dx + dy * dy + dz * dz;
                 
-                de_elec[i] += e_elec;
-                de_elec[j] += e_elec;
-                de_vdw[i] += e_vdw;
-                de_vdw[j] += e_vdw;
+                if r_sq <= r_cutoff_sq {
+                    let r = r_sq.sqrt() * scale_factor;
+                    let r_inv = 1.0 / r;
+                    
+                    let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+                    let r6_inv = r_inv.powi(6);
+                    let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
+                    
+                    de_elec[i] += e_elec;
+                    de_elec[j] += e_elec;
+                    de_vdw[i] += e_vdw;
+                    de_vdw[j] += e_vdw;
+                }
             }
         }
     }

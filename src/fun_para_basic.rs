@@ -2,6 +2,7 @@ use std::io::stdin;
 use std::path::Path;
 use std::thread;
 use colored::*;
+use crate::parameters::Config;
 use crate::settings::Settings;
 use crate::utils::{append_new_name, get_input, get_input_selection, make_ndx};
 use crate::{confirm_file_validity, convert_cur_dir, set_program};
@@ -68,11 +69,12 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
     }
 }
 
-pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings) {
-    let mut trj = String::new();
-    let mut ndx = String::new();
-    let mut tpr = TPR::from(&tpr_path, &settings);
-    println!("\nFinished loading input file.");
+pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path: &Option<String>, 
+                            config: &Option<Config>, wd: &Path, settings: &mut Settings) {
+    let mut trj = trj_path.clone().unwrap_or(String::new());
+    let mut ndx = ndx_path.clone().unwrap_or(String::new());
+    let mut tpr = TPR::from(&tpr_path);
+    println!("\nFinished loading tpr file: {}", tpr);
 
     loop {
         println!("\n                 ************ MM-PBSA Files ************");
@@ -101,7 +103,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, wd: &Path, settings: &mut Settings)
                     println!("Please assign index file.");
                 } else {
                     // go to next step
-                    fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, &wd, &tpr_path, settings);
+                    fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, config, &wd, &tpr_path, settings);
                 }
             }
             Ok(1) => {

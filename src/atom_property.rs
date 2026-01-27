@@ -55,13 +55,17 @@ impl AtomProperties {
         let mut cur_atom_id = 0;
         let mut resid_offset = 0;
 
-        for mol in &tpr.molecules {
-            let mol_type = &tpr.molecule_types[mol.molecule_type_id];
-            for _ in 0..mol_type.molecules_num {
-                for atom in &mol.atoms {
+        for mol in &tpr.molecule_blocks {
+            let mol_type = &tpr.molecule_types.iter().find_map(|mt| if mt.molecule_name.eq(&mol.name) {
+                Some(mt)
+            } else {
+                None
+            }).unwrap();
+            for _ in 0..mol.molecules_num {
+                for atom in &mol_type.atoms {
                     if ndx_com.contains(&cur_atom_id) {
                         // Get residue once to avoid multiple lookups
-                        let residue = &mol.residues[atom.resind];
+                        let residue = &mol_type.residues[atom.resind];
                         
                         atom_props.push(AtomProperty {
                             charge: atom.charge,
@@ -83,7 +87,7 @@ impl AtomProperties {
                     }
                     cur_atom_id += 1;
                 }
-                resid_offset += mol.residues.len();
+                resid_offset += mol_type.residues.len();
             }
         }
 
