@@ -52,12 +52,14 @@ struct Cli {
     #[arg(short, long)]
     analyze: Option<String>,
     
-    /// generate template config file
-    #[arg(short = 'p', long, value_name = "template")]
-    template: bool,
-    
     /// assign config file path
-    #[arg(short, long, value_name = "config.yaml")]
+    #[arg(
+        short,
+        long,
+        value_name = "config.yaml",
+        num_args = 0..=1,  // 允许 0 或 1 个参数
+        default_missing_value = "",  // 当只有 -c 没有参数时的默认值
+    )]
     config: Option<String>,
     
     /// show version info
@@ -76,15 +78,35 @@ fn main() {
         exit(0);
     }
 
-    // Build template
-    if cli.template {
-        // 在当前路径生成一个config模板
-        let config = Config::new();
-        config.save(&Path::new(&env::current_dir().unwrap()).join("config.yaml"));
-        println!("Template config has been written to {}", "config.yaml".cyan().bold());
-        println!("You can edit and use it by `{}`", "s_mmpbsa -c config.yaml".red().bold());
-        exit(0);
-    }
+    // Config file
+    let config = match &cli.config {
+        Some(path) if path.is_empty() => {
+            let config = Config::new();
+            config.save(&Path::new(&env::current_dir().unwrap()).join("config.yaml"));
+            println!("Template config has been written to {}", "config.yaml".cyan().bold());
+            println!("You can edit and use it by `{}`", "s_mmpbsa -c config.yaml".red().bold());
+            exit(0);
+        }
+        Some(path) => {
+            println!("Loading config file: {}", path.cyan().bold());
+            let mut config = Config::load(&cli.config.as_deref().unwrap());
+            loop {
+                match config {
+                    Ok(_) => break,
+                    Err(e) => {
+                        println!("Error format with config file, details:\n{}", e.to_string().red().bold());
+                        println!("Edit {} again and press ENTER to reload", &cli.config.as_deref().unwrap());
+                        get_input("".to_string());
+                        config = Config::load(&cli.config.as_deref().unwrap());
+                    }
+                };
+            }
+            config.ok()
+        }
+        None => {
+            None
+        }
+    };
 
     let mut settings = env_check();
     match settings.debug_mode {
@@ -140,25 +162,6 @@ fn main() {
     let trj = cli.xtc;
     let ndx = cli.ndx;
     
-    // Config file
-    let config = if cli.config.is_some() {
-        println!("Loading config file: {}", cli.config.as_deref().unwrap().cyan().bold());
-        let mut config = Config::load(&cli.config.as_deref().unwrap());
-        loop {
-            match config {
-                Ok(_) => break,
-                Err(e) => {
-                    println!("Error format with config file, details:\n{}", e.to_string().red().bold());
-                    println!("Edit {} again and press ENTER to reload", &cli.config.as_deref().unwrap());
-                    get_input("".to_string());
-                    config = Config::load(&cli.config.as_deref().unwrap());
-                }
-            };
-        }
-        config.ok()
-    } else {
-        None
-    };
     if Path::new(&tpr).is_file() {
         let tpr = confirm_file_validity(&tpr, vec!["tpr"], &tpr);
         change_settings_last_opened(&mut settings, &tpr);
