@@ -187,7 +187,8 @@ Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.
 Version {}, first release: 2022/10/17, current release: {}"#, version, today);
     println!(r#"
 Usage 1: run `s_mmpbsa` and follow the prompts.
-Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.\n"#);
+Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.
+"#);
 }
 
 pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
