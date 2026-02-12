@@ -69,7 +69,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2025.01.28";
+    let compile_date = "2025/02/12";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
