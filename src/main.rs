@@ -184,7 +184,7 @@ fn welcome(version: &str, today: &str) {
 Website: https://github.com/supernova4869/s_mmpbsa
 Latest documentation: https://s-mmpbsa.readthedocs.io/en/latest/
 Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.
-Version {}, first release: 2022-Oct-17, current release: {}"#, version, today);
+Version {}, first release: 2022/10/17, current release: {}"#, version, today);
     println!(r#"
 Usage 1: run `s_mmpbsa` and follow the prompts.
 Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.\n"#);
