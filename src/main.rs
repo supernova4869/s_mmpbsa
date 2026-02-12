@@ -176,17 +176,18 @@ fn main() {
 }
 
 fn welcome(version: &str, today: &str) {
-    println!("\
-        ========================================================================\n\
-        | s_mmpbsa: Supernova's tool of calculating binding free energy using  |\n\
-        | molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method |\n\
-        ========================================================================\n\
-        Website: https://github.com/supernova4869/s_mmpbsa\n\
-        Latest documentation: https://s-mmpbsa.readthedocs.io/en/latest/\n\
-        Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.\n\
-        Version {}, first release: 2022-Oct-17, current release: {}\n", version, today);
-    println!("Usage 1: run `s_mmpbsa` and follow the prompts.\n\
-        Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.\n");
+    println!(r#"
+========================================================================
+| s_mmpbsa: Supernova's tool of calculating binding free energy using  |
+| molecular mechanics Poisson-Boltzmann surface area (MM-PBSA) method  |
+========================================================================
+Website: https://github.com/supernova4869/s_mmpbsa
+Latest documentation: https://s-mmpbsa.readthedocs.io/en/latest/
+Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.
+Version {}, first release: 2022-Oct-17, current release: {}"#, version, today);
+    println!(r#"
+Usage 1: run `s_mmpbsa` and follow the prompts.
+Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.\n"#);
 }
 
 pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
