@@ -1,4 +1,5 @@
 use core::f64;
+use std::env;
 use colored::*;
 use ndarray::{Array1, Array3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -284,22 +285,23 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             ])
         };
         let ndx_mmpbsa = append_new_name(ndx_name, ".ndx", "_MMPBSA_");
-        ndx_whole.to_ndx(&wd.join(&ndx_mmpbsa));
+        ndx_whole.to_ndx(&ndx_mmpbsa);
         
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
+        // let trj_fullpath = Path::new(trj).to_str().unwrap();
         if settings.fix_pbc {
-            trjconv(&vec!["Complex", "Complex", "Complex"], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+            trjconv(&vec!["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
                 &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
         } else {
-            trjconv(&vec!["Complex"], wd, settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+            trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
                 &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
         }
         
         // step 3: extract new tpr from old tpr
         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
-        convert_tpr(&vec!["Complex"], wd, settings, &tpr_name, &ndx_mmpbsa, &tpr_mmpbsa);
+        convert_tpr(&vec!["Complex"], &env::current_dir().unwrap(), settings, &tpr_name, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
         // must normalize index here after trajectory extracion, or the traj may contain less atoms
@@ -322,14 +324,14 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 IndexGroup::new("Complex", &ndx_rec)
             ])
         };
-        ndx_whole.to_ndx(&wd.join(&ndx_mmpbsa));
+        ndx_whole.to_ndx(&ndx_mmpbsa);
         
         // 需要处理一下atom_properties的id
         aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
         
         // 生成初始结构方便查看
         let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
-        trjconv(&vec!["Complex"], wd, settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
+        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
         // step 5: Read trajectory and get time and coordinate
         println!("\x1b[0mPreparing trajectories for IE calculation...");

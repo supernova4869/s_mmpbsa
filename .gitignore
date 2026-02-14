@@ -1,5 +1,7 @@
 /.vscode
 /target
-/examples/*/_system/
+/examples/*/system/
+/examples/*/benchmark/
 /examples/*/*MMPBSA*
 /examples/*/*.sm
+/examples/*/*.dump

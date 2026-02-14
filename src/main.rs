@@ -69,7 +69,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2025/02/12";
+    let compile_date = "2025/02/14";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -150,7 +150,8 @@ fn main() {
         println!("Hint: input \"o\" to simply load last-opened file.");
         let mut input = String::new();
         stdin().read_line(&mut input).expect("Failed to get input file.");
-        if input.trim().eq("o") {
+        input = input.trim().to_string();
+        if input.eq("o") {
             input = settings.last_opened.to_string();
             if input.is_empty() {
                 println!("Last-opened tpr not found.");

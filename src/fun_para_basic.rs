@@ -1,6 +1,6 @@
 use std::io::stdin;
 use std::path::Path;
-use std::thread;
+use std::{env, thread};
 use colored::*;
 use crate::parameters::Config;
 use crate::settings::Settings;
@@ -62,7 +62,8 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
             // 使用一半的核心
             let threads_to_use = (num_cores / 2).max(1);
             
-            println!("Input number of parallel kernels (default: system cores num, currently {}):", threads_to_use);
+            println!("Input number of parallel kernels (default: system cores num {}, currently {}):", 
+                threads_to_use, settings.nkernels);
             settings.nkernels = get_input(threads_to_use).max(1);
         }
         _ => {}
@@ -110,7 +111,8 @@ pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path
                 println!("Input trajectory file path, default: ?md.xtc (\"?\" means the same directory as tpr):");
                 trj.clear();
                 stdin().read_line(&mut trj).expect("Failed while reading trajectory file");
-                if trj.trim().is_empty() {
+                trj = trj.trim().to_string();
+                if trj.is_empty() {
                     trj = "?md.xtc".to_string();
                 }
                 trj = convert_cur_dir(&trj, tpr_path);
@@ -121,13 +123,14 @@ pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path
                 println!("Note: if no index file prepared, the default index.ndx will be generated according to tpr.");
                 ndx.clear();
                 stdin().read_line(&mut ndx).expect("Failed while reading index file");
-                if ndx.trim().is_empty() {
+                ndx = ndx.trim().to_string();
+                if ndx.is_empty() {
                     ndx = "?index.ndx".to_string();
                 }
                 ndx = convert_cur_dir(&ndx, tpr_path);
                 if !Path::new(&ndx).is_file() {
                     let tpr_path = append_new_name(tpr_path, ".tpr", "");
-                    make_ndx(&vec!["q"], wd, settings, &tpr_path, "", &ndx);
+                    make_ndx(&vec!["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
                 }
                 ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_path);
             }
