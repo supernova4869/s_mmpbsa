@@ -192,34 +192,23 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     // extract coordinates for PBSA from initial
     let coordinates: Array3<f64> = {
-        let valid_frames: Vec<_> = coordinates_ie.axis_iter(Axis(0))
-            .into_par_iter()
+        // 预先计算需要保留的索引
+        let indices: Vec<usize> = times_ie.iter()
             .enumerate()
-            .filter_map(|(i, frame)| {
-                if times.iter().position(|&x| x == times_ie[i]).is_some() {
-                    Some(frame.to_owned()) // 需要克隆数据，因为 axis_iter 返回的是视图
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(i, t)| times.contains(t).then_some(i))
             .collect();
         
-        // 然后将有效的帧重新组合成 Array3
-        if valid_frames.is_empty() {
+        if indices.is_empty() {
             // 如果没有有效帧，返回一个空的 Array3
             Array3::zeros((0, coordinates_ie.shape()[1], coordinates_ie.shape()[2]))
         } else {
-            // 使用 stack 来组合所有帧
-            ndarray::stack(Axis(0), &valid_frames.iter()
-                .map(|arr| arr.view())
-                .collect::<Vec<_>>())
-                .expect("Failed to stack arrays")
+            // 直接选择需要的帧，避免克隆
+            coordinates_ie.select(Axis(0), &indices)
         }
     };
 
-    // set up environment
+    // setting up environment
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
-    
     if settings.pbsa_kernel.is_some() && settings.apbs_path.is_some() {
         let apbs_path = settings.apbs_path.as_ref().unwrap();
         let apbs_dir = Path::new(apbs_path).parent().unwrap();
@@ -243,44 +232,44 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         ndx_rec.len()
     };
     const PARALLEL_THRESHOLD: usize = 100000;
-    let use_parallal = total_iterations > PARALLEL_THRESHOLD;
-    if use_parallal {
+    let use_parallel = total_iterations > PARALLEL_THRESHOLD;
+    if use_parallel {
         println!("Since there are too many atom pairs (> {}), will use parallel computation for MM.", PARALLEL_THRESHOLD);
     }
 
     let t_start = Local::now();
-    
+
+    println!("Start MM-PBSA calculation...");
     let pgb = ProgressBar::new(time_list.len() as u64);
     set_style(&pgb);
     pgb.inc(0);
-    let mut frame_id = 0;
-    pgb.set_message(format!("at {} ns...", times[frame_id]));
+    pgb.set_message(format!("at {} ns...", times[0]));
+
     for cur_frm in 0..time_list.len() {
         // MM
         let coord = coordinates.slice(s![cur_frm, .., ..]);
         if let Some(ndx_lig) = ndx_lig {
             let (de_elec, de_vdw) = 
-                calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallal);
-            elec_atom.row_mut(frame_id).assign(&de_elec);
-            vdw_atom.row_mut(frame_id).assign(&de_vdw);
+                calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallel);
+            elec_atom.row_mut(cur_frm).assign(&de_elec);
+            vdw_atom.row_mut(cur_frm).assign(&de_vdw);
         }
 
         // PBSA
+        let coord = coordinates.slice(s![cur_frm, .., ..]);
         if settings.pbsa_kernel.is_some() {
             let (de_pb, de_sa) = 
                 calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
-            pb_atom.row_mut(frame_id).assign(&de_pb);
-            sa_atom.row_mut(frame_id).assign(&de_sa);
+            pb_atom.row_mut(cur_frm).assign(&de_pb);
+            sa_atom.row_mut(cur_frm).assign(&de_sa);
         }
 
         pgb.inc(1);
-        pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s", 
-                                        times[frame_id],
-                                        vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum() + 
-                                        pb_atom.row(frame_id).sum() + sa_atom.row(frame_id).sum(),
+        pgb.set_message(format!("at {} ns, ΔPBSA={:.2} kJ/mol, eta. {} s", 
+                                        times[cur_frm],
+                                        vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() + 
+                                        pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
                                         pgb.eta().as_secs()));
-
-        frame_id += 1;
     }
     pgb.finish();
 
@@ -312,8 +301,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     // end calculation
     let t_end = Local::now();
-    let t_spend = Duration::from(t_end - t_start).num_seconds();
-    println!("MM-PBSA calculation of {} finished. Total time cost: {} s", sys_name, t_spend);
+    let t_spend = Duration::from(t_end - t_start).num_milliseconds() as f64 / 1000.0;
+    println!("MM-PBSA calculation of {} finished. Total time cost: {:.2} s", sys_name, t_spend);
     env::remove_var("OMP_NUM_THREADS");
 
     let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
