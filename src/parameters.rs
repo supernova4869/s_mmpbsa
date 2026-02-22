@@ -37,19 +37,41 @@ impl Config {
 
 #[derive(Serialize, Deserialize)]
 pub struct ProgramSet {
+    pub trj: String,
+    pub tpr: String,
+    pub ndx: String,
+    pub rec_grp: String,
+    pub lig_grp: String,
+    pub start_time: f64,
+    pub end_time: f64,
+    pub dt: f64,
+    pub ie_multiple: usize,
+    pub fix_pbc: bool,
     pub cfac: i32,
     pub fadd: f64,
     pub df: f64,
     pub radius_type: String,
+    pub ala_scan_range: String,
 }
 
 impl ProgramSet {
     pub fn new() -> ProgramSet {
         ProgramSet {
+            trj: "md.xtc".to_string(),
+            tpr: "md.tpr".to_string(),
+            ndx: "index.ndx".to_string(),
+            rec_grp: String::new(),
+            lig_grp: String::new(),
+            start_time: 0.0,
+            end_time: f64::INFINITY,
+            dt: 1000.0,
+            ie_multiple: 10,
+            fix_pbc: true,
             cfac: 3,
             fadd: 10.0,
             df: 0.5,
             radius_type: "mBondi".to_string(),
+            ala_scan_range: String::new(),
         }
     }
 }

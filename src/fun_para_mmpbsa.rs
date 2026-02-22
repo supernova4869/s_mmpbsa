@@ -32,6 +32,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
     } else {
         PBASet::new(tpr.temp)
     };
+    let mut ala_list: Vec<i32> = vec![];
     if config.is_some() {
         settings.elec_screen = config.as_ref().unwrap().mm_set.electric_screening;
         settings.radius_type = radius_types.iter().position(|&r| r.eq(&config.as_ref().unwrap().program_set.radius_type)).unwrap_or(3);
@@ -39,8 +40,10 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         settings.cfac = config.as_ref().unwrap().program_set.cfac;
         settings.fadd = config.as_ref().unwrap().program_set.fadd;
         settings.df = config.as_ref().unwrap().program_set.df;
+        ala_list = utils::range2list(config.as_ref().unwrap().program_set.ala_scan_range.as_str());
+        run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, wd, settings);
     }
-    let mut ala_list: Vec<i32> = vec![];
+
     loop {
         println!("\n                 ************ MM-PBSA Parameters ************");
         println!("-10 Return");
@@ -120,42 +123,8 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 println!("PBSA parameters have been written to _paras_pbsa.txt");
             }
             Ok(0) => {
-                // Apply atom radius
-                println!("Applying {} radius...", radius_types[settings.radius_type]);
-                aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
-
-                // Temp directory for PBSA
-                let mut sys_name = String::from("system");
-                println!("Input system name (default: {}):", sys_name);
-                let mut input = String::new();
-                stdin().read_line(&mut input).expect("Error input");
-                if input.trim().len() != 0 {
-                    sys_name = input.trim().to_string();
-                }
-                let temp_dir = wd.join(&sys_name);
-                if let Some(_) = settings.apbs_path.as_ref() {
-                    println!("Temporary files will be placed at {}/", temp_dir.display());
-                    if !temp_dir.is_dir() {
-                        fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
-                    } else {
-                        println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
-                        let mut input = String::from("");
-                        stdin().read_line(&mut input).expect("Get input error");
-                        if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
-                            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-                            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
-                        }
-                    }
-                } else {
-                    println!("Note: Since APBS not found, solvation energy will not be calculated.");
-                };
-                
-                // run MM-PBSA calculations
-                let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
-                                                                coordinates_ie, &temp_dir, &sys_name, &aps,
-                                                                &ndx_rec, &ndx_lig, &ala_list, &residues, wd, tpr.temp,
-                                                                &pbe_set, &pba_set, settings);
-                analyzation::analyze_controller(&result_wt, &result_as, &sys_name, wd, settings);
+                run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, 
+                    residues, aps, &ala_list, &pbe_set, &pba_set, wd, settings);
             }
             Ok(1) => {
                 println!("Input the electrostatic screening method:");
@@ -339,4 +308,45 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             _ => {}
         }
     }
+}
+
+fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
+                            tpr: &TPR, ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, residues: &Vec<Residue>, 
+                            aps: &mut AtomProperties, ala_list: &Vec<i32>, pbe_set: &PBESet, pba_set: &PBASet, wd: &Path, settings: &Settings) {
+    // Apply atom radius
+    println!("Applying {} radius...", radius_types[settings.radius_type]);
+    aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
+
+    // Temp directory for PBSA
+    let mut sys_name = String::from("system");
+    println!("Input system name (default: {}):", sys_name);
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error input");
+    if input.trim().len() != 0 {
+        sys_name = input.trim().to_string();
+    }
+    let temp_dir = wd.join(&sys_name);
+    if let Some(_) = settings.apbs_path.as_ref() {
+        println!("Temporary files will be placed at {}/", temp_dir.display());
+        if !temp_dir.is_dir() {
+            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
+        } else {
+            println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
+            let mut input = String::from("");
+            stdin().read_line(&mut input).expect("Get input error");
+            if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
+                fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+                fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
+            }
+        }
+    } else {
+        println!("Note: Since APBS not found, solvation energy will not be calculated.");
+    };
+    
+    // run MM-PBSA calculations
+    let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
+                                                    coordinates_ie, &temp_dir, &sys_name, &aps,
+                                                    &ndx_rec, &ndx_lig, &ala_list, &residues, wd, tpr.temp,
+                                                    &pbe_set, &pba_set, settings);
+    analyzation::analyze_controller(&result_wt, &result_as, &sys_name, wd, settings);
 }

@@ -1,5 +1,6 @@
 use core::f64;
 use std::env;
+use std::process::exit;
 use colored::*;
 use ndarray::{Array1, Array3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -21,18 +22,43 @@ use crate::read_xtc::read_xtc;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Option<Config>, 
                     wd: &Path, tpr_name: &str, settings: &mut Settings) {
-    let mut receptor_grp: Option<usize> = None;
-    let mut ligand_grp: Option<usize> = None;
-    let mut bt: f64 = 0.0;                                  // ps
-    let mut et: f64 = f64::INFINITY;                        // ps
-    let mut dt = 1000.0;                               // ps
-    let mut ie_multi = 10;                             // multipli
-    println!("Reading {} file...", ndx_name);
+    println!("Reading {}...", ndx_name);
     let ndx = Index::from(ndx_name);
+    let receptor_grp = &config.as_ref().unwrap().program_set.rec_grp;
+    let mut receptor_grp: Option<usize> = if receptor_grp.is_empty() { None } else {
+        ndx.groups.iter().enumerate().find_map(|(i, g)| if g.name.eq(receptor_grp) {
+            Some(i)
+        } else {
+            None
+        })
+    };
+    let ligand_grp = &config.as_ref().unwrap().program_set.lig_grp;
+    let mut ligand_grp: Option<usize> = if ligand_grp.is_empty() { None } else {
+        ndx.groups.iter().enumerate().find_map(|(i, g)| if g.name.eq(ligand_grp) {
+            Some(i)
+        } else {
+            None
+        })
+    };
+    let mut bt = config.as_ref().unwrap().program_set.start_time; // ps
+    let mut et = config.as_ref().unwrap().program_set.end_time; // ps
+    let mut dt = config.as_ref().unwrap().program_set.dt; // ps
+    let mut ie_multi = config.as_ref().unwrap().program_set.ie_multiple; // multipli
+    let mut fix_pbc = config.as_ref().unwrap().program_set.fix_pbc; // whether to fix PBC conditions
+    if config.is_some() {
+        if receptor_grp.is_none() {
+            println!("Receptor group not set in config, please select receptor group.");
+            exit(0);
+        } else {
+            prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_name, ndx_name, bt, et, dt, 
+                            dt / ie_multi as f64, config, wd, settings);
+        }
+    }
+    
     loop {
         println!("\n                 ************ Trajectory Parameters ************");
         println!("-10 Return");
-        println!(" -1 Toggle whether to fix PBC conditions, current: {}", settings.fix_pbc);
+        println!(" -1 Toggle whether to fix PBC conditions, current: {}", fix_pbc);
         if receptor_grp.is_none() {
             println!("{}", "  0 Go to next step (incomplete)".red().bold());
         } else if ligand_grp.is_none() {
@@ -50,11 +76,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
         match i {
             Ok(-10) => return,
             Ok(-1) => {
-                settings.fix_pbc = !settings.fix_pbc;
+                fix_pbc = !fix_pbc;
             }
             Ok(0) => {
                 if let Some(receptor_grp) = receptor_grp {
-                    prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, tpr_name, ndx_name, bt, et, dt, 
+                    prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_name, ndx_name, bt, et, dt, 
                         dt / ie_multi as f64, config, wd, settings);
                 } else {
                     println!("Please select receptor groups.");
@@ -201,7 +227,7 @@ fn show_grp(grp_id: Option<usize>, ndx: &Index) -> String {
 
 fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>, 
                   trj: &String, tpr: &mut TPR, ndx: &Index, 
-                  tpr_name: &str, ndx_name: &String, bt: f64, et: f64, 
+                  fix_pbc: bool, tpr_name: &str, ndx_name: &String, bt: f64, et: f64, 
                   dt: f64, dt_ie: f64, config: &Option<Config>,
                   wd: &Path, settings: &mut Settings) {
     // atom indexes
@@ -291,7 +317,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
         // let trj_fullpath = Path::new(trj).to_str().unwrap();
-        if settings.fix_pbc {
+        if fix_pbc {
             trjconv(&vec!["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
                 &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
         } else {

@@ -37,15 +37,15 @@ use crate::parameters::Config;
 #[command(disable_version_flag = true)]
 struct Cli {
     /// input xtc file path
-    #[arg(short = 'f', long, value_name = "md.xtc", default_value = None)]
+    #[arg(short = 'f', value_name = "md.xtc", default_value = None)]
     xtc: Option<String>,
 
     /// input tpr file path
-    #[arg(short = 's', long, value_name = "md.tpr", default_value = None)]
+    #[arg(short = 's', value_name = "md.tpr", default_value = None)]
     tpr: Option<String>,
 
     /// input ndx file path
-    #[arg(short = 'n', long, value_name = "index.ndx", default_value = None)]
+    #[arg(short = 'n', value_name = "index.ndx", default_value = None)]
     ndx: Option<String>,
     
     /// enter analyzation mode
@@ -63,13 +63,13 @@ struct Cli {
     config: Option<String>,
     
     /// show version info
-    #[arg(short = 'V', long)]
+    #[arg(short, long)]
     version: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2025/02/15";
+    let compile_date = "2025/02/22";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -145,6 +145,8 @@ fn main() {
 
     let tpr = if cli.tpr.is_some() {
         cli.tpr.unwrap().to_string()
+    } else if config.is_some() {
+        config.as_ref().unwrap().program_set.tpr.clone()
     } else {
         println!("Input path of tpr file, e.g. D:/md.tpr");
         println!("Hint: input \"o\" to simply load last-opened file.");

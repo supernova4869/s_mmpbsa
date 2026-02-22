@@ -1,5 +1,6 @@
 use std::io::stdin;
 use std::path::Path;
+use std::process::exit;
 use std::{env, thread};
 use colored::*;
 use crate::parameters::Config;
@@ -72,10 +73,22 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
 
 pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path: &Option<String>, 
                             config: &Option<Config>, wd: &Path, settings: &mut Settings) {
-    let mut trj = trj_path.clone().unwrap_or(String::new());
-    let mut ndx = ndx_path.clone().unwrap_or(String::new());
+    let mut trj = trj_path.clone().unwrap_or(config.as_ref().unwrap().program_set.trj.clone());
+    if !Path::new(&trj).is_file() {
+        println!("Not valid file: {}. Check again.", trj);
+        exit(0);
+    }
+    let mut ndx = ndx_path.clone().unwrap_or(config.as_ref().unwrap().program_set.ndx.clone());
+    if !Path::new(&ndx).is_file() {
+        println!("{} not found. Generating default index.ndx.", ndx);
+        let tpr_path = append_new_name(tpr_path, ".tpr", "");
+        make_ndx(&vec!["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
+    }
     let mut tpr = TPR::from(&tpr_path);
     println!("\nFinished loading tpr file: {}", tpr);
+    if config.is_some() {
+        fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, config, &wd, &tpr_path, settings);
+    }
 
     loop {
         println!("\n                 ************ MM-PBSA Files ************");
