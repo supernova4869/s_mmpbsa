@@ -8,7 +8,7 @@ use crate::atom_property::AtomProperties;
 use crate::settings::Settings;
 
 pub fn prepare_pqr(cur_frm: usize, times: &Vec<f64>,
-                   temp_dir: &Path, sys_name: &String, coord: &ArrayView2<f64>,
+                   temp_dir: &Path, sys_name: &str, coord: &ArrayView2<f64>,
                    ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                    aps: &AtomProperties) {
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);

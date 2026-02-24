@@ -37,6 +37,7 @@ impl Config {
 
 #[derive(Serialize, Deserialize)]
 pub struct ProgramSet {
+    pub sys_name: String,
     pub trj: String,
     pub tpr: String,
     pub ndx: String,
@@ -57,10 +58,11 @@ pub struct ProgramSet {
 impl ProgramSet {
     pub fn new() -> ProgramSet {
         ProgramSet {
+            sys_name: "system".to_string(),
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
             ndx: "index.ndx".to_string(),
-            rec_grp: String::new(),
+            rec_grp: String::from("Protein"),
             lig_grp: String::new(),
             start_time: 0.0,
             end_time: f64::INFINITY,

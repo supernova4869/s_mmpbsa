@@ -1,5 +1,5 @@
 use core::f64;
-use std::env;
+use std::{env, fs};
 use std::process::exit;
 use colored::*;
 use ndarray::{Array1, Array3};
@@ -47,9 +47,19 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
     let mut fix_pbc = config.as_ref().unwrap().program_set.fix_pbc; // whether to fix PBC conditions
     if config.is_some() {
         if receptor_grp.is_none() {
-            println!("Receptor group not set in config, please select receptor group.");
+            println!("Receptor group {} not found in config, please set correct receptor group.", config.as_ref().unwrap().program_set.rec_grp.red());
             exit(0);
+        } else if ligand_grp.is_none() {
+            if !config.as_ref().unwrap().program_set.lig_grp.trim().is_empty() {
+                println!("Ligand group {} not found in config, please set correct ligand group.", config.as_ref().unwrap().program_set.lig_grp.red());
+                exit(0);
+            } else {
+                println!("Receptor: {}, solvation calculation only.", config.as_ref().unwrap().program_set.rec_grp.yellow());
+                prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_name, ndx_name, bt, et, dt, 
+                                dt / ie_multi as f64, config, wd, settings);
+            }
         } else {
+            println!("Receptor: {}, ligand: {}, complete calculation.", config.as_ref().unwrap().program_set.rec_grp.green(), config.as_ref().unwrap().program_set.lig_grp.green());
             prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_name, ndx_name, bt, et, dt, 
                             dt / ie_multi as f64, config, wd, settings);
         }
@@ -316,14 +326,8 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
-        // let trj_fullpath = Path::new(trj).to_str().unwrap();
-        if fix_pbc {
-            trjconv(&vec!["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
-                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
-        } else {
-            trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
-                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
-        }
+        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+            &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
         
         // step 3: extract new tpr from old tpr
         let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
@@ -359,6 +363,14 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
         trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
+        // fix pbc with new tpr and new index
+        if fix_pbc {
+            let trj_mmpbsa_nopbc = append_new_name(&trj_mmpbsa, "_nopbc.xtc", "");
+            fs::rename(&trj_mmpbsa, &trj_mmpbsa_nopbc).unwrap();
+            trjconv(&vec!["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa_nopbc, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, 
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
+        }
+
         // step 5: Read trajectory and get time and coordinate
         println!("\x1b[0mPreparing trajectories for IE calculation...");
         println!("Loading trajectory coordinates...");

@@ -19,7 +19,7 @@ use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
 
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
-                               temp_dir: &PathBuf, sys_name: &String, aps: &AtomProperties,
+                               temp_dir: &PathBuf, sys_name: &str, aps: &AtomProperties,
                                ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, wd: &Path, temperature: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
@@ -176,7 +176,7 @@ pub fn set_style(pb: &ProgressBar) {
 fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                     aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
-                    residues: &Vec<Residue>, temperature: f64, sys_name: &String, mutation: &str,
+                    residues: &Vec<Residue>, temperature: f64, sys_name: &str, mutation: &str,
                     pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> SMResult {
     let mut elec_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut vdw_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
@@ -424,10 +424,10 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
 }
 
 fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>, 
-            ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &String, temp_dir: &PathBuf, 
+            ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &str, temp_dir: &PathBuf, 
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
-
+                
     // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
     // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is calculated by s_mmpbsa

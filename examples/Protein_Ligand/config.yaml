@@ -1,4 +1,5 @@
 program_set:
+  sys_name: system
   trj: md.xtc
   tpr: md.tpr
   ndx: index.ndx

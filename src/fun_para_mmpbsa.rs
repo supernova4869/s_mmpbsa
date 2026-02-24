@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::io::stdin;
 use std::path::Path;
+use std::process::exit;
 use colored::Colorize;
 use ndarray::Array3;
 
@@ -13,7 +14,7 @@ use std::fs::{File, self};
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::{Residue, TPR};
 use crate::mmpbsa;
-use crate::analyzation;
+use crate::analyzation::{self, SMResult};
 
 pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                        tpr: &TPR, ndx: &Index, config: &Option<Config>, wd: &Path, aps: &mut AtomProperties,
@@ -41,7 +42,8 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         settings.fadd = config.as_ref().unwrap().program_set.fadd;
         settings.df = config.as_ref().unwrap().program_set.df;
         ala_list = utils::range2list(config.as_ref().unwrap().program_set.ala_scan_range.as_str());
-        run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, wd, settings);
+        run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, wd, &config.as_ref().unwrap().program_set.sys_name, settings);
+        exit(0);
     }
 
     loop {
@@ -123,8 +125,10 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 println!("PBSA parameters have been written to _paras_pbsa.txt");
             }
             Ok(0) => {
-                run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, 
-                    residues, aps, &ala_list, &pbe_set, &pba_set, wd, settings);
+                let sys_name = get_system_name();
+                let (result_wt, result_as) = run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, 
+                    residues, aps, &ala_list, &pbe_set, &pba_set, wd, &sys_name, settings);
+                analyzation::analyze_controller(&result_wt, &result_as, &sys_name, wd, settings);
             }
             Ok(1) => {
                 println!("Input the electrostatic screening method:");
@@ -310,34 +314,34 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
     }
 }
 
+fn get_system_name() -> String {
+    println!("Input system name (default: {}):", "system");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error input");
+    if input.trim().len() != 0 {
+        input.trim().to_string()
+    } else {
+        "system".to_string()
+    }
+}
+
 fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                             tpr: &TPR, ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, residues: &Vec<Residue>, 
-                            aps: &mut AtomProperties, ala_list: &Vec<i32>, pbe_set: &PBESet, pba_set: &PBASet, wd: &Path, settings: &Settings) {
+                            aps: &mut AtomProperties, ala_list: &Vec<i32>, pbe_set: &PBESet, pba_set: &PBASet, wd: &Path, 
+                            sys_name: &str, settings: &Settings) -> (SMResult, Vec<SMResult>) {
     // Apply atom radius
     println!("Applying {} radius...", radius_types[settings.radius_type]);
     aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
 
     // Temp directory for PBSA
-    let mut sys_name = String::from("system");
-    println!("Input system name (default: {}):", sys_name);
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("Error input");
-    if input.trim().len() != 0 {
-        sys_name = input.trim().to_string();
-    }
-    let temp_dir = wd.join(&sys_name);
+    let temp_dir = wd.join(sys_name);
     if let Some(_) = settings.apbs_path.as_ref() {
         println!("Temporary files will be placed at {}/", temp_dir.display());
         if !temp_dir.is_dir() {
-            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
+            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         } else {
-            println!("Directory {}/ not empty. Clear? [Y/n]", temp_dir.display());
-            let mut input = String::from("");
-            stdin().read_line(&mut input).expect("Get input error");
-            if input.trim().len() == 0 || input.trim() == "Y" || input.trim() == "y" {
-                fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-                fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", &sys_name).as_str());
-            }
+            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
+            fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         }
     } else {
         println!("Note: Since APBS not found, solvation energy will not be calculated.");
@@ -345,8 +349,8 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
     
     // run MM-PBSA calculations
     let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
-                                                    coordinates_ie, &temp_dir, &sys_name, &aps,
+                                                    coordinates_ie, &temp_dir, sys_name, &aps,
                                                     &ndx_rec, &ndx_lig, &ala_list, &residues, wd, tpr.temp,
                                                     &pbe_set, &pba_set, settings);
-    analyzation::analyze_controller(&result_wt, &result_as, &sys_name, wd, settings);
+    (result_wt, result_as)
 }
