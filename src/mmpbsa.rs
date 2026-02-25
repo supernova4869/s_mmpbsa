@@ -265,7 +265,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         }
 
         pgb.inc(1);
-        pgb.set_message(format!("at {} ns, ΔPBSA={:.2} kJ/mol, eta. {} s", 
+        pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s", 
                                         times[cur_frm],
                                         vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() + 
                                         pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
