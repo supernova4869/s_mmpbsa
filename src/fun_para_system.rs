@@ -24,7 +24,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
                     wd: &Path, tpr_name: &str, settings: &mut Settings) {
     println!("Reading {}...", ndx_name);
     let ndx = Index::from(ndx_name);
-    let receptor_grp = &config.as_ref().unwrap().program_set.rec_grp;
+    let receptor_grp = &config.as_ref().map(|c| c.program_set.rec_grp.clone()).unwrap_or_else(String::new);
     let mut receptor_grp: Option<usize> = if receptor_grp.is_empty() { None } else {
         ndx.groups.iter().enumerate().find_map(|(i, g)| if g.name.eq(receptor_grp) {
             Some(i)
@@ -32,7 +32,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             None
         })
     };
-    let ligand_grp = &config.as_ref().unwrap().program_set.lig_grp;
+    let ligand_grp = &config.as_ref().map(|c| c.program_set.lig_grp.clone()).unwrap_or_else(String::new);
     let mut ligand_grp: Option<usize> = if ligand_grp.is_empty() { None } else {
         ndx.groups.iter().enumerate().find_map(|(i, g)| if g.name.eq(ligand_grp) {
             Some(i)
@@ -40,11 +40,11 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             None
         })
     };
-    let mut bt = config.as_ref().unwrap().program_set.start_time; // ps
-    let mut et = config.as_ref().unwrap().program_set.end_time; // ps
-    let mut dt = config.as_ref().unwrap().program_set.dt; // ps
-    let mut ie_multi = config.as_ref().unwrap().program_set.ie_multiple; // multipli
-    let mut fix_pbc = config.as_ref().unwrap().program_set.fix_pbc; // whether to fix PBC conditions
+    let mut bt = config.as_ref().map(|c| c.program_set.start_time).unwrap_or_else(|| 0.0);
+    let mut et = config.as_ref().map(|c| c.program_set.end_time).unwrap_or_else(|| f64::INFINITY); // ps
+    let mut dt = config.as_ref().map(|c| c.program_set.dt).unwrap_or_else(|| 1000.0); // ps
+    let mut ie_multi = config.as_ref().map(|c| c.program_set.ie_multiple).unwrap_or_else(|| 10); // multipli
+    let mut fix_pbc = config.as_ref().map(|c| c.program_set.fix_pbc).unwrap_or_else(|| true); // whether to fix PBC conditions
     if config.is_some() {
         if receptor_grp.is_none() {
             println!("Receptor group {} not found in config, please set correct receptor group.", config.as_ref().unwrap().program_set.rec_grp.red());

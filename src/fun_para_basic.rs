@@ -73,12 +73,14 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
 
 pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path: &Option<String>, 
                             config: &Option<Config>, wd: &Path, settings: &mut Settings) {
-    let mut trj = trj_path.clone().unwrap_or(config.as_ref().unwrap().program_set.trj.clone());
+    let mut trj = trj_path.clone().or_else(|| config.as_ref().map(|c| c.program_set.trj.clone()))
+                               .unwrap_or_else(String::new);
     if !Path::new(&trj).is_file() {
         println!("Not valid file: {}. Check again.", trj);
         exit(0);
     }
-    let mut ndx = ndx_path.clone().unwrap_or(config.as_ref().unwrap().program_set.ndx.clone());
+    let mut ndx = ndx_path.clone().or_else(|| config.as_ref().map(|c| c.program_set.ndx.clone()))
+                               .unwrap_or_else(String::new);
     if !Path::new(&ndx).is_file() {
         println!("{} not found. Generating default index.ndx.", ndx);
         let tpr_path = append_new_name(tpr_path, ".tpr", "");
