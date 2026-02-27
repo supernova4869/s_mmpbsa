@@ -1,12 +1,12 @@
 program_set:
   sys_name: system
   calc_mm: true
-  calc_pbsa: true
+  calc_pbsa: false
   trj: md.xtc
   tpr: md.tpr
   ndx: index.ndx
   rec_grp: Protein
-  lig_grp: ''
+  lig_grp: BEC
   start_time: 0.0
   end_time: .inf
   dt: 1000.0

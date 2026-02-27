@@ -207,7 +207,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     // setting up environment
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
-    if settings.pbsa_kernel.is_some() && settings.apbs_path.is_some() {
+    if settings.calc_pbsa && settings.apbs_path.is_some() {
         let apbs_path = settings.apbs_path.as_ref().unwrap();
         let apbs_dir = Path::new(apbs_path).parent().unwrap();
         
@@ -245,17 +245,19 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     for cur_frm in 0..time_list.len() {
         // MM
-        let coord = coordinates.slice(s![cur_frm, .., ..]);
-        if let Some(ndx_lig) = ndx_lig {
-            let (de_elec, de_vdw) = 
-                calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallel);
-            elec_atom.row_mut(cur_frm).assign(&de_elec);
-            vdw_atom.row_mut(cur_frm).assign(&de_vdw);
+        if settings.calc_mm {
+            let coord = coordinates.slice(s![cur_frm, .., ..]);
+            if let Some(ndx_lig) = ndx_lig {
+                let (de_elec, de_vdw) = 
+                    calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallel);
+                elec_atom.row_mut(cur_frm).assign(&de_elec);
+                vdw_atom.row_mut(cur_frm).assign(&de_vdw);
+            }
         }
 
         // PBSA
-        let coord = coordinates.slice(s![cur_frm, .., ..]);
-        if settings.pbsa_kernel.is_some() {
+        if settings.calc_pbsa {
+            let coord = coordinates.slice(s![cur_frm, .., ..]);
             let (de_pb, de_sa) = 
                 calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
             pb_atom.row_mut(cur_frm).assign(&de_pb);
@@ -271,28 +273,32 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     }
     pgb.finish();
 
-    let mm_ie: Array1<f64> = if let Some(ndx_lig) = ndx_lig {
-        println!("Start IE calculation...");
-        let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
-        set_style(&pgb);
-        pgb.inc(0);
-        let calc_ie_per_frame = |frame: ArrayView2<f64>| {
-            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, false);
-            pgb.inc(1);
-            pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
-            de_elec.sum() + de_vdw.sum()
-        };
-        let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
-            .into_par_iter()
-            .enumerate()
-            .map(|(i, frame)| 
-                if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
-                    vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
-                } else {
-                    calc_ie_per_frame(frame)
-                }).collect();
-        pgb.finish();
-        Array1::from_vec(atoms_ie)
+    let mm_ie: Array1<f64> = if settings.calc_mm {
+        if let Some(ndx_lig) = ndx_lig {
+            println!("Start IE calculation...");
+            let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
+            set_style(&pgb);
+            pgb.inc(0);
+            let calc_ie_per_frame = |frame: ArrayView2<f64>| {
+                let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, false);
+                pgb.inc(1);
+                pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
+                de_elec.sum() + de_vdw.sum()
+            };
+            let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
+                .into_par_iter()
+                .enumerate()
+                .map(|(i, frame)| 
+                    if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
+                        vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
+                    } else {
+                        calc_ie_per_frame(frame)
+                    }).collect();
+            pgb.finish();
+            Array1::from_vec(atoms_ie)
+        } else {
+            Array1::zeros(coordinates_ie.shape()[0])
+        }
     } else {
         Array1::zeros(coordinates_ie.shape()[0])
     };
@@ -434,122 +440,116 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
     let gamma = 0.030125;
     let bias = 0.0;
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
-    if let Some(pbsa_kernel) = &settings.pbsa_kernel {
-        if pbsa_kernel.eq("apbs") {
-            if settings.apbs_path.as_ref().is_none() {
-                return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
-            }
-            let apbs = settings.apbs_path.as_ref().unwrap();
-            write_apbs_input(ndx_rec, ndx_lig, coord, &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
-                    pbe_set, pba_set, temp_dir, &f_name, settings);
-            // invoke apbs program to do apbs calculations
-            let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
-            let apbs_err = String::from_utf8(apbs_result.stderr).expect("Failed to parse apbs output.");
-            let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
-            if settings.debug_mode {
-                let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name))).expect("Failed to create output file.");
-                outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
-                let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name))).expect("Failed to create err file.");
-                errfile.write_all(apbs_err.as_bytes()).expect("Failed to write apbs output.");
-            }
-            // let apbs_result = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).expect("Failed to get apbs output file.");
-    
-            // preserve CALCULATION, Atom and SASA lines
-            let apbs_result: Vec<&str> = apbs_result.split("\n").filter_map(|p|
-                if p.trim().starts_with("CALCULATION") || p.trim().starts_with("Atom") || p.trim().starts_with("SASA") {
-                    Some(p.trim())
-                } else {
-                    None
-                }
-            ).collect();
-    
-            // extract apbs results
-            let indexes: Vec<usize> = apbs_result
-                .iter()
-                .enumerate()
-                .filter_map(|(i, p)| p.starts_with("CAL").then_some(i))
-                .collect();
+    if settings.calc_pbsa {
+        if settings.apbs_path.as_ref().is_none() {
+            return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
+        }
+        let apbs = settings.apbs_path.as_ref().unwrap();
+        write_apbs_input(ndx_rec, ndx_lig, coord, &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
+                pbe_set, pba_set, temp_dir, &f_name, settings);
+        // invoke apbs program to do apbs calculations
+        let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
+        let apbs_err = String::from_utf8(apbs_result.stderr).expect("Failed to parse apbs output.");
+        let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
+        if settings.debug_mode {
+            let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name))).expect("Failed to create output file.");
+            outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
+            let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name))).expect("Failed to create err file.");
+            errfile.write_all(apbs_err.as_bytes()).expect("Failed to write apbs output.");
+        }
+        // let apbs_result = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).expect("Failed to get apbs output file.");
 
-            let mut com_pb_sol: Vec<f64> = vec![];
-            let mut com_pb_vac: Vec<f64> = vec![];
-            let mut rec_pb_sol: Vec<f64> = vec![];
-            let mut rec_pb_vac: Vec<f64> = vec![];
-            let mut lig_pb_sol: Vec<f64> = vec![];
-            let mut lig_pb_vac: Vec<f64> = vec![];
-            let mut com_sa: Vec<f64> = vec![];
-            let mut rec_sa: Vec<f64> = vec![];
-            let mut lig_sa: Vec<f64> = vec![];
-    
-            let mut skip_pb = true;     // the first time PB calculation should be dropped
-            for (i, &idx) in indexes.iter().enumerate() {
-                let st = idx + 1;
-                let ed = match indexes.get(i + 1) {
-                    Some(&idx) => idx,
-                    None => apbs_result.len()
-                };
-                if apbs_result[idx].contains(&"_com_SOL") {
-                    if !skip_pb {
-                        apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_sol);
-                    }
-                    skip_pb = !skip_pb;
-                } else if apbs_result[idx].contains(&"_com_VAC") {
-                    if !skip_pb {
-                        apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_vac);
-                    }
-                    skip_pb = !skip_pb;
-                } else if apbs_result[idx].contains(&"_rec_SOL") {
-                    if !skip_pb {
-                        apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_sol);
-                    }
-                    skip_pb = !skip_pb;
-                } else if apbs_result[idx].contains(&"_rec_VAC") {
-                    if !skip_pb {
-                        apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_vac);
-                    }
-                    skip_pb = !skip_pb;
-                } else if apbs_result[idx].contains(&"_lig_SOL") {
-                    if !skip_pb {
-                        apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_sol);
-                    }
-                    skip_pb = !skip_pb;
-                } else if apbs_result[idx].contains(&"_lig_VAC") {
-                    if !skip_pb {
-                        apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_vac);
-                    }
-                    skip_pb = !skip_pb;
-                } else if apbs_result[idx].contains(&"_com_SAS") {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_sa);
-                } else if apbs_result[idx].contains(&"_rec_SAS") {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_sa);
-                } else if apbs_result[idx].contains(&"_lig_SAS") {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_sa);
-                }
-            }
-    
-            let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
-            let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
-            let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
-            let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
-            let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
-            let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
-    
-            if let Some(ndx_lig) = ndx_lig {
-                if ndx_rec.iter().min() < ndx_lig.iter().min() {
-                    rec_pb.append(Axis(0), lig_pb.view()).unwrap();
-                    rec_sa.append(Axis(0), lig_sa.view()).unwrap();
-                    (com_pb - rec_pb, com_sa - rec_sa)
-                } else {
-                    lig_pb.append(Axis(0), rec_pb.view()).unwrap();
-                    lig_sa.append(Axis(0), rec_sa.view()).unwrap();
-                    (com_pb - lig_pb, com_sa - lig_sa)
-                }
+        // preserve CALCULATION, Atom and SASA lines
+        let apbs_result: Vec<&str> = apbs_result.split("\n").filter_map(|p|
+            if p.trim().starts_with("CALCULATION") || p.trim().starts_with("Atom") || p.trim().starts_with("SASA") {
+                Some(p.trim())
             } else {
-                (rec_pb, rec_sa)
+                None
+            }
+        ).collect();
+
+        // extract apbs results
+        let indexes: Vec<usize> = apbs_result
+            .iter()
+            .enumerate()
+            .filter_map(|(i, p)| p.starts_with("CAL").then_some(i))
+            .collect();
+
+        let mut com_pb_sol: Vec<f64> = vec![];
+        let mut com_pb_vac: Vec<f64> = vec![];
+        let mut rec_pb_sol: Vec<f64> = vec![];
+        let mut rec_pb_vac: Vec<f64> = vec![];
+        let mut lig_pb_sol: Vec<f64> = vec![];
+        let mut lig_pb_vac: Vec<f64> = vec![];
+        let mut com_sa: Vec<f64> = vec![];
+        let mut rec_sa: Vec<f64> = vec![];
+        let mut lig_sa: Vec<f64> = vec![];
+
+        let mut skip_pb = true;     // the first time PB calculation should be dropped
+        for (i, &idx) in indexes.iter().enumerate() {
+            let st = idx + 1;
+            let ed = match indexes.get(i + 1) {
+                Some(&idx) => idx,
+                None => apbs_result.len()
+            };
+            if apbs_result[idx].contains(&"_com_SOL") {
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_sol);
+                }
+                skip_pb = !skip_pb;
+            } else if apbs_result[idx].contains(&"_com_VAC") {
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_vac);
+                }
+                skip_pb = !skip_pb;
+            } else if apbs_result[idx].contains(&"_rec_SOL") {
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_sol);
+                }
+                skip_pb = !skip_pb;
+            } else if apbs_result[idx].contains(&"_rec_VAC") {
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_vac);
+                }
+                skip_pb = !skip_pb;
+            } else if apbs_result[idx].contains(&"_lig_SOL") {
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_sol);
+                }
+                skip_pb = !skip_pb;
+            } else if apbs_result[idx].contains(&"_lig_VAC") {
+                if !skip_pb {
+                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_vac);
+                }
+                skip_pb = !skip_pb;
+            } else if apbs_result[idx].contains(&"_com_SAS") {
+                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_sa);
+            } else if apbs_result[idx].contains(&"_rec_SAS") {
+                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_sa);
+            } else if apbs_result[idx].contains(&"_lig_SAS") {
+                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_sa);
             }
         }
-        else {
-            println!("Currently Delphi kernel not available.");
-            (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
+
+        let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
+        let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
+        let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
+        let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
+        let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
+        let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
+
+        if let Some(ndx_lig) = ndx_lig {
+            if ndx_rec.iter().min() < ndx_lig.iter().min() {
+                rec_pb.append(Axis(0), lig_pb.view()).unwrap();
+                rec_sa.append(Axis(0), lig_sa.view()).unwrap();
+                (com_pb - rec_pb, com_sa - rec_sa)
+            } else {
+                lig_pb.append(Axis(0), rec_pb.view()).unwrap();
+                lig_sa.append(Axis(0), rec_sa.view()).unwrap();
+                (com_pb - lig_pb, com_sa - lig_sa)
+            }
+        } else {
+            (rec_pb, rec_sa)
         }
     } else {
         (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))

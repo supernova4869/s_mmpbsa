@@ -10,19 +10,15 @@ pub struct Settings {
     pub r_cutoff: f64,
     pub fix_pbc: bool,
     pub elec_screen: usize,
+    pub calc_mm: bool,
+    pub calc_pbsa: bool,
     pub gmx_path: Option<String>,
+    pub apbs_path: Option<String>,
     pub cfac: i32,
     pub fadd: f64,
     pub df: f64,
-    pub pbsa_kernel: Option<String>,
-    pub apbs_path: Option<String>,
     pub chg_m: usize,
     pub pymol_path: Option<String>,
-    pub antechamber_path: Option<String>,
-    pub sobtop_path: Option<String>,
-    pub gaussian_path: Option<String>,
-    pub multiwfn_path: Option<String>,
-    pub obabel_path: Option<String>,
     pub nkernels: usize,
     pub debug_mode: bool,
     pub last_opened: String,
@@ -36,18 +32,14 @@ impl Settings {
             r_cutoff: 0.0,
             fix_pbc: true,
             gmx_path: Some("gmx".to_string()),
+            apbs_path: None,
+            calc_mm: true,
+            calc_pbsa: true,
             cfac: 3,
             fadd: 10.0,
             df: 0.5,
-            pbsa_kernel: None,
-            apbs_path: None,
             chg_m: 0,
             pymol_path: None,
-            antechamber_path: None,
-            gaussian_path: None,
-            sobtop_path: None,
-            multiwfn_path: None,
-            obabel_path: None,
             nkernels: 1,
             debug_mode: false,
             last_opened: String::new(),
@@ -77,26 +69,26 @@ impl Settings {
         };
         let gmx_path = parse_param(&setting_values, "gmx_path", "\"built-in\"".to_string());
         let gmx_path = Some(gmx_path[1..gmx_path.len() - 1].to_string());
+        let apbs_path = parse_param(&setting_values, "apbs_path", "".to_string());
+        let apbs_path = Some(apbs_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
+        let calc_mm = parse_param(&setting_values, "calc_mm", "\"y\"".to_string());
+        let calc_mm = match calc_mm[1..2].to_string().as_str() {
+            "y" => true,
+            "Y" => true,
+            _ => false
+        };
+        let calc_pbsa = parse_param(&setting_values, "calc_pbsa", "\"y\"".to_string());
+        let calc_pbsa = match calc_pbsa[1..2].to_string().as_str() {
+            "y" => true,
+            "Y" => true,
+            _ => false
+        };
         let cfac = parse_param(&setting_values, "cfac", default_settings.cfac);
         let fadd = parse_param(&setting_values, "fadd", default_settings.fadd);
         let df = parse_param(&setting_values, "df", default_settings.df);
-        let pbsa_kernel = parse_param(&setting_values, "pbsa_kernel", "".to_string());
-        let pbsa_kernel = Some(pbsa_kernel.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let apbs_path = parse_param(&setting_values, "apbs_path", "".to_string());
-        let apbs_path = Some(apbs_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let chg_m = parse_param(&setting_values, "chg_m", 0);
         let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
         let pymol_path = Some(pymol_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let antechamber_path = parse_param(&setting_values, "antechamber_path", "".to_string());
-        let antechamber_path = Some(antechamber_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let gaussian_path = parse_param(&setting_values, "gaussian_path", "".to_string());
-        let gaussian_path = Some(gaussian_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let sobtop_path = parse_param(&setting_values, "sobtop_path", "".to_string());
-        let sobtop_path = Some(sobtop_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let multiwfn_path = parse_param(&setting_values, "multiwfn_path", "".to_string());
-        let multiwfn_path = Some(multiwfn_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let obabel_path = parse_param(&setting_values, "obabel_path", "".to_string());
-        let obabel_path = Some(obabel_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
         let debug_mode = match debug_mode[1..2].to_string().as_str() {
@@ -113,18 +105,14 @@ impl Settings {
             r_cutoff,
             fix_pbc,
             gmx_path,
+            apbs_path,
+            calc_mm,
+            calc_pbsa,
             cfac,
             fadd,
             df,
-            pbsa_kernel,
-            apbs_path,
             chg_m,
             pymol_path,
-            antechamber_path,
-            sobtop_path,
-            gaussian_path,
-            multiwfn_path,
-            obabel_path,
             nkernels,
             debug_mode,
             last_opened,

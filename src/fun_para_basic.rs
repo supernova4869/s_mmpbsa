@@ -6,43 +6,22 @@ use colored::*;
 use crate::parameters::Config;
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, make_ndx};
-use crate::{confirm_file_validity, convert_ask_dir, set_program};
+use crate::{confirm_file_validity, convert_ask_dir};
 use crate::fun_para_system;
 use crate::parse_tpr::TPR;
 
 fn list_basic_programs(settings: &mut Settings) {
-    println!(" -4 Set number of parallel kernels (only used by PBSA calculations), current: {}", settings.nkernels);
-    println!(" -3 Set apbs path, current: {}", match &settings.apbs_path {
-        Some(s) => s.to_string(),
-        None => String::from("Not set")
-    });
-    println!(" -2 Toggle whether do MM calculations, current: {}", match &settings.pbsa_kernel {
-        Some(s) => s.to_string(),
-        None => String::from("Not set")
-    });
+    println!(" -4 Set number of parallel kernels, current: {}", settings.nkernels);
+    println!(" -3 Toggle whether do PBSA calculations, current: {}", settings.calc_pbsa);
+    println!(" -2 Toggle whether do MM calculations, current: {}", settings.calc_mm);
     println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
 }
 
 fn set_basic_programs(opt: i32, settings: &mut Settings) {
     match opt {
         -1 => settings.debug_mode = !settings.debug_mode,
-        -2 => {
-            println!("Input PBSA kernel (if empty, means not to do PBSA calculation):");
-            let s: String = get_input_selection().unwrap();
-            if s.eq("apbs") || s.eq("delphi") {
-                settings.pbsa_kernel = Some(s)
-            } else {
-                settings.pbsa_kernel = None
-            }
-        }
-        -3 => {
-            println!("Input APBS path:");
-            let s: String = get_input_selection().unwrap();
-            match set_program(&Some(s), "apbs", settings) {
-                Some(s) => settings.apbs_path = Some(s),
-                None => settings.apbs_path = None
-            }
-        }
+        -2 => settings.calc_mm = !settings.calc_mm,
+        -3 => settings.calc_pbsa = !settings.calc_pbsa,
         -4 => {
             let num_cores = thread::available_parallelism()
                 .map(|n| n.get())
@@ -51,7 +30,7 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
             // 使用一半的核心
             let threads_to_use = (num_cores / 2).max(1);
             
-            println!("Input number of parallel kernels (default: system cores num {}, currently {}):", 
+            println!("Input number of parallel kernels (default: {}, currently {}):", 
                 threads_to_use, settings.nkernels);
             settings.nkernels = get_input(threads_to_use).max(1);
         }
@@ -67,6 +46,8 @@ pub fn set_para_basic_tpr(tpr_dump_path: &String, trj_path: &Option<String>,
     let mut tpr = TPR::from(&tpr_dump_path);
     println!("\nFinished loading tpr file: {}", tpr);
     if config.is_some() {
+        settings.calc_mm = config.as_ref().unwrap().program_set.calc_mm;
+        settings.calc_pbsa = config.as_ref().unwrap().program_set.calc_pbsa;
         let trj = config.as_ref().unwrap().program_set.trj.clone();
         let ndx = config.as_ref().unwrap().program_set.ndx.clone();
         let ndx = if ndx.is_empty() {
