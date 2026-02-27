@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
+use std::env;
 use std::io::stdin;
-use std::path::Path;
 use std::process::exit;
 use colored::Colorize;
 use ndarray::Array3;
@@ -17,7 +17,7 @@ use crate::mmpbsa;
 use crate::analyzation::{self, SMResult};
 
 pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
-                       tpr: &TPR, ndx: &Index, config: &Option<Config>, wd: &Path, aps: &mut AtomProperties,
+                       tpr: &TPR, ndx: &Index, config: &Option<Config>, aps: &mut AtomProperties,
                        ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                        receptor_grp: usize, ligand_grp: Option<usize>,
                        residues: &Vec<Residue>, settings: &mut Settings) {
@@ -42,7 +42,9 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         settings.fadd = config.as_ref().unwrap().program_set.fadd;
         settings.df = config.as_ref().unwrap().program_set.df;
         ala_list = utils::range2list(config.as_ref().unwrap().program_set.ala_scan_range.as_str());
-        run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, wd, &config.as_ref().unwrap().program_set.sys_name, settings);
+        run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, 
+            tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, 
+            &config.as_ref().unwrap().program_set.sys_name, settings);
         exit(0);
     }
 
@@ -70,7 +72,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         match i {
             Ok(-10) => return,
             Ok(-1) => {
-                let mut paras = File::create(wd.join("_paras_atom_properties.txt")).unwrap();
+                let mut paras = File::create("_paras_atom_properties.txt").unwrap();
                 paras.write_all(format!("Receptor group: {}\n", 
                     ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
                 match ligand_grp {
@@ -91,7 +93,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 println!("Structural parameters have been written to _paras_atom_properties.txt");
             }
             Ok(-2) => {
-                let mut paras = File::create(wd.join("_paras_LJ.txt")).unwrap();
+                let mut paras = File::create("_paras_LJ.txt").unwrap();
                 paras.write_all("c6:\n".as_bytes()).unwrap();
                 for i in 0..aps.c6.shape()[0] {
                     for j in 0..aps.c6.shape()[1] {
@@ -112,7 +114,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 if let Some(config) = config {
                     config.save("_paras_pbsa.txt");
                 } else {
-                    let mut paras = File::create(wd.join("_paras_pbsa.txt")).unwrap();
+                    let mut paras = File::create("_paras_pbsa.txt").unwrap();
                     paras.write_all(format!("Electrostatic screening method: {}\n", settings.elec_screen).as_bytes()).unwrap();
                     paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                     paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
@@ -126,9 +128,10 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             }
             Ok(0) => {
                 let sys_name = get_system_name();
-                let (result_wt, result_as) = run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, 
-                    residues, aps, &ala_list, &pbe_set, &pba_set, wd, &sys_name, settings);
-                analyzation::analyze_controller(&result_wt, &result_as, &sys_name, wd, settings);
+                let (result_wt, result_as) = run_mmpbsa_calculations(&radius_types, 
+                    time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, 
+                    residues, aps, &ala_list, &pbe_set, &pba_set, &sys_name, settings);
+                analyzation::analyze_controller(&result_wt, &result_as, &sys_name, settings);
             }
             Ok(1) => {
                 println!("Input the electrostatic screening method:");
@@ -268,10 +271,10 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 }
             }
             Ok(8) => {
-                let pb_fpath = wd.join("PB_settings.yaml");
+                let pb_fpath = "PB_settings.yaml";
                 pbe_set.save(&pb_fpath);
                 println!("PB parameters have been wrote to {}.\n\
-                    Edit it and press ENTER to reload).", &pb_fpath.to_str().unwrap().yellow().bold());
+                    Edit it and press ENTER to reload).", pb_fpath.yellow().bold());
                 get_input("".to_string());
                 loop {
                     let new_pbe_set = PBESet::load(&pb_fpath);
@@ -282,17 +285,17 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                         },
                         Err(e) => {
                             println!("Error format with PB parameters file, details:\n{}", e.to_string().red().bold());
-                            println!("Edit {} again and press ENTER to reload", &pb_fpath.to_str().unwrap());
+                            println!("Edit {} again and press ENTER to reload", &pb_fpath);
                             get_input("".to_string());
                         }
                     };
                 }
             }
             Ok(9) => {
-                let sa_fpath = wd.join("SA_settings.yaml");
+                let sa_fpath = "SA_settings.yaml";
                 pba_set.save(&sa_fpath);
                 println!("SA parameters have been wrote to {}.\n\
-                    Edit it and press ENTER to reload).", &sa_fpath.to_str().unwrap().yellow().bold());
+                    Edit it and press ENTER to reload).", sa_fpath.yellow().bold());
                 get_input("".to_string());
                 loop {
                     let new_pba_set = PBASet::load(&sa_fpath);
@@ -303,7 +306,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                         },
                         Err(e) => {
                             println!("Error format with SA parameters file, details:\n{}", e.to_string().red().bold());
-                            println!("Edit {} again and press ENTER to reload", &sa_fpath.to_str().unwrap());
+                            println!("Edit {} again and press ENTER to reload", &sa_fpath);
                             get_input("".to_string());
                         }
                     };
@@ -327,14 +330,14 @@ fn get_system_name() -> String {
 
 fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                             tpr: &TPR, ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, residues: &Vec<Residue>, 
-                            aps: &mut AtomProperties, ala_list: &Vec<i32>, pbe_set: &PBESet, pba_set: &PBASet, wd: &Path, 
+                            aps: &mut AtomProperties, ala_list: &Vec<i32>, pbe_set: &PBESet, pba_set: &PBASet, 
                             sys_name: &str, settings: &Settings) -> (SMResult, Vec<SMResult>) {
     // Apply atom radius
     println!("Applying {} radius...", radius_types[settings.radius_type]);
-    aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types, wd);
+    aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types);
 
     // Temp directory for PBSA
-    let temp_dir = wd.join(sys_name);
+    let temp_dir = &env::current_dir().unwrap().join(sys_name);
     if let Some(_) = settings.apbs_path.as_ref() {
         println!("Temporary files will be placed at {}/", temp_dir.display());
         if !temp_dir.is_dir() {
@@ -350,7 +353,7 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
     // run MM-PBSA calculations
     let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
                                                     coordinates_ie, &temp_dir, sys_name, &aps,
-                                                    &ndx_rec, &ndx_lig, &ala_list, &residues, wd, tpr.temp,
+                                                    &ndx_rec, &ndx_lig, &ala_list, &residues, tpr.temp,
                                                     &pbe_set, &pba_set, settings);
     (result_wt, result_as)
 }

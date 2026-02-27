@@ -16,7 +16,6 @@ pub struct Settings {
     pub df: f64,
     pub pbsa_kernel: Option<String>,
     pub apbs_path: Option<String>,
-    pub delphi_path: Option<String>,
     pub chg_m: usize,
     pub pymol_path: Option<String>,
     pub antechamber_path: Option<String>,
@@ -42,7 +41,6 @@ impl Settings {
             df: 0.5,
             pbsa_kernel: None,
             apbs_path: None,
-            delphi_path: None,
             chg_m: 0,
             pymol_path: None,
             antechamber_path: None,
@@ -86,8 +84,6 @@ impl Settings {
         let pbsa_kernel = Some(pbsa_kernel.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let apbs_path = parse_param(&setting_values, "apbs_path", "".to_string());
         let apbs_path = Some(apbs_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let delphi_path = parse_param(&setting_values, "delphi_path", "".to_string());
-        let delphi_path = Some(delphi_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let chg_m = parse_param(&setting_values, "chg_m", 0);
         let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
         let pymol_path = Some(pymol_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
@@ -122,7 +118,6 @@ impl Settings {
             df,
             pbsa_kernel,
             apbs_path,
-            delphi_path,
             chg_m,
             pymol_path,
             antechamber_path,

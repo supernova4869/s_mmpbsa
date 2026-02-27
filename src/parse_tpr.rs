@@ -1,5 +1,4 @@
-use std::fmt::Formatter;
-use std::path::Path;
+use std::{env, fmt::Formatter};
 use std::fmt;
 use ndarray::Array2;
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -52,7 +51,7 @@ impl fmt::Display for TPR {
 }
 
 impl TPR {
-    pub fn from(mdp: &str) -> TPR {
+    pub fn from(dump: &str) -> TPR {
         let mut name = String::new();
         let mut atoms_num = 0;
         let mut molecule_blocks_num = 0;
@@ -60,7 +59,7 @@ impl TPR {
         let mut molecule_blocks: Vec<MolBlock> = Vec::new();
 
         // 使用BufReader高效读取文件
-        let file = File::open(mdp).unwrap();
+        let file = File::open(dump).unwrap();
         let mut reader = BufReader::new(file);
         let mut buf = String::with_capacity(256);
 
@@ -82,7 +81,7 @@ impl TPR {
         // 模拟时间参数
         let mut temperature = 0.0;
 
-        println!("Loading dump file: {}\n", mdp);
+        println!("Loading dump file: {}\n", dump);
         
         // 读取文件行
         while read_line(&mut reader, &mut buf) > 0 {
@@ -109,7 +108,7 @@ impl TPR {
         }
 
         println!("Backup force field radius...");
-        let ff_dat = Path::new(mdp).parent().unwrap().join("ff_radius.dat");
+        let ff_dat = &env::current_dir().unwrap().join("ff_radius.dat");
         if ff_dat.is_file() {
             std::fs::remove_file(&ff_dat).unwrap();
         }

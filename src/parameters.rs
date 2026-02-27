@@ -38,6 +38,8 @@ impl Config {
 #[derive(Serialize, Deserialize)]
 pub struct ProgramSet {
     pub sys_name: String,
+    pub calc_mm: bool,
+    pub calc_pbsa: bool,
     pub trj: String,
     pub tpr: String,
     pub ndx: String,
@@ -59,6 +61,8 @@ impl ProgramSet {
     pub fn new() -> ProgramSet {
         ProgramSet {
             sys_name: "system".to_string(),
+            calc_mm: true,
+            calc_pbsa: true,
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
             ndx: "index.ndx".to_string(),

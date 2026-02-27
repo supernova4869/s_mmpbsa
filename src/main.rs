@@ -140,7 +140,7 @@ fn main() {
         if !result_as.is_empty() {
             println!("Found {} mutations of {}, collecting them.", result_as.len(), sys_name);
         }
-        analyzation::analyze_controller(&result_wt, &result_as, &sys_name.to_string(), &wd, &settings);
+        analyzation::analyze_controller(&result_wt, &result_as, &sys_name.to_string(), &settings);
     };
 
     let tpr = if cli.tpr.is_some() {
@@ -168,8 +168,8 @@ fn main() {
     if Path::new(&tpr).is_file() {
         let tpr = confirm_file_validity(&tpr, vec!["tpr"], &tpr);
         change_settings_last_opened(&mut settings, &tpr);
-        let tpr = get_dump(&tpr, &settings);
-        fun_para_basic::set_para_basic_tpr(&tpr, &trj, &ndx, &config, &Path::new(&tpr).parent().unwrap(), &mut settings);
+        let tpr_dump = get_dump(&tpr, &settings);
+        fun_para_basic::set_para_basic_tpr(&tpr_dump, &trj, &tpr, &ndx, &config, &mut settings);
     } else {
         println!("Input {} not file. Please check.", Path::new(&tpr).to_str().unwrap());
         println!("Press ENTER to exit.");
@@ -197,7 +197,7 @@ Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.
 pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
     let mut f_name = String::from(file_name);
     loop {
-        f_name = convert_cur_dir(&f_name, &tpr_path).trim().to_string();
+        f_name = convert_ask_dir(&f_name, &tpr_path).trim().to_string();
         if !Path::new(&f_name).is_file() {
             println!("Not valid file: {}. Input file path again.", f_name);
             f_name.clear();
@@ -238,22 +238,12 @@ fn get_built_in_apbs() -> String {
         .display().to_string()
 }
 
-fn get_built_in_delphi() -> String {
-    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-        .parent()
-        .expect("Cannot get current s_mmpbsa program directory.")
-        .join("programs").join("delphi")
-        .join(if cfg!(windows) {"win"} else {"linux"}).join("delphi")
-        .display().to_string()
-}
-
 fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<String> {
     if let Some(p) = p {
         let p = if p.eq("built-in") {
             match name {
                 "gromacs" => get_built_in_gmx(),
                 "apbs" => get_built_in_apbs(),
-                "delphi" => get_built_in_delphi(),
                 _ => String::from("")
             }
         } else {
@@ -302,7 +292,7 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
     }
 }
 
-pub fn convert_cur_dir(p: &String, tpr_path: &str) -> String {
+pub fn convert_ask_dir(p: &String, tpr_path: &str) -> String {
     if p.starts_with('?') {
         Path::new(tpr_path).parent()
             .expect("Cannot get path of tpr file.")
@@ -330,11 +320,9 @@ fn change_settings_last_opened(settings: &mut Settings, tpr: &String) {
 
 fn get_dump(tpr_path: &String, settings: &Settings) -> String {
     // get dumpped tpr
-    let tpr_dump_path = fs::canonicalize(Path::new(&tpr_path)).expect("Cannot get absolute tpr path.");
+    let tpr_dump_path = Path::new(&tpr_path);
     let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
-    let tpr_dir = tpr_dump_path.parent().expect("Failed to get tpr parent path");
-    let dump_path = tpr_dir.join(tpr_dump_name.to_string() + ".dump");
-    println!("Currently working at path: {}", Path::new(&tpr_dir).display());
+    let dump_path = &env::current_dir().unwrap().join(tpr_dump_name.to_string() + ".dump");
     let gmx = settings.gmx_path.as_ref().unwrap();
     let dump_to = dump_path.to_str().unwrap().to_string();
     dump_tpr(&tpr_path, &dump_to, gmx);
@@ -378,6 +366,5 @@ fn env_check() -> Settings {
     }
     settings.gmx_path = set_program(&settings.gmx_path, "gromacs", &settings);
     settings.apbs_path = set_program(&settings.apbs_path, "apbs", &settings);
-    settings.delphi_path = set_program(&settings.delphi_path, "delphi", &settings);
     settings
 }

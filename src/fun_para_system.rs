@@ -4,7 +4,6 @@ use std::process::exit;
 use colored::*;
 use ndarray::{Array1, Array3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::path::Path;
 use std::collections::BTreeSet;
 
 use crate::parameters::Config;
@@ -21,7 +20,7 @@ use crate::utils::{convert_tpr, trjconv};
 use crate::read_xtc::read_xtc;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Option<Config>, 
-                    wd: &Path, tpr_name: &str, settings: &mut Settings) {
+                    tpr_path: &str, settings: &mut Settings) {
     println!("Reading {}...", ndx_name);
     let ndx = Index::from(ndx_name);
     let receptor_grp = &config.as_ref().map(|c| c.program_set.rec_grp.clone()).unwrap_or_else(String::new);
@@ -55,13 +54,13 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
                 exit(0);
             } else {
                 println!("Receptor: {}, solvation calculation only.", config.as_ref().unwrap().program_set.rec_grp.yellow());
-                prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_name, ndx_name, bt, et, dt, 
-                                dt / ie_multi as f64, config, wd, settings);
+                prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
+                                dt / ie_multi as f64, config, settings);
             }
         } else {
             println!("Receptor: {}, ligand: {}, complete calculation.", config.as_ref().unwrap().program_set.rec_grp.green(), config.as_ref().unwrap().program_set.lig_grp.green());
-            prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_name, ndx_name, bt, et, dt, 
-                            dt / ie_multi as f64, config, wd, settings);
+            prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
+                            dt / ie_multi as f64, config, settings);
         }
     }
     
@@ -90,8 +89,8 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             }
             Ok(0) => {
                 if let Some(receptor_grp) = receptor_grp {
-                    prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_name, ndx_name, bt, et, dt, 
-                        dt / ie_multi as f64, config, wd, settings);
+                    prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
+                        dt / ie_multi as f64, config, settings);
                 } else {
                     println!("Please select receptor groups.");
                 };
@@ -237,9 +236,9 @@ fn show_grp(grp_id: Option<usize>, ndx: &Index) -> String {
 
 fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>, 
                   trj: &String, tpr: &mut TPR, ndx: &Index, 
-                  fix_pbc: bool, tpr_name: &str, ndx_name: &String, bt: f64, et: f64, 
+                  fix_pbc: bool, tpr_path: &str, ndx_name: &String, bt: f64, et: f64, 
                   dt: f64, dt_ie: f64, config: &Option<Config>,
-                  wd: &Path, settings: &mut Settings) {
+                  settings: &mut Settings) {
     // atom indexes
     println!("Preparing atom indexes...");
     let ndx_lig = match ligand_grp {
@@ -281,7 +280,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             normalize_index(&ndx.groups[receptor_grp].indexes, &ndx_lig);
         
         set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, config,
-            wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else if trj.ends_with("gro") {
         let gro = GRO::from(trj);
         let mut coordinates: Array3<f64> = Array3::zeros((1, gro.atoms.len(), 3));
@@ -301,11 +300,10 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             normalize_index(&ndx.groups[receptor_grp].indexes, &ndx_lig);
         
         set_para_mmpbsa(&time_list, &time_list, &coordinates, tpr, &ndx, config,
-            wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else {
         // pre-treat trajectory
         let trj_mmpbsa = append_new_name(trj, ".xtc", "_MMPBSA_"); // get trj output file name
-        let tpr_name = append_new_name(tpr_name, ".tpr", ""); // fuck the passed tpr name is dump
         
         // step 1: generate new index
         println!("Generating Index...");
@@ -326,12 +324,12 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
-        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_name, &ndx_mmpbsa, &trj_mmpbsa, 
+        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_path, &ndx_mmpbsa, &trj_mmpbsa, 
             &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
         
         // step 3: extract new tpr from old tpr
-        let tpr_mmpbsa = append_new_name(&tpr_name, ".tpr", "_MMPBSA_"); // get extracted tpr file name
-        convert_tpr(&vec!["Complex"], &env::current_dir().unwrap(), settings, &tpr_name, &ndx_mmpbsa, &tpr_mmpbsa);
+        let tpr_mmpbsa = append_new_name(&tpr_path, ".tpr", "_MMPBSA_"); // get extracted tpr file name
+        convert_tpr(&vec!["Complex"], &env::current_dir().unwrap(), settings, &tpr_path, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
         // must normalize index here after trajectory extracion, or the traj may contain less atoms
@@ -361,7 +359,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         
         // 生成初始结构方便查看
         let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
-        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa, &tpr_name, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
+        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
         // fix pbc with new tpr and new index
         if fix_pbc {
@@ -392,6 +390,6 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         let time_list = Array1::linspace(start_time, end_time, num_time_points).to_vec();
 
         set_para_mmpbsa(&time_list, &time_list_ie, &coordinates_ie, tpr, &ndx, config,
-            wd, &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
+            &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     };
 }

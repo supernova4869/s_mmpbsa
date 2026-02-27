@@ -5,22 +5,18 @@ use std::{env, thread};
 use colored::*;
 use crate::parameters::Config;
 use crate::settings::Settings;
-use crate::utils::{append_new_name, get_input, get_input_selection, make_ndx};
-use crate::{confirm_file_validity, convert_cur_dir, set_program};
+use crate::utils::{get_input, get_input_selection, make_ndx};
+use crate::{confirm_file_validity, convert_ask_dir, set_program};
 use crate::fun_para_system;
 use crate::parse_tpr::TPR;
 
 fn list_basic_programs(settings: &mut Settings) {
-    println!(" -5 Set number of parallel kernels (only used by PBSA calculations), current: {}", settings.nkernels);
-    println!(" -4 Set delphi path, current: {}", match &settings.delphi_path {
-        Some(s) => s.to_string(),
-        None => String::from("Not set")
-    });
+    println!(" -4 Set number of parallel kernels (only used by PBSA calculations), current: {}", settings.nkernels);
     println!(" -3 Set apbs path, current: {}", match &settings.apbs_path {
         Some(s) => s.to_string(),
         None => String::from("Not set")
     });
-    println!(" -2 Set PBSA kernel, current: {}", match &settings.pbsa_kernel {
+    println!(" -2 Toggle whether do MM calculations, current: {}", match &settings.pbsa_kernel {
         Some(s) => s.to_string(),
         None => String::from("Not set")
     });
@@ -48,14 +44,6 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
             }
         }
         -4 => {
-            println!("Input Delphi path:");
-            let s: String = get_input_selection().unwrap();
-            match set_program(&Some(s), "delphi", settings) {
-                Some(s) => settings.delphi_path = Some(s),
-                None => settings.delphi_path = None
-            }
-        }
-        -5 => {
             let num_cores = thread::available_parallelism()
                 .map(|n| n.get())
                 .unwrap_or(1);
@@ -71,25 +59,30 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
     }
 }
 
-pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path: &Option<String>, 
-                            config: &Option<Config>, wd: &Path, settings: &mut Settings) {
-    let mut trj = trj_path.clone().or_else(|| config.as_ref().map(|c| c.program_set.trj.clone()))
-                               .unwrap_or_else(String::new);
-    if !Path::new(&trj).is_file() {
-        println!("Not valid file: {}. Check again.", trj);
-        exit(0);
-    }
-    let mut ndx = ndx_path.clone().or_else(|| config.as_ref().map(|c| c.program_set.ndx.clone()))
-                               .unwrap_or_else(String::new);
-    if !Path::new(&ndx).is_file() {
-        println!("{} not found. Generating default index.ndx.", ndx);
-        let tpr_path = append_new_name(tpr_path, ".tpr", "");
-        make_ndx(&vec!["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
-    }
-    let mut tpr = TPR::from(&tpr_path);
+pub fn set_para_basic_tpr(tpr_dump_path: &String, trj_path: &Option<String>, 
+                            tpr_path: &String, ndx_path: &Option<String>, 
+                            config: &Option<Config>, settings: &mut Settings) {
+    let mut trj = trj_path.clone().unwrap_or("".to_string());
+    let mut ndx = ndx_path.clone().unwrap_or("".to_string());
+    let mut tpr = TPR::from(&tpr_dump_path);
     println!("\nFinished loading tpr file: {}", tpr);
     if config.is_some() {
-        fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, config, &wd, &tpr_path, settings);
+        let trj = config.as_ref().unwrap().program_set.trj.clone();
+        let ndx = config.as_ref().unwrap().program_set.ndx.clone();
+        let ndx = if ndx.is_empty() {
+            "index.ndx".to_string()
+        } else {
+            ndx
+        };
+        if !Path::new(&trj).is_file() {
+            println!("Not valid trajectory file in config: {}. Check again.", trj);
+            exit(0);
+        }
+        if !Path::new(&ndx).is_file() {
+            println!("{} not found. Generating default index.ndx.", ndx);
+            make_ndx(&vec!["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
+        }
+        fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, config, &tpr_path, settings);
     }
 
     loop {
@@ -119,7 +112,7 @@ pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path
                     println!("Please assign index file.");
                 } else {
                     // go to next step
-                    fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, config, &wd, &tpr_path, settings);
+                    fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, config, &tpr_path, settings);
                 }
             }
             Ok(1) => {
@@ -130,8 +123,8 @@ pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path
                 if trj.is_empty() {
                     trj = "?md.xtc".to_string();
                 }
-                trj = convert_cur_dir(&trj, tpr_path);
-                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "gro", "pdb", "pdbqt"], tpr_path);
+                trj = convert_ask_dir(&trj, tpr_path);
+                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "gro", "pdb", "pdbqt"], tpr_dump_path);
             }
             Ok(2) => {
                 println!("Input index file path, default: ?index.ndx (\"?\" means the same directory as tpr):");
@@ -142,12 +135,11 @@ pub fn set_para_basic_tpr(tpr_path: &String, trj_path: &Option<String>, ndx_path
                 if ndx.is_empty() {
                     ndx = "?index.ndx".to_string();
                 }
-                ndx = convert_cur_dir(&ndx, tpr_path);
+                ndx = convert_ask_dir(&ndx, tpr_path);
                 if !Path::new(&ndx).is_file() {
-                    let tpr_path = append_new_name(tpr_path, ".tpr", "");
                     make_ndx(&vec!["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
                 }
-                ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_path);
+                ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_dump_path);
             }
             Ok(-10) => break,
             Ok(other) => {

@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::env;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
@@ -100,7 +101,7 @@ impl SMResult {
     }
 }
 
-pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_name: &String, wd: &Path, settings: &Settings) {
+pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_name: &String, settings: &Settings) {
     let mut results = result_as.clone();
     results.insert(0, result_wt.clone());
     loop {
@@ -130,10 +131,10 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_n
                 println!("Writing pdb and pml file(s)...");
                 for result in &results {
                     let def_name = format!("MMPBSA_binding_energy_{}.pdb", sys_name);
-                    write_pdb_with_bf(result, &def_name, &ts_ids, wd, &(0..result.atom_res.len()).collect(), true);
+                    write_pdb_with_bf(result, &def_name, &ts_ids, &env::current_dir().unwrap(), &(0..result.atom_res.len()).collect(), true);
                     let pml_name = format!("MMPBSA_binding_energy_{}.pml", sys_name);
                     let png_name = format!("MMPBSA_binding_energy_{}", sys_name);
-                    write_pml(&pml_name, &def_name, &png_name, wd, settings);
+                    write_pml(&pml_name, &def_name, &png_name, &env::current_dir().unwrap(), settings);
                 }
                 println!("Finished writing pdb file(s) with binding energy information.");
                 println!("Finished drawing figures with pml file(s) by PyMOL.");
@@ -143,12 +144,12 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_n
                 println!("Input the time period (in ns, e.g. 0-40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
                 for result in &results {
-                    analyze_summary(result, wd, &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
+                    analyze_summary(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
                 }
             },
             Ok(2) => {
                 for result in &results {
-                    analyze_traj(result, wd, &format!("{}-{}", sys_name, result.mutation))
+                    analyze_traj(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation))
                 }
             },
             Ok(3) => {
@@ -162,13 +163,13 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_n
                 let (range_des, target_res) = select_res_by_range(result_wt);
                 println!("Writing energy file(s)...");
                 for result in &results {
-                    analyze_res(result, wd, &format!("{}-{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
+                    analyze_res(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
                 }
                 println!("Finished writing residue-wised binding energy file(s).");
             },
             Ok(4) => {
                 for result in &results {
-                    analyze_atom(result, wd, &format!("{}-{}", sys_name, result.mutation))
+                    analyze_atom(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation))
                 }
                 if results[0].ndx_lig.is_some() {
                     println!("Finished writing atom-wised binding energy pdb file(s) for ligand.");
