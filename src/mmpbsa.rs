@@ -303,6 +303,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     let t_end = Local::now();
     let t_spend = Duration::from(t_end - t_start).num_milliseconds() as f64 / 1000.0;
     println!("MM-PBSA calculation of {} finished. Total time cost: {:.2} s", sys_name, t_spend);
+    fs::write(format!("_MMPBSA_time_cost_{}.txt", sys_name), format!("{:.2}", t_spend))
+        .expect("Failed to write time cost file.");
     env::remove_var("OMP_NUM_THREADS");
 
     let atom_res = &aps.atom_props.iter().map(|a| a.resid).collect();
