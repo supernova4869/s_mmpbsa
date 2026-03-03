@@ -43,7 +43,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates_ie, aps, &temp_dir, 
         &ndx_rec, &ndx_lig, residues, temperature,
         sys_name, "WT", pbe_set, pba_set, settings);
-    result_wt.to_bin(&env::current_dir().unwrap().join(format!("_MMPBSA_{}_{}.sm", sys_name, "WT").as_str()));
+    result_wt.to_bin(&env::current_dir().unwrap().join(format!(".MMPBSA_{}_{}.sm", sys_name, "WT").as_str()));
 
     let mut result_ala_scan: Vec<SMResult> = vec![];
     if ala_list.len() > 0 {
@@ -72,7 +72,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
             let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates_ie,
                 &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues, temperature,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
-            result_as.to_bin(&env::current_dir().unwrap().join(format!("_MMPBSA_{}.sm", sys_name).as_str()));
+            result_as.to_bin(&env::current_dir().unwrap().join(format!(".MMPBSA_{}.sm", sys_name).as_str()));
             result_ala_scan.push(result_as);
         }
     };
@@ -307,7 +307,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     let t_end = Local::now();
     let t_spend = Duration::from(t_end - t_start).num_milliseconds() as f64 / 1000.0;
     println!("MM-PBSA calculation of {} finished. Total time cost: {:.2} s", sys_name, t_spend);
-    fs::write(format!("_MMPBSA_time_cost_{}.txt", sys_name), format!("{:.2}", t_spend))
+    fs::write(format!(".MMPBSA_time_cost_{}.txt", sys_name), format!("{:.2}", t_spend))
         .expect("Failed to write time cost file.");
     env::remove_var("OMP_NUM_THREADS");
 

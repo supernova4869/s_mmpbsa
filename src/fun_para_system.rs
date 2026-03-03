@@ -303,7 +303,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else {
         // pre-treat trajectory
-        let trj_mmpbsa = append_new_name(trj, ".xtc", "_MMPBSA_"); // get trj output file name
+        let trj_mmpbsa = append_new_name(trj, ".xtc", ".MMPBSA_"); // get trj output file name
         
         // step 1: generate new index
         println!("Generating Index...");
@@ -318,7 +318,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 IndexGroup::new("Complex", &ndx_rec)
             ])
         };
-        let ndx_mmpbsa = append_new_name(ndx_name, ".ndx", "_MMPBSA_");
+        let ndx_mmpbsa = append_new_name(ndx_name, ".ndx", ".MMPBSA_");
         ndx_whole.to_ndx(&ndx_mmpbsa);
         
         // step 2: extract new trj with old tpr and new index
@@ -328,7 +328,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
         
         // step 3: extract new tpr from old tpr
-        let tpr_mmpbsa = append_new_name(&tpr_path, ".tpr", "_MMPBSA_"); // get extracted tpr file name
+        let tpr_mmpbsa = append_new_name(&tpr_path, ".tpr", ".MMPBSA_"); // get extracted tpr file name
         convert_tpr(&vec!["Complex"], &env::current_dir().unwrap(), settings, &tpr_path, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
@@ -358,7 +358,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
         aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
         
         // 生成初始结构方便查看
-        let init_struct = append_new_name(trj, "_struct.gro", "_MMPBSA_"); // get trj output file name
+        let init_struct = append_new_name(trj, "_struct.gro", ".MMPBSA_"); // get trj output file name
         trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
         // fix pbc with new tpr and new index

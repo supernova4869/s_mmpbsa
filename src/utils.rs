@@ -59,8 +59,8 @@ pub fn get_input_selection<T: FromStr>() -> Result<T, T::Err> {
 pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> String {
     let file_path = Path::new(origin_name);
     let file_stem = file_path.file_stem().unwrap();
-    let new_name = file_path.parent().unwrap().join(prefix.to_string() + file_stem.to_str().unwrap() + append_name);
-    new_name.to_str().unwrap().to_string()
+    let new_name = prefix.to_string() + file_stem.to_str().unwrap() + append_name;
+    new_name.to_string()
 }
 
 pub fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str], wd: &Path) -> Result<ExitStatus, std::io::Error> {

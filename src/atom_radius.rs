@@ -5,7 +5,7 @@ use crate::atom_property::AtomProperties;
 use crate::parse_tpr::TPR;
 
 impl AtomProperties {
-    // ff_radius would not be used
+    // .ff_radius would not be used
     pub fn apply_radius(&mut self, radius_type: usize, at_list: &Vec<String>, radius_types: &Vec<&str>) {
         let rad_type = radius_types[radius_type];
         if rad_type.ne("ff") {
@@ -15,7 +15,7 @@ impl AtomProperties {
             }
             self.radius_type = rad_type.to_string();
         } else {
-            let radii = fs::read_to_string("ff_radius.dat").unwrap();
+            let radii = fs::read_to_string(".ff_radius.dat").unwrap();
             let radii: Vec<&str> = radii.split("\n").collect();
             for (i, r) in &mut self.atom_props.iter_mut().enumerate() {
                 r.radius = radii[i].parse().unwrap();

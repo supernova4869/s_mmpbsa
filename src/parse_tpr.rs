@@ -108,7 +108,7 @@ impl TPR {
         }
 
         println!("Backup force field radius...");
-        let ff_dat = &env::current_dir().unwrap().join("ff_radius.dat");
+        let ff_dat = &env::current_dir().unwrap().join(".ff_radius.dat");
         if ff_dat.is_file() {
             std::fs::remove_file(&ff_dat).unwrap();
         }
