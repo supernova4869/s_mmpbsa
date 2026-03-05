@@ -2,6 +2,5 @@
 /target
 /examples/*/system/
 /examples/*/benchmark/
-/examples/*/*MMPBSA*
-/examples/*/*.sm
+/examples/*/.*
 /examples/*/*.dump

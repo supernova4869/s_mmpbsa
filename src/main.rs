@@ -69,7 +69,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/03/03";
+    let compile_date = "2026/03/05";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -109,6 +109,9 @@ fn main() {
     };
 
     let mut settings = env_check();
+    if config.is_some() {
+        settings.debug_mode = config.as_ref().unwrap().program_set.debug;
+    }
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
         false => println!("Debug mode off.\n"),

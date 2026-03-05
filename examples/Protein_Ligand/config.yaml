@@ -2,6 +2,7 @@ program_set:
   sys_name: system
   calc_mm: true
   calc_pbsa: false
+  debug: false
   trj: md.xtc
   tpr: md.tpr
   ndx: index.ndx

@@ -339,7 +339,7 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
     
     // 预计算常量
     let r_cutoff_sq = settings.r_cutoff.powi(2);
-    let scale_factor = 1.0 / 10.0;
+    let a2nm = 1.0 / 10.0;
     
     // 预提取数据
     let rec_props: Vec<_> = ndx_rec.iter().map(|&i| {
@@ -366,7 +366,7 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
                     let r_sq = dx * dx + dy * dy + dz * dz;
                     
                     if r_sq <= r_cutoff_sq {
-                        let r = r_sq.sqrt() * scale_factor;
+                        let r = r_sq.sqrt() * a2nm;
                         let r_inv = 1.0 / r;
                         
                         let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
@@ -403,7 +403,7 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
                 let r_sq = dx * dx + dy * dy + dz * dz;
                 
                 if r_sq <= r_cutoff_sq {
-                    let r = r_sq.sqrt() * scale_factor;
+                    let r = r_sq.sqrt() * a2nm;
                     let r_inv = 1.0 / r;
                     
                     let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);

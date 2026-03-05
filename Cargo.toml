@@ -1,7 +1,9 @@
 [package]
 name = "s_mmpbsa"
-version = "0.9.9"
+version = "0.9.10"
 edition = "2021"
+authors = ["Jiaxing Zhang <zhangjiaxing7137@tju.edu.cn>"]
+description = "s_mmpbsa - A lite, cross-platform MM-PBSA program"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

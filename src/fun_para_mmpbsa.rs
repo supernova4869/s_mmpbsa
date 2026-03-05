@@ -241,21 +241,21 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 }
             }
             Ok(5) => {
-                println!("Input coarse grid expand factor, default 3:");
+                println!("Input coarse grid expand factor, default 1.5:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    settings.cfac = 3;
+                    settings.cfac = 1.5;
                 } else {
                     settings.cfac = s.trim().parse().expect("Input not valid number.");
                 }
             }
             Ok(6) => {
-                println!("Input fine grid expand amount (A), default 10:");
+                println!("Input fine grid expand amount (A), default 5:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
                 if s.trim().is_empty() {
-                    settings.fadd = 10.0;
+                    settings.fadd = 5.0;
                 } else {
                     settings.fadd = s.trim().parse().expect("Input not valid number.");
                 }
