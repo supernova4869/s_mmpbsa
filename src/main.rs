@@ -69,7 +69,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/03/05";
+    let compile_date = "2026/03/07";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -123,11 +123,11 @@ fn main() {
         let sm = fs::canonicalize(Path::new(&sm_path)).unwrap();
         let wd = Path::new(&sm).parent().unwrap();
         let sm = sm.file_name().unwrap().to_str().unwrap();
-        let sm = sm.trim_start().strip_prefix(".MMPBSA_").unwrap_or(sm);
+        let sm = sm.trim_start().strip_prefix("MMPBSA_").unwrap_or(sm);
         let re = Regex::new(r"(_WT|_\S\d+\S)\.sm$").unwrap();
         let sys_name = re.replace(sm, "").to_string();
         println!("Loading MM-PBSA results of {}...", sys_name);
-        let result_wt = SMResult::from(&sm_path);
+        let result_wt = SMResult::from(&format!("MMPBSA_{}_WT.sm", sys_name));
         let result_as: Vec<SMResult> = fs::read_dir(&wd).unwrap()
             .filter_map(|e| e.ok().map(|e| e.path()))
             .filter(|p| p.extension() == Some(OsStr::new("sm")))
@@ -135,7 +135,7 @@ fn main() {
                 p.file_name()
                     .and_then(|n| n.to_str())
                     .map_or(false, |n| {
-                        n.starts_with(&format!(".MMPBSA_{}", sys_name)) && !n.ends_with("_WT.sm")
+                        n.starts_with(&format!("MMPBSA_{}", sys_name)) && !n.ends_with("_WT.sm")
                     })
             })
             .filter_map(|p| p.to_str().map(SMResult::from))

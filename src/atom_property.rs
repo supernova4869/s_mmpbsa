@@ -102,7 +102,7 @@ impl AtomProperties {
             c6,
             c12,
             at_map,
-            radius_type: "ff".to_string(),  // TODO: Can this be a &'static str?
+            radius_type: "ff".to_string(),
             atom_props,
         }
     }

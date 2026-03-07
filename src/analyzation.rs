@@ -4,12 +4,12 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::{exit, Command, Stdio};
-use ndarray::{s, Array1, Array2, Array3, Axis};
+use ndarray::{Array1, Array2, Array3, Axis};
 use serde::{Deserialize, Serialize};
-use plotpy::{Barplot, Curve, Plot};
+use plotpy::{Curve, Plot};
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
-use crate::utils::{get_input, get_input_selection, get_residue_range_ca, range2list};
+use crate::utils::{get_input, get_input_selection, range2list};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SMResult {
@@ -163,7 +163,8 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_n
                 let (range_des, target_res) = select_res_by_range(result_wt);
                 println!("Writing energy file(s)...");
                 for result in &results {
-                    analyze_res(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
+                    analyze_res(result, &env::current_dir().unwrap(), 
+                        &format!("{}-{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
                 }
                 println!("Finished writing residue-wised binding energy file(s).");
             },
@@ -351,77 +352,44 @@ fn analyze_traj(results: &SMResult, wd: &Path, sys_name: &String) {
 }
 
 fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
-    println!("Determine the residue range to output:");
-    println!(" 1 Ligand and receptor residues by: CA within 4 A");
-    println!(" 2 Ligand and receptor residues by: CA within 6 A");
-    println!(" 3 Ligand and receptor residues by: CA within 8 A");
-    println!(" 4 Ligand and receptor residues by: CA within a specified distance");
-    println!(" 5 Self-defined residue range");
-    // 残基范围确定
-    let i = get_input_selection().unwrap();
-    let mut range_des = String::from("4A");
-    let target_res = match i {
-        1 => {
-            get_residue_range_from_results(results, 4.0)
-        },
-        2 => {
-            range_des = String::from("6A");
-            get_residue_range_from_results(results, 6.0)
-        },
-        3 => {
-            range_des = String::from("8A");
-            get_residue_range_from_results(results, 8.0)
-        },
-        4 => {
-            println!("Input the cut-off distance you want to expand from ligand, default: 4");
-            let cutoff = get_input(4.0);
-            range_des = format!("{:.1}A", cutoff);
-            get_residue_range_from_results(results, cutoff)
-        },
-        5 => {
-            let mut res_range = String::new();
-            loop {
-                println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
-                println!("Input \"?\" to view the residues list");
-                res_range = get_input(res_range);
-                if res_range.eq("?") {
-                    results.residues.iter().enumerate().for_each(|(i, r)| {
-                        print!("{}{}, ", r.nr, r.name);
-                        if (i + 1) % 5 == 0 {
-                            println!();
-                        }
-                    });
+    let res_range = loop {
+        println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
+        println!("Input \"?\" to view the residues list");
+        
+        let input = get_input(String::new());
+        if input == "?" {
+            results.residues.iter().enumerate().for_each(|(i, r)| {
+                print!("{:6}{:<3},", i + 1, r.name);
+                if (i + 1) % 5 == 0 {
                     println!();
-                    res_range.clear();
-                } else {
-                    break;
                 }
-            }
-            range_des = res_range.to_string();
-            let res_range: Vec<i32> = match res_range.len() {
-                0 => {
-                    range_des = "all".to_string();
-                    results.residues.iter().map(|r| r.nr).collect()
-                },
-                _ => range2list(&res_range)
-            };
-            results.atom_res
-                .iter()
-                .filter(|&&i| res_range.contains(&(results.residues[i].nr)))    // 用户筛选用nr
-                .map(|&i| i)     // 索引用nr
-                .collect()
-        },
-        _ => vec![],
+            });
+            println!();
+        } else {
+            break input;
+        }
     };
+
+    // target_res 要从 0 开始数
+    let (range_des, target_res): (String, Vec<usize>) = if res_range.trim().is_empty() {
+        (
+            "all".to_string(),
+            (0..results.residues.len()).collect()
+        )
+    } else {
+        (
+            res_range.to_string(),
+            range2list(&res_range).iter().map(|&i| i as usize - 1).collect()
+        )
+    };
+
     (range_des, target_res)
 }
 
 fn analyze_res(results: &SMResult, wd: &Path, sys_name: &String, ts_ids: &Vec<usize>, range_des: &String, target_res: &Vec<usize>) {
     let def_name = format!("MMPBSA_{}_res_{}.csv", sys_name, range_des);
-    let (tar_res_nr, tar_res_name, 
-        tar_res_energy, tar_res_energy_err) = get_target_res_data(results, ts_ids, target_res);
-    write_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, &tar_res_energy_err, wd, &def_name);
-    plot_res_csv(&tar_res_nr, &tar_res_name, &tar_res_energy, &tar_res_energy_err, wd, &format!("MMPBSA_{}_res_{}.png", sys_name, range_des));
+    let (tar_res_nr, tar_res_name, tar_res_energy) = get_target_res_data(results, ts_ids, target_res);
+    write_res_csv(results, &tar_res_nr, &tar_res_name, ts_ids, &tar_res_energy, wd, &def_name);
 }
 
 fn analyze_atom(results: &SMResult, wd: &Path, sys_name: &String) {
@@ -431,29 +399,14 @@ fn analyze_atom(results: &SMResult, wd: &Path, sys_name: &String) {
     }
 }
 
-fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec<usize>) -> (Vec<i32>, Vec<String>, [Vec<f64>; 6], [Vec<f64>; 6]) {
-    let res_nr: Vec<i32> = results.residues.iter().enumerate().filter_map(|(id, res)| if target_res.contains(&id) {
-        Some(res.nr)
-    } else {
-        None
-    }).collect();
-    let res_name: Vec<String> = results.residues.iter().enumerate().filter_map(|(id, res)| if target_res.contains(&id) {
-        Some(res.name.to_string())
-    } else {
-        None
-    }).collect();
-    let mut dh_res = vec![];
-    let mut dh_res_err = vec![];
-    let mut mm_res = vec![];
-    let mut mm_res_err = vec![];
-    let mut pb_res = vec![];
-    let mut pb_res_err = vec![];
-    let mut sa_res = vec![];
-    let mut sa_res_err = vec![];
-    let mut elec_res = vec![];
-    let mut elec_res_err = vec![];
-    let mut vdw_res = vec![];
-    let mut vdw_res_err = vec![];
+fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec<usize>) -> (Vec<i32>, Vec<String>, Array2<f64>) {
+    let (tar_res_nr, tar_res_name): (Vec<i32>, Vec<String>) = results.residues
+        .iter()
+        .enumerate()
+        .filter(|(id, _)| target_res.contains(id))
+        .map(|(_, res)| (res.nr, res.name.clone()))
+        .unzip();
+    let mut dh_res = Array2::zeros((target_res.len(), ts_ids.len()));
     // 该残基的所有原子所在索引
     let get_cur_res_atom_ids = |target_resid| results
         .atom_res
@@ -464,90 +417,24 @@ fn get_target_res_data(results: &SMResult, ts_ids: &Vec<usize>, target_res: &Vec
     } else {
         None
     }).collect::<Vec<usize>>();
-    for (id, _res) in results.residues.iter().enumerate() {
-        if !target_res.contains(&id) {
-            continue;
-        }
-        let atom_ids = get_cur_res_atom_ids(id);
-        let atom_energy = |arr: &Array2<f64>| {
-            arr.select(Axis(1), &atom_ids).select(Axis(0), &ts_ids)
-        };
-        let dh_resi: Array1<f64> = atom_energy(&results.dh_atom).sum_axis(Axis(1));
-        dh_res.push(dh_resi.mean().unwrap());
-        dh_res_err.push(dh_resi.std(0.0));
-        let mm_resi: Array1<f64> = atom_energy(&results.mm_atom).sum_axis(Axis(1));
-        mm_res.push(mm_resi.mean().unwrap());
-        mm_res_err.push(mm_resi.std(0.0));
-        let pb_resi: Array1<f64> = atom_energy(&results.pb_atom).sum_axis(Axis(1));
-        pb_res.push(pb_resi.mean().unwrap());
-        pb_res_err.push(pb_resi.std(0.0));
-        let sa_resi: Array1<f64> = atom_energy(&results.sa_atom).sum_axis(Axis(1));
-        sa_res.push(sa_resi.mean().unwrap());
-        sa_res_err.push(sa_resi.std(0.0));
-        let elec_resi: Array1<f64> = atom_energy(&results.elec_atom).sum_axis(Axis(1));
-        elec_res.push(elec_resi.mean().unwrap());
-        elec_res_err.push(elec_resi.std(0.0));
-        let vdw_resi: Array1<f64> = atom_energy(&results.vdw_atom).sum_axis(Axis(1));
-        vdw_res.push(vdw_resi.mean().unwrap());
-        vdw_res_err.push(vdw_resi.std(0.0));
-    }
-    (res_nr, res_name, [dh_res, mm_res, pb_res, sa_res, elec_res, vdw_res], 
-        [dh_res_err, mm_res_err, pb_res_err, sa_res_err, elec_res_err, vdw_res_err])
+    target_res.iter().enumerate().for_each(|(i, &res_id)| {
+        let atom_ids = get_cur_res_atom_ids(res_id);
+        let dh_resi: Array1<f64> = results.dh_atom.select(Axis(1), &atom_ids).select(Axis(0), &ts_ids).sum_axis(Axis(1));
+        dh_res.row_mut(i).assign(&dh_resi);
+    });
+    (tar_res_nr, tar_res_name, dh_res)
 }
 
-fn write_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, 
-                 tar_res_energy: &[Vec<f64>; 6], tar_res_energy_err: &[Vec<f64>; 6], 
-                 wd: &Path, def_name: &String) {
+fn write_res_csv(results: &SMResult, tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, 
+                 ts_ids: &Vec<usize>, tar_res_energy: &Array2<f64>, wd: &Path, def_name: &String) {
     let mut res_energy_file = fs::File::create(wd.join(def_name)).unwrap();
-    res_energy_file.write_all("id,name,ΔH,ΔH_std.P,ΔMM,ΔMM_std.P,ΔPB,ΔPB_std.P,ΔSA,ΔSA_std.P,Δelec,Δelec_std.P,ΔvdW,ΔvdW_std.P\n".as_bytes()).unwrap();
-    for tar_res_id in 0..tar_res_energy[0].len() {
-        write!(res_energy_file, "{},{},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3},{:.3}\n", 
-            tar_res_nr[tar_res_id], tar_res_name[tar_res_id],
-            tar_res_energy[0][tar_res_id], tar_res_energy_err[0][tar_res_id],
-            tar_res_energy[1][tar_res_id], tar_res_energy_err[1][tar_res_id],
-            tar_res_energy[2][tar_res_id], tar_res_energy_err[2][tar_res_id],
-            tar_res_energy[3][tar_res_id], tar_res_energy_err[3][tar_res_id],
-            tar_res_energy[4][tar_res_id], tar_res_energy_err[4][tar_res_id],
-            tar_res_energy[5][tar_res_id], tar_res_energy_err[5][tar_res_id])
-            .expect("Error while writing residue-wised energy file");
-    }
-}
-
-fn plot_res_csv(tar_res_nr: &Vec<i32>, tar_res_name: &Vec<String>, 
-                tar_res_energy: &[Vec<f64>; 6], tar_res_energy_err: &[Vec<f64>; 6], 
-                wd: &Path, def_name: &String) {
-    println!("Plotting residue-wised binding energy figures...");
-    let mut bar = Barplot::new();
-    let mut plot = Plot::new();
-    if cfg!(windows) {
-        plot.set_python_exe("python");
-    }
-    let ytick_labels: Vec<String> = tar_res_nr.iter().enumerate().map(|(i, r)| format!("{}{}", tar_res_name[i], r)).collect();
-    let ytick_labels: Vec<&str> = ytick_labels.iter().map(|s| s.as_str()).collect();
-    bar.set_errors(&tar_res_energy_err[0])
-        .set_horizontal(true)
-        .draw_with_str(&ytick_labels, &tar_res_energy[0]); // requires string, as expected
-    match plot.add(&bar)
-            .set_figure_size_inches(6.4, tar_res_nr.len() as f64 * 0.48)
-            .set_ymin(-0.5)
-            .set_ymax(tar_res_nr.len() as f64 - 0.5)
-            .grid_and_labels("Binding Energy (kJ/mol)", "Residue")
-            .set_label_x_fontsize(18.0)
-            .set_label_y_fontsize(18.0)
-            .set_ticks_x_fontsize(14.0)
-            .set_ticks_y_fontsize(14.0)
-            .save(&wd.join(&def_name)).ok() {
-        Some(_) => println!("Figure drawn to {}", &def_name),
-        None => println!("Not drawn due to the matplotlib error.")
-    }
-}
-
-fn get_residue_range_from_results(result: &SMResult, cutoff: f64) -> Vec<usize> {
-    let last_frame = result.times.len() - 1;
-    if let Some(ndx_lig) = &result.ndx_lig {
-        get_residue_range_ca(&result.coordinates.slice(s![last_frame, .., ..]).to_owned(), 
-            &ndx_lig, cutoff, &result.atom_res, &result.atom_names, &result.residues)
-    } else {
-        vec![]
+    let columns = format!("resid,resname,{}\n",
+        &ts_ids.iter().map(|&i| results.times[i].to_string()).collect::<Vec<String>>().join(","));
+    write!(res_energy_file, "{}", columns).unwrap();
+    for (i, res_energy) in tar_res_energy.rows().into_iter().enumerate() {
+        write!(res_energy_file, "{},{},{}\n", 
+            tar_res_nr[i], tar_res_name[i],
+            res_energy.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",")
+        ).expect("Error while writing residue-wised energy file");
     }
 }

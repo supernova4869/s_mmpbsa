@@ -3,4 +3,5 @@
 /examples/*/system/
 /examples/*/benchmark/
 /examples/*/.*
+/examples/*/*MMPBSA*
 /examples/*/*.dump
