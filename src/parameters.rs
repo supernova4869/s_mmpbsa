@@ -72,7 +72,7 @@ impl ProgramSet {
             lig_grp: String::new(),
             start_time: 0.0,
             end_time: f64::INFINITY,
-            dt: 1000.0,
+            dt: 1.0,
             ie_multiple: 10,
             fix_pbc: true,
             cfac: 1.5,

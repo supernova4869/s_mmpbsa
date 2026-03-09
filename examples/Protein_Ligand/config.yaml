@@ -1,7 +1,7 @@
 program_set:
   sys_name: system
   calc_mm: true
-  calc_pbsa: true
+  calc_pbsa: false
   debug: false
   trj: md.xtc
   tpr: md.tpr
@@ -22,7 +22,7 @@ mm_set:
   cutoff: .inf
   electric_screening: 1
 pbe_set:
-  temp: 298.15
+  temp: 300
   pdie: 2.0
   sdie: 78.4
   pb_solver: lpbe
@@ -42,7 +42,7 @@ pbe_set:
   calc_force: false
   calc_energy: comps
 pba_set:
-  temp: 298.15
+  temp: 300
   srfm: sacc
   swin: 0.3
   srad: 1.4

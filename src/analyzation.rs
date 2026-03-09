@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::{exit, Command, Stdio};
 use ndarray::{Array1, Array2, Array3, Axis};
 use serde::{Deserialize, Serialize};
-use plotpy::{Curve, Plot};
+use plotters::prelude::*;
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, range2list};
@@ -330,25 +330,88 @@ fn analyze_traj(results: &SMResult, wd: &Path, sys_name: &String) {
 
     // ΔH curve
     println!("Plotting binding energy figures...");
-    let mut curve = Curve::new();
-    curve.set_line_width(2.0);
-    curve.draw(&results.times, &results.dh.to_vec());
-    let mut plot = Plot::new();
-    if cfg!(windows) {
-        plot.set_python_exe("python");
-    }
+
     let def_name = format!("MMPBSA_{}_ΔH_traj.png", sys_name);
-    match plot.add(&curve)
-        .grid_and_labels("Time (ns)", "Binding Energy (kJ/mol)")
-        .set_label_x_fontsize(18.0)
-        .set_label_y_fontsize(18.0)
-        .set_ticks_x_fontsize(14.0)
-        .set_ticks_y_fontsize(14.0)
-        .save(&wd.join(&def_name)).ok() {
-            Some(_) => println!("Figure drawn to {}", &def_name),
-            None => println!("Not drawn due to the matplotlib error.")
-        };
-    println!("Binding energy terms writen to {}", &def_name);
+    let output_path = wd.join(&def_name);
+
+    // 创建绘图区域
+    let root = BitMapBackend::new(output_path.to_str().unwrap(), (640, 480)).into_drawing_area();
+    root.fill(&WHITE).unwrap();
+
+    // 找到数据的范围
+    let x_min = results.times.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+    let x_max = results.times.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+    let y_min = results.dh.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+    let y_max = results.dh.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+
+    // 添加一些边距
+    let x_range = x_max - x_min;
+    let y_range = y_max - y_min;
+    let x_min = x_min - x_range * 0.05;
+    let x_max = x_max + x_range * 0.05;
+    let y_min = y_min - y_range * 0.05;
+    let y_max = y_max + y_range * 0.05;
+
+    // 创建图表
+    let mut chart = ChartBuilder::on(&root)
+        .caption(format!("Binding Energy - {}", sys_name), ("sans-serif", 24).into_font())
+        .margin(10)
+        .x_label_area_size(50)
+        .y_label_area_size(90)
+        .build_cartesian_2d(x_min..x_max, y_min..y_max)
+        .unwrap();
+
+    // 配置网格和标签
+    chart
+        .configure_mesh()
+        .x_desc("Time (ns)")
+        .y_desc("Binding Energy (kJ/mol)")
+        .axis_desc_style(("sans-serif", 22).into_font())
+        .x_label_style(("sans-serif", 20).into_font())
+        .y_label_style(("sans-serif", 20).into_font())
+        .light_line_style(&BLACK.mix(0.0))
+        .y_label_formatter(&|v| {
+            if *v < 0.0 {
+                // 将负号替换为规范的 minus 符号 (U+2212)
+                format!("−{:.1}", v.abs())
+            } else {
+                format!("{:.1}", v)
+            }
+        }).draw()
+        .unwrap();
+
+    // 绘制曲线
+    chart
+        .draw_series(LineSeries::new(
+            results.times.iter().zip(results.dh.iter()).map(|(&x, &y)| (x, y)),
+            &BLUE.mix(0.75),
+        ))
+        .unwrap()
+        .label("Binding Energy")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE.mix(0.75)));
+    
+    // 绘制点（可选，如果需要显示数据点）
+    chart
+        .draw_series(
+            results.times.iter().zip(results.dh.iter()).map(|(&x, &y)| {
+                Circle::new((x, y), 3, BLUE.filled())
+            })
+        )
+        .unwrap();
+
+    // 添加图例
+    chart
+        .configure_series_labels()
+        .label_font(("sans-serif", 20).into_font())
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .position(SeriesLabelPosition::LowerRight)
+        .draw()
+        .unwrap();
+
+    // 保存并完成
+    root.present().unwrap();
+    println!("Binding energy figure drawn to {}", def_name);
 }
 
 fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
