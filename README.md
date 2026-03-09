@@ -26,52 +26,39 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 ## Requirement
 
 ### Basic requirements
-- Gromacs: The gromacs program is needed.
-- Matplotlib: (Optional) The matplotlib python package is essential during analyzation if plotting figures.
-- APBS: (Optional) The default PBSA kernel (already built-in, but it is also supported to use other version of APBS programs).
-- PyMOL is an optional software to plot the B-factor colored structure.
-
-On Debian/Ubuntu/Linux, run:
-```
-sudo apt -y install python3-matplotlib build-essential python-pip
-```
-On CentOS/Rocky, run:
-```
-sudo dnf -y install python3-matplotlib python-pip
-```
+- Gromacs: The gromacs program is needed on Linux.
+- APBS: (Optional) The PBSA kernel is already built-in, but it is also supported to use other version of APBS programs.
+- PyMOL: an optional software to plot the B-factor colored structure.
 
 ## Usage
-Although s_mmpbsa supports fixing PBC conditions to trajectory `.MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using xtc visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/).
+Although s_mmpbsa supports fixing PBC conditions to trajectory `.MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/):
+
+```
+vmd `.MMPBSA_[name]_struct.gro` `.MMPBSA_[name].xtc`
+```
 
 ### MD Binding energy calculation:
 ``` bash
 # Firstly, add s_mmpbsa folder to $PATH.
 # Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
-s_mmpbsa -s md.tpr
-1 # load xtc file
-md_pbc.xtc # if not PBC-fixed, click "return" and use default md.xtc
-2 # load ndx file
-[return] # default index.ndx
+s_mmpbsa -f md_pbc.xtc -s md.tpr -n index.ndx
 0 # go to next step (Trajectory Parameters)
 1 # select receptor group
 [protein group number]
 2 # select ligand group
 [ligand group number]
-5 # set time interval, usually analysis per 1 ns
-1
 0 # go to next step (MM-PBSA Parameters)
 # Other options usually no need to change. The PB and SA parameters could be modified by 8 and 9
 0 # go to next step (start calculation)
-[return] # use default system name or input your name
+[return] # use default name "system" or input specific name
 # Wait for calculation finish
 -1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
- # input the time point (default average)
+# input the time point
 1 # view summary
 2 # output energy by time
 3 # output energy by residue
- # input the time point (default average)
-1 # write residues within 3 A (also try other options)
-4 # output energy by ligand atoms
+# input the time point (default average)
+# input the residues range (default all)
 0 # exit s_mmpbsa program
 ```
 
@@ -89,19 +76,8 @@ The results will contain energy terms of both wild type and mutants.
 ```bash
 # Firstly, add s_mmpbsa folder to $PATH.
 # Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
-s_mmpbsa -a # analyzation mode
-[return] # same path as last opened tpr file
-[return] # set temperature 298.15 K
-[return] # set system name, same as the previous run
--1 # write pdb file with residue-wised INVERSED binding energy filled in B-factor column
- # input the time point (default average)
-1 # view summary
-2 # output energy by time
-3 # output energy by residue
- # input the time point (default average)
-1 # write residues within 3 A (also try other options)
-4 # output energy by ligand atoms
-0 # exit s_mmpbsa program
+s_mmpbsa -a MMPBSA_[name]_WT.sm # analyzation mode
+... (same as above)
 ```
 
 The data was generated with .csv format and plotted as figures; The pdb files with inversed binding energy filled in B-factors column are drawn as png figures by PyMOL (if usable).
