@@ -39,9 +39,9 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             None
         })
     };
-    let mut bt = config.as_ref().map(|c| c.program_set.start_time).unwrap_or_else(|| 0.0);
-    let mut et = config.as_ref().map(|c| c.program_set.end_time).unwrap_or_else(|| f64::INFINITY); // ps
-    let mut dt = config.as_ref().map(|c| c.program_set.dt).unwrap_or_else(|| 1000.0); // ps
+    let mut bt = config.as_ref().map(|c| c.program_set.start_time * 1000.0).unwrap_or_else(|| 0.0);
+    let mut et = config.as_ref().map(|c| c.program_set.end_time * 1000.0).unwrap_or_else(|| f64::INFINITY); // ps
+    let mut dt = config.as_ref().map(|c| c.program_set.dt * 1000.0).unwrap_or_else(|| 1000.0); // ps
     let mut ie_multi = config.as_ref().map(|c| c.program_set.ie_multiple).unwrap_or_else(|| 10); // multipli
     let mut fix_pbc = config.as_ref().map(|c| c.program_set.fix_pbc).unwrap_or_else(|| true); // whether to fix PBC conditions
     if config.is_some() {
