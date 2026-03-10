@@ -50,7 +50,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
         // main chain atoms number
         let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
             && is_amino(&r.name)).collect();     // gly not contain CB, ala no need to mutate
-        let exclude_list = ["N", "CA", "C", "O", "CB", "HN", "HCA", "HCB"];
+        let exclude_list = ["N", "CA", "C", "O", "CB", "H", "HA", "HB1", "HB2"];
         for asr in as_res {
             // let (new_coordinates, new_aps, new_ndx_rec, new_ndx_lig) = 
             //     ala_mutate(aps, asr, &exclude_list, coordinates, ndx_rec, ndx_lig);
@@ -115,7 +115,7 @@ fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordi
             None
         }}).collect();
     for xg in xgs.iter() {
-        new_aps.atom_props[xg.id].change_atom(aps.at_map.get("HC"), "HC", &aps.radius_type);
+        new_aps.atom_props[xg.id].change_atom(aps.at_map.get("H"), "HB3", "HC", &aps.radius_type);
         // 获取新的HB坐标
         for layer in 0..new_coordinates.shape()[0] {
             let cb_coords: Array1<f64> = new_coordinates.slice(s![layer, cb[0].id, ..]).to_owned();
@@ -137,7 +137,7 @@ fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordi
             }}).collect();
         sc_out.retain(|&a| a.name.ne("CD"));
         let cd = as_atoms.iter().find(|&a| a.name == "CD").unwrap();
-        new_aps.atom_props[cd.id].change_atom(aps.at_map.get("H"), "HN", &aps.radius_type);
+        new_aps.atom_props[cd.id].change_atom(aps.at_map.get("H"), "H", "H", &aps.radius_type);
         // 获取新的HN坐标
         for layer in 0..new_coordinates.shape()[0] {
             let n_coords: Array1<f64> = new_coordinates.slice(s![layer, n[0].id, ..]).to_owned();

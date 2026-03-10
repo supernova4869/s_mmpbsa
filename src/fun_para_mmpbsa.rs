@@ -334,7 +334,7 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
                             sys_name: &str, settings: &Settings) -> (SMResult, Vec<SMResult>) {
     // Apply atom radius
     println!("Applying {} radius...", radius_types[settings.radius_type]);
-    aps.apply_radius(settings.radius_type, &tpr.get_at_list(), &radius_types);
+    aps.apply_radius(radius_types[settings.radius_type], &tpr.get_at_type_list());
 
     // Temp directory for PBSA
     let temp_dir = &env::current_dir().unwrap().join(sys_name);

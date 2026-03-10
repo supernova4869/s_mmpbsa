@@ -289,7 +289,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
             coordinates[[0, i, 1]] = atom.y * 10.0;
             coordinates[[0, i, 2]] = atom.z * 10.0;
         }
-        let time_list = (0..coordinates.shape()[0]).map(|t| (t + 1) as f64 * 1000.0).collect();
+        let time_list = vec![0.0]; // Single frame for GRO file
         
         println!("Normalizing index...");
         let ndx_lig = match ligand_grp {

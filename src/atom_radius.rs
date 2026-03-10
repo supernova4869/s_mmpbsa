@@ -6,14 +6,13 @@ use crate::parse_tpr::TPR;
 
 impl AtomProperties {
     // .ff_radius would not be used
-    pub fn apply_radius(&mut self, radius_type: usize, at_list: &Vec<String>, radius_types: &Vec<&str>) {
-        let rad_type = radius_types[radius_type];
-        if rad_type.ne("ff") {
-            let radii_table = get_radii_map(rad_type);
+    pub fn apply_radius(&mut self, radius_type: &str, at_list: &Vec<String>) {
+        if radius_type.ne("ff") {
+            let radii_table = get_radii_map(radius_type);
             for (i, r) in &mut self.atom_props.iter_mut().enumerate() {
                 r.radius = get_radii(&radii_table, &at_list[i]);
             }
-            self.radius_type = rad_type.to_string();
+            self.radius_type = radius_type.to_string();
         } else {
             let radii = fs::read_to_string(".ff_radius.dat").unwrap();
             let radii: Vec<&str> = radii.split("\n").collect();
@@ -45,22 +44,20 @@ pub fn get_radii(radii_table: &HashMap<String, f64>, at_type: &str) -> f64 {
 }
 
 impl TPR {
-    pub fn get_at_list(&self) -> Vec<String> {
-        let mut atom_radius: Vec<String> = vec![];
+    pub fn get_at_type_list(&self) -> Vec<String> {
+        let mut atom_types: Vec<String> = vec![];
         for mol in &self.molecule_blocks {
-            let mol_type = self.molecule_types.iter().find_map(|mt| if mt.molecule_name.eq(&mol.name) {
-                Some(mt)
-            } else {
-                None
-            }).unwrap();
+            let mol_type = self.molecule_types.iter()
+                .find(|mt| mt.molecule_name == mol.name)
+                .unwrap();
             for _ in 0..mol.molecules_num {
                 for atom in &mol_type.atoms {
-                    let at = atom.name.to_uppercase();
-                    atom_radius.push(at);
+                    let at = atom.at_type.to_uppercase();
+                    atom_types.push(at);
                 }
             }
         }
-        atom_radius
+        atom_types
     }
 }
 

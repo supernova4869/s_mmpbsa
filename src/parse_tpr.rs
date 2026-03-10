@@ -23,8 +23,6 @@ static RE_ATOM_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name=\"(.*)\"").unwr
 static RE_TYPE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name=\"(.*)\",").unwrap());
 static RE_RESIDUE: Lazy<Regex> = Lazy::new(|| 
     Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=([\\d\\-]+).*").unwrap());
-static RE_ANGLES_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"nr\s*:\s*(\d+)").unwrap());
-static RE_ANGLES: Lazy<Regex> = Lazy::new(|| Regex::new(r"\(ANGLES\)\s+(\d+)\s+(\d+)\s+(\d+)").unwrap());
 static RE_COORD: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\s*(.*),\s*(.*),\s*(.*)\}").unwrap());
 static RE_ATOM_COUNT: Lazy<Regex> = Lazy::new(|| Regex::new(r"atom \((\d+)\):").unwrap());
 static RE_RESIDUE_COUNT: Lazy<Regex> = Lazy::new(|| Regex::new(r"residue \((\d+)\)").unwrap());
@@ -470,40 +468,6 @@ fn process_moltype<R: BufRead>(
                 let name = caps[2].to_string();
                 let nr: i32 = caps[3].parse().unwrap();
                 residues.push(Residue::new(id, name, nr));
-            }
-        }
-
-        // 角度处理
-        loop {
-            read_line(reader, buf);
-            if buf.trim().starts_with("Angle:") {
-                read_line(reader, buf);
-                if let Some(caps) = RE_ANGLES_NUM.captures(&buf) {
-                    let angles: i32 = caps[1].parse().unwrap();
-                    if angles > 0 {
-                        read_line(reader, buf);
-                        for _ in 0..angles / 4 {
-                            read_line(reader, buf);
-                            if let Some(caps) = RE_ANGLES.captures(&buf) {
-                                let i: usize = caps[1].parse().unwrap();
-                                let j: usize = caps[2].parse().unwrap();
-                                let k: usize = caps[3].trim().parse().unwrap();
-                                
-                                if atom_names[offset + i].starts_with(['H', 'h']) {
-                                    let base_name = &atom_names[offset + j];
-                                    atom_names[offset + i] = format!("H{}", base_name);
-                                }
-                                if atom_names[offset + k].starts_with(['H', 'h']) {
-                                    let base_name = &atom_names[offset + j];
-                                    atom_names[offset + k] = format!("H{}", base_name);
-                                }
-                            } else {
-                                break;
-                            }
-                        }
-                        break;
-                    } else { break; }
-                }
             }
         }
 

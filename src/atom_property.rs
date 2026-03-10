@@ -18,17 +18,19 @@ pub struct AtomProperty {
     pub type_id: usize,
     pub id: usize,
     pub name: String,
+    pub at_type: String,
     pub resname: String,
     pub resid: usize,
 }
 
 impl AtomProperty {
-    pub fn change_atom(&mut self, new_type_id: Option<&usize>, new_name: &str, radius_type: &str) {
+    pub fn change_atom(&mut self, new_type_id: Option<&usize>, new_name: &str, new_type: &str, radius_type: &str) {
         if let Some(&new_type_id) = new_type_id {
             self.type_id = new_type_id;
             self.name = new_name.to_string();
+            self.at_type = new_type.to_string();
             let radii_table = get_radii_map(radius_type);
-            self.radius = get_radii(&radii_table, new_name);
+            self.radius = get_radii(&radii_table, new_type);
         }
     }
 }
@@ -56,11 +58,9 @@ impl AtomProperties {
         let mut resid_offset = 0;
 
         for mol in &tpr.molecule_blocks {
-            let mol_type = &tpr.molecule_types.iter().find_map(|mt| if mt.molecule_name.eq(&mol.name) {
-                Some(mt)
-            } else {
-                None
-            }).unwrap();
+            let mol_type = tpr.molecule_types.iter()
+                .find(|mt| mt.molecule_name == mol.name)
+                .unwrap();
             for _ in 0..mol.molecules_num {
                 for atom in &mol_type.atoms {
                     if ndx_com.contains(&cur_atom_id) {
@@ -73,6 +73,7 @@ impl AtomProperties {
                             type_id: atom.type_id,
                             id: atom.id,
                             name: atom.name.to_string(),
+                            at_type: atom.at_type.to_string(),
                             resname: residue.name.to_string(),
                             resid: atom.resind + resid_offset,
                         });
