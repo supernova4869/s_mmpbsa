@@ -213,7 +213,6 @@ fn write_pml(pml_name: &String, def_name: &String, png_name: &String, wd: &Path,
     writeln!(pml_file, "# cmd.spectrum(\"b\", minimum=-100, maximum=100)").unwrap();
     writeln!(pml_file, "select ligand, not polymer.protein and not solvent and not name \"NA\" and not name \"CL\"").unwrap();
     writeln!(pml_file, "cmd.spectrum(\"b\", selection=(\"ligand\"), quiet=0)").unwrap();
-    writeln!(pml_file, "zoom ligand, 2.5").unwrap();
     writeln!(pml_file, "cmd.disable(\"ligand\")").unwrap();
     writeln!(pml_file, "ray 1920, 1080, async=1").unwrap();
     writeln!(pml_file, "png {}, 1920, 1080, 300, 1, 1", png_name).unwrap();
