@@ -16,21 +16,19 @@ mod atom_property;
 mod coefficients;
 mod utils;
 
-use std::ffi::OsStr;
 use std::{fs, io};
 use std::env;
 use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::Path;
 use std::process::{exit, Command};
-use analyzation::SMResult;
+use analyzation::SMResults;
 use colored::Colorize;
 use regex::Regex;
 use settings::{Settings, get_base_settings, get_settings_in_use};
 use utils::get_input;
 use clap::Parser;
-
-use crate::parameters::Config;
+use parameters::Config;
 
 #[derive(Parser)]
 #[command(name = "s_mmpbsa")]
@@ -69,7 +67,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/03/15";
+    let compile_date = "2026/03/19";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -120,31 +118,11 @@ fn main() {
     // Analyzation mode
     if cli.analyze.is_some() {
         let sm_path = cli.analyze.unwrap();
-        let sm = fs::canonicalize(Path::new(&sm_path)).unwrap();
-        let wd = Path::new(&sm).parent().unwrap();
-        let sm = sm.file_name().unwrap().to_str().unwrap();
-        let sm = sm.trim_start().strip_prefix("MMPBSA_").unwrap_or(sm);
-        let re = Regex::new(r"(_WT|_\S\d+\S)\.sm$").unwrap();
-        let sys_name = re.replace(sm, "").to_string();
+        let sys_name = Path::new(&sm_path).file_stem().unwrap().to_str().unwrap();
+        let sys_name = sys_name.trim_start().strip_prefix("MMPBSA_").unwrap_or(sys_name);
         println!("Loading MM-PBSA results of {}...", sys_name);
-        let result_wt = SMResult::from(&format!("MMPBSA_{}_WT.sm", sys_name));
-        let result_as: Vec<SMResult> = fs::read_dir(&wd).unwrap()
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| p.extension() == Some(OsStr::new("sm")))
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .map_or(false, |n| {
-                        n.starts_with(&format!("MMPBSA_{}", sys_name)) && !n.ends_with("_WT.sm")
-                    })
-            })
-            .filter_map(|p| p.to_str().map(SMResult::from))
-            .collect();
-
-        if !result_as.is_empty() {
-            println!("Found {} mutations of {}, collecting them.", result_as.len(), sys_name);
-        }
-        analyzation::analyze_controller(&result_wt, &result_as, &sys_name.to_string(), &settings);
+        let sm_results = SMResults::from(&sm_path);
+        analyzation::analyze_controller(&sm_results, sys_name, &settings);
     };
 
     let tpr = if cli.tpr.is_some() {

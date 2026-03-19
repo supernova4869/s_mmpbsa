@@ -12,6 +12,28 @@ use crate::settings::Settings;
 use crate::utils::{get_input, get_input_selection, range2list};
 
 #[derive(Clone, Serialize, Deserialize)]
+pub struct SMResults {
+    pub sm_results: Vec<SMResult>
+}
+
+impl SMResults {
+    pub fn new(sm_results: Vec<SMResult>) -> SMResults {
+        SMResults { sm_results }
+    }
+
+    pub fn to_bin(&self, target: &Path) {
+        println!("Saving results to {}", target.to_str().unwrap());
+        let mut result_as_serialize = std::fs::File::create(target).unwrap();
+        serde_pickle::to_writer(&mut result_as_serialize, self, serde_pickle::SerOptions::new()).unwrap();
+    }
+
+    pub fn from(result_serialize: &str) -> SMResults {
+        let result_deserialize = std::fs::File::open(result_serialize).unwrap();
+        serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new()).unwrap()
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SMResult {
     pub temperature: f64,
     pub mutation: String,
@@ -88,28 +110,18 @@ impl SMResult {
             vdw_atom: vdw_atom.to_owned(),
         }
     }
-
-    pub fn to_bin(&self, target: &Path) {
-        println!("Saving results to {}", target.to_str().unwrap());
-        let mut result_as_serialize = std::fs::File::create(target).unwrap();
-        serde_pickle::to_writer(&mut result_as_serialize, self, serde_pickle::SerOptions::new()).unwrap();
-    }
-
-    pub fn from(result_serialize: &str) -> SMResult {
-        let result_deserialize = std::fs::File::open(result_serialize).unwrap();
-        serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new()).unwrap()
-    }
 }
 
-pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_name: &String, settings: &Settings) {
-    let mut results = result_as.clone();
-    results.insert(0, result_wt.clone());
+pub fn analyze_controller(sm_results: &SMResults, sys_name: &str, settings: &Settings) {
     loop {
-        println!("\nTime range: {} - {} ns, step = {} ns", result_wt.times[0], result_wt.times.last().unwrap(), if result_wt.times.len() > 1 {
-            result_wt.times[1] - result_wt.times[0]
-        } else {
-            0.0
-        });
+        println!("\nTime range: {} - {} ns, step = {} ns", 
+            sm_results.sm_results[0].times[0], 
+            sm_results.sm_results[0].times.last().unwrap(), 
+            if sm_results.sm_results[0].times.len() > 1 {
+                sm_results.sm_results[0].times[1] - sm_results.sm_results[0].times[0]
+            } else {
+                0.0
+            });
         println!("\n                 ************ MM-PBSA analyzation ************");
         println!("-1 Write residue-wised binding energy at specific time to pdb file");
         println!(" 0 Exit program");
@@ -123,15 +135,16 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_n
             Ok(-1) => {
                 println!("Input the time point (in ns, e.g. 40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
-                let ts_ids = get_time_index(&result_wt.times, tmin, tmax);
+                let ts_ids = get_time_index(&sm_results.sm_results[0].times, tmin, tmax);
                 if ts_ids.is_empty() {
                     println!("Not valid time.");
                     continue;
                 }
                 println!("Writing pdb and pml file(s)...");
-                for result in &results {
+                for sm_result in &sm_results.sm_results {
                     let def_name = format!("MMPBSA_binding_energy_{}.pdb", sys_name);
-                    write_pdb_with_bf(result, &def_name, &ts_ids, &env::current_dir().unwrap(), &(0..result.atom_res.len()).collect(), true);
+                    write_pdb_with_bf(sm_result, &def_name, &ts_ids, &env::current_dir().unwrap(), 
+                            &(0..sm_result.atom_res.len()).collect(), true);
                     let pml_name = format!("MMPBSA_binding_energy_{}.pml", sys_name);
                     let png_name = format!("MMPBSA_binding_energy_{}", sys_name);
                     write_pml(&pml_name, &def_name, &png_name, &env::current_dir().unwrap(), settings);
@@ -143,36 +156,37 @@ pub fn analyze_controller(result_wt: &SMResult, result_as: &Vec<SMResult>, sys_n
             Ok(1) => {
                 println!("Input the time period (in ns, e.g. 0-40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
-                for result in &results {
-                    analyze_summary(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
+                for result in &sm_results.sm_results {
+                    analyze_summary(result, &env::current_dir().unwrap(), 
+                            &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
                 }
             },
             Ok(2) => {
-                for result in &results {
+                for result in &sm_results.sm_results {
                     analyze_traj(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation))
                 }
             },
             Ok(3) => {
                 println!("Input the time period (in ns, e.g. 0-40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
-                let ts_ids = get_time_index(&result_wt.times, tmin, tmax);
+                let ts_ids = get_time_index(&sm_results.sm_results[0].times, tmin, tmax);
                 if ts_ids.is_empty() {
                     println!("Not valid time.");
                     continue;
                 }
-                let (range_des, target_res) = select_res_by_range(result_wt);
+                let (range_des, target_res) = select_res_by_range(&sm_results.sm_results[0]);
                 println!("Writing energy file(s)...");
-                for result in &results {
+                for result in &sm_results.sm_results {
                     analyze_res(result, &env::current_dir().unwrap(), 
                         &format!("{}-{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
                 }
                 println!("Finished writing residue-wised binding energy file(s).");
             },
             Ok(4) => {
-                for result in &results {
+                for result in &sm_results.sm_results {
                     analyze_atom(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation))
                 }
-                if results[0].ndx_lig.is_some() {
+                if sm_results.sm_results[0].ndx_lig.is_some() {
                     println!("Finished writing atom-wised binding energy pdb file(s) for ligand.");
                 } else {
                     println!("System does not contain ligands.");

@@ -12,7 +12,7 @@ use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
 use crate::coefficients::{self, Coefficients};
-use crate::analyzation::SMResult;
+use crate::analyzation::{SMResult, SMResults};
 use crate::parse_tpr::Residue;
 use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
@@ -23,29 +23,16 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
                                ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, temperature: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
-                               -> (SMResult, Vec<SMResult>) {
+                               -> SMResults {
     println!("Running MM-PBSA calculations of {}...", sys_name);
-    if ala_list.len() > 0 {
-        let as_res: Vec<String> = residues.iter().filter_map(
-            |r| if ala_list.contains(&r.nr) && is_amino(&r.name) {
-                match utils::resname_3to1(&r.name) {
-                    Some(mutation) => Some(format!("{}{}A", mutation, r.nr)),
-                    None => Some(format!("{}{}A", r.name.to_string(), r.nr))
-                }
-            } else {
-                None
-            }).collect();
-        println!("Mutations for alanine scanning: {}", as_res.join(", "));
-    }
 
     // calculate MM and PBSA
     println!("Calculating binding energy for {}...", sys_name);
     let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates_ie, aps, &temp_dir, 
         &ndx_rec, &ndx_lig, residues, temperature,
         sys_name, "WT", pbe_set, pba_set, settings);
-    result_wt.to_bin(&env::current_dir().unwrap().join(format!("MMPBSA_{}_{}.sm", sys_name, "WT").as_str()));
 
-    let mut result_ala_scan: Vec<SMResult> = vec![];
+    let mut result_ala_scan: Vec<SMResult> = vec![result_wt];
     if ala_list.len() > 0 {
         // main chain atoms number
         let as_res: Vec<&Residue> = residues.iter().filter(|&r| ala_list.contains(&r.nr) 
@@ -72,10 +59,13 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
             let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates_ie,
                 &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues, temperature,
                 &sys_name, &mutation, pbe_set, pba_set, settings);
-            result_as.to_bin(&env::current_dir().unwrap().join(format!("MMPBSA_{}.sm", sys_name).as_str()));
             result_ala_scan.push(result_as);
         }
     };
+
+    println!("Writing calculation results...");
+    let sm_results = SMResults::new(result_ala_scan);
+    sm_results.to_bin(Path::new(&format!("MMPBSA_{}.sm", sys_name)));
 
     // whether remove temp directory
     if !settings.debug_mode {
@@ -87,7 +77,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     println!("");
     utils::show_famous_quotes();
 
-    (result_wt, result_ala_scan)
+    sm_results
 }
 
 fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordinates: &Array3<f64>, 

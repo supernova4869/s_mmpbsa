@@ -5,7 +5,7 @@ use std::process::exit;
 use colored::Colorize;
 use ndarray::Array3;
 
-use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca};
+use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca, is_amino};
 use crate::parse_ndx::Index;
 use crate::settings::Settings;
 use crate::parameters::{Config, PBASet, PBESet};
@@ -14,7 +14,7 @@ use std::fs::{File, self};
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::{Residue, TPR};
 use crate::mmpbsa;
-use crate::analyzation::{self, SMResult};
+use crate::analyzation::{self, SMResults};
 
 pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                        tpr: &TPR, ndx: &Index, config: &Option<Config>, aps: &mut AtomProperties,
@@ -60,7 +60,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             2 => "Supernova's method",
             _ => "None"
         });
-        println!("  2 Select residues list for alanine scanning, current: {:?}", ala_list);
+        println!("  2 Select residues list for alanine scanning, current: {}", show_ala_mutations(&ala_list, residues));
         println!("  3 Select atom radius type, current: {}", radius_types[settings.radius_type]);
         println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
         println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
@@ -128,10 +128,10 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             }
             Ok(0) => {
                 let sys_name = get_system_name();
-                let (result_wt, result_as) = run_mmpbsa_calculations(&radius_types, 
+                let sm_results = run_mmpbsa_calculations(&radius_types, 
                     time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, 
                     residues, aps, &ala_list, &pbe_set, &pba_set, &sys_name, settings);
-                analyzation::analyze_controller(&result_wt, &result_as, &sys_name, settings);
+                analyzation::analyze_controller(&sm_results, &sys_name, settings);
             }
             Ok(1) => {
                 println!("Input the electrostatic screening method:");
@@ -331,7 +331,7 @@ fn get_system_name() -> String {
 fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                             tpr: &TPR, ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, residues: &Vec<Residue>, 
                             aps: &mut AtomProperties, ala_list: &Vec<i32>, pbe_set: &PBESet, pba_set: &PBASet, 
-                            sys_name: &str, settings: &Settings) -> (SMResult, Vec<SMResult>) {
+                            sys_name: &str, settings: &Settings) -> SMResults {
     // Apply atom radius
     println!("Applying {} radius...", radius_types[settings.radius_type]);
     aps.apply_radius(radius_types[settings.radius_type], &tpr.get_at_type_list());
@@ -351,9 +351,26 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
     };
     
     // run MM-PBSA calculations
-    let (result_wt, result_as) = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
+    let sm_results = mmpbsa::fun_mmpbsa_calculations(time_list, time_list_ie, 
                                                     coordinates_ie, &temp_dir, sys_name, &aps,
                                                     &ndx_rec, &ndx_lig, &ala_list, &residues, tpr.temp,
                                                     &pbe_set, &pba_set, settings);
-    (result_wt, result_as)
+    sm_results
+}
+
+fn show_ala_mutations(ala_list: &Vec<i32>, residues: &Vec<Residue>) -> String {
+    if !ala_list.is_empty() {
+        let as_res: Vec<String> = residues.iter().filter_map(
+            |r| if ala_list.contains(&r.nr) && is_amino(&r.name) {
+                match utils::resname_3to1(&r.name) {
+                    Some(mutation) => Some(format!("{}{}A", mutation, r.nr)),
+                    None => Some(format!("{}{}A", r.name.to_string(), r.nr))
+                }
+            } else {
+                None
+            }).collect();
+        as_res.join(", ")
+    } else {
+        String::from("No mutations")
+    }
 }
