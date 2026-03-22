@@ -27,9 +27,9 @@ impl SMResults {
         serde_pickle::to_writer(&mut result_as_serialize, self, serde_pickle::SerOptions::new()).unwrap();
     }
 
-    pub fn from(result_serialize: &str) -> SMResults {
+    pub fn from(result_serialize: &str) -> Result<SMResults, serde_pickle::Error> {
         let result_deserialize = std::fs::File::open(result_serialize).unwrap();
-        serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new()).unwrap()
+        serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new())
     }
 }
 
