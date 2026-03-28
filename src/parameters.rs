@@ -87,14 +87,14 @@ impl ProgramSet {
 #[derive(Serialize, Deserialize)]
 pub struct MMSet {
     pub cutoff: f64,
-    pub electric_screening: usize,
+    pub electric_screening: bool,
 }
 
 impl MMSet {
     pub fn new() -> MMSet {
         MMSet {
             cutoff: f64::INFINITY,
-            electric_screening: 1,
+            electric_screening: true,
         }
     }
 }
@@ -240,7 +240,7 @@ pub struct PBASet {
     srad: f64,
     pub gamma: f64,
     press: f64,
-    bconc: f64,
+    pub bconc: f64,
     sdens: f64,
     dpos: f64,
     grid: (f64, f64, f64),
@@ -255,14 +255,14 @@ impl PBASet {
             srfm: "sacc".to_string(),
             swin: 0.3,
             srad: 1.4,
-            gamma: 1.0,
+            gamma: 0.0226778,
             press: 0.0,
-            bconc: 0.0,
+            bconc: 3.84982,
             sdens: 10.0,
             dpos: 0.2,
             grid: (0.1, 0.1, 0.1),
             calc_force: false,
-            calc_energy: "total".to_string(),
+            calc_energy: "comps".to_string(),
         }
     }
 

@@ -21,15 +21,9 @@ impl Coefficients {
 }
 
 // J. Chem. Inf. Model. 2021, 61, 2454
-pub fn screening_method(r: f64, coeff: &Coefficients, sm: usize) -> f64 {
-    match sm {
-        0 => 1.0,
-        1 => (-r / coeff.lambda_d).exp(),
-        2 => if r > coeff.lambda_d {
-            ((coeff.lambda_d - r) / coeff.lambda_d).exp()
-        } else {
-            1.0
-        },
-        _ => 1.0
+pub fn screening_method(r: f64, coeff: &Coefficients, use_screen: bool) -> f64 {
+    match use_screen {
+        false => 1.0,
+        true => (-r / coeff.lambda_d).exp(),
     }
 }

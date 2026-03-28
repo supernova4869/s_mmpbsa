@@ -1,6 +1,6 @@
 [package]
 name = "s_mmpbsa"
-version = "0.10.2"
+version = "0.10.3"
 edition = "2021"
 authors = ["Jiaxing Zhang <zhangjiaxing7137@tju.edu.cn>"]
 description = "s_mmpbsa - A lite, cross-platform MM-PBSA program"
@@ -11,7 +11,7 @@ description = "s_mmpbsa - A lite, cross-platform MM-PBSA program"
 xdrfile = "0.3.0"
 regex = "^1.6.0"
 toml = "^0.5.2"
-ndarray = { version = "^0.15.6", features = ["rayon", "serde"] }
+ndarray = { version = "^0.17.2", features = ["rayon", "serde"] }
 indicatif = "^0.17.1"
 chrono = "0.4.19"
 lazy_static = "1.4.0"

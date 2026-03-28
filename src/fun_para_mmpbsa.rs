@@ -55,11 +55,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         println!(" -2 Output LJ parameters");
         println!(" -1 Output structural parameters");
         println!("{}", "  0 Start MM-PBSA calculation".green().bold());
-        println!("  1 Choose electrostatic screening method, current: {}", match settings.elec_screen {
-            1 => "Ding's method",
-            2 => "Supernova's method",
-            _ => "None"
-        });
+        println!("  1 Whether use electric screening method, current: {}", settings.elec_screen);
         println!("  2 Select residues list for alanine scanning, current: {}", show_ala_mutations(&ala_list, residues));
         println!("  3 Select atom radius type, current: {}", radius_types[settings.radius_type]);
         println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
@@ -134,9 +130,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 analyzation::analyze_controller(&sm_results, &sys_name, settings);
             }
             Ok(1) => {
-                println!("Input the electrostatic screening method:");
-                println!("0: no screening\n1: Ding's method\n2: Supernova's method");
-                settings.elec_screen = get_input(1);
+                settings.elec_screen = !settings.elec_screen;
             }
             Ok(2) => {
                 if let Some(ndx_lig) = ndx_lig {
