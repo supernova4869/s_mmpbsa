@@ -424,30 +424,34 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
                 
-    // From AMBER-PB4, the surface extension constant γ=0.0072 kcal/(mol·Å2)=0.030125 kJ/(mol·Å^2)
-    // but the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
-    // then the SA energy term is calculated by s_mmpbsa
-    let gamma = 0.030125;
-    let bias = 0.0;
+    // the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
+    // then the SA energy term is subsequently calculated
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
     if settings.calc_pbsa {
         if settings.apbs_path.as_ref().is_none() {
             return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
         }
         let apbs = settings.apbs_path.as_ref().unwrap();
-        write_apbs_input(ndx_rec, ndx_lig, coord, &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
+        write_apbs_input(ndx_rec, ndx_lig, coord, 
+                &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
-        let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name)).current_dir(temp_dir).output().expect("running apbs failed.");
+        let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name))
+            .current_dir(temp_dir).output().expect("running apbs failed.");
         let apbs_err = String::from_utf8(apbs_result.stderr).expect("Failed to parse apbs output.");
         let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
-        if settings.debug_mode {
-            let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name))).expect("Failed to create output file.");
+        let apbs_result = if settings.debug_mode {
+            let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name)))
+                .expect("Failed to create output file.");
             outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
-            let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name))).expect("Failed to create err file.");
+            let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name)))
+                .expect("Failed to create err file.");
             errfile.write_all(apbs_err.as_bytes()).expect("Failed to write apbs output.");
-        }
-        // let apbs_result = fs::read_to_string(temp_dir.join(format!("{}.out", f_name))).expect("Failed to get apbs output file.");
+            fs::read_to_string(temp_dir.join(format!("{}.out", f_name)))
+                .expect("Failed to get apbs output file.")
+        } else {
+            apbs_result
+        };
 
         // preserve CALCULATION, Atom and SASA lines
         let apbs_result: Vec<&str> = apbs_result.split("\n").filter_map(|p|
@@ -484,49 +488,67 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             };
             if apbs_result[idx].contains(&"_com_SOL") {
                 if !skip_pb {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_sol);
+                    apbs_result[st..ed].par_iter()
+                        .map(|&p| parse_apbs_line(p))
+                        .collect_into_vec(&mut com_pb_sol);
                 }
                 skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_com_VAC") {
                 if !skip_pb {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_pb_vac);
+                    apbs_result[st..ed].par_iter()
+                        .map(|&p| parse_apbs_line(p))
+                        .collect_into_vec(&mut com_pb_vac);
                 }
                 skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_rec_SOL") {
                 if !skip_pb {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_sol);
+                    apbs_result[st..ed].par_iter()
+                        .map(|&p| parse_apbs_line(p))
+                        .collect_into_vec(&mut rec_pb_sol);
                 }
                 skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_rec_VAC") {
                 if !skip_pb {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_pb_vac);
+                    apbs_result[st..ed].par_iter()
+                        .map(|&p| parse_apbs_line(p))
+                        .collect_into_vec(&mut rec_pb_vac);
                 }
                 skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_lig_SOL") {
                 if !skip_pb {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_sol);
+                    apbs_result[st..ed].par_iter()
+                        .map(|&p| parse_apbs_line(p))
+                        .collect_into_vec(&mut lig_pb_sol);
                 }
                 skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_lig_VAC") {
                 if !skip_pb {
-                    apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_pb_vac);
+                    apbs_result[st..ed].par_iter()
+                        .map(|&p| parse_apbs_line(p))
+                        .collect_into_vec(&mut lig_pb_vac);
                 }
                 skip_pb = !skip_pb;
             } else if apbs_result[idx].contains(&"_com_SAS") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut com_sa);
+                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p))
+                    .collect_into_vec(&mut com_sa);
             } else if apbs_result[idx].contains(&"_rec_SAS") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut rec_sa);
+                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p))
+                    .collect_into_vec(&mut rec_sa);
             } else if apbs_result[idx].contains(&"_lig_SAS") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p)).collect_into_vec(&mut lig_sa);
+                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p))
+                    .collect_into_vec(&mut lig_sa);
             }
         }
 
         let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
-        let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
+        let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter()
+            .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
         let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
-        let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
+        let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter()
+            .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
         let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
-        let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter().map(|&sa| gamma * sa + bias).collect());
+        let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter()
+            .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
 
         if let Some(ndx_lig) = ndx_lig {
             if ndx_rec.iter().min() < ndx_lig.iter().min() {

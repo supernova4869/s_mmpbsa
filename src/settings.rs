@@ -9,7 +9,7 @@ pub struct Settings {
     pub radius_type: usize,
     pub r_cutoff: f64,
     pub fix_pbc: bool,
-    pub elec_screen: usize,
+    pub elec_screen: bool,
     pub calc_mm: bool,
     pub calc_pbsa: bool,
     pub gmx_path: Option<String>,
@@ -27,7 +27,7 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Settings {
         Settings {
-            elec_screen: 1,
+            elec_screen: true,
             radius_type: 3,
             r_cutoff: 0.0,
             fix_pbc: true,
@@ -53,7 +53,8 @@ impl Settings {
         let default_settings = Settings::new();
         
         // Read settings
-        let elec_screen = parse_param(&setting_values, "screen_method", default_settings.elec_screen);
+        let elec_screen = parse_param(&setting_values, "screen_method", "\"y\"".to_string());
+        let elec_screen = get_settings_bool(&elec_screen);
         let radius_type = parse_param(&setting_values, "radius_type", default_settings.radius_type);
         let r_cutoff = parse_param(&setting_values, "r_cutoff", default_settings.r_cutoff);
         let r_cutoff = if r_cutoff == 0.0 {
@@ -62,27 +63,15 @@ impl Settings {
             r_cutoff
         };
         let fix_pbc = parse_param(&setting_values, "fix_pbc", "\"y\"".to_string());
-        let fix_pbc = match fix_pbc[1..2].to_string().as_str() {
-            "y" => true,
-            "Y" => true,
-            _ => false
-        };
+        let fix_pbc = get_settings_bool(&fix_pbc);
         let gmx_path = parse_param(&setting_values, "gmx_path", "\"built-in\"".to_string());
         let gmx_path = Some(gmx_path[1..gmx_path.len() - 1].to_string());
         let apbs_path = parse_param(&setting_values, "apbs_path", "".to_string());
         let apbs_path = Some(apbs_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let calc_mm = parse_param(&setting_values, "calc_mm", "\"y\"".to_string());
-        let calc_mm = match calc_mm[1..2].to_string().as_str() {
-            "y" => true,
-            "Y" => true,
-            _ => false
-        };
+        let calc_mm = get_settings_bool(&calc_mm);
         let calc_pbsa = parse_param(&setting_values, "calc_pbsa", "\"y\"".to_string());
-        let calc_pbsa = match calc_pbsa[1..2].to_string().as_str() {
-            "y" => true,
-            "Y" => true,
-            _ => false
-        };
+        let calc_pbsa = get_settings_bool(&calc_pbsa);
         let cfac = parse_param(&setting_values, "cfac", default_settings.cfac);
         let fadd = parse_param(&setting_values, "fadd", default_settings.fadd);
         let df = parse_param(&setting_values, "df", default_settings.df);
@@ -91,11 +80,7 @@ impl Settings {
         let pymol_path = Some(pymol_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
-        let debug_mode = match debug_mode[1..2].to_string().as_str() {
-            "y" => true,
-            "Y" => true,
-            _ => false
-        };
+        let debug_mode = get_settings_bool(&debug_mode);
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
 
@@ -145,4 +130,12 @@ pub fn get_base_settings() -> PathBuf {
             .expect("Cannot get current s_mmpbsa program path.")
             .parent().expect("Cannot get current s_mmpbsa program directory.")
             .join("settings.ini")
+}
+
+fn get_settings_bool(item: &String) -> bool {
+    match item[1..2].to_string().as_str() {
+        "y" => true,
+        "Y" => true,
+        _ => false
+    }
 }

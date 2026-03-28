@@ -76,20 +76,24 @@ pub fn write_apbs_input(ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usi
     let mut pbe_set_vacuum = PBESet::from(pbe_set);
     pbe_set_vacuum.sdie = 1.0;
 
+    let mut pba_set_modify = PBASet::from(pba_set);
+    pba_set_modify.gamma = 1.0;
+    pba_set_modify.bconc = 0.0;
+
     if let Some(com_box) = com_box {
         input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
-                                    com_box, settings, pbe_set, &pbe_set_vacuum, pba_set).as_bytes()).
-            expect("Failed writing apbs file.");
+            com_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
+            .expect("Failed writing apbs file.");
         input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
-                                    rec_box, settings, pbe_set, &pbe_set_vacuum, pba_set).as_bytes()).
-            expect("Failed writing apbs file.");
+            rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
+            .expect("Failed writing apbs file.");
         input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
-                                    lig_box.unwrap(), settings, pbe_set, &pbe_set_vacuum, pba_set).as_bytes()).
-            expect("Failed writing apbs file.");
+            lig_box.unwrap(), settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
+            .expect("Failed writing apbs file.");
     } else {
         input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 1,
-                                    rec_box, settings, pbe_set, &pbe_set_vacuum, pba_set).as_bytes()).
-            expect("Failed writing apbs file.");
+            rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
+            .expect("Failed writing apbs file.");
     }
 }
 

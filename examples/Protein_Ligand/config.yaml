@@ -1,7 +1,7 @@
 program_set:
   sys_name: system
   calc_mm: true
-  calc_pbsa: false
+  calc_pbsa: true
   debug: false
   trj: md.xtc
   tpr: md.tpr
@@ -20,9 +20,9 @@ program_set:
   ala_scan_range: ''
 mm_set:
   cutoff: .inf
-  electric_screening: 1
+  electric_screening: true
 pbe_set:
-  temp: 300
+  temp: 298.15
   pdie: 2.0
   sdie: 78.4
   pb_solver: lpbe
@@ -42,13 +42,13 @@ pbe_set:
   calc_force: false
   calc_energy: comps
 pba_set:
-  temp: 300
+  temp: 298.15
   srfm: sacc
   swin: 0.3
   srad: 1.4
-  gamma: 1.0
+  gamma: 0.0226778
   press: 0.0
-  bconc: 0.0
+  bconc: 3.84982
   sdens: 10.0
   dpos: 0.2
   grid:
@@ -56,4 +56,4 @@ pba_set:
   - 0.1
   - 0.1
   calc_force: false
-  calc_energy: total
+  calc_energy: comps
