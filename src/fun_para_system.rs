@@ -269,7 +269,7 @@ fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>,
                 coordinates[[i, j, 2]] = atom.z;
             }
         }
-        let time_list = (0..coordinates.shape()[0]).map(|t| (t + 1) as f64 * 1000.0).collect();
+        let time_list = (0..coordinates.shape()[0]).map(|t| t as f64 * 1000.0).collect();
 
         println!("Normalizing index...");
         let ndx_lig = match ligand_grp {
