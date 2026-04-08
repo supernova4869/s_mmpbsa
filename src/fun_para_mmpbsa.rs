@@ -36,11 +36,11 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
     let mut ala_list: Vec<i32> = vec![];
     if config.is_some() {
         settings.elec_screen = config.as_ref().unwrap().mm_set.electric_screening;
-        settings.radius_type = radius_types.iter().position(|&r| r.eq(&config.as_ref().unwrap().program_set.radius_type)).unwrap_or(3);
+        settings.radius_type = radius_types.iter().position(|&r| r.eq(&config.as_ref().unwrap().mm_set.radius_type)).unwrap_or(3);
         settings.r_cutoff = config.as_ref().unwrap().mm_set.cutoff;
-        settings.cfac = config.as_ref().unwrap().program_set.cfac;
-        settings.fadd = config.as_ref().unwrap().program_set.fadd;
-        settings.df = config.as_ref().unwrap().program_set.df;
+        settings.cfac = config.as_ref().unwrap().pbe_set.cfac;
+        settings.fadd = config.as_ref().unwrap().pbe_set.fadd;
+        settings.df = config.as_ref().unwrap().pbe_set.df;
         ala_list = utils::range2list(config.as_ref().unwrap().program_set.ala_scan_range.as_str());
         run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, 
             tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, 
@@ -56,14 +56,15 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         println!(" -1 Output structural parameters");
         println!("{}", "  0 Start MM-PBSA calculation".green().bold());
         println!("  1 Whether use electric screening method, current: {}", settings.elec_screen);
-        println!("  2 Select residues list for alanine scanning, current: {}", show_ala_mutations(&ala_list, residues));
-        println!("  3 Select atom radius type, current: {}", radius_types[settings.radius_type]);
-        println!("  4 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
-        println!("  5 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
-        println!("  6 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
-        println!("  7 Input fine mesh spacing (df), current: {} A", settings.df);
-        println!("  8 Prepare PB parameters for APBS");
-        println!("  9 Prepare SA parameters for APBS");
+        println!("  2 Whether use interaction entropy method, current: {}", settings.inter_entropy);
+        println!("  3 Select residues list for alanine scanning, current: {}", show_ala_mutations(&ala_list, residues));
+        println!("  4 Select atom radius type, current: {}", radius_types[settings.radius_type]);
+        println!("  5 Input atom distance cutoff for MM calculation (A), current: {}", settings.r_cutoff);
+        println!("  6 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
+        println!("  7 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
+        println!("  8 Input fine mesh spacing (df), current: {} A", settings.df);
+        println!("  9 Prepare PB parameters for APBS");
+        println!(" 10 Prepare SA parameters for APBS");
         let i = get_input_selection();
         match i {
             Ok(-10) => return,
@@ -133,6 +134,9 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 settings.elec_screen = !settings.elec_screen;
             }
             Ok(2) => {
+                settings.inter_entropy = !settings.inter_entropy;
+            }
+            Ok(3) => {
                 if let Some(ndx_lig) = ndx_lig {
                     println!("Select the residues for alanine scanning:");
                     println!("-1 Clear residues list");
@@ -197,7 +201,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     println!("No ligand.");
                 }
             }
-            Ok(3) => {
+            Ok(4) => {
                 println!("Input atom radius type (default mBondi), Supported:{}", {
                     let mut s = String::new();
                     for (k, v) in radius_types.iter().enumerate() {
@@ -221,7 +225,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     }
                 }
             }
-            Ok(4) => {
+            Ok(5) => {
                 println!("Input cutoff value (A), default 0 (inf):");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -234,7 +238,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     }
                 }
             }
-            Ok(5) => {
+            Ok(6) => {
                 println!("Input coarse grid expand factor, default 1.5:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -244,7 +248,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     settings.cfac = s.trim().parse().expect("Input not valid number.");
                 }
             }
-            Ok(6) => {
+            Ok(7) => {
                 println!("Input fine grid expand amount (A), default 5:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -254,7 +258,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     settings.fadd = s.trim().parse().expect("Input not valid number.");
                 }
             }
-            Ok(7) => {
+            Ok(8) => {
                 println!("Input fine mesh spacing (A), default 0.5:");
                 let mut s = String::new();
                 stdin().read_line(&mut s).expect("Input error");
@@ -264,7 +268,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     settings.df = s.trim().parse().expect("Input not valid number.");
                 }
             }
-            Ok(8) => {
+            Ok(9) => {
                 let pb_fpath = "PB_settings.yaml";
                 pbe_set.save(&pb_fpath);
                 println!("PB parameters have been wrote to {}.\n\
@@ -285,7 +289,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     };
                 }
             }
-            Ok(9) => {
+            Ok(10) => {
                 let sa_fpath = "SA_settings.yaml";
                 pba_set.save(&sa_fpath);
                 println!("SA parameters have been wrote to {}.\n\

@@ -50,7 +50,7 @@ pub struct SMResult {
     pub sa: Array1<f64>,
     pub elec: Array1<f64>,
     pub vdw: Array1<f64>,
-    pub mm_ie: Array1<f64>,
+    pub mm_ie: Option<Array1<f64>>,
     pub dh_atom: Array2<f64>,
     pub mm_atom: Array2<f64>,
     pub pb_atom: Array2<f64>,
@@ -66,7 +66,7 @@ impl SMResult {
                mutation: &str, temperature: f64, 
                elec_atom: &Array2<f64>, vdw_atom: &Array2<f64>, 
                pb_atom: &Array2<f64>, sa_atom: &Array2<f64>,
-               mm_ie: &Array1<f64>) -> SMResult {
+               mm_ie: &Option<Array1<f64>>) -> SMResult {
         let mut dh: Array1<f64> = Array1::zeros(times.len());
         let mut mm: Array1<f64> = Array1::zeros(times.len());
         let mut pb: Array1<f64> = Array1::zeros(times.len());
@@ -158,12 +158,12 @@ pub fn analyze_controller(sm_results: &SMResults, sys_name: &str, settings: &Set
                 let (tmin, tmax) = get_time_range();
                 for result in &sm_results.sm_results {
                     analyze_summary(result, &env::current_dir().unwrap(), 
-                            &format!("{}-{}", sys_name, result.mutation), tmin, tmax)
+                            &format!("{}{}", sys_name, result.mutation), tmin, tmax)
                 }
             },
             Ok(2) => {
                 for result in &sm_results.sm_results {
-                    analyze_traj(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation))
+                    analyze_traj(result, &env::current_dir().unwrap(), &format!("{}{}", sys_name, result.mutation))
                 }
             },
             Ok(3) => {
@@ -178,13 +178,13 @@ pub fn analyze_controller(sm_results: &SMResults, sys_name: &str, settings: &Set
                 println!("Writing energy file(s)...");
                 for result in &sm_results.sm_results {
                     analyze_res(result, &env::current_dir().unwrap(), 
-                        &format!("{}-{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
+                        &format!("{}{}", sys_name, result.mutation), &ts_ids, &range_des, &target_res);
                 }
                 println!("Finished writing residue-wised binding energy file(s).");
             },
             Ok(4) => {
                 for result in &sm_results.sm_results {
-                    analyze_atom(result, &env::current_dir().unwrap(), &format!("{}-{}", sys_name, result.mutation))
+                    analyze_atom(result, &env::current_dir().unwrap(), &format!("{}{}", sys_name, result.mutation))
                 }
                 if sm_results.sm_results[0].ndx_lig.is_some() {
                     println!("Finished writing atom-wised binding energy pdb file(s) for ligand.");
@@ -290,13 +290,6 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     let sa_avg = results.sa.select(Axis(0), &ts_ids).mean().unwrap();
     let sa_err = results.sa.select(Axis(0), &ts_ids).std(0.0);
 
-    // Interactive Entropy
-    let mm_ie_avg = results.mm_ie.select(Axis(0), &ts_ie_ids).mean().unwrap();
-    let mm_sum: f64 = results.mm_ie.select(Axis(0), &ts_ie_ids).iter().map(|&mm| ((mm - mm_ie_avg) * beta_kj).exp()).sum();
-    let tds = -(mm_sum / ts_ie_ids.len() as f64).ln() / beta_kj;
-    let dg = dh_avg - tds;
-    let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
-
     println!("\nEnergy terms summary ({}-{} ns):", results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]);
     println!("ΔH: {:.3} ± {:.3} kJ/mol", dh_avg, dh_err);
     println!("ΔMM: {:.3} ± {:.3} kJ/mol", mm_avg, mm_err);
@@ -306,9 +299,6 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     println!("Δelec: {:.3} ± {:.3} kJ/mol", elec_avg, elec_err);
     println!("Δvdw: {:.3} ± {:.3} kJ/mol", vdw_avg, vdw_err);
     println!();
-    println!("-TΔS: {:.3} kJ/mol", -tds);
-    println!("ΔG: {:.3} kJ/mol", dg);
-    println!("Ki: {:.9e} nM", ki);
 
     let def_name = format!("MMPBSA_{}({}-{}ns).csv", sys_name, results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]);
     println!("Writing binding energy terms...");
@@ -322,9 +312,21 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     write!(energy_sum, "Δelec,{:.3},{:.3},(kJ/mol)\n", elec_avg, elec_err).unwrap();
     write!(energy_sum, "ΔvdW,{:.3},{:.3},(kJ/mol)\n", vdw_avg, vdw_err).unwrap();
     write!(energy_sum, "\n").unwrap();
-    write!(energy_sum, "-TΔS,{:.3},,(kJ/mol)\n", -tds).unwrap();
-    write!(energy_sum, "ΔG,{:.3},,ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
-    write!(energy_sum, "Ki,{:.9e},,Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
+
+    // Interactive Entropy
+    if let Some(mm_ie) = &results.mm_ie {
+        let mm_ie_avg = mm_ie.select(Axis(0), &ts_ie_ids).mean().unwrap();
+        let mm_sum: f64 = mm_ie.select(Axis(0), &ts_ie_ids).iter().map(|&mm| ((mm - mm_ie_avg) * beta_kj).exp()).sum();
+        let tds = -(mm_sum / ts_ie_ids.len() as f64).ln() / beta_kj;
+        let dg = dh_avg - tds;
+        let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
+        println!("-TΔS: {:.3} kJ/mol", -tds);
+        println!("ΔG: {:.3} kJ/mol", dg);
+        println!("Ki: {:.9e} nM", ki);
+        write!(energy_sum, "-TΔS,{:.3},,(kJ/mol)\n", -tds).unwrap();
+        write!(energy_sum, "ΔG,{:.3},,ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
+        write!(energy_sum, "Ki,{:.9e},,Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
+    }
     println!("Binding energy terms have been writen to {}", &def_name);
 }
 

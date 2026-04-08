@@ -6,10 +6,11 @@ use toml::Value;
 
 #[allow(dead_code)]
 pub struct Settings {
+    pub elec_screen: bool,
+    pub inter_entropy: bool,
     pub radius_type: usize,
     pub r_cutoff: f64,
     pub fix_pbc: bool,
-    pub elec_screen: bool,
     pub calc_mm: bool,
     pub calc_pbsa: bool,
     pub gmx_path: Option<String>,
@@ -28,6 +29,7 @@ impl Settings {
     pub fn new() -> Settings {
         Settings {
             elec_screen: true,
+            inter_entropy: true,
             radius_type: 3,
             r_cutoff: 0.0,
             fix_pbc: true,
@@ -53,8 +55,10 @@ impl Settings {
         let default_settings = Settings::new();
         
         // Read settings
-        let elec_screen = parse_param(&setting_values, "screen_method", "\"y\"".to_string());
+        let elec_screen = parse_param(&setting_values, "do_elec_screen", "\"y\"".to_string());
         let elec_screen = get_settings_bool(&elec_screen);
+        let inter_entropy = parse_param(&setting_values, "do_inter_entropy", "\"y\"".to_string());
+        let inter_entropy = get_settings_bool(&inter_entropy);
         let radius_type = parse_param(&setting_values, "radius_type", default_settings.radius_type);
         let r_cutoff = parse_param(&setting_values, "r_cutoff", default_settings.r_cutoff);
         let r_cutoff = if r_cutoff == 0.0 {
@@ -86,6 +90,7 @@ impl Settings {
 
         Settings {
             elec_screen,
+            inter_entropy,
             radius_type,
             r_cutoff,
             fix_pbc,

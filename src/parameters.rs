@@ -44,17 +44,6 @@ pub struct ProgramSet {
     pub trj: String,
     pub tpr: String,
     pub ndx: String,
-    pub rec_grp: String,
-    pub lig_grp: String,
-    pub start_time: f64,
-    pub end_time: f64,
-    pub dt: f64,
-    pub ie_multiple: usize,
-    pub fix_pbc: bool,
-    pub cfac: f64,
-    pub fadd: f64,
-    pub df: f64,
-    pub radius_type: String,
     pub ala_scan_range: String,
 }
 
@@ -68,17 +57,6 @@ impl ProgramSet {
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
             ndx: "index.ndx".to_string(),
-            rec_grp: String::from("Protein"),
-            lig_grp: String::new(),
-            start_time: 0.0,
-            end_time: f64::INFINITY,
-            dt: 1.0,
-            ie_multiple: 10,
-            fix_pbc: true,
-            cfac: 1.5,
-            fadd: 5.0,
-            df: 0.5,
-            radius_type: "mBondi".to_string(),
             ala_scan_range: String::new(),
         }
     }
@@ -88,6 +66,15 @@ impl ProgramSet {
 pub struct MMSet {
     pub cutoff: f64,
     pub electric_screening: bool,
+    pub interaction_entropy: bool,
+    pub rec_grp: String,
+    pub lig_grp: String,
+    pub start_time: f64,
+    pub end_time: f64,
+    pub dt: f64,
+    pub ie_multiple: usize,
+    pub fix_pbc: bool,
+    pub radius_type: String,
 }
 
 impl MMSet {
@@ -95,6 +82,15 @@ impl MMSet {
         MMSet {
             cutoff: f64::INFINITY,
             electric_screening: true,
+            interaction_entropy: true,
+            rec_grp: String::from("Protein"),
+            lig_grp: String::new(),
+            start_time: 0.0,
+            end_time: f64::INFINITY,
+            dt: 1.0,
+            ie_multiple: 10,
+            fix_pbc: true,
+            radius_type: "mBondi".to_string(),
         }
     }
 }
@@ -102,6 +98,9 @@ impl MMSet {
 #[derive(Serialize, Deserialize)]
 pub struct PBESet {
     pub temp: f64,
+    pub cfac: f64,
+    pub fadd: f64,
+    pub df: f64,
     pub pdie: f64,
     pub sdie: f64,
     pub pb_solver: String,
@@ -120,6 +119,9 @@ impl PBESet {
     pub fn new(temp: f64) -> PBESet {
         return PBESet {
             temp,
+            cfac: 1.5,
+            fadd: 5.0,
+            df: 0.5,
             pdie: 2.0,
             sdie: 78.4,
             pb_solver: "lpbe".to_string(),
@@ -145,6 +147,9 @@ impl PBESet {
         }
         let new_pbe_set = PBESet {
             temp: pbe_set.temp,
+            cfac: pbe_set.cfac,
+            fadd: pbe_set.fadd,
+            df: pbe_set.df,
             pdie: pbe_set.pdie,
             sdie: pbe_set.sdie,
             pb_solver: pbe_set.pb_solver.clone(),

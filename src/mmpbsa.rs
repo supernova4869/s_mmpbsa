@@ -30,7 +30,7 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     println!("Calculating binding energy for {}...", sys_name);
     let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates_ie, aps, &temp_dir, 
         &ndx_rec, &ndx_lig, residues, temperature,
-        sys_name, "WT", pbe_set, pba_set, settings);
+        sys_name, "", pbe_set, pba_set, settings);
 
     let mut result_ala_scan: Vec<SMResult> = vec![result_wt];
     if ala_list.len() > 0 {
@@ -53,8 +53,8 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
             let mut new_residues = residues.clone();
             new_residues[asr.id].name = "ALA".to_string();
 
-            let mutation = format!("{}{}A", mutation, asr.nr);
-            let sys_name = format!("{}_{}", sys_name, mutation);
+            let mutation = format!("-{}{}A", mutation, asr.nr);
+            let sys_name = format!("{}{}", sys_name, mutation);
             println!("Calculating binding energy for {}...", sys_name);
             let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates_ie,
                 &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues, temperature,
@@ -263,35 +263,41 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     }
     pgb.finish();
 
-    let mm_ie: Array1<f64> = if settings.calc_mm {
-        if let Some(ndx_lig) = ndx_lig {
-            println!("Start IE calculation...");
-            let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
-            set_style(&pgb);
-            pgb.inc(0);
-            let calc_ie_per_frame = |frame: ArrayView2<f64>| {
-                let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, false);
-                pgb.inc(1);
-                pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
-                de_elec.sum() + de_vdw.sum()
-            };
-            let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
-                .into_par_iter()
-                .enumerate()
-                .map(|(i, frame)| 
-                    if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
-                        vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
-                    } else {
-                        calc_ie_per_frame(frame)
-                    }).collect();
-            pgb.finish();
-            Array1::from_vec(atoms_ie)
+    let mm_ie: Option<Array1<f64>> = if settings.inter_entropy {
+        println!("Start IE calculation...");
+        if settings.calc_mm {
+            if let Some(ndx_lig) = ndx_lig {
+                let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
+                set_style(&pgb);
+                pgb.inc(0);
+                let calc_ie_per_frame = |frame: ArrayView2<f64>| {
+                    let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, false);
+                    pgb.inc(1);
+                    pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
+                    de_elec.sum() + de_vdw.sum()
+                };
+                let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
+                    .into_par_iter()
+                    .enumerate()
+                    .map(|(i, frame)| 
+                        if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
+                            vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
+                        } else {
+                            calc_ie_per_frame(frame)
+                        }).collect();
+                pgb.finish();
+                Some(Array1::from_vec(atoms_ie))
+            } else {
+                println!("Since no ligand, will not calculate IE.");
+                None
+            }
         } else {
-            Array1::zeros(coordinates_ie.shape()[0])
+            println!("Since MM calculation is not enabled, will not calculate IE.");
+            None
         }
     } else {
-        Array1::zeros(coordinates_ie.shape()[0])
-    };
+        None
+    };    
 
     // end calculation
     let t_end = Local::now();

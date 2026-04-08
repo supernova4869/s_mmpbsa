@@ -23,7 +23,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
                     tpr_path: &str, settings: &mut Settings) {
     println!("Reading {}...", ndx_name);
     let ndx = Index::from(ndx_name);
-    let receptor_grp = &config.as_ref().map(|c| c.program_set.rec_grp.clone()).unwrap_or_else(String::new);
+    let receptor_grp = &config.as_ref().map(|c| c.mm_set.rec_grp.clone()).unwrap_or_else(String::new);
     let mut receptor_grp: Option<usize> = if receptor_grp.is_empty() { None } else {
         ndx.groups.iter().enumerate().find_map(|(i, g)| if g.name.eq(receptor_grp) {
             Some(i)
@@ -31,7 +31,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             None
         })
     };
-    let ligand_grp = &config.as_ref().map(|c| c.program_set.lig_grp.clone()).unwrap_or_else(String::new);
+    let ligand_grp = &config.as_ref().map(|c| c.mm_set.lig_grp.clone()).unwrap_or_else(String::new);
     let mut ligand_grp: Option<usize> = if ligand_grp.is_empty() { None } else {
         ndx.groups.iter().enumerate().find_map(|(i, g)| if g.name.eq(ligand_grp) {
             Some(i)
@@ -39,29 +39,39 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             None
         })
     };
-    let mut bt = config.as_ref().map(|c| c.program_set.start_time * 1000.0).unwrap_or_else(|| 0.0);
-    let mut et = config.as_ref().map(|c| c.program_set.end_time * 1000.0).unwrap_or_else(|| f64::INFINITY); // ps
-    let mut dt = config.as_ref().map(|c| c.program_set.dt * 1000.0).unwrap_or_else(|| 1000.0); // ps
-    let mut ie_multi = config.as_ref().map(|c| c.program_set.ie_multiple).unwrap_or_else(|| 10); // multipli
-    let mut fix_pbc = config.as_ref().map(|c| c.program_set.fix_pbc).unwrap_or_else(|| true); // whether to fix PBC conditions
+    let mut bt = config.as_ref().map(|c| c.mm_set.start_time * 1000.0).unwrap_or_else(|| 0.0);
+    let mut et = config.as_ref().map(|c| c.mm_set.end_time * 1000.0).unwrap_or_else(|| f64::INFINITY); // ps
+    let mut dt = config.as_ref().map(|c| c.mm_set.dt * 1000.0).unwrap_or_else(|| 1000.0); // ps
+    let mut ie_multi = config.as_ref().map(|c| c.mm_set.ie_multiple).unwrap_or_else(|| 10); // multipli
+    let mut fix_pbc = config.as_ref().map(|c| c.mm_set.fix_pbc).unwrap_or_else(|| true); // whether to fix PBC conditions
     if config.is_some() {
+        if !config.as_ref().unwrap().mm_set.interaction_entropy {
+            ie_multi = 1;
+            settings.inter_entropy = false;
+        }
         if receptor_grp.is_none() {
-            println!("Receptor group {} not found in config, please set correct receptor group.", config.as_ref().unwrap().program_set.rec_grp.red());
+            println!("Receptor group {} not found in config, please set correct receptor group.", 
+                config.as_ref().unwrap().mm_set.rec_grp.red());
             exit(0);
         } else if ligand_grp.is_none() {
-            if !config.as_ref().unwrap().program_set.lig_grp.trim().is_empty() {
-                println!("Ligand group {} not found in config, please set correct ligand group.", config.as_ref().unwrap().program_set.lig_grp.red());
+            if !config.as_ref().unwrap().mm_set.lig_grp.trim().is_empty() {
+                println!("Ligand group {} not found in config, please set correct ligand group.", 
+                    config.as_ref().unwrap().mm_set.lig_grp.red());
                 exit(0);
             } else {
-                println!("Receptor: {}, solvation calculation only.", config.as_ref().unwrap().program_set.rec_grp.yellow());
-                prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
+                println!("Receptor: {}, solvation calculation only.", config.as_ref().unwrap().mm_set.rec_grp.yellow());
+                prepare_system(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
                                 dt / ie_multi as f64, config, settings);
             }
         } else {
-            println!("Receptor: {}, ligand: {}, complete calculation.", config.as_ref().unwrap().program_set.rec_grp.green(), config.as_ref().unwrap().program_set.lig_grp.green());
-            prepare_system_tpr(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
+            println!("Receptor: {}, ligand: {}, complete calculation.", config.as_ref().unwrap().mm_set.rec_grp.green(), 
+                config.as_ref().unwrap().mm_set.lig_grp.green());
+            prepare_system(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
                             dt / ie_multi as f64, config, settings);
         }
+    }
+    if !settings.inter_entropy {
+        ie_multi = 1;
     }
     
     loop {
@@ -80,7 +90,9 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
         println!("  3 Set start time to analyze, current:       {} ns", bt / 1000.0);
         println!("  4 Set end time to analyze, current:         {} ns", et / 1000.0);
         println!("  5 Set time interval, current:               {} ns", dt / 1000.0);
-        println!("  6 Set IE sampling rate multiple, current:   {}", ie_multi);
+        if settings.inter_entropy {
+            println!("  6 Set IE sampling rate multiple, current:   {}", ie_multi);
+        }
         let i = get_input_selection();
         match i {
             Ok(-10) => return,
@@ -89,7 +101,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
             }
             Ok(0) => {
                 if let Some(receptor_grp) = receptor_grp {
-                    prepare_system_tpr(receptor_grp, ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
+                    prepare_system(receptor_grp, ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
                         dt / ie_multi as f64, config, settings);
                 } else {
                     println!("Please select receptor groups.");
@@ -156,15 +168,17 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
                 dt = new_dt;
             }
             Ok(6) => {
-                println!("Input interpolation multiplier (positive integer) for IE:");
-                let mut new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
-                while new_ie_multi <= 0 {
-                    println!("Must be positive integer, input again:");
-                    new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
+                if settings.inter_entropy {
+                    println!("Input interpolation multiplier (positive integer) for IE:");
+                    let mut new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
+                    while new_ie_multi <= 0 {
+                        println!("Must be positive integer, input again:");
+                        new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
+                    }
+                    ie_multi = new_ie_multi;
                 }
-                ie_multi = new_ie_multi;
             }
-            _ => println!("Invalid input")
+            _ => {}
         }
     }
 }
@@ -234,7 +248,7 @@ fn show_grp(grp_id: Option<usize>, ndx: &Index) -> String {
     }
 }
 
-fn prepare_system_tpr(receptor_grp: usize, ligand_grp: Option<usize>, 
+fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>, 
                   trj: &String, tpr: &mut TPR, ndx: &Index, 
                   fix_pbc: bool, tpr_path: &str, ndx_name: &String, bt: f64, et: f64, 
                   dt: f64, dt_ie: f64, config: &Option<Config>,
