@@ -581,7 +581,7 @@ fn parse_apbs_line(line: &str) -> f64 {
         .trim_start()
         .split(" ")
         .next().expect("Cannot get information from apbs")
-        .parse().expect("Cannot parse value from apbs")
+        .parse().unwrap_or(0.0)
 }
 
 fn transform_coordinate(base: &Array1<f64>, origin: &Array1<f64>, target_length: f64) -> Array1<f64> {
