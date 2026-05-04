@@ -26,12 +26,22 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
     let mut pbe_set = if let Some(config) = config {
         config.pbe_set.clone()
     } else {
-        PBESet::new(tpr.temp)
+        if tpr.temp == 0.0 {
+            println!("Warning: Temperature in TPR file is 0. PB parameters will be generated with default temperature 298.15 K.");
+            PBESet::new(298.15)
+        } else {
+            PBESet::new(tpr.temp)
+        }
     };
     let mut pba_set = if let Some(config) = config {
         config.pba_set.clone()
     } else {
-        PBASet::new(tpr.temp)
+        if tpr.temp == 0.0 {
+            println!("Warning: Temperature in TPR file is 0. SA parameters will be generated with default temperature 298.15 K.");
+            PBASet::new(298.15)
+        } else {
+            PBASet::new(tpr.temp)
+        }
     };
     let mut ala_list: Vec<i32> = vec![];
     if config.is_some() {
