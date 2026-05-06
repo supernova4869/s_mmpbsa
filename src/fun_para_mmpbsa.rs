@@ -14,7 +14,7 @@ use std::fs::{File, self};
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::{Residue, TPR};
 use crate::mmpbsa;
-use crate::analyzation::{self, SMResults};
+use crate::analysis::{self, SMResults};
 
 pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                        tpr: &TPR, ndx: &Index, config: &Option<Config>, aps: &mut AtomProperties,
@@ -138,7 +138,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 let sm_results = run_mmpbsa_calculations(&radius_types, 
                     time_list, time_list_ie, coordinates_ie, tpr, ndx_rec, ndx_lig, 
                     residues, aps, &ala_list, &pbe_set, &pba_set, &sys_name, settings);
-                analyzation::analyze_controller(&sm_results, &sys_name, settings);
+                analysis::analyze_controller(&sm_results, &sys_name, settings);
             }
             Ok(1) => {
                 settings.elec_screen = !settings.elec_screen;

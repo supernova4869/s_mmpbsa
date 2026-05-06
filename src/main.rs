@@ -4,7 +4,7 @@ mod parse_tpr;
 mod parse_pdb;
 mod parse_gro;
 mod read_xtc;
-mod analyzation;
+mod analysis;
 mod fun_para_basic;
 mod fun_para_system;
 mod fun_para_mmpbsa;
@@ -22,7 +22,7 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::Path;
 use std::process::{exit, Command};
-use analyzation::SMResults;
+use analysis::SMResults;
 use colored::Colorize;
 use regex::Regex;
 use settings::{Settings, get_base_settings, get_settings_in_use};
@@ -46,7 +46,7 @@ struct Cli {
     #[arg(short = 'n', value_name = "index.ndx", default_value = None)]
     ndx: Option<String>,
     
-    /// enter analyzation mode
+    /// enter analysis mode
     #[arg(short, long)]
     analyze: Option<String>,
     
@@ -67,7 +67,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/05/04";
+    let compile_date = "2026/05/06";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -115,7 +115,7 @@ fn main() {
         false => println!("Debug mode off.\n"),
     }
 
-    // Analyzation mode
+    // Analysis mode
     if cli.analyze.is_some() {
         let sm_path = cli.analyze.unwrap();
         let sys_name = Path::new(&sm_path).file_stem().unwrap().to_str().unwrap();
@@ -123,7 +123,7 @@ fn main() {
         println!("Loading MM-PBSA results of {}...", sys_name);
         let sm_results = SMResults::from(&sm_path);
         if let Ok(sm_results) = sm_results {
-            analyzation::analyze_controller(&sm_results, sys_name, &settings);
+            analysis::analyze_controller(&sm_results, sys_name, &settings);
         } else {
             println!(r#"
 Error: s_mmpbsa {} could not read {}.

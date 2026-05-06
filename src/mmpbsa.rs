@@ -12,7 +12,7 @@ use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
 use crate::coefficients::{self, Coefficients};
-use crate::analyzation::{SMResult, SMResults};
+use crate::analysis::{SMResult, SMResults};
 use crate::parse_tpr::Residue;
 use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};

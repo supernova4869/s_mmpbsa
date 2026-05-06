@@ -15,7 +15,7 @@ s_mmpbsa's project structure is as follows:
    ├── src/
    │   ├── main.rs           # Program entry point
    │   ├── mmpbsa.rs         # Main implementation of MM-PBSA calculations
-   │   ├── analyzation.rs    # Result analysis functionality
+   │   ├── analysis.rs    # Result analysis functionality
    │   ├── parse_tpr.rs      # TPR file parsing
    │   ├── parse_ndx.rs      # NDX file parsing
    │   ├── parse_xtc.rs      # XTC file parsing
@@ -95,10 +95,10 @@ The mmpbsa module implements the core functionality of MM-PBSA calculations, inc
    // Calculate PB/SA energy
    fn calc_pbsa(...) -> Result<(Array1<f64>, Array1<f64>), Box<dyn Error>> {}
 
-analyzation Module
+analysis Module
 ---------------
 
-The analyzation module implements result analysis functionality, including processing, visualization and export of results.
+The analysis module implements result analysis functionality, including processing, visualization and export of results.
 
 **Main Functions**:
 - Process MM-PBSA calculation results
@@ -251,7 +251,7 @@ s_mmpbsa can also be used as a Rust library for other Rust programs to call its 
 .. code-block:: rust
    
    use s_mmpbsa::mmpbsa::fun_mmpbsa_calculations;
-   use s_mmpbsa::analyzation::SMResult;
+   use s_mmpbsa::analysis::SMResult;
    
    fn main() -> Result<(), Box<dyn std::error::Error>> {
        // Set calculation parameters
@@ -294,7 +294,7 @@ If you want to extend the functionality of s_mmpbsa, you can consider the follow
 
 2. **Support new input file formats**: You can add support for new file formats in the parse_tpr, parse_ndx and parse_xtc modules.
 
-3. **Enhance analysis functionality**: You can add new analysis methods and visualization functions in the analyzation module.
+3. **Enhance analysis functionality**: You can add new analysis methods and visualization functions in the analysis module.
 
 4. **Optimize performance**: You can optimize the calculation core to improve calculation speed and memory usage efficiency.
 

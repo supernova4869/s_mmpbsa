@@ -134,7 +134,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#main-modules">Main Modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#main-module">main Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#mmpbsa-module">mmpbsa Module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#analyzation-module">analyzation Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#analysis-module">analysis Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#parse-tpr-module">parse_tpr Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#parse-ndx-module">parse_ndx Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#parse-xtc-module">parse_xtc Module</a></li>
@@ -187,7 +187,7 @@
 ├──<span class="w"> </span>src/
 │<span class="w">   </span>├──<span class="w"> </span>main.rs<span class="w">           </span><span class="c1"># Program entry point</span>
 │<span class="w">   </span>├──<span class="w"> </span>mmpbsa.rs<span class="w">         </span><span class="c1"># Main implementation of MM-PBSA calculations</span>
-│<span class="w">   </span>├──<span class="w"> </span>analyzation.rs<span class="w">    </span><span class="c1"># Result analysis functionality</span>
+│<span class="w">   </span>├──<span class="w"> </span>analysis.rs<span class="w">    </span><span class="c1"># Result analysis functionality</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_tpr.rs<span class="w">      </span><span class="c1"># TPR file parsing</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_ndx.rs<span class="w">      </span><span class="c1"># NDX file parsing</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_xtc.rs<span class="w">      </span><span class="c1"># XTC file parsing</span>
@@ -260,9 +260,9 @@
 </pre></div>
 </div>
 </section>
-<section id="analyzation-module">
-<h2>analyzation Module<a class="headerlink" href="#analyzation-module" title="Link to this heading"></a></h2>
-<p>The analyzation module implements result analysis functionality, including processing, visualization and export of results.</p>
+<section id="analysis-module">
+<h2>analysis Module<a class="headerlink" href="#analysis-module" title="Link to this heading"></a></h2>
+<p>The analysis module implements result analysis functionality, including processing, visualization and export of results.</p>
 <p><strong>Main Functions</strong>:
 - Process MM-PBSA calculation results
 - Provide result visualization
@@ -388,7 +388,7 @@
 <p>s_mmpbsa can also be used as a Rust library for other Rust programs to call its functions.</p>
 <p><strong>Example Code</strong>:</p>
 <div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="k">use</span><span class="w"> </span><span class="n">s_mmpbsa</span><span class="p">::</span><span class="n">mmpbsa</span><span class="p">::</span><span class="n">fun_mmpbsa_calculations</span><span class="p">;</span>
-<span class="k">use</span><span class="w"> </span><span class="n">s_mmpbsa</span><span class="p">::</span><span class="n">analyzation</span><span class="p">::</span><span class="n">SMResult</span><span class="p">;</span>
+<span class="k">use</span><span class="w"> </span><span class="n">s_mmpbsa</span><span class="p">::</span><span class="n">analysis</span><span class="p">::</span><span class="n">SMResult</span><span class="p">;</span>
 
 <span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">(),</span><span class="w"> </span><span class="nb">Box</span><span class="o">&lt;</span><span class="k">dyn</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">error</span><span class="p">::</span><span class="n">Error</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="c1">// Set calculation parameters</span>
@@ -430,7 +430,7 @@
 <ol class="arabic simple">
 <li><p><strong>Add new energy calculation methods</strong>: You can add new energy calculation methods in the mm module and pbsa module.</p></li>
 <li><p><strong>Support new input file formats</strong>: You can add support for new file formats in the parse_tpr, parse_ndx and parse_xtc modules.</p></li>
-<li><p><strong>Enhance analysis functionality</strong>: You can add new analysis methods and visualization functions in the analyzation module.</p></li>
+<li><p><strong>Enhance analysis functionality</strong>: You can add new analysis methods and visualization functions in the analysis module.</p></li>
 <li><p><strong>Optimize performance</strong>: You can optimize the calculation core to improve calculation speed and memory usage efficiency.</p></li>
 <li><p><strong>Add new solvation models</strong>: You can add support for other solvation models, such as GB model, 3D-RISM, etc.</p></li>
 </ol>

@@ -17,7 +17,7 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
 - Considers conformational entropy, as "J. Chem. Phys. 2017, 146, 124124".
-- Could store analyzation results for further reproducable analyzation.
+- Could store analysis results for further reproducable analysis.
 
 ## Main function
 - Binding energy calculation from MD simulation.
@@ -72,11 +72,11 @@ s_mmpbsa -f md_pbc.xtc -s md.tpr -n index.ndx
 ```
 The results will contain energy terms of both wild type and mutants.
 
-### Use Analyzation mode:
+### Use Analysis mode:
 ```bash
 # Firstly, add s_mmpbsa folder to $PATH.
 # Start s_mmpbsa, and input as follow (support # comments, but not recommended and usually no need to input with comments)
-s_mmpbsa -a MMPBSA_[name]_WT.sm # analyzation mode
+s_mmpbsa -a MMPBSA_[name]_WT.sm # analysis mode
 ... (same as above)
 ```
 

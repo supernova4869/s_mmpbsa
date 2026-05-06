@@ -122,7 +122,7 @@ pub fn analyze_controller(sm_results: &SMResults, sys_name: &str, settings: &Set
             } else {
                 0.0
             });
-        println!("\n                 ************ MM-PBSA analyzation ************");
+        println!("\n                 ************ MM-PBSA analysis ************");
         println!("-1 Write residue-wised binding energy at specific time to pdb file");
         println!(" 0 Exit program");
         println!(" 1 View binding energy summary");

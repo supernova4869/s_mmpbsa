@@ -60,7 +60,7 @@
 ├──<span class="w"> </span>src/
 │<span class="w">   </span>├──<span class="w"> </span>main.rs<span class="w">           </span><span class="c1"># 程序入口点</span>
 │<span class="w">   </span>├──<span class="w"> </span>mmpbsa.rs<span class="w">         </span><span class="c1"># MM-PBSA计算的主要实现</span>
-│<span class="w">   </span>├──<span class="w"> </span>analyzation.rs<span class="w">    </span><span class="c1"># 结果分析功能</span>
+│<span class="w">   </span>├──<span class="w"> </span>analysis.rs<span class="w">    </span><span class="c1"># 结果分析功能</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_tpr.rs<span class="w">      </span><span class="c1"># TPR文件解析</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_ndx.rs<span class="w">      </span><span class="c1"># NDX文件解析</span>
 │<span class="w">   </span>├──<span class="w"> </span>parse_xtc.rs<span class="w">      </span><span class="c1"># XTC文件解析</span>
@@ -133,9 +133,9 @@
 </pre></div>
 </div>
 </section>
-<section id="analyzation">
-<h2>analyzation模块</h2>
-<p>analyzation模块实现了结果分析功能，包括结果的处理、可视化和导出。</p>
+<section id="analysis">
+<h2>analysis模块</h2>
+<p>analysis模块实现了结果分析功能，包括结果的处理、可视化和导出。</p>
 <p><strong>主要功能</strong>:
 - 处理MM-PBSA计算结果
 - 提供结果可视化
@@ -261,7 +261,7 @@
 <p>s_mmpbsa也可以作为Rust库使用，供其他Rust程序调用其功能。</p>
 <p><strong>示例代码</strong>:</p>
 <div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="k">use</span><span class="w"> </span><span class="n">s_mmpbsa</span><span class="p">::</span><span class="n">mmpbsa</span><span class="p">::</span><span class="n">fun_mmpbsa_calculations</span><span class="p">;</span>
-<span class="k">use</span><span class="w"> </span><span class="n">s_mmpbsa</span><span class="p">::</span><span class="n">analyzation</span><span class="p">::</span><span class="n">SMResult</span><span class="p">;</span>
+<span class="k">use</span><span class="w"> </span><span class="n">s_mmpbsa</span><span class="p">::</span><span class="n">analysis</span><span class="p">::</span><span class="n">SMResult</span><span class="p">;</span>
 
 <span class="k">fn</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">(),</span><span class="w"> </span><span class="nb">Box</span><span class="o">&lt;</span><span class="k">dyn</span><span class="w"> </span><span class="n">std</span><span class="p">::</span><span class="n">error</span><span class="p">::</span><span class="n">Error</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="c1">// 设置计算参数</span>
@@ -303,7 +303,7 @@
 <ol class="arabic simple">
 <li><p><strong>添加新的能量计算方法</strong>：可以在mm模块和pbsa模块中添加新的能量计算方法。</p></li>
 <li><p><strong>支持新的输入文件格式</strong>：可以在parse_tpr、parse_ndx和parse_xtc模块中添加对新文件格式的支持。</p></li>
-<li><p><strong>增强分析功能</strong>：可以在analyzation模块中添加新的分析方法和可视化功能。</p></li>
+<li><p><strong>增强分析功能</strong>：可以在analysis模块中添加新的分析方法和可视化功能。</p></li>
 <li><p><strong>优化性能</strong>：可以优化计算核心，提高计算速度和内存使用效率。</p></li>
 <li><p><strong>添加新的溶剂化模型</strong>：可以添加对其他溶剂化模型的支持，如GB模型、3D-RISM等。</p></li>
 </ol>
