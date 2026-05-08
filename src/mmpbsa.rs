@@ -429,7 +429,7 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &str, temp_dir: &PathBuf, 
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
     prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
-                
+    
     // the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is subsequently calculated
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
@@ -443,20 +443,28 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
                 pbe_set, pba_set, temp_dir, &f_name, settings);
         // invoke apbs program to do apbs calculations
         let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name))
-            .current_dir(temp_dir).output().expect("running apbs failed.");
-        let apbs_err = String::from_utf8(apbs_result.stderr).expect("Failed to parse apbs output.");
-        let apbs_result = String::from_utf8(apbs_result.stdout).expect("Failed to parse apbs output.");
-        let apbs_result = if settings.debug_mode {
+            .current_dir(temp_dir).output().ok();
+        if apbs_result.is_none() {
+            println!("Failed to execute APBS. Please check your APBS installation and path settings.");
+            return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()));
+        }
+        let apbs_result = apbs_result.unwrap();
+        let apbs_err = String::from_utf8(apbs_result.stderr).ok();
+        if apbs_err.is_none() {
+            let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name)))
+                .expect("Failed to create err file.");
+            errfile.write_all(apbs_err.unwrap().as_bytes()).expect("Failed to write apbs output.");
+        }
+        let apbs_result = String::from_utf8(apbs_result.stdout).ok();
+        if apbs_result.is_none() {
+            println!("Failed to get APBS output. Please check your APBS installation and path settings.");
+            return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()));
+        }
+        let apbs_result = apbs_result.unwrap();
+        if settings.debug_mode {
             let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name)))
                 .expect("Failed to create output file.");
             outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
-            let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name)))
-                .expect("Failed to create err file.");
-            errfile.write_all(apbs_err.as_bytes()).expect("Failed to write apbs output.");
-            fs::read_to_string(temp_dir.join(format!("{}.out", f_name)))
-                .expect("Failed to get apbs output file.")
-        } else {
-            apbs_result
         };
 
         // preserve CALCULATION, Atom and SASA lines
