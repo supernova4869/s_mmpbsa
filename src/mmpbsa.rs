@@ -564,7 +564,7 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
         let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter()
             .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
 
-        if let Some(ndx_lig) = ndx_lig {
+        let (pb, sa) = if let Some(ndx_lig) = ndx_lig {
             if ndx_rec.iter().min() < ndx_lig.iter().min() {
                 rec_pb.append(Axis(0), lig_pb.view()).unwrap();
                 rec_sa.append(Axis(0), lig_sa.view()).unwrap();
@@ -576,7 +576,15 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             }
         } else {
             (rec_pb, rec_sa)
+        };
+        if pb.len() != aps.atom_props.len() || sa.len() != aps.atom_props.len() {
+            println!("Warning: The number of PB/SA values does not match the number of atoms. \
+                This may indicate an issue with the APBS output parsing.");
+            let pb = pad_to_len(&pb.to_vec(), aps.atom_props.len());
+            let sa = pad_to_len(&sa.to_vec(), aps.atom_props.len());
+            return (Array1::from_vec(pb), Array1::from_vec(sa));
         }
+        (pb, sa)
     } else {
         (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
     }
@@ -598,4 +606,10 @@ fn transform_coordinate(base: &Array1<f64>, origin: &Array1<f64>, target_length:
     let lambda = target_length / cur_len;
     let new_v_ch: Array1<f64> = Array1::from_iter(v_ch.iter().map(|r| r * lambda));
     return base + new_v_ch
+}
+
+fn pad_to_len(data: &[f64], target_len: usize) -> Vec<f64> {
+    let mut vec = data.to_vec();
+    vec.resize(target_len, 0.0); // 不变化用0填充
+    vec
 }

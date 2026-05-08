@@ -81,17 +81,17 @@ pub fn write_apbs_input(ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usi
     pba_set_modify.bconc = 0.0;
 
     if let Some(com_box) = com_box {
-        input_apbs.write_all(dim_apbs(format!("{}_com", f_name).as_str(), 1,
+        input_apbs.write_all(prepare_apbs_content(format!("{}_com", f_name).as_str(), 1,
             com_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
             .expect("Failed writing apbs file.");
-        input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 2,
+        input_apbs.write_all(prepare_apbs_content(format!("{}_rec", f_name).as_str(), 2,
             rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
             .expect("Failed writing apbs file.");
-        input_apbs.write_all(dim_apbs(format!("{}_lig", f_name).as_str(), 3,
+        input_apbs.write_all(prepare_apbs_content(format!("{}_lig", f_name).as_str(), 3,
             lig_box.unwrap(), settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
             .expect("Failed writing apbs file.");
     } else {
-        input_apbs.write_all(dim_apbs(format!("{}_rec", f_name).as_str(), 1,
+        input_apbs.write_all(prepare_apbs_content(format!("{}_rec", f_name).as_str(), 1,
             rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
             .expect("Failed writing apbs file.");
     }
@@ -157,7 +157,7 @@ pub fn gen_mesh_edges(
     (rec_box, lig_box, com_box)
 }
 
-pub fn dim_apbs(file: &str, mol_index: i32, box_: [f64;6],
+pub fn prepare_apbs_content(file: &str, mol_index: i32, box_: [f64;6],
                 settings: &Settings, pbe_set: &PBESet, pbe_set0: &PBESet, pba_set: &PBASet) -> String {
     let cfac = settings.cfac;
     let fadd = settings.fadd;
