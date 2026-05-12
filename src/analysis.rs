@@ -4,6 +4,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::{exit, Command, Stdio};
+use colored::Colorize;
 use ndarray::{Array1, Array2, Array3, Axis};
 use serde::{Deserialize, Serialize};
 use crate::parse_tpr::Residue;
@@ -28,8 +29,13 @@ impl SMResults {
     }
 
     pub fn from(result_serialize: &str) -> Result<SMResults, serde_pickle::Error> {
-        let result_deserialize = std::fs::File::open(result_serialize).unwrap();
-        serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new())
+        let result_deserialize = std::fs::File::open(result_serialize).ok();
+        if let Some(result_deserialize) = result_deserialize {
+            serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new())
+        } else {
+            println!("Result file '{}' not found.", result_serialize.red());
+            exit(0);
+        }
     }
 }
 
