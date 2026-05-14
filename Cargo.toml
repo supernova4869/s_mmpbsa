@@ -1,6 +1,6 @@
 [package]
 name = "s_mmpbsa"
-version = "0.10.6"
+version = "0.10.7"
 edition = "2021"
 authors = ["Jiaxing Zhang <zhangjiaxing7137@tju.edu.cn>"]
 description = "s_mmpbsa - A lite, cross-platform MM-PBSA program"
@@ -22,6 +22,7 @@ rayon = "1.7.0"
 colored = "2.1"
 once_cell = "1.21.3"
 clap = { version = "4.0", features = ["derive", "env"] }
+rand = "0.10.1"
 
 [target.'cfg(not(target_env = "musl"))'.dependencies]
 plotters = "0.3.5"

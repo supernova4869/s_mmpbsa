@@ -338,8 +338,9 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
-        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj, &tpr_path, &ndx_mmpbsa, &trj_mmpbsa, 
-            &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string()]);
+        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), 
+            settings, &trj, &tpr_path, &ndx_mmpbsa, &trj_mmpbsa, 
+            &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "whole"]);
         
         // step 3: extract new tpr from old tpr
         let tpr_mmpbsa = append_new_name(&tpr_path, ".tpr", ".MMPBSA_"); // get extracted tpr file name
@@ -373,13 +374,15 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         
         // 生成初始结构方便查看
         let init_struct = append_new_name(trj, "_struct.gro", ".MMPBSA_"); // get trj output file name
-        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
+        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, 
+            &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
         // fix pbc with new tpr and new index
         if fix_pbc {
             let trj_mmpbsa_nopbc = append_new_name(&trj_mmpbsa, "_nopbc.xtc", "");
             fs::rename(&trj_mmpbsa, &trj_mmpbsa_nopbc).unwrap();
-            trjconv(&vec!["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), settings, &trj_mmpbsa_nopbc, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, 
+            trjconv(&vec!["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), 
+                settings, &trj_mmpbsa_nopbc, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, 
                 &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
         }
 
@@ -391,6 +394,9 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
             .par_iter()
             .map(|frame| (frame.0 as f64, frame.1.clone()))
             .unzip();
+
+        println!("\nNote: The trajectory processed by s_mmpbsa may deviate from reality.");
+        println!("Please check carefully by (e.g.): {}", format!("vmd {} {}", init_struct, trj_mmpbsa).cyan().bold());
 
         let num_frames = time_box_info.len();
         let num_atoms = if num_frames > 0 { time_box_info[0].1.len() } else { 0 };

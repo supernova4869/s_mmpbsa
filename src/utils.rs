@@ -7,6 +7,7 @@ use std::process::{Command, ExitStatus, Stdio};
 use ndarray::{Array2, Axis};
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
+use rand::random_range;
 
 pub fn range2list(range_str: &str) -> Vec<i32> {
     let mut selection_range: Vec<i32> = vec![];
@@ -192,5 +193,15 @@ pub fn get_program_path(cmd: &str) -> Option<String> {
 }
 
 pub fn show_famous_quotes() {
-    println!("The s_mmpbsa program reminds you: \"We must know. We will know.\" (David Hilbert)");
+    let quotes: Vec<(&str, &str)> = vec![
+        ("We must know. We will know.","David Hilbert"),
+        ("Natural science is an armament for humanity's struggle for freedom.","Mao Tse Tung"),
+        ("The universe and I arise together, and all things are united with me.","Master Zhuang"),
+        ("God bless the P.R.C.","Antony Bulianos"),
+        ("But you always laugh at me, saying I have nothing at all.","Jian Cui"),
+        ("Walking on, singing on, the great Chairman Mao.","Jian Cui")
+    ];
+    let rand_index = random_range(0..quotes.len());
+    let quote_sel = quotes[rand_index];
+    println!("s_mmpbsa reminds you: \"{}\" ({})", quote_sel.0, quote_sel.1);
 }
