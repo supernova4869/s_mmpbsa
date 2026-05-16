@@ -25,13 +25,13 @@ impl Config {
     }
 
     pub fn load<T: AsRef<Path>>(file: T) -> Result<Config, serde_yaml::Error> {
-        let mm_set = fs::read_to_string(&file).expect("Read MM parameters file error.");
-        serde_yaml::from_str(mm_set.as_str())
+        let config_set = fs::read_to_string(&file).expect("Read Config parameters file error.");
+        serde_yaml::from_str(config_set.as_str())
     }
 
     pub fn save<T: AsRef<Path>>(&self, file: T) {
-        let mut f = File::create(&file).expect("Save MM parameters error.");
-        f.write_all(serde_yaml::to_string(self).unwrap().as_bytes()).expect("Save MM parameters error.");
+        let mut f = File::create(&file).expect("Save Config parameters error.");
+        f.write_all(serde_yaml::to_string(self).unwrap().as_bytes()).expect("Save Config parameters error.");
     }
 }
 

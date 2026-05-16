@@ -6,23 +6,24 @@ program_set:
   trj: md.xtc
   tpr: md.tpr
   ndx: index.ndx
+  ala_scan_range: ''
+mm_set:
+  cutoff: .inf
+  electric_screening: true
+  interaction_entropy: true
   rec_grp: Protein
-  lig_grp: BEC
+  lig_grp: ''
   start_time: 0.0
   end_time: .inf
   dt: 1.0
   ie_multiple: 10
   fix_pbc: true
+  radius_type: mBondi
+pbe_set:
+  temp: 298.15
   cfac: 1.5
   fadd: 5.0
   df: 0.5
-  radius_type: mBondi
-  ala_scan_range: ''
-mm_set:
-  cutoff: .inf
-  electric_screening: true
-pbe_set:
-  temp: 298.15
   pdie: 2.0
   sdie: 78.4
   pb_solver: lpbe
