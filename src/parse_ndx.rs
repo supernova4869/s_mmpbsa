@@ -1,5 +1,5 @@
-use std::{fs::{self, File}, io::Write, path::Path};
-use regex::Regex;
+use std::{fs::File, io::Write, path::Path};
+use std::io::{BufRead, BufReader};
 use std::fmt::Formatter;
 use std::fmt;
 use std::collections::BTreeSet;
@@ -35,28 +35,55 @@ impl Index {
     }
 
     pub fn from(index_file: &String) -> Index {
-        let ndx = fs::read_to_string(index_file).expect("Failed reading index file");
-        let re = Regex::new(r"\[\s*(.+?)\s*]").unwrap();
-        let mut group_names: Vec<String> = vec![];          // name of each group
-        for cap in re.captures_iter(&ndx) {
-            group_names.push((&cap[1]).to_string());
-        }
-        let mut group_atoms: Vec<BTreeSet<usize>> = vec![];         // atoms of each group
-        let ndx = re.replace_all(&ndx, "[]");
-        let ndx = Regex::new(r"\s+").unwrap().replace_all(&ndx, " ");
-        let ndx: Vec<&str> = ndx.split("[]").collect();
-        for i in 0..ndx.len() {
-            if !ndx[i].trim().is_empty() {
-                let atom_list: BTreeSet<usize> = ndx[i].trim().split(" ").map(|a| a.parse().unwrap()).collect();
-                // let atom_list: BTreeSet<usize> = ;
-                group_atoms.push(atom_list.iter().map(|a| a - 1).collect());
+        let index_file = File::open(index_file).unwrap();
+        let reader = BufReader::new(index_file);
+
+        let mut groups = Vec::new();
+        let mut current_name: Option<String> = None;
+        let mut current_indexes = BTreeSet::new();
+
+        for line in reader.lines() {
+            let line = line.unwrap();
+            let line = line.trim();
+
+            // 跳过空行
+            if line.is_empty() {
+                continue;
+            }
+
+            // 检查是不是组标题，格式 [ GroupName ]
+            if line.starts_with('[') && line.ends_with(']') {
+                // 保存上一个组
+                if let Some(name) = current_name.take() {
+                    groups.push(IndexGroup {
+                        name,
+                        indexes: std::mem::take(&mut current_indexes),
+                    });
+                }
+
+                // 提取组名，去掉前后的括号和空格
+                let name = line[1..line.len() - 1].trim().to_string();
+                current_name = Some(name);
+            } else {
+                // 数字行，解析所有数字（可能跨多行）
+                if current_name.is_some() {
+                    for num_str in line.split_whitespace() {
+                        if let Ok(num) = num_str.parse::<usize>() {
+                            // 转换成 0-based
+                            if num > 0 {
+                                current_indexes.insert(num - 1);
+                            }
+                        }
+                    }
+                }
             }
         }
-        let mut groups: Vec<IndexGroup> = vec![];
-        while group_names.len() > 0 {
-            groups.insert(0, IndexGroup {
-                name: group_names.pop().unwrap(),
-                indexes: group_atoms.pop().unwrap(),
+
+        // 保存最后一组
+        if let Some(name) = current_name {
+            groups.push(IndexGroup {
+                name,
+                indexes: current_indexes,
             });
         }
         return Index { groups }
