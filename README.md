@@ -34,7 +34,7 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 Although s_mmpbsa supports fixing PBC conditions to trajectory `.MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/):
 
 ```
-vmd `.MMPBSA_[name]_struct.gro` `.MMPBSA_[name].xtc`
+vmd .MMPBSA_[name]_struct.gro .MMPBSA_[name].xtc
 ```
 
 ### MD Binding energy calculation:
@@ -89,7 +89,10 @@ Release file: https://github.com/supernova4869/s_mmpbsa/releases/latest, where "
 The developer would be deeply grateful if you appropriately cite s_mmpbsa in your research as follows:
 
 ```
-Zhang, J.; Gu, T.; Li, C.; Qi, W. s_mmpbsa: A Lite and Cross-Platform MM-PBSA Program. Molecules 2026, 31, 1683. https://doi.org/10.3390/molecules31101683
+Zhang, Jiaxing; Gu, Tao; Li, Chuanxi; Qi, Wei.
+s_mmpbsa: A Lite and Cross-Platform MM-PBSA Program.
+Molecules, 2026, 31, 1683.
+https://doi.org/10.3390/molecules31101683
 ```
 
 ## About developer
