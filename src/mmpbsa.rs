@@ -74,9 +74,6 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
         }
     }
 
-    println!("");
-    utils::show_famous_quotes();
-
     sm_results
 }
 

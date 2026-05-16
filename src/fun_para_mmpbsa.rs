@@ -55,6 +55,8 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, 
             tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, 
             &config.as_ref().unwrap().program_set.sys_name, settings);
+        println!("");
+        utils::show_famous_quotes();
         exit(0);
     }
 

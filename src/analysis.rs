@@ -9,7 +9,7 @@ use ndarray::{Array1, Array2, Array3, Axis};
 use serde::{Deserialize, Serialize};
 use crate::parse_tpr::Residue;
 use crate::settings::Settings;
-use crate::utils::{get_input, get_input_selection, range2list};
+use crate::utils;
 
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -136,7 +136,7 @@ pub fn analyze_controller(sm_results: &SMResults, sys_name: &str, settings: &Set
         println!(" 3 Output binding energy by residue at specific time");
         println!(" 4 Output ligand binding energy by atom at specific time");
         // println!("10 Output residue-wised binding energy by time as default names");
-        let sel_fun = get_input_selection();
+        let sel_fun = utils::get_input_selection();
         match sel_fun {
             Ok(-1) => {
                 println!("Input the time point (in ns, e.g. 40) to output (default: average):");
@@ -158,7 +158,11 @@ pub fn analyze_controller(sm_results: &SMResults, sys_name: &str, settings: &Set
                 println!("Finished writing pdb file(s) with binding energy information.");
                 println!("Finished drawing figures with pml file(s) by PyMOL.");
             },
-            Ok(0) => exit(0),
+            Ok(0) => {
+                println!("");
+                utils::show_famous_quotes();
+                exit(0)
+            },
             Ok(1) => {
                 println!("Input the time period (in ns, e.g. 0-40) to output (default: average):");
                 let (tmin, tmax) = get_time_range();
@@ -206,7 +210,7 @@ pub fn analyze_controller(sm_results: &SMResults, sys_name: &str, settings: &Set
 
 fn get_time_range() -> (f64, f64) {
     println!("Note: should be time point or period. Time period should be splitted by \"-\", e.g., 3-5");
-    let ts = get_input("".to_string());
+    let ts = utils::get_input("".to_string());
     if !ts.trim().is_empty() {
         let tm: Vec<&str> = ts.split("-").collect();
         let tmin: f64 = tm.first().unwrap().parse().unwrap();
@@ -361,7 +365,7 @@ fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
         println!("Input the residue range you want to output (e.g., 1-3, 5), default: all");
         println!("Input \"?\" to view the residues list");
         
-        let input = get_input(String::new());
+        let input = utils::get_input(String::new());
         if input == "?" {
             results.residues.iter().enumerate().for_each(|(i, r)| {
                 print!("{:6}{:<3},", i + 1, r.name);
@@ -384,7 +388,7 @@ fn select_res_by_range(results: &SMResult) -> (String, Vec<usize>) {
     } else {
         (
             res_range.to_string(),
-            range2list(&res_range).iter().map(|&i| i as usize - 1).collect()
+            utils::range2list(&res_range).iter().map(|&i| i as usize - 1).collect()
         )
     };
 
