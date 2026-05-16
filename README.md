@@ -86,15 +86,11 @@ The data was generated with .csv format and plotted as figures; The pdb files wi
 Release file: https://github.com/supernova4869/s_mmpbsa/releases/latest, where "s_mmpbsa.exe" and "s_mmpbsa" are s_mmpbsa executable files on Windows and Linux operation systems, respectively.
 
 ## Citation
-The `s_mmpbsa` program should be properly cited if the work will be published. 
-
-Currently, s_mmpbsa is still in-develop. If you want to utilize s_mmpbsa in your work, please cite the program as following:
+The developer would be deeply grateful if you appropriately cite s_mmpbsa in your research as follows:
 
 ```
-Jiaxing Zhang, s_mmpbsa, Version [your version], https://github.com/supernova4869/s_mmpbsa (accessed on yy-mm-dd)
+Zhang, J.; Gu, T.; Li, C.; Qi, W. s_mmpbsa: A Lite and Cross-Platform MM-PBSA Program. Molecules 2026, 31, 1683. https://doi.org/10.3390/molecules31101683
 ```
-
-After the detailed paper about s_mmpbsa is published (if fortunately), please cite the corresponding paper instead of the web page here.
 
 ## About developer
 Dr. Jiaxing Zhang (Contact: zhangjiaxing7137@tju.edu.cn, Tianjin University)
@@ -102,4 +98,4 @@ Dr. Jiaxing Zhang (Contact: zhangjiaxing7137@tju.edu.cn, Tianjin University)
 If you encountered any difficulty while using s_mmpbsa, or you found any bugs, or you have any suggestion on improving s_mmpbsa, please E-mail me or join my QQ group 864191465 to describe.
 
 ## New Folder (?
-- Support built-in PBSA solvers
+- Support built-in PBSA solvers (working on it)
