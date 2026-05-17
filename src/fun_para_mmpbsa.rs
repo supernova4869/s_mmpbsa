@@ -106,8 +106,8 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 let mut paras = File::create(".init_coordinate.txt").unwrap();
                 paras.write_all(format!("Atom coordinates from tpr file (in Å)\n").as_bytes()).unwrap();
                 for i in 0..tpr.coordinates.shape()[0] {
-                    paras.write_all(format!("{:7}{:>7}{:10.3} {:10.3} {:10.3}\n", 
-                        i + 1, aps.atom_props[i].name, tpr.coordinates[[i, 0]], tpr.coordinates[[i, 1]], tpr.coordinates[[i, 2]]).as_bytes()).unwrap();
+                    paras.write_all(format!("{:7}{:10.3} {:10.3} {:10.3}\n", 
+                        i + 1, tpr.coordinates[[i, 0]], tpr.coordinates[[i, 1]], tpr.coordinates[[i, 2]]).as_bytes()).unwrap();
                 }
                 println!("Initial coordinates have been written to .init_coordinate.txt");
             }

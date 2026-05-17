@@ -2,7 +2,7 @@ use core::f64;
 use std::{env, fs};
 use std::process::exit;
 use colored::*;
-use ndarray::{Array1, Array3};
+use ndarray::{Array3};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::BTreeSet;
 
@@ -406,8 +406,18 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
 
         let start_time = time_list_ie.first().copied().unwrap_or(0.0);
         let end_time = time_list_ie.last().copied().unwrap_or(0.0);
-        let num_time_points = ((end_time - start_time) / dt + 1.0) as usize;
-        let time_list = Array1::linspace(start_time, end_time, num_time_points).to_vec();
+        let n = ((end_time - start_time) / dt).ceil() as usize;
+        let mut time_list = Vec::with_capacity(n);
+        for i in 0..=n {
+            let t = start_time + i as f64 * dt;
+            if t > end_time {
+                break;
+            }
+            time_list.push(t);
+        }
+        if settings.debug_mode {
+            println!("Calculate at time: {:?} ps", time_list);
+        }
 
         set_para_mmpbsa(&time_list, &time_list_ie, &coordinates_ie, tpr, &ndx, config,
             &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
