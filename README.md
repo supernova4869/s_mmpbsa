@@ -86,9 +86,9 @@ The data was generated with .csv format and plotted as figures; The pdb files wi
 Release file: https://github.com/supernova4869/s_mmpbsa/releases/latest, where "s_mmpbsa.exe" and "s_mmpbsa" are s_mmpbsa executable files on Windows and Linux operation systems, respectively.
 
 ## Citation
-The [introduction paper of s_mmpbsa](https://www.mdpi.com/1420-3049/31/10/1683) has been published:
+The [introduction paper of s_mmpbsa](https://www.mdpi.com/1420-3049/31/10/1683) has been published.
 
-The developer would be deeply grateful if you appropriately cite s_mmpbsa in your research as follows:
+The developer would be deeply grateful if you use s_mmpbsa and appropriately cite it in your research as follows:
 
 ```
 @article{s_mmpbsa,
