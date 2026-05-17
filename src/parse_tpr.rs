@@ -461,7 +461,6 @@ fn process_moltype<R: BufRead>(
         } else {
             0
         };
-
         for _ in 0..res_num {
             read_line(reader, buf);
             if let Some(caps) = RE_RESIDUE.captures(&buf) {
