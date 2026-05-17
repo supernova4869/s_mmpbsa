@@ -63,9 +63,10 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
     loop {
         println!("\n                 ************ MM-PBSA Parameters ************");
         println!("-10 Return");
-        println!(" -3 Output PBSA parameters");
-        println!(" -2 Output LJ parameters");
-        println!(" -1 Output structural parameters");
+        println!(" -4 Output PBSA parameters");
+        println!(" -3 Output LJ parameters");
+        println!(" -2 Output initial structure (in tpr)");
+        println!(" -1 Output atomic properties");
         println!("{}", "  0 Start MM-PBSA calculation".green().bold());
         println!("  1 Whether use electric screening method, current: {}", settings.elec_screen);
         println!("  2 Whether use interaction entropy method, current: {}", settings.inter_entropy);
@@ -81,7 +82,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         match i {
             Ok(-10) => return,
             Ok(-1) => {
-                let mut paras = File::create("_paras_atom_properties.txt").unwrap();
+                let mut paras = File::create(".paras_atom_properties.txt").unwrap();
                 paras.write_all(format!("Receptor group: {}\n", 
                     ndx.groups[receptor_grp as usize].name).as_bytes()).unwrap();
                 match ligand_grp {
@@ -99,10 +100,19 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     paras.write_all(format!("{:7}{:>7}{:7}{:9.2}{:9.2}{:9}{:>9}\n", 
                         ap.id, ap.name, ap.type_id, ap.charge, ap.radius, ap.resid + 1, ap.resname).as_bytes()).unwrap();
                 }
-                println!("Structural parameters have been written to _paras_atom_properties.txt");
+                println!("Atomic properties have been written to .paras_atom_properties.txt");
             }
             Ok(-2) => {
-                let mut paras = File::create("_paras_LJ.txt").unwrap();
+                let mut paras = File::create(".init_coordinate.txt").unwrap();
+                paras.write_all(format!("Atom coordinates from tpr file (in Å)\n").as_bytes()).unwrap();
+                for i in 0..tpr.coordinates.shape()[0] {
+                    paras.write_all(format!("{:7}{:>7}{:10.3} {:10.3} {:10.3}\n", 
+                        i + 1, aps.atom_props[i].name, tpr.coordinates[[i, 0]], tpr.coordinates[[i, 1]], tpr.coordinates[[i, 2]]).as_bytes()).unwrap();
+                }
+                println!("Initial coordinates have been written to .init_coordinate.txt");
+            }
+            Ok(-3) => {
+                let mut paras = File::create(".paras_LJ.txt").unwrap();
                 paras.write_all("c6:\n".as_bytes()).unwrap();
                 for i in 0..aps.c6.shape()[0] {
                     for j in 0..aps.c6.shape()[1] {
@@ -117,13 +127,13 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     }
                     paras.write_all("\n".as_bytes()).unwrap();
                 }
-                println!("Forcefield parameters have been written to _paras_LJ.txt");
+                println!("Forcefield parameters have been written to .paras_LJ.txt");
             }
-            Ok(-3) => {
+            Ok(-4) => {
                 if let Some(config) = config {
-                    config.save("_paras_pbsa.txt");
+                    config.save(".paras_pbsa.txt");
                 } else {
-                    let mut paras = File::create("_paras_pbsa.txt").unwrap();
+                    let mut paras = File::create(".paras_pbsa.txt").unwrap();
                     paras.write_all(format!("Electrostatic screening method: {}\n", settings.elec_screen).as_bytes()).unwrap();
                     paras.write_all(format!("Atom radius type: {}\n", radius_types[settings.radius_type]).as_bytes()).unwrap();
                     paras.write_all(format!("Atom distance cutoff for MM calculation (A): {}\n", settings.r_cutoff).as_bytes()).unwrap();
@@ -133,7 +143,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     paras.write_all(format!("PB settings:\n{}\n\n", pbe_set).as_bytes()).unwrap();
                     paras.write_all(format!("SA settings:\n{}\n", pba_set).as_bytes()).unwrap();
                 }
-                println!("PBSA parameters have been written to _paras_pbsa.txt");
+                println!("PBSA parameters have been written to .paras_pbsa.txt");
             }
             Ok(0) => {
                 let sys_name = get_system_name();

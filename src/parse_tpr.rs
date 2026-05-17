@@ -6,6 +6,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use once_cell::sync::Lazy;
+use rayon::prelude::*;
 
 // 预编译所有正则表达式
 static RE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name\\s*=\\s*\"(.*)\"").unwrap());
@@ -497,18 +498,29 @@ fn process_coordinates<R: BufRead>(
 ) {
     println!("Reading coordinate information...");
     
-    // 预分配容量
-    coordinates.reserve(coordinates.len() + atoms_num * 3);
+    // 1. 先读取所有原始行
+    let mut lines = Vec::with_capacity(atoms_num);
     
     for _ in 0..atoms_num {
         read_line(reader, buf);
-        if let Some(caps) = RE_COORD.captures(&buf) {
-            let x: f64 = caps[1].parse().unwrap();
-            let y: f64 = caps[2].parse().unwrap();
-            let z: f64 = caps[3].parse().unwrap();
-            coordinates.push(x * 10.0);
-            coordinates.push(y * 10.0);
-            coordinates.push(z * 10.0);
-        }
+        lines.push(buf.clone()); // 克隆字符串
     }
+    
+    // 2. 并行解析
+    let parsed_coords: Vec<f64> = lines
+        .par_iter()
+        .flat_map(|line| {
+            if let Some(caps) = RE_COORD.captures(line) {
+                let x: f64 = caps[1].parse().unwrap();
+                let y: f64 = caps[2].parse().unwrap();
+                let z: f64 = caps[3].parse().unwrap();
+                vec![x * 10.0, y * 10.0, z * 10.0]
+            } else {
+                vec![]
+            }
+        })
+        .collect();
+    
+    // 3. 合并结果
+    coordinates.extend(parsed_coords);
 }

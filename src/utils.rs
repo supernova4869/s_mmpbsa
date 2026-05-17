@@ -204,5 +204,5 @@ pub fn show_famous_quotes() {
     ];
     let rand_index = random_range(0..quotes.len());
     let quote_sel = quotes[rand_index];
-    println!("s_mmpbsa reminds you: \"{}\" ({})", quote_sel.0, quote_sel.1);
+    println!("s_mmpbsa reminds you: \"{}\" ({})\n", quote_sel.0, quote_sel.1);
 }
