@@ -89,10 +89,18 @@ Release file: https://github.com/supernova4869/s_mmpbsa/releases/latest, where "
 The developer would be deeply grateful if you appropriately cite s_mmpbsa in your research as follows:
 
 ```
-Zhang, Jiaxing; Gu, Tao; Li, Chuanxi; Qi, Wei.
-s_mmpbsa: A Lite and Cross-Platform MM-PBSA Program.
-Molecules, 2026, 31, 1683.
-https://doi.org/10.3390/molecules31101683
+@article{s_mmpbsa,
+   author = {Zhang, Jiaxing and Gu, Tao and Li, Chuanxi and Qi, Wei},
+   title = {s_mmpbsa: A Lite and Cross-Platform MM-PBSA Program},
+   journal = {Molecules},
+   volume = {31},
+   number = {10},
+   pages = {1683},
+   ISSN = {1420-3049},
+   DOI = {10.3390/molecules31101683},
+   year = {2026},
+   type = {Journal Article}
+}
 ```
 
 ## About developer
