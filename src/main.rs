@@ -179,13 +179,12 @@ Latest documentation: https://s-mmpbsa.readthedocs.io/en/latest/
 Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.
 Version {}, first release: 2022/10/17, current release: {}
 
-Please kindly cite the following paper in main text if s_mmpbsa is used:
-Zhang, J., et al. Molecules 2026, 31, 1683. DOI: 10.3390/molecules31101683"#, version, today);
+Please {} the following paper in main text if s_mmpbsa is used:
+Zhang, J., et al. Molecules 2026, 31, 1683. DOI: 10.3390/molecules31101683
 
-    println!(r#"
 Usage 1: run `s_mmpbsa` and follow the prompts.
 Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.
-"#);
+"#, version, today, "kindly cite".cyan().bold());
 }
 
 pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: &str) -> String {
