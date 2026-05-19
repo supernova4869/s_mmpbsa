@@ -67,7 +67,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/05/17";
+    let compile_date = "2026/05/19";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -177,7 +177,11 @@ fn welcome(version: &str, today: &str) {
 Website: https://github.com/supernova4869/s_mmpbsa
 Latest documentation: https://s-mmpbsa.readthedocs.io/en/latest/
 Developed by Supernova (zhangjiaxing7137@tju.edu.cn), Tianjin University.
-Version {}, first release: 2022/10/17, current release: {}"#, version, today);
+Version {}, first release: 2022/10/17, current release: {}
+
+Please kindly cite the following paper in main text if s_mmpbsa is used:
+Zhang, J., et al. Molecules 2026, 31, 1683. DOI: 10.3390/molecules31101683"#, version, today);
+
     println!(r#"
 Usage 1: run `s_mmpbsa` and follow the prompts.
 Usage 2: run `s_mmpbsa -s Haibara_Ai.tpr` to load MD tpr file.
@@ -331,11 +335,11 @@ fn env_check() -> Settings {
     // initialize parameters
     let mut settings = match get_settings_in_use() {
         Some(settings_file) => {
-            println!("Note: found settings.ini at {}.", settings_file.display());
+            print!("Note: found settings.ini at {}. ", settings_file.display());
             Settings::from(&settings_file)
         },
         None => {
-            println!("Note: no settings.ini found.");
+            print!("Note: no settings.ini found. ");
             Settings::new()
         }
     };
@@ -345,6 +349,7 @@ fn env_check() -> Settings {
         .num_threads(settings.nkernels)
         .build_global()
         .unwrap();
+    println!("Set global parallel kernels to {}.", settings.nkernels);
 
     // check necessary dat path
     let cur_path = env::current_exe().unwrap();
