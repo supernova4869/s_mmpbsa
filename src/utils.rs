@@ -201,7 +201,7 @@ pub fn show_famous_quotes() {
         ("But you always laugh at me, saying I have nothing at all.", "Jian Cui"),
         ("Walking on, singing on, the great Chairman Mao.", "Jian Cui"),
         ("I want to leave, I want to stay, I want to die and come back all the way.", "Jian Cui"),
-        ("цой жив.", "Anonymous"),
+        ("Цой жив!", "Anonymous"),
     ];
     let rand_index = random_range(0..quotes.len());
     let quote_sel = quotes[rand_index];
