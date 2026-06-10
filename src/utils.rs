@@ -198,10 +198,19 @@ pub fn show_famous_quotes() {
         ("Natural science is an armament for humanity's struggle for freedom.", "Mao Tse Tung"),
         ("The universe and I arise together, and all things are united with me.", "Master Zhuang"),
         ("God bless the P.R.C.", "Antony Bulianos"),
-        ("But you always laugh at me, saying I have nothing at all.", "Jian Cui"),
         ("Walking on, singing on, the great Chairman Mao.", "Jian Cui"),
+        ("But you always laugh at me, saying I have nothing at all.", "Jian Cui"),
+        ("You ask me where I'm heading to — I point my finger toward the blue.", "Jian Cui"),
+        ("I'll walk on east to west, and I'll walk on day to night.", "Jian Cui"),
         ("I want to leave, I want to stay, I want to die and come back all the way.", "Jian Cui"),
+        ("'Cause my condition's feeling nothing at all.", "Jian Cui"),
+        ("If this is to be the fire of the last shot, I will take that honor — the last drop.", "Jian Cui"),
+        ("You said, love is freedom — and your own integrity.", "Jian Cui"),
+        ("Please reach for my hand now, my beautiful girl. I'll see you through this night that we call our world.", "Jian Cui"),
+        ("We'll take a cup of kindness yet, For days of auld lang syne.", "Robert Burns"),
         ("Цой жив!", "Anonymous"),
+        ("How clumsy people used to be, how hard their lives were.", "Cixin Liu, Fire in the Earth"),
+        ("In those days, Earth was a planet in space. In those days, Beijing was a city on Earth.", "Cixin Liu, The Supernova Era"),
     ];
     let rand_index = random_range(0..quotes.len());
     let quote_sel = quotes[rand_index];
