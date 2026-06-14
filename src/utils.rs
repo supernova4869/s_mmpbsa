@@ -206,6 +206,7 @@ pub fn show_famous_quotes() {
         ("'Cause my condition's feeling nothing at all.", "Jian Cui"),
         ("If this is to be the fire of the last shot, I will take that honor — the last drop.", "Jian Cui"),
         ("You said, love is freedom — and your own integrity.", "Jian Cui"),
+        ("You are a spring flower, but blooming in autumn's hour.", "Jian Cui"),
         ("Please reach for my hand now, my beautiful girl. I'll see you through this night that we call our world.", "Jian Cui"),
         ("We'll take a cup of kindness yet, For days of auld lang syne.", "Robert Burns"),
         ("Цой жив!", "Anonymous"),
