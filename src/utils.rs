@@ -209,6 +209,7 @@ pub fn show_famous_quotes() {
         ("You are a spring flower, but blooming in autumn's hour.", "Jian Cui"),
         ("Please reach for my hand now, my beautiful girl. I'll see you through this night that we call our world.", "Jian Cui"),
         ("We'll take a cup of kindness yet, For days of auld lang syne.", "Robert Burns"),
+        ("Living life for thirty years, till edifice collapses. Darkness amid cloud-veiled heights, oh, drowning landscape in my heart.", "Omnipotent Youth Society"),
         ("Цой жив!", "Anonymous"),
         ("How clumsy people used to be, how hard their lives were.", "Cixin Liu, Fire in the Earth"),
         ("In those days, Earth was a planet in space. In those days, Beijing was a city on Earth.", "Cixin Liu, The Supernova Era"),
