@@ -179,19 +179,6 @@ pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &BTreeSet<usize>, cuto
     res_range
 }
 
-pub fn get_program_path(cmd: &str) -> Option<String> {
-    // Note: on windows there is missed extension "exe"
-    let p = String::from_utf8(
-        Command::new(if cfg!(unix) { "which" } else { "where" })
-        .arg(cmd)
-        .output()
-        .unwrap()
-        .stdout
-    ).unwrap().trim().to_string();
-    let ps: Vec<&str> = p.split("\n").collect();
-    ps.first().map(|s| s.to_string())
-}
-
 pub fn show_famous_quotes() {
     let quotes: Vec<(&str, &str)> = vec![
         ("We must know. We will know.", "David Hilbert"),

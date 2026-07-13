@@ -67,7 +67,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/06/14";
+    let compile_date = "2026/07/13";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
     
     // Show version info
@@ -240,7 +240,7 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
                 _ => String::from("")
             }
         } else {
-            utils::get_program_path(p).unwrap()
+            p.to_string()
         };
         if !p.is_empty() {
             if settings.debug_mode {
@@ -264,8 +264,7 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
         } else {
             None
         }
-    }
-    else {
+    } else {
         None
     }
 }
@@ -316,9 +315,13 @@ fn get_dump(tpr_path: &String, settings: &Settings) -> String {
     let tpr_dump_path = Path::new(&tpr_path);
     let tpr_dump_name = tpr_dump_path.file_stem().unwrap().to_str().unwrap();
     let dump_path = &env::current_dir().unwrap().join(tpr_dump_name.to_string() + ".dump");
-    let gmx = settings.gmx_path.as_ref().unwrap();
+    let gmx = settings.gmx_path.as_ref();
+    if gmx.is_none() {
+        println!("Error: gmx path invalid, please check settings.");
+        exit(0);
+    }
     let dump_to = dump_path.to_str().unwrap().to_string();
-    dump_tpr(&tpr_path, &dump_to, gmx);
+    dump_tpr(&tpr_path, &dump_to, gmx.unwrap());
     dump_to
 }
 
