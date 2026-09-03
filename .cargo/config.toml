@@ -1,0 +1,8 @@
+# xdrfile bundles GROMACS C sources compiled via the `cc` crate. When no
+# musl-gcc is installed, cc-rs falls back to the host (glibc) gcc, whose
+# distro defaults enable _FORTIFY_SOURCE and emit glibc-only symbols such as
+# `__fprintf_chk`. musl's libc does not provide them, so the final static
+# link fails. Disabling fortify keeps the glibc-compiled objects linkable
+# against musl. This only applies when building for the musl target.
+[env]
+CFLAGS_x86_64_unknown_linux_musl = "-D_FORTIFY_SOURCE=0"
