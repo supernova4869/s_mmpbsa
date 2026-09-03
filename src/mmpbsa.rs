@@ -63,6 +63,9 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
         }
     };
 
+    println!("");
+    utils::show_famous_quotes();
+
     println!("Writing calculation results...");
     let sm_results = SMResults::new(result_ala_scan);
     sm_results.to_bin(Path::new(&format!("MMPBSA_{}.sm", sys_name)));
@@ -425,8 +428,6 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
 fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>, 
             ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &str, temp_dir: &PathBuf, 
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
-    prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
-    
     // the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is subsequently calculated
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
@@ -434,6 +435,7 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
         if settings.apbs_path.as_ref().is_none() {
             return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
         }
+        prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
         let apbs = settings.apbs_path.as_ref().unwrap();
         write_apbs_input(ndx_rec, ndx_lig, coord, 
                 &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
