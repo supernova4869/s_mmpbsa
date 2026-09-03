@@ -179,9 +179,9 @@ pub fn prepare_apbs_content(file: &str, mol_index: i32, box_: [f64;6],
     let f_y = (y_len + fadd).min(c_y);
     let f_z = (z_len + fadd).min(c_z);
 
-    let n_x = ((((f_x / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0) as i32;
-    let n_y = ((((f_y / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0) as i32;
-    let n_z = ((((f_z / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0) as i32;
+    let n_x = ((((f_x / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
+    let n_y = ((((f_y / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
+    let n_z = ((((f_z / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
 
     let mg_set = "mg-auto";
 
