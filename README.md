@@ -26,6 +26,7 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 ## Requirement
 
 ### Basic requirements
+- To use plotting backend, you need to run `sudo apt install libfontconfig1-dev`.
 - Gromacs: The gromacs program is needed on Linux.
 - APBS: (Optional) The PBSA kernel is already built-in, but it is also supported to use other version of APBS programs.
 - PyMOL: an optional software to plot the B-factor colored structure.
