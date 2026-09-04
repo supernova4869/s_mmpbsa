@@ -26,10 +26,11 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 ## Requirement
 
 ### Basic requirements
-- To use plotting backend, you need to run `sudo apt install libfontconfig1-dev`.
-- Gromacs: The gromacs program is needed on Linux.
-- APBS: Not needed. PB/SA calculations are performed in-process by the Rust-ported APBS solver (apbs-rs), which is compiled into the s_mmpbsa binary.
-- PyMOL: an optional software to plot the B-factor colored structure.
+- To use plotting backend, you need to run `sudo apt install libfontconfig1-dev` on Ubuntu.
+- Gromacs: The gromacs program is needed on Linux. On Windows, it has been provided.
+- PyMOL (optional) to plot the B-factor colored structure.
+
+APBS is currently not needed. PB/SA calculations have been performed in-process totally by the Rust-ported APBS solver (apbs-rs), which has already been compiled into the s_mmpbsa binary.
 
 ## Usage
 Although s_mmpbsa supports fixing PBC conditions to trajectory `.MMPBSA_[name].xtc`, it is still recommended to comfirm that the trajectory has been correct, using visualization software such as [VMD](http://www.ks.uiuc.edu/Research/vmd/):
