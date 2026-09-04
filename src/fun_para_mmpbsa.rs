@@ -355,10 +355,13 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
     // Apply atom radius
     println!("Applying {} radius...", radius_types[settings.radius_type]);
     aps.apply_radius(radius_types[settings.radius_type], &tpr.get_at_type_list());
+    println!("Settings: MM calculation = {}, PBSA calculation = {}",
+        if settings.calc_mm { "enabled" } else { "disabled" },
+        if settings.calc_pbsa { "enabled" } else { "disabled" });
 
     // Temp directory for PBSA
     let temp_dir = &env::current_dir().unwrap().join(sys_name);
-    if let Some(_) = settings.apbs_path.as_ref() {
+    if settings.calc_pbsa {
         println!("Temporary files will be placed at {}/", temp_dir.display());
         if !temp_dir.is_dir() {
             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
@@ -367,7 +370,7 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         }
     } else {
-        println!("Note: Since APBS not found, solvation energy will not be calculated.");
+        println!("Note: PBSA calculation is disabled, solvation energy will not be calculated.");
     };
     
     // run MM-PBSA calculations

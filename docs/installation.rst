@@ -32,7 +32,7 @@ s_mmpbsa's core functionality requires the following software:
 Optional dependencies:
 
 - **Matplotlib**: Used to draw result charts. If you need to use s_mmpbsa's analysis and plotting functions, it needs to be installed.
-- **APBS**: Used to calculate Poisson-Boltzmann surface area. s_mmpbsa has a built-in APBS kernel, but also supports using external APBS programs.
+- **APBS**: Not required. Poisson-Boltzmann and surface-area calculations are performed by the Rust-ported APBS solver (apbs-rs), compiled directly into the s_mmpbsa executable.
 - **PyMOL**: Used to draw B-factor colored structures.
 
 Installation Methods
@@ -121,7 +121,6 @@ s_mmpbsa's configuration file is `settings.ini`, which contains various setting 
 The configuration file contains the following main parameters:
 
 - **gmx_path**: Path to the Gromacs program. If it is "built-in", the program will use the gmx program in /programs/gmx/.
-- **apbs_path**: Path to the APBS program. If it is "built-in", the program will use the apbs program in /programs/apbs/.
 - **nkernels**: Number of cores used for parallel computing
 - **debug_mode**: Whether to enable debug mode (y/n). When enabled, intermediate files will not be deleted.
 - **r_cutoff**: Cutoff distance for non-bonded interactions. 0 means no cutoff.
@@ -140,11 +139,9 @@ If s_mmpbsa cannot find the Gromacs program, please ensure that:
 
 ### APBS Related Errors
 
-If there are issues with the built-in APBS kernel, you can try:
-
-1. Ensure that the built-in APBS program has executable permissions
-2. Install an external APBS program
-3. Set the apbs_path parameter in settings.ini to point to the external APBS program
+The built-in APBS solver is part of the s_mmpbsa binary; if a PB/SA calculation
+fails, check the reported solver error (the `.apbs`/`.pqr` intermediate files are
+kept when `debug_mode` is enabled) and the PB grid settings (`cfac`, `fadd`, `df`).
 
 ### Python/matplotlib Related Errors
 

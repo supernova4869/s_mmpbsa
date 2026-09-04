@@ -14,7 +14,6 @@ pub struct Settings {
     pub calc_mm: bool,
     pub calc_pbsa: bool,
     pub gmx_path: Option<String>,
-    pub apbs_path: Option<String>,
     pub cfac: f64,
     pub fadd: f64,
     pub df: f64,
@@ -34,7 +33,6 @@ impl Settings {
             r_cutoff: 0.0,
             fix_pbc: true,
             gmx_path: Some("gmx".to_string()),
-            apbs_path: None,
             calc_mm: true,
             calc_pbsa: true,
             cfac: 1.5,
@@ -70,11 +68,9 @@ impl Settings {
         let fix_pbc = get_settings_bool(&fix_pbc);
         let gmx_path = parse_param(&setting_values, "gmx_path", "\"built-in\"".to_string());
         let gmx_path = Some(gmx_path[1..gmx_path.len() - 1].to_string());
-        let apbs_path = parse_param(&setting_values, "apbs_path", "".to_string());
-        let apbs_path = Some(apbs_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let calc_mm = parse_param(&setting_values, "calc_mm", "\"y\"".to_string());
+        let calc_mm = parse_param_any(&setting_values, &["mm", "calc_mm"], "\"y\"".to_string());
         let calc_mm = get_settings_bool(&calc_mm);
-        let calc_pbsa = parse_param(&setting_values, "calc_pbsa", "\"y\"".to_string());
+        let calc_pbsa = parse_param_any(&setting_values, &["pbsa", "calc_pbsa"], "\"y\"".to_string());
         let calc_pbsa = get_settings_bool(&calc_pbsa);
         let cfac = parse_param(&setting_values, "cfac", default_settings.cfac);
         let fadd = parse_param(&setting_values, "fadd", default_settings.fadd);
@@ -95,7 +91,6 @@ impl Settings {
             r_cutoff,
             fix_pbc,
             gmx_path,
-            apbs_path,
             calc_mm,
             calc_pbsa,
             cfac,
@@ -123,11 +118,69 @@ pub fn get_settings_in_use() -> Option<PathBuf> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn value_from(text: &str) -> Value {
+        toml::from_str(text).unwrap()
+    }
+
+    #[test]
+    fn calculation_flags_read_ini_names() {
+        let value = value_from("mm = \"n\"\npbsa = \"y\"\n");
+        let mm = parse_param_any(&value, &["mm", "calc_mm"], "\"y\"".to_string());
+        let pbsa = parse_param_any(&value, &["pbsa", "calc_pbsa"], "\"y\"".to_string());
+        assert_eq!(get_settings_bool(&mm), false);
+        assert_eq!(get_settings_bool(&pbsa), true);
+    }
+
+    #[test]
+    fn calculation_flags_accept_legacy_names() {
+        let value = value_from("calc_mm = \"y\"\ncalc_pbsa = \"n\"\n");
+        let mm = parse_param_any(&value, &["mm", "calc_mm"], "\"y\"".to_string());
+        let pbsa = parse_param_any(&value, &["pbsa", "calc_pbsa"], "\"y\"".to_string());
+        assert_eq!(get_settings_bool(&mm), true);
+        assert_eq!(get_settings_bool(&pbsa), false);
+    }
+
+    #[test]
+    fn calculation_flags_default_to_enabled() {
+        let value = value_from("gmx_path = \"gmx\"\n");
+        let mm = parse_param_any(&value, &["mm", "calc_mm"], "\"y\"".to_string());
+        let pbsa = parse_param_any(&value, &["pbsa", "calc_pbsa"], "\"y\"".to_string());
+        assert_eq!(get_settings_bool(&mm), true);
+        assert_eq!(get_settings_bool(&pbsa), true);
+    }
+
+    #[test]
+    fn settings_ini_flags_drive_calculation_switches() {
+        let path = std::env::temp_dir().join("s_mmpbsa_settings_test.ini");
+        fs::write(&path, "mm = \"n\"\npbsa = \"y\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(!settings.calc_mm);
+        assert!(settings.calc_pbsa);
+    }
+}
+
 fn parse_param<T: FromStr>(setting_values: &Value, key: &str, default: T) -> T {
     match setting_values.get(key) {
         Some(v) => v.to_string().parse::<T>().unwrap_or(default),
         None => default
     }
+}
+
+/// Like `parse_param`, but tries a list of key names so both the current
+/// settings.ini names (`mm` / `pbsa`) and legacy names (`calc_mm` /
+/// `calc_pbsa`) are accepted.
+fn parse_param_any<T: FromStr>(setting_values: &Value, keys: &[&str], default: T) -> T {
+    for key in keys {
+        if let Some(v) = setting_values.get(key) {
+            return v.to_string().parse::<T>().unwrap_or(default);
+        }
+    }
+    default
 }
 
 pub fn get_base_settings() -> PathBuf {

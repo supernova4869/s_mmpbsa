@@ -7,7 +7,6 @@ use crate::settings::Settings;
 use crate::utils::{self, is_amino};
 use ndarray::parallel::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
-use std::process::Command;
 use std::env;
 use indicatif::{ProgressBar, ProgressStyle};
 use chrono::{Local, Duration};
@@ -17,6 +16,7 @@ use crate::parse_tpr::Residue;
 use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
+use crate::apbs_runner::{self, SolverCalcKind, SolverRun};
 
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                                temp_dir: &PathBuf, sys_name: &str, aps: &AtomProperties,
@@ -71,10 +71,8 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     sm_results.to_bin(Path::new(&format!("MMPBSA_{}.sm", sys_name)));
 
     // whether remove temp directory
-    if !settings.debug_mode {
-        if settings.apbs_path.is_some() {
-            fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-        }
+    if !settings.debug_mode && settings.calc_pbsa {
+        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
     }
 
     sm_results
@@ -197,21 +195,6 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     // setting up environment
     env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
-    if settings.calc_pbsa && settings.apbs_path.is_some() {
-        let apbs_path = settings.apbs_path.as_ref().unwrap();
-        let apbs_dir = Path::new(apbs_path).parent().unwrap();
-        
-        // 处理动态库路径
-        if cfg!(target_os = "windows") {
-            let current_path = env::var("PATH").unwrap_or_default();
-            let new_path = format!("{};{}", apbs_dir.display(), current_path);
-            env::set_var("PATH", new_path);
-        } else {
-            env::set_var("LD_LIBRARY_PATH", 
-                format!("{}:{}", Path::new(settings.apbs_path.as_ref().unwrap()).parent().unwrap().to_str().unwrap(), 
-                env::var("LD_LIBRARY_PATH").unwrap()));
-        }
-    }
 
     // Decide whether to use parallel
     let total_iterations = if let Some(ndx_lig) = ndx_lig {
@@ -432,126 +415,38 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
     // then the SA energy term is subsequently calculated
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
     if settings.calc_pbsa {
-        if settings.apbs_path.as_ref().is_none() {
-            return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
-        }
         prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
-        let apbs = settings.apbs_path.as_ref().unwrap();
         write_apbs_input(ndx_rec, ndx_lig, coord, 
                 &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
                 pbe_set, pba_set, temp_dir, &f_name, settings);
-        // invoke apbs program to do apbs calculations
-        let apbs_result = Command::new(apbs).arg(format!("{}.apbs", f_name))
-            .current_dir(temp_dir).output().ok();
-        if apbs_result.is_none() {
-            println!("Failed to execute APBS. Please check your APBS installation and path settings.");
-            return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()));
-        }
-        let apbs_result = apbs_result.unwrap();
-        let apbs_err = String::from_utf8(apbs_result.stderr).ok();
-        if apbs_err.is_none() {
-            let mut errfile = File::create(temp_dir.join(format!("{}.err", f_name)))
-                .expect("Failed to create err file.");
-            errfile.write_all(apbs_err.unwrap().as_bytes()).expect("Failed to write apbs output.");
-        }
-        let apbs_result = String::from_utf8(apbs_result.stdout).ok();
-        if apbs_result.is_none() {
-            println!("Failed to get APBS output. Please check your APBS installation and path settings.");
-            return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()));
-        }
-        let apbs_result = apbs_result.unwrap();
+        // solve the PB/SA calculations in-process with the built-in APBS
+        // solver (apbs-rs), no external process is spawned.
+        let apbs_input = temp_dir.join(format!("{}.apbs", f_name));
+        let solver_run = match apbs_runner::run_apbs_in_process(
+            apbs_input.to_str().expect("APBS input path is not valid unicode."),
+        ) {
+            Ok(run) => run,
+            Err(e) => {
+                println!("PBSA calculation failed at {} ns: {}", times[cur_frm], e);
+                return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()));
+            }
+        };
         if settings.debug_mode {
             let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name)))
                 .expect("Failed to create output file.");
-            outfile.write_all(apbs_result.as_bytes()).expect("Failed to write apbs output.");
+            outfile.write_all(solver_run.log.as_bytes()).expect("Failed to write apbs output.");
         };
 
-        // preserve CALCULATION, Atom and SASA lines
-        let apbs_result: Vec<&str> = apbs_result.split("\n").filter_map(|p|
-            if p.trim().starts_with("CALCULATION") || p.trim().starts_with("Atom") || p.trim().starts_with("SASA") {
-                Some(p.trim())
-            } else {
-                None
-            }
-        ).collect();
-
-        // extract apbs results
-        let indexes: Vec<usize> = apbs_result
-            .iter()
-            .enumerate()
-            .filter_map(|(i, p)| p.starts_with("CAL").then_some(i))
-            .collect();
-
-        let mut com_pb_sol: Vec<f64> = vec![];
-        let mut com_pb_vac: Vec<f64> = vec![];
-        let mut rec_pb_sol: Vec<f64> = vec![];
-        let mut rec_pb_vac: Vec<f64> = vec![];
-        let mut lig_pb_sol: Vec<f64> = vec![];
-        let mut lig_pb_vac: Vec<f64> = vec![];
-        let mut com_sa: Vec<f64> = vec![];
-        let mut rec_sa: Vec<f64> = vec![];
-        let mut lig_sa: Vec<f64> = vec![];
-
-        let mut skip_pb = true;     // the first time PB calculation should be dropped
-        for (i, &idx) in indexes.iter().enumerate() {
-            let st = idx + 1;
-            let ed = match indexes.get(i + 1) {
-                Some(&idx) => idx,
-                None => apbs_result.len()
-            };
-            if apbs_result[idx].contains(&"_com_SOL") {
-                if !skip_pb {
-                    apbs_result[st..ed].par_iter()
-                        .map(|&p| parse_apbs_line(p))
-                        .collect_into_vec(&mut com_pb_sol);
-                }
-                skip_pb = !skip_pb;
-            } else if apbs_result[idx].contains(&"_com_VAC") {
-                if !skip_pb {
-                    apbs_result[st..ed].par_iter()
-                        .map(|&p| parse_apbs_line(p))
-                        .collect_into_vec(&mut com_pb_vac);
-                }
-                skip_pb = !skip_pb;
-            } else if apbs_result[idx].contains(&"_rec_SOL") {
-                if !skip_pb {
-                    apbs_result[st..ed].par_iter()
-                        .map(|&p| parse_apbs_line(p))
-                        .collect_into_vec(&mut rec_pb_sol);
-                }
-                skip_pb = !skip_pb;
-            } else if apbs_result[idx].contains(&"_rec_VAC") {
-                if !skip_pb {
-                    apbs_result[st..ed].par_iter()
-                        .map(|&p| parse_apbs_line(p))
-                        .collect_into_vec(&mut rec_pb_vac);
-                }
-                skip_pb = !skip_pb;
-            } else if apbs_result[idx].contains(&"_lig_SOL") {
-                if !skip_pb {
-                    apbs_result[st..ed].par_iter()
-                        .map(|&p| parse_apbs_line(p))
-                        .collect_into_vec(&mut lig_pb_sol);
-                }
-                skip_pb = !skip_pb;
-            } else if apbs_result[idx].contains(&"_lig_VAC") {
-                if !skip_pb {
-                    apbs_result[st..ed].par_iter()
-                        .map(|&p| parse_apbs_line(p))
-                        .collect_into_vec(&mut lig_pb_vac);
-                }
-                skip_pb = !skip_pb;
-            } else if apbs_result[idx].contains(&"_com_SAS") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p))
-                    .collect_into_vec(&mut com_sa);
-            } else if apbs_result[idx].contains(&"_rec_SAS") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p))
-                    .collect_into_vec(&mut rec_sa);
-            } else if apbs_result[idx].contains(&"_lig_SAS") {
-                apbs_result[st..ed].par_iter().map(|&p| parse_apbs_line(p))
-                    .collect_into_vec(&mut lig_sa);
-            }
-        }
+        let apbs_results = ApbsResults::from_solver_run(&solver_run);
+        let com_pb_sol = apbs_results.com_pb_sol;
+        let com_pb_vac = apbs_results.com_pb_vac;
+        let rec_pb_sol = apbs_results.rec_pb_sol;
+        let rec_pb_vac = apbs_results.rec_pb_vac;
+        let lig_pb_sol = apbs_results.lig_pb_sol;
+        let lig_pb_vac = apbs_results.lig_pb_vac;
+        let com_sa = apbs_results.com_sa;
+        let rec_sa = apbs_results.rec_sa;
+        let lig_sa = apbs_results.lig_sa;
 
         let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
         let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter()
@@ -578,7 +473,7 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
         };
         if pb.len() != aps.atom_props.len() || sa.len() != aps.atom_props.len() {
             println!("Warning: The number of PB/SA values does not match the number of atoms. \
-                This may indicate an issue with the APBS output parsing.");
+                This may indicate an issue with the in-process APBS solver results.");
             let pb = pad_to_len(&pb.to_vec(), aps.atom_props.len());
             let sa = pad_to_len(&sa.to_vec(), aps.atom_props.len());
             return (Array1::from_vec(pb), Array1::from_vec(sa));
@@ -589,14 +484,53 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
     }
 }
 
-fn parse_apbs_line(line: &str) -> f64 {
-    line.split(":")
-        .skip(1)
-        .next().expect("Cannot get information from apbs")
-        .trim_start()
-        .split(" ")
-        .next().expect("Cannot get information from apbs")
-        .parse().unwrap_or(0.0)
+#[derive(Default)]
+struct ApbsResults {
+    com_pb_sol: Vec<f64>,
+    com_pb_vac: Vec<f64>,
+    rec_pb_sol: Vec<f64>,
+    rec_pb_vac: Vec<f64>,
+    lig_pb_sol: Vec<f64>,
+    lig_pb_vac: Vec<f64>,
+    com_sa: Vec<f64>,
+    rec_sa: Vec<f64>,
+    lig_sa: Vec<f64>,
+}
+
+impl ApbsResults {
+    /// Bucket in-memory solver results into the per-complex PB/SA vectors.
+    fn from_solver_run(run: &SolverRun) -> ApbsResults {
+        let mut results = ApbsResults::default();
+        for calc in &run.calcs {
+            match calc.kind {
+                SolverCalcKind::Elec => {
+                    if calc.name.ends_with("com_SOL") {
+                        results.com_pb_sol.extend_from_slice(&calc.per_atom);
+                    } else if calc.name.ends_with("com_VAC") {
+                        results.com_pb_vac.extend_from_slice(&calc.per_atom);
+                    } else if calc.name.ends_with("rec_SOL") {
+                        results.rec_pb_sol.extend_from_slice(&calc.per_atom);
+                    } else if calc.name.ends_with("rec_VAC") {
+                        results.rec_pb_vac.extend_from_slice(&calc.per_atom);
+                    } else if calc.name.ends_with("lig_SOL") {
+                        results.lig_pb_sol.extend_from_slice(&calc.per_atom);
+                    } else if calc.name.ends_with("lig_VAC") {
+                        results.lig_pb_vac.extend_from_slice(&calc.per_atom);
+                    }
+                }
+                SolverCalcKind::Apolar => {
+                    if calc.name.ends_with("com_SAS") {
+                        results.com_sa.extend_from_slice(&calc.per_atom);
+                    } else if calc.name.ends_with("rec_SAS") {
+                        results.rec_sa.extend_from_slice(&calc.per_atom);
+                    } else if calc.name.ends_with("lig_SAS") {
+                        results.lig_sa.extend_from_slice(&calc.per_atom);
+                    }
+                }
+            }
+        }
+        results
+    }
 }
 
 fn transform_coordinate(base: &Array1<f64>, origin: &Array1<f64>, target_length: f64) -> Array1<f64> {
@@ -611,4 +545,74 @@ fn pad_to_len(data: &[f64], target_len: usize) -> Vec<f64> {
     let mut vec = data.to_vec();
     vec.resize(target_len, 0.0); // 不变化用0填充
     vec
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::apbs_runner::{SolverCalcResult, SolverRun};
+
+    #[test]
+    fn bucket_solver_results_by_calc_name() {
+        let run = SolverRun {
+            calcs: vec![
+                SolverCalcResult {
+                    name: "sys_com_SOL".to_string(),
+                    kind: SolverCalcKind::Elec,
+                    per_atom: vec![11.0, 22.0],
+                },
+                SolverCalcResult {
+                    name: "sys_com_VAC".to_string(),
+                    kind: SolverCalcKind::Elec,
+                    per_atom: vec![9.9, 8.8],
+                },
+                SolverCalcResult {
+                    name: "sys_rec_SOL".to_string(),
+                    kind: SolverCalcKind::Elec,
+                    per_atom: vec![3.3],
+                },
+                SolverCalcResult {
+                    name: "sys_rec_VAC".to_string(),
+                    kind: SolverCalcKind::Elec,
+                    per_atom: vec![2.2],
+                },
+                SolverCalcResult {
+                    name: "sys_lig_SOL".to_string(),
+                    kind: SolverCalcKind::Elec,
+                    per_atom: vec![50.0],
+                },
+                SolverCalcResult {
+                    name: "sys_lig_VAC".to_string(),
+                    kind: SolverCalcKind::Elec,
+                    per_atom: vec![7.7],
+                },
+                SolverCalcResult {
+                    name: "sys_com_SAS".to_string(),
+                    kind: SolverCalcKind::Apolar,
+                    per_atom: vec![44.0, 45.0],
+                },
+                SolverCalcResult {
+                    name: "sys_rec_SAS".to_string(),
+                    kind: SolverCalcKind::Apolar,
+                    per_atom: vec![6.6],
+                },
+                SolverCalcResult {
+                    name: "sys_lig_SAS".to_string(),
+                    kind: SolverCalcKind::Apolar,
+                    per_atom: vec![7.7],
+                },
+            ],
+            log: String::new(),
+        };
+        let r = ApbsResults::from_solver_run(&run);
+        assert_eq!(r.com_pb_sol, vec![11.0, 22.0]);
+        assert_eq!(r.com_pb_vac, vec![9.9, 8.8]);
+        assert_eq!(r.rec_pb_sol, vec![3.3]);
+        assert_eq!(r.rec_pb_vac, vec![2.2]);
+        assert_eq!(r.lig_pb_sol, vec![50.0]);
+        assert_eq!(r.lig_pb_vac, vec![7.7]);
+        assert_eq!(r.com_sa, vec![44.0, 45.0]);
+        assert_eq!(r.rec_sa, vec![6.6]);
+        assert_eq!(r.lig_sa, vec![7.7]);
+    }
 }

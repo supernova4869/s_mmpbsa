@@ -28,7 +28,7 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 ### Basic requirements
 - To use plotting backend, you need to run `sudo apt install libfontconfig1-dev`.
 - Gromacs: The gromacs program is needed on Linux.
-- APBS: (Optional) The PBSA kernel is already built-in, but it is also supported to use other version of APBS programs.
+- APBS: Not needed. PB/SA calculations are performed in-process by the Rust-ported APBS solver (apbs-rs), which is compiled into the s_mmpbsa binary.
 - PyMOL: an optional software to plot the B-factor colored structure.
 
 ## Usage
@@ -111,5 +111,6 @@ Dr. Jiaxing Zhang (Contact: zhangjiaxing7137@tju.edu.cn, Tianjin University)
 
 If you encountered any difficulty while using s_mmpbsa, or you found any bugs, or you have any suggestion on improving s_mmpbsa, please E-mail me or join my QQ group 864191465 to describe.
 
-## New Folder (?
-- Support built-in PBSA solvers (working on it)
+## Built-in PBSA solver
+- The Poisson-Boltzmann and surface-area calculations are powered by the Rust-ported APBS solver from https://github.com/supernova4869/apbs-rs, vendored under `apbs/` and compiled directly into the s_mmpbsa executable. No external APBS program or sub-process is used.
+- To refresh the vendored solver code from a local apbs-rs checkout, run `scripts/sync_apbs_rs.sh`.

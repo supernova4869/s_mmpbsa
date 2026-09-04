@@ -31,7 +31,7 @@ s_mmpbsa的核心功能需要以下软件：
 可选依赖：
 
 - **Matplotlib**：用于绘制结果图表。如果您需要使用s_mmpbsa的分析和绘图功能，则需要安装。
-- **APBS**：用于计算泊松-玻尔兹曼表面面积。s_mmpbsa内置了APBS内核，但也支持使用外部APBS程序。
+- **APBS**：不需要。泊松-玻尔兹曼与表面积计算由Rust移植的APBS求解器（apbs-rs）完成，直接编译进s_mmpbsa可执行文件中。
 - **PyMOL**：用于绘制B因子着色的结构。
 
 部署方法
@@ -120,7 +120,6 @@ s_mmpbsa的配置文件为`settings.ini`，该文件包含了程序的各种设�
 配置文件中包含以下主要参数：
 
 - **gmx_path**：Gromacs程序的路径。如果为"built-in"，程序将使用/programs/gmx/中的gmx程序。
-- **apbs_path**：APBS程序的路径。如果为"built-in"，程序将使用/programs/apbs/中的apbs程序。
 - **nkernels**：并行计算使用的核心数
 - **debug_mode**：是否启用调试模式(y/n)。启用后，中间文件不会删除。
 - **r_cutoff**：非键相互作用的截断距离。0为不截断。
@@ -139,11 +138,8 @@ s_mmpbsa的配置文件为`settings.ini`，该文件包含了程序的各种设�
 
 ### APBS相关错误
 
-如果使用内置APBS内核出现问题，可以尝试：
-
-1. 确保内置APBS程序具有可执行权限
-2. 安装外部APBS程序
-3. 在settings.ini中设置apbs_path参数指向外部APBS程序
+内置APBS求解器是s_mmpbsa可执行文件的一部分；若PB/SA计算失败，请查看报错信息
+（启用`debug_mode`时会保留`.apbs`/`.pqr`中间文件），并检查PB网格设置（`cfac`、`fadd`、`df`）。
 
 ### Python/matplotlib相关错误
 

@@ -177,7 +177,7 @@ The pdb module is responsible for handling PDB files, including reading, modifyi
 pbsa Module
 --------
 
-The pbsa module implements the functionality of PB and SA energy calculations, including calling external programs (such as APBS) for calculations.
+The pbsa module implements the functionality of PB and SA energy calculations. It solves the PB and surface-area equations in-process with the Rust-ported APBS solver (apbs-rs); no external APBS program or sub-process is used.
 
 **Main Functions**:
 - Prepare input files for PB calculations

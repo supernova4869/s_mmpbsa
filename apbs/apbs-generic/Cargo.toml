@@ -1,0 +1,13 @@
+[package]
+name = "apbs-generic"
+version = "3.4.1"
+edition = "2021"
+license = "BSD-2-Clause"
+description = "APBS core data structures and utilities"
+
+[dependencies]
+thiserror = "1"
+quick-xml = "0.31"
+rayon = "1.10"
+
+[dev-dependencies]

@@ -1,0 +1,16 @@
+[package]
+name = "apbs-mg"
+version = "3.4.1"
+edition = "2021"
+license = "BSD-2-Clause"
+description = "APBS multigrid PBE solver"
+
+[dependencies]
+apbs-generic = { path = "../apbs-generic" }
+apbs-pmgc = { path = "../apbs-pmgc" }
+thiserror = "1"
+memmap2 = "0.9"
+flate2 = "1.0"
+rayon = "1.10"
+
+[dev-dependencies]

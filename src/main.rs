@@ -12,6 +12,7 @@ mod atom_radius;
 mod parameters;
 mod prepare_apbs;
 mod settings;
+mod apbs_runner;
 mod atom_property;
 mod coefficients;
 mod utils;
@@ -217,30 +218,24 @@ pub fn confirm_file_validity(file_name: &String, ext_list: Vec<&str>, tpr_path: 
 fn get_built_in_gmx() -> String {
     env::current_exe().expect("Cannot get current s_mmpbsa program path.")
         .parent().expect("Cannot get current s_mmpbsa program directory.")
-        .join("programs").join("gmx")
-        .join(if cfg!(windows) {"win"} else {"linux"}).join("gmx")
-        .display().to_string()
-}
-
-fn get_built_in_apbs() -> String {
-    env::current_exe().expect("Cannot get current s_mmpbsa program path.")
-        .parent()
-        .expect("Cannot get current s_mmpbsa program directory.")
-        .join("programs").join("apbs")
-        .join(if cfg!(windows) {"win"} else {"linux"}).join("apbs")
+        .join("external")
+        .join("gmx")
         .display().to_string()
 }
 
 fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<String> {
     if let Some(p) = p {
-        let p = if p.eq("built-in") {
-            match name {
-                "gromacs" => get_built_in_gmx(),
-                "apbs" => get_built_in_apbs(),
-                _ => String::from("")
+        let p = if cfg!(windows) {
+            if p.eq("built-in") {
+                match name {
+                    "gromacs" => get_built_in_gmx(),
+                    _ => String::from("")
+                }
+            } else {
+                p.to_string()
             }
         } else {
-            p.to_string()
+            "gmx".to_string()
         };
         if !p.is_empty() {
             if settings.debug_mode {
@@ -249,11 +244,6 @@ fn set_program(p: &Option<String>, name: &str, settings: &Settings) -> Option<St
             match check_program_validity(p.as_str()) {
                 Ok(p) => {
                     println!("Using {}: {}", name, p);
-                    if name.eq("apbs") {
-                        if Path::new("io.mc").is_file() {
-                            fs::remove_file("io.mc").ok();
-                        }
-                    }
                     Some(p)
                 }
                 Err(_) => {
@@ -275,11 +265,8 @@ fn check_program_validity(program: &str) -> Result<String, ()> {
         .output()
         .map_err(|_| ())?;
     
-    // 定义可接受的退出码
-    let valid_codes = [0, 1, 13, 127];
-    
     match output.status.code() {
-        Some(code) if valid_codes.contains(&code) => Ok(program.to_string()),
+        Some(code) if code == 0 => Ok(program.to_string()),
         _ => Err(())
     }
 }
@@ -362,6 +349,5 @@ fn env_check() -> Settings {
         std::process::exit(0);
     }
     settings.gmx_path = set_program(&settings.gmx_path, "gromacs", &settings);
-    settings.apbs_path = set_program(&settings.apbs_path, "apbs", &settings);
     settings
 }
