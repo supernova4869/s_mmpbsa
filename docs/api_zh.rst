@@ -58,7 +58,7 @@ main模块是程序的入口点，负责处理命令行参数、初始化环境�
    // 验证文件是否有效
    fn confirm_file_validity(path: &str) -> bool {}
    
-   // 获取内置程序路径
+   // 获取内置程序路径（仅用于Gromacs 2021之前写出的run input文件）
    fn get_built_in_gmx() -> String {}
 
 mmpbsa模块
@@ -136,10 +136,31 @@ parse_tpr模块
 parse_tpr模块负责解析Gromacs的TPR文件，提取系统的拓扑信息和原子参数。
 
 **主要功能**:
-- 解析TPR文件格式
+- 解析TPR文件格式：Gromacs 2021及以后版本写出的run input文件由内置的gmx-rs-tools读取器直接解析（`TPR::from_run_input`），更老的文件则解析`gmx dump`的文本输出（`TPR::from`）
 - 提取原子类型、电荷、质量等信息
 - 构建系统拓扑结构
 - 提供对拓扑数据的访问接口
+
+gmx模块
+------------
+
+gmx模块取代了对Gromacs命令行工具的调用。这些工具来自内置的gmx-rs-tools crate，在进程内运行；只有Gromacs 2021之前写出的run input文件（gmx-rs-tools无法解析）才会以子进程方式调用`gmx dump`、`gmx trjconv`、`gmx convert-tpr`和`gmx make_ndx`。
+
+**主要功能**:
+
+.. code-block:: rust
+
+   // 读取run input文件描述的系统
+   pub fn load_tpr(tpr_path: &str, settings: &Settings) -> TPR {}
+
+   // 生成run input文件的默认索引分组
+   pub fn make_ndx(options: &[&str], wd: &Path, settings: &Settings, f: &str, n: &str, o: &str) {}
+
+   // 提取与处理轨迹（trjconv）
+   pub fn trjconv(options: &[&str], wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {}
+
+   // 写出子集run input文件（convert-tpr）
+   pub fn convert_tpr(options: &[&str], wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {}
 
 parse_ndx模块
 -------------

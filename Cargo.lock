@@ -606,6 +606,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "gmx-rs-tools"
+version = "0.1.0"
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1167,6 +1171,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored",
+ "gmx-rs-tools",
  "indicatif",
  "lazy_static",
  "ndarray",

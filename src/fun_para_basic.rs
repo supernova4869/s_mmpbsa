@@ -5,7 +5,8 @@ use std::{env, thread};
 use colored::*;
 use crate::parameters::Config;
 use crate::settings::Settings;
-use crate::utils::{get_input, get_input_selection, make_ndx};
+use crate::gmx::make_ndx;
+use crate::utils::{get_input, get_input_selection};
 use crate::{confirm_file_validity, convert_ask_dir};
 use crate::fun_para_system;
 use crate::parse_tpr::TPR;
@@ -38,12 +39,11 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
     }
 }
 
-pub fn set_para_basic_tpr(tpr_dump_path: &String, trj_path: &Option<String>, 
+pub fn set_para_basic_tpr(mut tpr: TPR, trj_path: &Option<String>, 
                             tpr_path: &String, ndx_path: &Option<String>, 
                             config: &Option<Config>, settings: &mut Settings) {
     let mut trj = trj_path.clone().unwrap_or("".to_string());
     let mut ndx = ndx_path.clone().unwrap_or("".to_string());
-    let mut tpr = TPR::from(&tpr_dump_path);
     println!("\nFinished loading tpr file: {}", tpr);
     if config.is_some() {
         settings.calc_mm = config.as_ref().unwrap().program_set.calc_mm;
@@ -61,7 +61,7 @@ pub fn set_para_basic_tpr(tpr_dump_path: &String, trj_path: &Option<String>,
         }
         if !Path::new(&ndx).is_file() {
             println!("{} not found. Generating default index.ndx.", ndx);
-            make_ndx(&vec!["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
+            make_ndx(&["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
         }
         fun_para_system::set_para_trj(&trj, &mut tpr, &ndx, config, &tpr_path, settings);
     }
@@ -105,7 +105,7 @@ pub fn set_para_basic_tpr(tpr_dump_path: &String, trj_path: &Option<String>,
                     trj = "?md.xtc".to_string();
                 }
                 trj = convert_ask_dir(&trj, tpr_path);
-                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "gro", "pdb", "pdbqt"], tpr_dump_path);
+                trj = confirm_file_validity(&mut trj, vec!["xtc", "trr", "gro", "pdb", "pdbqt"], tpr_path);
             }
             Ok(2) => {
                 println!("Input index file path, default: ?index.ndx (\"?\" means the same directory as tpr):");
@@ -118,9 +118,9 @@ pub fn set_para_basic_tpr(tpr_dump_path: &String, trj_path: &Option<String>,
                 }
                 ndx = convert_ask_dir(&ndx, tpr_path);
                 if !Path::new(&ndx).is_file() {
-                    make_ndx(&vec!["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
+                    make_ndx(&["q"], &env::current_dir().unwrap(), settings, &tpr_path, "", &ndx);
                 }
-                ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_dump_path);
+                ndx = confirm_file_validity(&mut ndx, vec!["ndx", "pdbqt"], tpr_path);
             }
             Ok(-10) => break,
             Ok(other) => {

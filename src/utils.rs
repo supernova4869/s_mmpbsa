@@ -1,12 +1,10 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
-use std::io::{self, Write};
+use std::io;
 use std::str::FromStr;
 use std::fmt::Debug;
-use std::process::{Command, ExitStatus, Stdio};
 use ndarray::{Array2, Axis};
 use crate::parse_tpr::Residue;
-use crate::settings::Settings;
 use rand::random_range;
 
 pub fn range2list(range_str: &str) -> Vec<i32> {
@@ -62,50 +60,6 @@ pub fn append_new_name(origin_name: &str, append_name: &str, prefix: &str) -> St
     let file_stem = file_path.file_stem().unwrap();
     let new_name = prefix.to_string() + file_stem.to_str().unwrap() + append_name;
     new_name.to_string()
-}
-
-pub fn cmd_options(settings: &Settings, cmd: &str, options: &Vec<&str>, args: &[&str], wd: &Path) -> Result<ExitStatus, std::io::Error> {
-    if settings.debug_mode {
-        println!("CMD: {} {}", cmd.to_string(), args.join(" "));
-    }
-    let mut child = Command::new(cmd)
-        .args(args)
-        .current_dir(wd)
-        .stdin(Stdio::piped())  // 开启标准输入管道
-        .stdout(if settings.debug_mode { Stdio::inherit() } else { Stdio::null() })  // 将标准输出继承自父进程
-        .spawn()
-        .expect("Failed to start process");
-
-    // 获取stdin的可写句柄
-    if let Some(stdin) = child.stdin.as_mut() {
-        options.iter().for_each(|s| {
-            if settings.debug_mode {
-                println!("Input: {}", s);
-            }
-            writeln!(stdin, "{}", s).unwrap()
-        });
-    }
-
-    // 等待子进程完成
-    child.wait()
-}
-
-pub fn convert_tpr(options: &Vec<&str>, wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {
-    let args = ["convert-tpr", "-s", s, "-n", n, "-o", o, "-quiet"];
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
-pub fn trjconv(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {
-    let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o, "-quiet"].iter().chain(others.iter()).cloned().collect();
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
-}
-
-pub fn make_ndx(options: &Vec<&str>, wd: &Path, settings: &Settings, f: &str, n: &str, o: &str) {
-    let args = match n.is_empty() {
-        true => ["make_ndx", "-f", f, "-o", o, "-quiet"].to_vec(),
-        false => ["make_ndx", "-f", f, "-n", n, "-o", o, "-quiet"].to_vec()
-    };
-    cmd_options(settings, settings.gmx_path.as_ref().unwrap(), options, &args, wd).unwrap();
 }
 
 pub fn resname_3to1(name: &str) -> Option<String> {

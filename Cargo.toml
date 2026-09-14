@@ -6,7 +6,7 @@ authors = ["Jiaxing Zhang <zhangjiaxing7137@tju.edu.cn>"]
 description = "s_mmpbsa - A lite, cross-platform MM-PBSA program"
 
 [workspace]
-members = ["apbs/apbs-generic", "apbs/apbs-mg", "apbs/apbs-pmgc"]
+members = ["apbs/apbs-generic", "apbs/apbs-mg", "apbs/apbs-pmgc", "gmx-rs-tools"]
 resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -29,6 +29,7 @@ clap = { version = "4.0", features = ["derive", "env"] }
 rand = "0.10.1"
 apbs-generic = { path = "apbs/apbs-generic" }
 apbs-mg = { path = "apbs/apbs-mg" }
+gmx-rs-tools = { path = "gmx-rs-tools" }
 
 [target.'cfg(not(target_env = "musl"))'.dependencies]
 plotters = "0.3.5"

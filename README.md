@@ -12,7 +12,7 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 
 ## Features of s_mmpbsa
 - Open source and freely available.
-- Less need for running environment preparation, only needs Gromacs program when running on linux system, and Python environment for plotting.
+- Less need for running environment preparation: PB/SA and the Gromacs tools s_mmpbsa needs have been ported to Rust and are compiled into the executable, so no Gromacs or APBS installation is required. A Python environment is only needed for plotting.
 - In contrast to other programs, s_mmpbsa is developed with Rust.
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
@@ -27,7 +27,7 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 
 ### Basic requirements
 - To use plotting backend, you need to run `sudo apt install libfontconfig1-dev` on Ubuntu.
-- Gromacs: The gromacs program is needed on Linux. On Windows, it has been provided.
+- Gromacs: not needed. The trajectory and run input file handling (`gmx dump`, `gmx trjconv`, `gmx convert-tpr`, `gmx make_ndx`) is performed in-process; see the "Built-in Gromacs tools" section below.
 - PyMOL (optional) to plot the B-factor colored structure.
 
 APBS is currently not needed. PB/SA calculations have been performed in-process totally by the Rust-ported APBS solver (apbs-rs), which has already been compiled into the s_mmpbsa binary.
@@ -115,3 +115,8 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 ## Built-in PBSA solver
 - The Poisson-Boltzmann and surface-area calculations are powered by the Rust-ported APBS solver from https://github.com/supernova4869/apbs-rs, vendored under `apbs/` and compiled directly into the s_mmpbsa executable. No external APBS program or sub-process is used.
 - To refresh the vendored solver code from a local apbs-rs checkout, run `scripts/sync_apbs_rs.sh`.
+
+## Built-in Gromacs tools
+- `gmx dump`, `gmx trjconv`, `gmx convert-tpr` and `gmx make_ndx` are replaced by the Rust port from https://github.com/supernova4869/gmx-rs-tools, vendored under `gmx-rs-tools/` and compiled directly into the s_mmpbsa executable. `src/gmx.rs` is the code that drives it, so no external Gromacs program or sub-process is used.
+- Run input files written by Gromacs 2021 and later (tpx version >= 119) are read directly. Files from older Gromacs versions are still supported, but only by calling the `gmx` program named by `gmx_path` in `settings.ini`, which is empty (turned off) by default. Re-converting such a file once with `gmx convert-tpr -s old.tpr -o new.tpr` makes even that unnecessary.
+- To refresh the vendored tools from a local gmx-rs-tools checkout, run `scripts/sync_gmx_rs_tools.sh`.

@@ -32,7 +32,7 @@ impl Settings {
             radius_type: 3,
             r_cutoff: 0.0,
             fix_pbc: true,
-            gmx_path: Some("gmx".to_string()),
+            gmx_path: None,
             calc_mm: true,
             calc_pbsa: true,
             cfac: 1.5,
@@ -66,8 +66,7 @@ impl Settings {
         };
         let fix_pbc = parse_param(&setting_values, "fix_pbc", "\"y\"".to_string());
         let fix_pbc = get_settings_bool(&fix_pbc);
-        let gmx_path = parse_param(&setting_values, "gmx_path", "\"built-in\"".to_string());
-        let gmx_path = Some(gmx_path[1..gmx_path.len() - 1].to_string());
+        let gmx_path = parse_path_param(&setting_values, "gmx_path");
         let calc_mm = parse_param_any(&setting_values, &["mm", "calc_mm"], "\"y\"".to_string());
         let calc_mm = get_settings_bool(&calc_mm);
         let calc_pbsa = parse_param_any(&setting_values, &["pbsa", "calc_pbsa"], "\"y\"".to_string());
@@ -162,12 +161,46 @@ mod tests {
         assert!(!settings.calc_mm);
         assert!(settings.calc_pbsa);
     }
+
+    #[test]
+    fn gmx_path_is_off_unless_configured() {
+        let unset = value_from("mm = \"y\"\n");
+        assert_eq!(parse_path_param(&unset, "gmx_path"), None);
+        let empty = value_from("gmx_path = \"\"\n");
+        assert_eq!(parse_path_param(&empty, "gmx_path"), None);
+        let set = value_from("gmx_path = \"/opt/gromacs/bin/gmx\"\n");
+        assert_eq!(
+            parse_path_param(&set, "gmx_path"),
+            Some("/opt/gromacs/bin/gmx".to_string())
+        );
+    }
+
+    #[test]
+    fn settings_without_gmx_path_disable_gromacs() {
+        let path = std::env::temp_dir().join("s_mmpbsa_settings_no_gmx.ini");
+        fs::write(&path, "mm = \"y\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(settings.gmx_path.is_none());
+    }
 }
 
 fn parse_param<T: FromStr>(setting_values: &Value, key: &str, default: T) -> T {
     match setting_values.get(key) {
         Some(v) => v.to_string().parse::<T>().unwrap_or(default),
         None => default
+    }
+}
+
+/// Reads a path setting.  A missing key and an empty value both mean "not
+/// configured", so a setting only has to be written into settings.ini when it
+/// is actually needed.
+fn parse_path_param(setting_values: &Value, key: &str) -> Option<String> {
+    let value = setting_values.get(key)?.as_str()?.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
     }
 }
 

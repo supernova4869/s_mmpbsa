@@ -25,9 +25,9 @@ Software Dependencies
 
 ### Basic Dependencies
 
-s_mmpbsa's core functionality requires the following software:
+s_mmpbsa's core functionality does not require any external program:
 
-- **Gromacs**: Used to process molecular dynamics trajectory files. s_mmpbsa has a built-in Gromacs, but also supports using external Gromacs programs. Multiple versions of Gromacs are supported, but it is recommended to use newer versions for the best compatibility.
+- **Gromacs**: Not required. The Gromacs tools s_mmpbsa needs (`gmx dump`, `gmx trjconv`, `gmx convert-tpr` and `gmx make_ndx`) are provided by the Rust port (gmx-rs-tools) compiled into the s_mmpbsa executable. Run input files written by Gromacs 2021 and later are read directly; for files from older Gromacs versions an installed `gmx` program is used, which can be avoided by re-converting the file once with `gmx convert-tpr -s old.tpr -o new.tpr`.
 
 Optional dependencies:
 
@@ -120,7 +120,7 @@ s_mmpbsa's configuration file is `settings.ini`, which contains various setting 
 
 The configuration file contains the following main parameters:
 
-- **gmx_path**: Path to the Gromacs program. If it is "built-in", the program will use the gmx program in /programs/gmx/.
+- **gmx_path**: Path to the Gromacs program. It is empty by default, which disables it: leave it empty unless you have a run input (tpr) file written before Gromacs 2021, which the built-in reader does not support. Such a file can also be converted once with `gmx convert-tpr -s old.tpr -o new.tpr`, after which the setting is not needed at all.
 - **nkernels**: Number of cores used for parallel computing
 - **debug_mode**: Whether to enable debug mode (y/n). When enabled, intermediate files will not be deleted.
 - **r_cutoff**: Cutoff distance for non-bonded interactions. 0 means no cutoff.
@@ -131,11 +131,12 @@ Frequently Asked Questions
 
 ### Gromacs Not Found
 
-If s_mmpbsa cannot find the Gromacs program, please ensure that:
+s_mmpbsa only needs a Gromacs program for run input (tpr) files written before Gromacs 2021, which the built-in reader cannot decode. The `gmx_path` setting is empty (turned off) by default, so either set it correctly in settings.ini:
 
-1. Gromacs is installed correctly
-2. The directory containing the Gromacs executable file has been added to the system environment variable PATH
-3. The gmx_path parameter is set correctly in settings.ini
+1. `gmx_path` is set to the Gromacs program, e.g. `gmx_path = "gmx"` when `gmx` is on the PATH, or an absolute path such as `gmx_path = "/opt/gromacs/bin/gmx"`
+2. The program can be started (check the path, if it is an absolute one)
+
+or re-convert the run input file once with `gmx convert-tpr -s old.tpr -o new.tpr` (using any machine that has Gromacs) and use the converted file, which removes the need for Gromacs entirely.
 
 ### APBS Related Errors
 

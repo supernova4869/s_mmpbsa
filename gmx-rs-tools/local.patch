@@ -1,0 +1,436 @@
+--- a/src/tpr.rs
++++ b/src/tpr.rs
+@@ -221,6 +221,34 @@
+     pub posres_xb: Vec<[f32; 3]>,
+ }
+ 
++/// Force field parameters (`gmx_ffparams_t`).
++///
++/// The first `atnr * atnr` function types are the Lennard-Jones pair
++/// parameters, stored in the same order in which `gmx dump` lists them (and in
++/// which `nbfp[i * atnr + j]` is indexed).
++#[derive(Debug, Clone, Default)]
++pub struct FfParams {
++    /// Number of atom types (`atnr`).
++    pub atnr: usize,
++    /// Function type of every parameter entry, after the `ftupd[]` shift.
++    pub functype: Vec<i32>,
++    /// Parameters of every function type, in file order.  Integer parameters
++    /// (e.g. the table index of a tabulated interaction) are stored as `f64`.
++    pub iparams: Vec<Vec<f64>>,
++}
++
++impl FfParams {
++    /// `(c6, c12)` of the Lennard-Jones function type `i`, when it is a
++    /// short range Lennard-Jones pair (`LJ_SR`).
++    pub fn lj_sr(&self, i: usize) -> Option<(f64, f64)> {
++        if self.functype.get(i).copied() != Some(37) {
++            return None;
++        }
++        let p = self.iparams.get(i)?;
++        Some((*p.first()?, *p.get(1)?))
++    }
++}
++
+ /// Global topology (`gmx_mtop_t`), partially decoded.
+ #[derive(Debug, Clone, Default)]
+ pub struct Mtop {
+@@ -229,6 +257,8 @@
+     pub natoms: usize,
+     pub moltypes: Vec<MolType>,
+     pub molblocks: Vec<MolBlock>,
++    /// Force field parameters, i.e. the `nbfp` array of the run input file.
++    pub ffparams: FfParams,
+     /// Group indices for each `SimulationAtomGroupType`.
+     pub groups: Vec<Vec<i32>>,
+     pub group_names: Vec<String>,
+@@ -754,99 +784,105 @@
+     })
+ }
+ 
+-/// `do_iparams`: advances the reader over the parameters of one function type.
+-fn skip_iparams(r: &mut CReader, ftype: i32) -> Result<()> {
+-    fn reals(r: &mut CReader, n: usize) -> Result<()> {
++/// `do_iparams`: reads the parameters of one function type in file order.
++///
++/// Integer parameters (the table index of a tabulated interaction, the
++/// function type of a restraint, ...) are converted to `f64` so that every
++/// function type is described by a single `Vec<f64>` that callers can index
++/// exactly like `gmx dump` does.
++fn read_iparams(r: &mut CReader, ftype: i32) -> Result<Vec<f64>> {
++    fn reals(r: &mut CReader, n: usize, out: &mut Vec<f64>) -> Result<()> {
+         for _ in 0..n {
+-            let _ = r.real()?;
++            out.push(r.real()?);
+         }
+         Ok(())
+     }
++    let mut out: Vec<f64> = Vec::new();
+     match ftype {
+         // Bonds, GROMOS96Bonds, HarmonicPotential, Angles, GROMOS96Angles,
+         // ImproperDihedrals, RestrictedBendingPotential (modern version).
+-        0 | 1 | 5 | 10 | 11 | 12 | 24 => reals(r, 4),
+-        13 => reals(r, 4),   // LinearAngles
+-        6 => reals(r, 2),    // FENEBonds
+-        9 => reals(r, 8),    // RestraintBonds
++        0 | 1 | 5 | 10 | 11 | 12 | 24 => reals(r, 4, &mut out)?,
++        13 => reals(r, 4, &mut out)?,   // LinearAngles
++        6 => reals(r, 2, &mut out)?,    // FENEBonds
++        9 => reals(r, 8, &mut out)?,    // RestraintBonds
+         7 | 8 | 18 | 26 => {
+             // Tabulated bonds/angles/dihedrals: kA, table, kB
+-            let _ = r.real()?;
+-            let _ = r.int()?;
+-            let _ = r.real()?;
+-            Ok(())
+-        }
+-        14 => reals(r, 3),   // CrossBondBonds
+-        15 => reals(r, 4),   // CrossBondAngles
+-        16 => reals(r, 8),   // UreyBradleyPotential
+-        17 => reals(r, 6),   // QuarticAngles (theta + 5 coefficients)
+-        38 => reals(r, 3),   // BuckinghamShortRange
+-        2 => reals(r, 6),    // MorsePotential
+-        3 => reals(r, 3),    // CubicBonds
+-        4 => Ok(()),         // ConnectBonds
+-        48 => reals(r, 1),   // Polarization
+-        51 => reals(r, 3),   // AnharmonicPolarization
+-        49 => reals(r, 6),   // WaterPolarization
+-        50 => reals(r, 3),   // TholePolarization (no rfac for modern files)
+-        37 => reals(r, 2),   // LennardJonesShortRange
+-        33 => reals(r, 4),   // LennardJones14
+-        35 => reals(r, 5),   // LennardJonesCoulomb14Q
+-        36 => reals(r, 4),   // LennardJonesCoulombNonBondedPairs
++            out.push(r.real()?);
++            out.push(r.int()? as f64);
++            out.push(r.real()?);
++        }
++        14 => reals(r, 3, &mut out)?,   // CrossBondBonds
++        15 => reals(r, 4, &mut out)?,   // CrossBondAngles
++        16 => reals(r, 8, &mut out)?,   // UreyBradleyPotential
++        17 => reals(r, 6, &mut out)?,   // QuarticAngles (theta + 5 coefficients)
++        38 => reals(r, 3, &mut out)?,   // BuckinghamShortRange
++        2 => reals(r, 6, &mut out)?,    // MorsePotential
++        3 => reals(r, 3, &mut out)?,    // CubicBonds
++        4 => {}                         // ConnectBonds
++        48 => reals(r, 1, &mut out)?,   // Polarization
++        51 => reals(r, 3, &mut out)?,   // AnharmonicPolarization
++        49 => reals(r, 6, &mut out)?,   // WaterPolarization
++        50 => reals(r, 3, &mut out)?,   // TholePolarization (no rfac for modern files)
++        37 => reals(r, 2, &mut out)?,   // LennardJonesShortRange
++        33 => reals(r, 4, &mut out)?,   // LennardJones14
++        35 => reals(r, 5, &mut out)?,   // LennardJonesCoulomb14Q
++        36 => reals(r, 4, &mut out)?,   // LennardJonesCoulombNonBondedPairs
+         19 | 25 | 58 | 59 => {
+             // Proper/periodic improper dihedrals, angle restraints
+-            reals(r, 4)?;
+-            let _ = r.int()?;
+-            Ok(())
++            reals(r, 4, &mut out)?;
++            out.push(r.int()? as f64);
+         }
+-        21 => reals(r, 4),   // RestrictedTorsionPotential
++        21 => reals(r, 4, &mut out)?,   // RestrictedTorsionPotential
+         54 => {
+             // DistanceRestraints
+-            let _ = r.int()?;
+-            let _ = r.int()?;
+-            reals(r, 4)
++            out.push(r.int()? as f64);
++            out.push(r.int()? as f64);
++            reals(r, 4, &mut out)?;
+         }
+         56 => {
+             // OrientationRestraints
+-            let _ = r.int()?;
+-            let _ = r.int()?;
+-            let _ = r.int()?;
+-            reals(r, 3)
++            out.push(r.int()? as f64);
++            out.push(r.int()? as f64);
++            out.push(r.int()? as f64);
++            reals(r, 3, &mut out)?;
+         }
+-        60 => reals(r, 6),   // DihedralRestraints
+-        52 => reals(r, 12),  // PositionRestraints (4 rvecs)
++        60 => reals(r, 6, &mut out)?,   // DihedralRestraints
++        52 => reals(r, 12, &mut out)?,  // PositionRestraints (4 rvecs)
+         53 => {
+             // FlatBottomedPositionRestraints
+-            let _ = r.int()?;
+-            reals(r, 5)
++            out.push(r.int()? as f64);
++            reals(r, 5, &mut out)?;
+         }
+-        22 => reals(r, 2 * NR_DIHEDRAL_PARAMS), // CombinedBendingTorsion
+-        20 | 23 => reals(r, 2 * NR_DIHEDRAL_PARAMS), // RB / Fourier dihedrals
+-        62 | 63 => reals(r, 2), // Constraints
+-        64 => reals(r, 2),      // SETTLE
+-        65 => Ok(()),           // VirtualSite1
+-        66 | 67 => reals(r, 1), // VirtualSite2 variants
+-        68 | 69 | 70 => reals(r, 2), // VirtualSite3 variants
+-        71 | 72 | 73 => reals(r, 3), // VirtualSite3Outside / VirtualSite4
++        22 => reals(r, 2 * NR_DIHEDRAL_PARAMS, &mut out)?, // CombinedBendingTorsion
++        20 | 23 => reals(r, 2 * NR_DIHEDRAL_PARAMS, &mut out)?, // RB / Fourier dihedrals
++        62 | 63 => reals(r, 2, &mut out)?, // Constraints
++        64 => reals(r, 2, &mut out)?,      // SETTLE
++        65 => {}                           // VirtualSite1
++        66 | 67 => reals(r, 1, &mut out)?, // VirtualSite2 variants
++        68 | 69 | 70 => reals(r, 2, &mut out)?, // VirtualSite3 variants
++        71 | 72 | 73 => reals(r, 3, &mut out)?, // VirtualSite3Outside / VirtualSite4
+         74 => {
+             // VirtualSiteN
+-            let _ = r.int()?;
+-            reals(r, 1)
++            out.push(r.int()? as f64);
++            reals(r, 1, &mut out)?;
+         }
+-        28 | 29 | 30 => Ok(()), // Implicit solvent (no longer stored)
++        28 | 29 | 30 => {} // Implicit solvent (no longer stored)
+         27 => {
+             // DihedralEnergyCorrectionMap
+-            let _ = r.int()?;
+-            let _ = r.int()?;
+-            Ok(())
++            out.push(r.int()? as f64);
++            out.push(r.int()? as f64);
++        }
++        other => {
++            return Err(XdrError::Invalid(format!(
++                "unknown interaction function type {other} in force field parameters"
++            )))
+         }
+-        other => Err(XdrError::Invalid(format!(
+-            "unknown interaction function type {other} in force field parameters"
+-        ))),
+     }
++    Ok(out)
+ }
+ 
+-fn parse_ffparams(r: &mut CReader, file_version: i32) -> Result<()> {
+-    let _atnr = r.int()?;
++fn parse_ffparams(r: &mut CReader, file_version: i32) -> Result<FfParams> {
++    let atnr = r.int()?;
+     let num_types = r.int()?;
+     if num_types < 0 {
+         return Err(XdrError::Invalid("negative force field type count".into()));
+@@ -863,10 +899,15 @@
+             }
+         }
+     }
++    let mut iparams: Vec<Vec<f64>> = Vec::with_capacity(functype.len());
+     for ft in &functype {
+-        skip_iparams(r, *ft)?;
++        iparams.push(read_iparams(r, *ft)?);
+     }
+-    Ok(())
++    Ok(FfParams {
++        atnr: atnr.max(0) as usize,
++        functype,
++        iparams,
++    })
+ }
+ 
+ /// True when a list of this function type is absent from the file because the
+@@ -979,7 +1020,7 @@
+         .get(out.mtop_name_symidx as usize)
+         .cloned()
+         .unwrap_or_default();
+-    parse_ffparams(r, header.file_version)?;
++    let ffparams = parse_ffparams(r, header.file_version)?;
+     trace("ffparams done", r);
+ 
+     out.moltype_count_offset = r.position();
+@@ -1082,6 +1123,7 @@
+         natoms,
+         moltypes,
+         molblocks,
++        ffparams,
+         groups,
+         group_names,
+         group_numbers,
+--- a/src/cmd/mod.rs
++++ b/src/cmd/mod.rs
+@@ -6,10 +6,73 @@
+ pub mod make_ndx;
+ pub mod trjconv;
+ 
++use std::cell::RefCell;
++use std::collections::VecDeque;
+ use std::fmt::Write as _;
+ 
+ use crate::index::IndexGroup;
+ 
++thread_local! {
++    /// Lines that the tools read instead of standard input.  Installed with
++    /// [`set_scripted_input`] when the front ends are driven from another
++    /// program instead of a terminal.
++    static SCRIPTED_INPUT: RefCell<Option<VecDeque<String>>> =
++        const { RefCell::new(None) };
++}
++
++/// Answers the interactive questions of the tools (index group selections and
++/// `make_ndx` editor commands) from a list of lines instead of standard input.
++///
++/// This exists so that a program can call [`trjconv::run`],
++/// [`convert_tpr::run`] or [`make_ndx::run`] in-process and still choose the
++/// groups; the interactive behaviour is unchanged when no script is
++/// installed.  The script is per thread, and it is consumed in order, one line
++/// per question.  Running out of lines behaves like end of input.
++///
++/// ```no_run
++/// gmx_rs_tools::cmd::set_scripted_input(["Protein", "System"]);
++/// gmx_rs_tools::cmd::trjconv::run(vec!["-f".into(), "traj.xtc".into(), "-o".into(), "out.gro".into()]);
++/// gmx_rs_tools::cmd::clear_scripted_input();
++/// ```
++pub fn set_scripted_input<I, S>(lines: I)
++where
++    I: IntoIterator<Item = S>,
++    S: Into<String>,
++{
++    let queue: VecDeque<String> = lines.into_iter().map(Into::into).collect();
++    SCRIPTED_INPUT.with(|s| *s.borrow_mut() = Some(queue));
++}
++
++/// Removes the script installed by [`set_scripted_input`], restoring the
++/// interactive standard input.
++pub fn clear_scripted_input() {
++    SCRIPTED_INPUT.with(|s| *s.borrow_mut() = None);
++}
++
++/// True while the tools are driven by a script instead of a terminal.
++pub fn is_scripted() -> bool {
++    SCRIPTED_INPUT.with(|s| s.borrow().is_some())
++}
++
++/// Reads one line of input: the next scripted line when a script is installed,
++/// otherwise a line from standard input.  Returns `None` at the end of the
++/// input.
++pub fn read_input_line() -> Option<String> {
++    let scripted = SCRIPTED_INPUT.with(|s| s.borrow_mut().as_mut().and_then(|q| q.pop_front()));
++    if let Some(line) = scripted {
++        return Some(line);
++    }
++    if is_scripted() {
++        // The script ran out: report end of input instead of blocking.
++        return None;
++    }
++    let mut buf = String::new();
++    match std::io::stdin().read_line(&mut buf) {
++        Ok(0) | Err(_) => None,
++        Ok(_) => Some(buf),
++    }
++}
++
+ /// Asks the user to pick an index group, matching `qgroup()`/`rd_groups()`
+ /// from `gromacs/topology/index.cpp`.
+ ///
+@@ -21,29 +84,34 @@
+         eprintln!("Error: no groups in indexfile");
+         return None;
+     }
+-    for (i, g) in groups.iter().enumerate() {
+-        eprintln!(
+-            "Group {:5} ({:15}) has {:5} elements",
+-            i,
+-            g.name,
+-            g.particle_indices.len()
+-        );
++    if !is_scripted() {
++        for (i, g) in groups.iter().enumerate() {
++            eprintln!(
++                "Group {:5} ({:15}) has {:5} elements",
++                i,
++                g.name,
++                g.particle_indices.len()
++            );
++        }
+     }
+     if groups.len() == 1 {
+-        eprintln!("There is one group in the index\n");
++        if !is_scripted() {
++            eprintln!("There is one group in the index\n");
++        }
+         return Some(0);
+     }
+     loop {
+-        eprint!("{prompt} ");
+-        let _ = std::io::stderr().flush();
+-        let mut line = String::new();
+-        match std::io::stdin().read_line(&mut line) {
+-            Ok(0) | Err(_) => {
++        if !is_scripted() {
++            eprint!("{prompt} ");
++            let _ = std::io::stderr().flush();
++        }
++        let line = match read_input_line() {
++            Some(line) => line,
++            None => {
+                 eprintln!("Cannot read from input");
+                 return None;
+             }
+-            Ok(_) => {}
+-        }
++        };
+         let s = line.trim();
+         if s.is_empty() {
+             continue;
+--- a/src/cmd/make_ndx.rs
++++ b/src/cmd/make_ndx.rs
+@@ -708,7 +708,7 @@
+             script.lines().collect()
+         };
+         let mut li = 0usize;
+-        let mut print_once = true;
++        let mut print_once = !crate::cmd::is_scripted();
+         let mut newgroup: i32 = NOTSET;
+         loop {
+             if self.verbose || print_once || newgroup != NOTSET {
+@@ -719,20 +719,18 @@
+                 self.print_menu();
+                 print_once = false;
+             }
+-            println!("\n> ");
++            if !crate::cmd::is_scripted() {
++                println!("\n> ");
++            }
+             let line = if li < lines.len() {
+                 let l = lines[li];
+                 li += 1;
+                 l.to_string()
+             } else {
+-                let mut buf = String::new();
+-                if std::io::stdin().read_line(&mut buf).is_err() {
+-                    break;
+-                }
+-                if buf.is_empty() {
+-                    break;
++                match crate::cmd::read_input_line() {
++                    Some(buf) => buf,
++                    None => break,
+                 }
+-                buf
+             };
+             let trimmed = line.trim_end_matches(['\n', '\r']);
+             let mut string = trimmed;
+--- a/src/cmd/trjconv.rs
++++ b/src/cmd/trjconv.rs
+@@ -1009,14 +1009,11 @@
+         }
+         if !b_set_prec && fr.prec.is_some() {
+             // -ndec not given: keep the input XTC precision.
+-            let mut p = fr.prec.unwrap();
+-            if out_format == TrxFormat::Xtc {
+-                let mut q = 1.0f32;
+-                while q < p {
+-                    q *= 10.0;
+-                }
+-                p = q;
+-            }
++            // GROMACS copies `fr.prec` (the multiplication factor stored in
++            // the compressed coordinate block) straight into the output
++            // frame, so a trajectory is re-encoded at the precision it was
++            // written with instead of the next power of ten above it.
++            let p = fr.prec.unwrap();
+             if let TrxWriter::Xtc { prec, .. } = &mut writer {
+                 *prec = p;
+             }

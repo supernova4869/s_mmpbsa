@@ -1,0 +1,16 @@
+[package]
+name = "gmx-rs-tools"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal Rust re-implementation of selected GROMACS tools (dump, trjconv, convert-tpr, make_ndx)"
+license = "LGPL-2.1-or-later"
+
+[lib]
+name = "gmx_rs_tools"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gmx-rs-tools"
+path = "src/main.rs"
+
+[dependencies]

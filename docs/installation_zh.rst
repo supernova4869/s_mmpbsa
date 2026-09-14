@@ -24,9 +24,9 @@ s_mmpbsa支持以下操作系统：
 
 ### 基本依赖
 
-s_mmpbsa的核心功能需要以下软件：
+s_mmpbsa的核心功能不依赖任何外部程序：
 
-- **Gromacs**：用于处理分子动力学轨迹文件。s_mmpbsa内置了Gromacs，但也支持使用外部Gromacs程序。支持多个版本的Gromacs，但建议使用较新版本以获得最佳兼容性。
+- **Gromacs**：不需要。s_mmpbsa所需的Gromacs工具（`gmx dump`、`gmx trjconv`、`gmx convert-tpr`、`gmx make_ndx`）已由Rust移植版（gmx-rs-tools）实现并编译进s_mmpbsa可执行文件。Gromacs 2021及以后版本写出的run input文件可直接读取；更老版本的文件仍会调用系统中安装的`gmx`程序，可用`gmx convert-tpr -s old.tpr -o new.tpr`转换一次来彻底摆脱对Gromacs的依赖。
 
 可选依赖：
 
@@ -119,7 +119,7 @@ s_mmpbsa的配置文件为`settings.ini`，该文件包含了程序的各种设�
 
 配置文件中包含以下主要参数：
 
-- **gmx_path**：Gromacs程序的路径。如果为"built-in"，程序将使用/programs/gmx/中的gmx程序。
+- **gmx_path**：Gromacs程序的路径。默认为空，即不启用：只有在需要读取Gromacs 2021之前写出的run input（tpr）文件时才需要填写（内置读取器不支持这类文件）。这类文件也可以先用`gmx convert-tpr -s old.tpr -o new.tpr`转换一次，之后就不再需要该设置。
 - **nkernels**：并行计算使用的核心数
 - **debug_mode**：是否启用调试模式(y/n)。启用后，中间文件不会删除。
 - **r_cutoff**：非键相互作用的截断距离。0为不截断。
@@ -130,11 +130,12 @@ s_mmpbsa的配置文件为`settings.ini`，该文件包含了程序的各种设�
 
 ### Gromacs未找到
 
-如果s_mmpbsa无法找到Gromacs程序，请确保：
+s_mmpbsa只在读取Gromacs 2021之前写出的run input（tpr）文件时才需要Gromacs程序，因为内置读取器无法解析这些文件。`gmx_path`默认为空（不启用），因此要么在settings.ini中正确设置：
 
-1. Gromacs已正确安装
-2. Gromacs的可执行文件所在目录已添加到系统环境变量PATH中
-3. 在settings.ini中正确设置了gmx_path参数
+1. `gmx_path`指向Gromacs程序，例如gmx已在PATH中时设置为`gmx_path = "gmx"`，或使用绝对路径如`gmx_path = "/opt/gromacs/bin/gmx"`
+2. 该程序可以正常启动（若为绝对路径，请检查路径是否正确）
+
+或者在有Gromacs的机器上执行一次`gmx convert-tpr -s old.tpr -o new.tpr`转换该文件，之后使用转换后的文件即可完全不需要Gromacs。
 
 ### APBS相关错误
 

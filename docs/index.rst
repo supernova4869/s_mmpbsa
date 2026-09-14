@@ -30,7 +30,7 @@ Features
 --------
 
 - Open source and free, under the LGPL license
-- Minimal environment dependencies, only requiring Gromacs on Linux systems; Python environment needed for plotting functionality
+- Minimal environment dependencies: the Gromacs tools and the PB/SA solver are built into the executable; a Python environment is only needed for plotting functionality
 - Developed in Rust language for excellent performance
 - Interactive operation, no need to write parameter files
 - Considers charge screening effects, as described in literature [J. Chem. Inf. Model. 2021, 61, 2454]

@@ -16,7 +16,7 @@ use crate::parse_ndx::{Index, IndexGroup};
 use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
-use crate::utils::{convert_tpr, trjconv};
+use crate::gmx::{convert_tpr, trjconv};
 use crate::read_xtc::read_xtc;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Option<Config>, 
@@ -338,13 +338,13 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
-        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), 
+        trjconv(&["Complex"], &env::current_dir().unwrap(), 
             settings, &trj, &tpr_path, &ndx_mmpbsa, &trj_mmpbsa, 
             &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "whole"]);
         
         // step 3: extract new tpr from old tpr
         let tpr_mmpbsa = append_new_name(&tpr_path, ".tpr", ".MMPBSA_"); // get extracted tpr file name
-        convert_tpr(&vec!["Complex"], &env::current_dir().unwrap(), settings, &tpr_path, &ndx_mmpbsa, &tpr_mmpbsa);
+        convert_tpr(&["Complex"], &env::current_dir().unwrap(), settings, &tpr_path, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
         // must normalize index here after trajectory extracion, or the traj may contain less atoms
@@ -374,14 +374,14 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         
         // 生成初始结构方便查看
         let init_struct = append_new_name(trj, "_struct.gro", ".MMPBSA_"); // get trj output file name
-        trjconv(&vec!["Complex"], &env::current_dir().unwrap(), settings, 
+        trjconv(&["Complex"], &env::current_dir().unwrap(), settings, 
             &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
         
         // fix pbc with new tpr and new index
         if fix_pbc {
             let trj_mmpbsa_nopbc = append_new_name(&trj_mmpbsa, "_nopbc.xtc", "");
             fs::rename(&trj_mmpbsa, &trj_mmpbsa_nopbc).unwrap();
-            trjconv(&vec!["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), 
+            trjconv(&["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), 
                 settings, &trj_mmpbsa_nopbc, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, 
                 &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
         }

@@ -59,7 +59,8 @@ The main module is the program's entry point, responsible for handling command l
    // Verify file validity
    fn confirm_file_validity(path: &str) -> bool {}
    
-   // Get built-in program path
+   // Get built-in program path (only used for run input files from Gromacs
+   // versions older than 2021)
    fn get_built_in_gmx() -> String {}
 
 mmpbsa Module
@@ -137,10 +138,31 @@ parse_tpr Module
 The parse_tpr module is responsible for parsing Gromacs TPR files and extracting system topology information and atomic parameters.
 
 **Main Functions**:
-- Parse TPR file format
+- Parse TPR file format: run input files written by Gromacs 2021 and later are read directly through the vendored gmx-rs-tools reader (`TPR::from_run_input`), older ones through the text of `gmx dump` (`TPR::from`)
 - Extract atomic types, charges, masses, etc.
 - Build system topology structure
 - Provide access interface to topology data
+
+gmx Module
+------------
+
+The gmx module replaces the calls to the Gromacs command line tools. The tools come from the vendored gmx-rs-tools crate and run in-process; `gmx dump`, `gmx trjconv`, `gmx convert-tpr` and `gmx make_ndx` are only executed as sub-processes for run input files from Gromacs versions older than 2021, which gmx-rs-tools cannot decode.
+
+**Main Functions**:
+
+.. code-block:: rust
+
+   // Load the system description of a run input file
+   pub fn load_tpr(tpr_path: &str, settings: &Settings) -> TPR {}
+
+   // Generate the default index groups of a run input file
+   pub fn make_ndx(options: &[&str], wd: &Path, settings: &Settings, f: &str, n: &str, o: &str) {}
+
+   // Extract and manipulate a trajectory (trjconv)
+   pub fn trjconv(options: &[&str], wd: &Path, settings: &Settings, f: &str, s: &str, n: &str, o: &str, others: &[&str]) {}
+
+   // Write a subset run input file (convert-tpr)
+   pub fn convert_tpr(options: &[&str], wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {}
 
 parse_ndx Module
 ------------

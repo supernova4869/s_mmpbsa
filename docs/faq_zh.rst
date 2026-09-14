@@ -6,13 +6,12 @@
 安装问题
 --------
 
-Q: 安装s_mmpbsa后，运行时提示找不到Gromacs，应该如何解决？
+Q: 安装s_mmpbsa后，运行时提示我的run input文件需要Gromacs，应该如何解决？
 
-A: 这个问题通常是因为系统中没有正确安装Gromacs或者Gromacs的可执行文件没有添加到系统路径中。您可以通过以下方法解决：
+A: s_mmpbsa只在读取Gromacs 2021之前写出的run input（tpr）文件时才需要Gromacs程序，因为内置读取器无法解析这些文件。`gmx_path`默认为空（不启用），可任选以下一种方法解决：
 
-1. 确保已经正确安装了Gromacs（建议版本5.1或更高）
-2. 将Gromacs的bin目录添加到系统的PATH环境变量中
-3. 或者在s_mmpbsa的settings.ini文件中手动指定Gromacs的路径
+1. 在s_mmpbsa的settings.ini中把`gmx_path`设置为Gromacs程序，例如`gmx_path = "gmx"`（gmx已在PATH中时）或绝对路径`gmx_path = "/opt/gromacs/bin/gmx"`
+2. 或者在装有Gromacs的机器上执行一次`gmx convert-tpr -s old.tpr -o new.tpr`转换该文件并使用转换后的文件，之后完全不需要Gromacs
 
 Windows系统的settings.ini文件通常位于s_mmpbsa的安装目录下，Linux系统的settings.ini文件通常位于~/.config/s_mmpbsa/目录下。
 

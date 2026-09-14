@@ -7,13 +7,12 @@ This document answers common questions that users may encounter when using s_mmp
 Installation Issues
 --------
 
-Q: After installing s_mmpbsa, I get a "Gromacs not found" error when running it. How to solve this?
+Q: After installing s_mmpbsa, I get a message that Gromacs is needed for my run input file. How to solve this?
 
-A: This issue is usually because Gromacs is not correctly installed in the system or the Gromacs executable file is not added to the system path. You can solve it through the following methods:
+A: s_mmpbsa only needs a Gromacs program for run input (tpr) files written before Gromacs 2021, because the built-in reader cannot decode those files. The `gmx_path` setting is empty (turned off) by default, so pick one of:
 
-1. Ensure that Gromacs is correctly installed (version 5.1 or higher recommended)
-2. Add the bin directory of Gromacs to the system PATH environment variable
-3. Or manually specify the path of Gromacs in s_mmpbsa's settings.ini file
+1. Set `gmx_path` in s_mmpbsa's settings.ini to the Gromacs program, for example `gmx_path = "gmx"` when `gmx` is on the PATH, or an absolute path such as `gmx_path = "/opt/gromacs/bin/gmx"`
+2. Or re-convert the run input file once with `gmx convert-tpr -s old.tpr -o new.tpr` (on a machine that has Gromacs) and use the converted file; no Gromacs is needed afterwards
 
 The settings.ini file for Windows systems is usually located in the installation directory of s_mmpbsa, and for Linux systems, it is usually located in the ~/.config/s_mmpbsa/ directory.
 

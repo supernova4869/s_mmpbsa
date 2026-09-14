@@ -50,6 +50,132 @@ impl fmt::Display for TPR {
 }
 
 impl TPR {
+    /// Builds the system description straight out of a run input file, using
+    /// the vendored `gmx-rs-tools` reader instead of parsing `gmx dump` text.
+    ///
+    /// This is the path taken for run input files GROMACS 2021 and later wrote
+    /// (tpx version >= 119); older files are rejected here and are handled
+    /// through [`TPR::from`] after `gmx dump`, see `crate::gmx`.
+    pub fn from_run_input(tpr_path: &str) -> Result<TPR, String> {
+        use gmx_rs_tools::tpr as rs;
+
+        let file = rs::TprFile::read(tpr_path).map_err(|e| e.to_string())?;
+        let body = rs::parse_body(&file.header, &file.body).map_err(|e| e.to_string())?;
+        let mtop = body.mtop.ok_or("the run input file does not contain a topology")?;
+        let coordinates = body.x.ok_or("the run input file does not contain coordinates")?;
+
+        println!("Loading run input file: {}\n", tpr_path);
+
+        // The name gets its spaces replaced, exactly like the text parser did.
+        let name = mtop.name.replace(" ", "_");
+        println!("System name: {}", name);
+        println!("Total atoms number: {}", mtop.natoms);
+
+        // Lennard-Jones parameters of every atom type pair, in the order of
+        // `nbfp` (`gmx dump` prints them as `functype[i]=LJ_SR`).
+        let atnr = mtop.ffparams.atnr;
+        let mut lj_sr_params: Vec<LJType> = Vec::with_capacity(atnr * atnr);
+        let mut radius: Vec<f64> = Vec::with_capacity(atnr);
+        const INV_SIX: f64 = 1.0 / 6.0;
+        println!("Total atom types: {}.", atnr);
+        for i in 0..atnr {
+            let mut diagonal: Option<(f64, f64)> = None;
+            for j in 0..atnr {
+                if let Some((c6, c12)) = mtop.ffparams.lj_sr(i * atnr + j) {
+                    lj_sr_params.push(LJType::new(c6, c12));
+                    if i == j {
+                        diagonal = Some((c6, c12));
+                    }
+                }
+            }
+            match diagonal {
+                Some((c6, c12)) if c6 != 0.0 && c12 != 0.0 => {
+                    let sigma = 10.0 * (c12 / c6).powf(INV_SIX);
+                    radius.push(sigma / 2.0);
+                }
+                _ => radius.push(1.5),
+            }
+        }
+        println!("Total LJ function types: {}", lj_sr_params.len());
+
+        let molecule_blocks: Vec<MolBlock> = mtop.molblocks.iter().enumerate()
+            .map(|(id, mb)| MolBlock::new(
+                id,
+                mtop.moltypes.get(mb.moltype_index.max(0) as usize)
+                    .map(|mt| mt.name.clone()).unwrap_or_default(),
+                mb.nmol as i64))
+            .collect();
+        println!("System molecular blocks:");
+        for mol in &molecule_blocks {
+            println!("{}", mol);
+        }
+
+        // The text parser numbered atoms globally, i.e. continuing across the
+        // molecule types, and `.ff_radius.dat` is written in that same order.
+        let mut molecule_types: Vec<MoleculeType> = Vec::with_capacity(mtop.moltypes.len());
+        let mut ff_radii: Vec<f64> = Vec::with_capacity(mtop.natoms);
+        let mut offset = 0usize;
+        for (molecule_type_id, mt) in mtop.moltypes.iter().enumerate() {
+            let atoms: Vec<Atom> = mt.atoms.atom.iter().enumerate()
+                .map(|(i, a)| {
+                    let type_id = a.type_id as usize;
+                    let r = radius.get(type_id).copied().unwrap_or(1.5);
+                    ff_radii.push(r);
+                    Atom::new(
+                        i + offset,
+                        &a.atom_type,
+                        type_id,
+                        a.charge,
+                        a.resind.max(0) as usize,
+                        a.name.clone(),
+                        r,
+                    )
+                })
+                .collect();
+            let residues: Vec<Residue> = mt.atoms.resinfo.iter().enumerate()
+                .map(|(id, ri)| Residue::new(id, ri.name.clone(), ri.nr))
+                .collect();
+            offset += mt.atoms.nr();
+            molecule_types.push(MoleculeType::new(
+                molecule_type_id, mt.name.clone(), mt.atoms.nr(), &atoms, &residues));
+        }
+
+        println!("Backup force field radius...");
+        write_ff_radius(&ff_radii);
+
+        println!("System molecular types:");
+        for mol in &molecule_types {
+            println!("Molecule type {}: {}", mol.molecule_type_id, mol);
+        }
+
+        // `ref-t` is not part of the decoded inputrec prefix; the ensemble
+        // temperature is the same value whenever every T-coupling group has
+        // the same reference temperature (and it is -1 otherwise, which the
+        // MM-PBSA parameters then report as "unknown").
+        let temp = body.ir.as_ref()
+            .map(|ir| ir.ensemble_temperature)
+            .filter(|t| *t > 0.0)
+            .unwrap_or(0.0);
+
+        let coordinates: Vec<f64> = coordinates.iter()
+            .flat_map(|x| [x[0] as f64 * 10.0, x[1] as f64 * 10.0, x[2] as f64 * 10.0])
+            .collect();
+        println!("Reading coordinate information...");
+
+        Ok(TPR {
+            name,
+            n_atoms: mtop.natoms,
+            molecule_blocks_num: molecule_blocks.len(),
+            molecule_blocks,
+            atom_types_num: atnr,
+            lj_sr_params,
+            molecule_types,
+            temp,
+            coordinates: Array2::from_shape_vec((mtop.natoms, 3), coordinates)
+                .expect("Unable to arrange run input file coordinates."),
+        })
+    }
+
     pub fn from(dump: &str) -> TPR {
         let mut name = String::new();
         let mut atoms_num = 0;
@@ -106,17 +232,7 @@ impl TPR {
             }
         }
 
-        println!("Backup force field radius...");
-        let ff_dat = &env::current_dir().unwrap().join(".ff_radius.dat");
-        if ff_dat.is_file() {
-            std::fs::remove_file(&ff_dat).unwrap();
-        }
-        let ff_file = File::create(ff_dat).unwrap();
-        let mut writer = BufWriter::new(ff_file);
-        for r in &atom_radii {
-            writeln!(writer, "{:.2}", r).unwrap();
-        }
-        writer.flush().unwrap();
+        write_ff_radius(&atom_radii);
 
         println!("System molecular types:");
         for mol in &molecule_types {
@@ -135,6 +251,22 @@ impl TPR {
             coordinates: Array2::from_shape_vec((atoms_num, 3), coordinates).unwrap()
         }
     }
+}
+
+/// Stores the force field radii of every atom, in molecule type order, for the
+/// `ff` radius type.
+fn write_ff_radius(radii: &[f64]) {
+    println!("Backup force field radius...");
+    let ff_dat = &env::current_dir().unwrap().join(".ff_radius.dat");
+    if ff_dat.is_file() {
+        std::fs::remove_file(&ff_dat).unwrap();
+    }
+    let ff_file = File::create(ff_dat).unwrap();
+    let mut writer = BufWriter::new(ff_file);
+    for r in radii {
+        writeln!(writer, "{:.2}", r).unwrap();
+    }
+    writer.flush().unwrap();
 }
 
 pub struct MolBlock {
