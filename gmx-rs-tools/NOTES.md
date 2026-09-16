@@ -104,7 +104,7 @@ tools (`trjconv`, `dump -f` and `coords`) draw a progress bar with the
 `indicatif` crate (`progress.rs`):
 
 ```text
-[00:00:24] ===============================>------------------ 64/100 frame       6  t=  5000.000 ps
+[00:00:24] ==========================>----------------------- 6/11 t=  4000.000 ps
 ```
 
 * It is written to standard error, so it never mixes with the data a tool
@@ -112,18 +112,22 @@ tools (`trjconv`, `dump -f` and `coords`) draw a progress bar with the
 * The layout is the one of `utils::set_style`, the template s_mmpbsa prints its
   own bars with, but the bar is drawn with `utils::set_style_plain`: it keeps
   the colour of the surrounding output instead of forcing its own, because
-  s_mmpbsa greys the terminal while it extracts trajectories.  When the total
-  is not known the counters-only variant of `utils` is used instead.
+  s_mmpbsa greys the terminal while it extracts trajectories.  The `pos/len`
+  fields are the frame counter and the number of frames in the input; when the
+  count is not taken (see below) the counters-only variant of `utils` is used
+  instead and the message carries the frame number.
 * `indicatif` only draws on a terminal, so redirecting standard error gives
   exactly the message stream that the parity tests compare.  A host program
   can call `progress::set_enabled(false)` to switch the bars off, or
   `progress::set_enabled(true)` to force them on by drawing them on `/dev/tty`
   (useful when the output is piped, e.g. `... 2>&1 | tee log`).
-* `trjconv`/`coords` measure progress against the requested time window when
-  `-e` is given, and against the number of bytes read from the trajectory
-  otherwise (which is what "convert the whole file" means).  Frames that are
-  read but not written (before `-b`, or after the last frame of the window)
-  still advance the bar, as they do in GROMACS.
+* The total of the bar is `trx::frame_count()`, which walks the frame headers
+  of an `xtc`/`trr` input and skips the payload of every frame, so counting a
+  trajectory much larger than memory costs one pass over the headers and no
+  decoding.  It is only taken when the bar is drawn (`progress::is_enabled()`),
+  which keeps piped runs and the parity tests away from the extra pass.
+* Frames that are read but not written (before `-b`, or after the last frame of
+  the window) still advance the bar, as they do in GROMACS.
 * The bar is finished and cleared while the index group prompts are printed and
   a fresh one is started for the frame loop, so the prompts and the final
   `Last written:` line never mix with the bar.

@@ -4,7 +4,9 @@
 use gmx_rs_tools::frame::{Atom, Atoms, Frame, PbcType, ResInfo};
 use gmx_rs_tools::index::{self, IndexGroup};
 use gmx_rs_tools::{gro, tpr, trr, xdr, xtc};
-use gmx_rs_tools::trx::{read_coordinates, CoordinateReader, FrameRange};
+use gmx_rs_tools::trx::{
+    frame_count, read_coordinates, read_frames, CoordinateReader, FrameRange,
+};
 
 fn sample_frame(n: usize, seed: f32) -> Frame {
     let mut f = Frame::new(n);
@@ -387,4 +389,36 @@ fn old_tpr_versions_parse() {
     } else {
         assert_eq!(checked, 5);
     }
+}
+
+/// The frame count of a trajectory is what the progress bars show as their
+/// total, so it has to agree with the frames the readers actually return.
+#[test]
+fn frame_count_matches_the_frames_that_are_read() {
+    let xtc_path = std::env::temp_dir().join("gmx-rs-tools-frame_count.xtc");
+    let mut w = xdr::Writer::new();
+    for f in 0..7 {
+        let mut frame = sample_frame(12, f as f32);
+        frame.time = Some(f as f64);
+        xtc::write_frame(&mut w, &frame, 1000.0);
+    }
+    std::fs::write(&xtc_path, w.into_vec()).unwrap();
+    let xtc_path = xtc_path.to_str().unwrap();
+    assert_eq!(frame_count(xtc_path).unwrap(), 7);
+    assert_eq!(frame_count(xtc_path).unwrap(), read_frames(xtc_path).unwrap().1.len());
+
+    let trr_path = std::env::temp_dir().join("gmx-rs-tools-frame_count.trr");
+    let mut w = xdr::Writer::new();
+    for f in 0..5 {
+        let mut frame = sample_frame(12, f as f32);
+        frame.time = Some(f as f64);
+        trr::write_frame(&mut w, &frame);
+    }
+    std::fs::write(&trr_path, w.into_vec()).unwrap();
+    let trr_path = trr_path.to_str().unwrap();
+    assert_eq!(frame_count(trr_path).unwrap(), 5);
+    assert_eq!(frame_count(trr_path).unwrap(), read_frames(trr_path).unwrap().1.len());
+
+    std::fs::remove_file(xtc_path).ok();
+    std::fs::remove_file(trr_path).ok();
 }

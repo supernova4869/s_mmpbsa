@@ -57,19 +57,19 @@ use crate::cmd::select_group as require_group;
 
 /// The frame progress of a running conversion.
 ///
-/// Progress is measured against the requested time window when one was given
-/// (`-b`/`-e`), and against the position in the input file otherwise, which is
-/// what "converting the whole trajectory" means.
+/// Progress is the frame counter of the input trajectory.
 struct FrameProgress {
     bar: Progress,
-    time_window: Option<(f64, f64)>,
+    /// Number of frames of the input, or zero when it was not counted because
+    /// the bar is not drawn.
+    total: u64,
 }
 
 impl FrameProgress {
-    fn new(time_window: Option<(f64, f64)>) -> Self {
+    fn new(total: u64) -> Self {
         FrameProgress {
             bar: Progress::new(),
-            time_window,
+            total,
         }
     }
 
@@ -77,17 +77,8 @@ impl FrameProgress {
     ///
     /// The state is updated for every frame so that the final draw is exact;
     /// `Progress` throttles the redraws itself.
-    fn tick(&mut self, source: &mut trx::FrameSource, frames: u64, time: f64) {
-        let fraction = match self.time_window {
-            // A window with an unbounded end (`-e inf`, which is how "the whole
-            // trajectory" is passed in) carries no information about how far
-            // along the conversion is, so the position in the file is used.
-            Some((start, end)) if end.is_finite() && end > start => {
-                Some(((time - start) / (end - start)).clamp(0.0, 1.0))
-            }
-            _ => source.read_progress().and_then(|p| p.fraction()),
-        };
-        self.bar.update(fraction, frames, time);
+    fn tick(&mut self, frames: u64, time: f64) {
+        self.bar.update(frames, self.total, time);
     }
 
     fn suspend(&mut self) {
@@ -477,14 +468,19 @@ pub fn run(argv: Vec<String>) -> i32 {
             return 1;
         }
     };
-    // A bounded `-e` gives an exact fraction to report; otherwise the bar
-    // follows how much of the input file has been read.
-    let mut progress = FrameProgress::new(if b_end { Some((tbegin, tend)) } else { None });
+    // The bar counts the frames of the input; the count is a pass over the
+    // frame headers and is therefore only taken when the bar is drawn.
+    let frames_in_input = if crate::progress::is_enabled() {
+        trx::frame_count(&in_file).unwrap_or(0) as u64
+    } else {
+        0
+    };
+    let mut progress = FrameProgress::new(frames_in_input);
     // Frames before -b are skipped while reading, like read_first_frame().
     let mut first_frame = loop {
         match source.next_frame() {
             Ok(Some(f)) => {
-                progress.tick(&mut source, 0, f.time.unwrap_or(0.0));
+                progress.tick(0, f.time.unwrap_or(0.0));
                 if b_begin && f.time.unwrap_or(0.0) < tbegin {
                     continue;
                 }
@@ -500,10 +496,6 @@ pub fn run(argv: Vec<String>) -> i32 {
             }
         }
     };
-    if b_end && !b_begin {
-        // Without -b the window starts at the first frame that is read.
-        progress.time_window = Some((first_frame.time.unwrap_or(0.0), tend));
-    }
     // The run input file is read and the groups are picked next; the bar has
     // to stop drawing before the first of those messages, otherwise they would
     // be printed on top of it.  It starts again for the frame loop.
@@ -870,7 +862,7 @@ pub fn run(argv: Vec<String>) -> i32 {
         }
     } {
         n_frames += 1;
-        progress.tick(&mut source, n_frames as u64, fr.time.unwrap_or(0.0));
+        progress.tick(n_frames as u64, fr.time.unwrap_or(0.0));
         let t_process_start = std::time::Instant::now();
         // -e stops reading (and writing) beyond the requested end time.
         if b_end && fr.time.unwrap_or(0.0) > tend {

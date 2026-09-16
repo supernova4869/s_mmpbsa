@@ -18,9 +18,6 @@ use indicatif::{ProgressBar, ProgressDrawTarget};
 
 /// Redraw rate of the bar, in hertz.
 const REFRESH_HZ: u8 = 10;
-/// Length the fraction is scaled to; `utils::set_style` prints it as the
-/// `pos/len` fields of the bar, so this reads as a percentage.
-const LENGTH: u64 = 100;
 
 /// Program wide switch: 0 = not set, 1 = forced on, 2 = forced off.
 static ENABLED: AtomicU8 = AtomicU8::new(0);
@@ -36,6 +33,24 @@ pub fn set_enabled(enabled: bool) {
     ENABLED.store(if enabled { 1 } else { 2 }, Ordering::Relaxed);
 }
 
+/// Whether the bars are drawn.
+///
+/// This is what [`set_enabled`] installed; without it the terminal decides,
+/// see [`Progress::new`].
+pub fn is_enabled() -> bool {
+    enabled()
+}
+
+fn enabled() -> bool {
+    match ENABLED.load(Ordering::Relaxed) {
+        1 => true,
+        2 => false,
+        // `indicatif` only draws when standard error is a terminal, so the
+        // decision can be left to it as well.
+        _ => std::io::stderr().is_terminal(),
+    }
+}
+
 /// Draws the frame progress of a running conversion.
 pub struct Progress {
     bar: Option<ProgressBar>,
@@ -46,37 +61,36 @@ pub struct Progress {
 impl Progress {
     /// Creates a bar that follows [`set_enabled`] and the terminal.
     pub fn new() -> Self {
-        let enabled = match ENABLED.load(Ordering::Relaxed) {
-            1 => true,
-            2 => false,
-            // `indicatif` only draws when standard error is a terminal, so the
-            // decision can be left to it as well.
-            _ => std::io::stderr().is_terminal(),
-        };
         Progress {
             bar: None,
-            enabled,
+            enabled: enabled(),
             spinner: false,
         }
     }
 
-    /// Reports progress: `fraction` of the requested work is done, `frames`
-    /// frames have been processed and the current frame is at `time`.
+    /// Reports progress: `frames` frames have been processed out of `total`
+    /// and the current frame is at `time`.
     ///
-    /// A `None` fraction (the total is unknown) draws the counters only.
-    pub fn update(&mut self, fraction: Option<f64>, frames: u64, time: f64) {
+    /// The `pos/len` fields of the bar are the frame counter and the number of
+    /// frames in the input, so a `total` of zero (unknown, e.g. because the
+    /// count was not taken) draws the frame counter of the message only.
+    pub fn update(&mut self, frames: u64, total: u64, time: f64) {
         if !self.enabled {
             return;
         }
-        let message = format!("frame {frames:>7}  t={time:>10.3} ps");
-        let spinner = fraction.is_none();
+        let spinner = total == 0;
+        let message = if spinner {
+            format!("frame {frames:>7}  t={time:>10.3} ps")
+        } else {
+            format!("t={time:>10.3} ps")
+        };
         match &self.bar {
             Some(bar) => {
                 if self.spinner != spinner {
                     self.spinner = spinner;
                     apply_style(bar, spinner);
                 }
-                set_position(bar, fraction);
+                set_position(bar, frames, total);
                 bar.set_message(message);
                 if spinner {
                     bar.tick();
@@ -88,13 +102,22 @@ impl Progress {
                 // instead of an empty bar.
                 let bar = ProgressBar::hidden();
                 apply_style(&bar, spinner);
-                set_position(&bar, fraction);
+                set_position(&bar, frames, total);
                 bar.set_message(message);
                 bar.set_draw_target(draw_target());
                 self.bar = Some(bar);
                 self.spinner = spinner;
             }
         }
+    }
+
+    /// True when the bar is actually drawn.
+    ///
+    /// Callers that have to do extra work for the bar (counting the frames of
+    /// the input, which is a pass over the file) can use this to skip it when
+    /// nothing is drawn anyway, the way it happens when the output is piped.
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
     }
 
     /// Removes the bar so that other messages get a clean line.
@@ -137,11 +160,11 @@ fn draw_target() -> ProgressDrawTarget {
     terminal_target().unwrap_or_else(|| ProgressDrawTarget::stderr_with_hz(REFRESH_HZ))
 }
 
-/// Scales `fraction` to the length of the bar.
-fn set_position(bar: &ProgressBar, fraction: Option<f64>) {
-    if let Some(fraction) = fraction {
-        bar.set_length(LENGTH);
-        bar.set_position((fraction.clamp(0.0, 1.0) * LENGTH as f64).round() as u64);
+/// Scales the bar to the frame counter.
+fn set_position(bar: &ProgressBar, frames: u64, total: u64) {
+    if total > 0 {
+        bar.set_length(total);
+        bar.set_position(frames.min(total));
     }
 }
 

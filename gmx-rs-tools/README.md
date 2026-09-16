@@ -75,14 +75,16 @@ While frames are being read, `trjconv`, `dump -f` and `coords` draw a progress
 bar on standard error:
 
 ```text
-[00:00:24] ===============================>------------------ 64/100 frame       6  t=  5000.000 ps
+[00:00:24] ==========================>----------------------- 6/11 t=  4000.000 ps
 ```
 
 The bar (`indicatif`) only appears when standard error is a terminal, so pipes
 and logs stay clean.  The style comes from `utils::set_style`, the same
 template s_mmpbsa prints its own bars with.  A host program that links the
 crate can control the bars with `progress::set_enabled`: `false` switches them
-off and `true` forces them on (they are then drawn on `/dev/tty`).
+off and `true` forces them on (they are then drawn on `/dev/tty`).  The
+`pos/len` fields of the bar are the frames read and the number of frames in
+the input, which is counted from the frame headers when the bar is drawn.
 
 ## Reading coordinates
 

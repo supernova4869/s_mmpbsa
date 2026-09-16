@@ -200,7 +200,14 @@ pub fn read_frame(r: &mut Reader) -> Result<Option<Frame>> {
 ///
 /// All section sizes are part of the header, so the exact frame length is known
 /// before the payload is read.  Returns `Ok(None)` at a clean end of file.
-pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
+/// Reads the fixed part of one frame: the frame header with the sizes of all
+/// sections.
+///
+/// Returns the bytes read together with the number of payload bytes that
+/// follow them, or `None` at a clean end of file.  Splitting a frame this way
+/// lets [`read_frame_bytes`] decode it and [`frame_count`] skip the payload of
+/// a trajectory that is never decoded.
+fn read_frame_prefix<R: std::io::Read>(r: &mut R) -> Result<Option<(Vec<u8>, usize)>> {
     use crate::xdr::{read_exact, read_or_eof, xdr_pad};
 
     let mut buf: Vec<u8> = Vec::with_capacity(4096);
@@ -255,10 +262,39 @@ pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> 
         + get(7).max(0) as usize
         + get(8).max(0) as usize
         + get(9).max(0) as usize;
+    Ok(Some((buf, payload)))
+}
+
+pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
+    use crate::xdr::read_exact;
+
+    let Some((mut buf, payload)) = read_frame_prefix(r)? else {
+        return Ok(None);
+    };
     let mut data = vec![0u8; payload];
     read_exact(r, &mut data)?;
     buf.extend_from_slice(&data);
     Ok(Some(buf))
+}
+
+/// Counts the frames of a TRR file.
+///
+/// Only the fixed part of every frame is read; the coordinates, velocities and
+/// forces are skipped with a seek, so a trajectory much larger than memory is
+/// counted without decoding a single frame.
+pub fn frame_count(path: &str) -> Result<usize> {
+    use std::io::{BufReader, Seek, SeekFrom};
+
+    let file = std::fs::File::open(path)
+        .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+    let mut r = BufReader::with_capacity(1 << 16, file);
+    let mut frames = 0usize;
+    while let Some((_, payload)) = read_frame_prefix(&mut r)? {
+        r.seek(SeekFrom::Current(payload as i64))
+            .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+        frames += 1;
+    }
+    Ok(frames)
 }
 
 /// Decodes a frame produced by [`read_frame_bytes`].

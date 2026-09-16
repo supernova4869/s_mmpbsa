@@ -1,0 +1,621 @@
+--- a/src/cmd/coords.rs
++++ b/src/cmd/coords.rs
+@@ -14,30 +14,25 @@
+ 
+ /// The frame progress of a running extraction.
+ ///
+-/// Progress is measured against the requested time window when one was given
+-/// (`-b`/`-e`), and against the position in the input file otherwise.
++/// Progress is the frame counter of the input trajectory.
+ struct FrameProgress {
+     bar: crate::progress::Progress,
+-    time_window: Option<(f64, f64)>,
++    /// Number of frames of the input, or zero when it was not counted because
++    /// the bar is not drawn.
++    total: u64,
+ }
+ 
+ impl FrameProgress {
+-    fn new(time_window: Option<(f64, f64)>) -> Self {
++    fn new(total: u64) -> Self {
+         FrameProgress {
+             bar: crate::progress::Progress::new(),
+-            time_window,
++            total,
+         }
+     }
+ 
+     /// Reports the frame that has just been read.
+-    fn tick(&mut self, reader: &mut trx::CoordinateReader, frames: u64, time: f64) {
+-        let fraction = match self.time_window {
+-            Some((start, end)) if end > start => {
+-                Some(((time - start) / (end - start)).clamp(0.0, 1.0))
+-            }
+-            _ => reader.read_progress().and_then(|p| p.fraction()),
+-        };
+-        self.bar.update(fraction, frames, time);
++    fn tick(&mut self, frames: u64, time: f64) {
++        self.bar.update(frames, self.total, time);
+     }
+ 
+     fn finish(&mut self) {
+@@ -155,11 +150,12 @@
+     }
+     let mut nframes = 0usize;
+     let mut natoms_out = 0usize;
+-    // With `-e` the bar follows the requested time window, otherwise how much
+-    // of the input file has been read.
+-    let mut progress = FrameProgress::new(match (range.begin, range.end) {
+-        (_, Some(end)) => Some((range.begin.unwrap_or(0.0), end)),
+-        _ => None,
++    // The bar counts the frames of the input; the count is a pass over the
++    // frame headers and is therefore only taken when the bar is drawn.
++    let mut progress = FrameProgress::new(if crate::progress::is_enabled() {
++        trx::frame_count(&in_file).unwrap_or(0) as u64
++    } else {
++        0
+     });
+     loop {
+         let frame = match reader.next_frame() {
+@@ -170,7 +166,7 @@
+                 return 1;
+             }
+         };
+-        progress.tick(&mut reader, nframes as u64 + 1, frame.time.unwrap_or(0.0));
++        progress.tick(nframes as u64 + 1, frame.time.unwrap_or(0.0));
+         let time = frame.time.unwrap_or(0.0);
+         let step = frame.step.unwrap_or(0);
+         if natoms_out == 0 {
+--- a/src/cmd/dump.rs
++++ b/src/cmd/dump.rs
+@@ -41,6 +41,7 @@
+         }
+     };
+     let mut progress = crate::progress::Progress::new();
++    let total = frame_total(&mut progress, path);
+     let mut nframe = 0usize;
+     loop {
+         let fr = match source.next_frame() {
+@@ -51,8 +52,7 @@
+                 return 1;
+             }
+         };
+-        let fraction = source.read_progress().and_then(|p| p.fraction());
+-        progress.update(fraction, nframe as u64 + 1, fr.time.unwrap_or(0.0));
++        progress.update(nframe as u64 + 1, total, fr.time.unwrap_or(0.0));
+         let mut out = String::new();
+         let _ = writeln!(out, "{path} frame {nframe}:");
+         let _ = writeln!(
+@@ -94,6 +94,7 @@
+         }
+     };
+     let mut progress = crate::progress::Progress::new();
++    let total = frame_total(&mut progress, path);
+     let mut nframe = 0usize;
+     loop {
+         let fr = match source.next_frame() {
+@@ -104,8 +105,7 @@
+                 return 1;
+             }
+         };
+-        let fraction = source.read_progress().and_then(|p| p.fraction());
+-        progress.update(fraction, nframe as u64 + 1, fr.time.unwrap_or(0.0));
++        progress.update(nframe as u64 + 1, total, fr.time.unwrap_or(0.0));
+         let mut out = String::new();
+         let _ = writeln!(out, "{path} frame {nframe}:");
+         let _ = writeln!(
+@@ -385,3 +385,14 @@
+     }
+     out
+ }
++
++/// Total number of frames of `path`, counted only when the bar is drawn.
++///
++/// Counting is a pass over the frame headers of the file, so it is skipped
++/// when nothing is drawn anyway (piped output, `set_enabled(false)`).
++fn frame_total(progress: &crate::progress::Progress, path: &str) -> u64 {
++    if !progress.is_enabled() {
++        return 0;
++    }
++    trx::frame_count(path).unwrap_or(0) as u64
++}
+--- a/src/cmd/trjconv.rs
++++ b/src/cmd/trjconv.rs
+@@ -57,19 +57,19 @@
+ 
+ /// The frame progress of a running conversion.
+ ///
+-/// Progress is measured against the requested time window when one was given
+-/// (`-b`/`-e`), and against the position in the input file otherwise, which is
+-/// what "converting the whole trajectory" means.
++/// Progress is the frame counter of the input trajectory.
+ struct FrameProgress {
+     bar: Progress,
+-    time_window: Option<(f64, f64)>,
++    /// Number of frames of the input, or zero when it was not counted because
++    /// the bar is not drawn.
++    total: u64,
+ }
+ 
+ impl FrameProgress {
+-    fn new(time_window: Option<(f64, f64)>) -> Self {
++    fn new(total: u64) -> Self {
+         FrameProgress {
+             bar: Progress::new(),
+-            time_window,
++            total,
+         }
+     }
+ 
+@@ -77,17 +77,8 @@
+     ///
+     /// The state is updated for every frame so that the final draw is exact;
+     /// `Progress` throttles the redraws itself.
+-    fn tick(&mut self, source: &mut trx::FrameSource, frames: u64, time: f64) {
+-        let fraction = match self.time_window {
+-            // A window with an unbounded end (`-e inf`, which is how "the whole
+-            // trajectory" is passed in) carries no information about how far
+-            // along the conversion is, so the position in the file is used.
+-            Some((start, end)) if end.is_finite() && end > start => {
+-                Some(((time - start) / (end - start)).clamp(0.0, 1.0))
+-            }
+-            _ => source.read_progress().and_then(|p| p.fraction()),
+-        };
+-        self.bar.update(fraction, frames, time);
++    fn tick(&mut self, frames: u64, time: f64) {
++        self.bar.update(frames, self.total, time);
+     }
+ 
+     fn suspend(&mut self) {
+@@ -477,14 +468,19 @@
+             return 1;
+         }
+     };
+-    // A bounded `-e` gives an exact fraction to report; otherwise the bar
+-    // follows how much of the input file has been read.
+-    let mut progress = FrameProgress::new(if b_end { Some((tbegin, tend)) } else { None });
++    // The bar counts the frames of the input; the count is a pass over the
++    // frame headers and is therefore only taken when the bar is drawn.
++    let frames_in_input = if crate::progress::is_enabled() {
++        trx::frame_count(&in_file).unwrap_or(0) as u64
++    } else {
++        0
++    };
++    let mut progress = FrameProgress::new(frames_in_input);
+     // Frames before -b are skipped while reading, like read_first_frame().
+     let mut first_frame = loop {
+         match source.next_frame() {
+             Ok(Some(f)) => {
+-                progress.tick(&mut source, 0, f.time.unwrap_or(0.0));
++                progress.tick(0, f.time.unwrap_or(0.0));
+                 if b_begin && f.time.unwrap_or(0.0) < tbegin {
+                     continue;
+                 }
+@@ -500,10 +496,6 @@
+             }
+         }
+     };
+-    if b_end && !b_begin {
+-        // Without -b the window starts at the first frame that is read.
+-        progress.time_window = Some((first_frame.time.unwrap_or(0.0), tend));
+-    }
+     // The run input file is read and the groups are picked next; the bar has
+     // to stop drawing before the first of those messages, otherwise they would
+     // be printed on top of it.  It starts again for the frame loop.
+@@ -870,7 +862,7 @@
+         }
+     } {
+         n_frames += 1;
+-        progress.tick(&mut source, n_frames as u64, fr.time.unwrap_or(0.0));
++        progress.tick(n_frames as u64, fr.time.unwrap_or(0.0));
+         let t_process_start = std::time::Instant::now();
+         // -e stops reading (and writing) beyond the requested end time.
+         if b_end && fr.time.unwrap_or(0.0) > tend {
+--- a/src/progress.rs
++++ b/src/progress.rs
+@@ -18,9 +18,6 @@
+ 
+ /// Redraw rate of the bar, in hertz.
+ const REFRESH_HZ: u8 = 10;
+-/// Length the fraction is scaled to; `utils::set_style` prints it as the
+-/// `pos/len` fields of the bar, so this reads as a percentage.
+-const LENGTH: u64 = 100;
+ 
+ /// Program wide switch: 0 = not set, 1 = forced on, 2 = forced off.
+ static ENABLED: AtomicU8 = AtomicU8::new(0);
+@@ -36,6 +33,24 @@
+     ENABLED.store(if enabled { 1 } else { 2 }, Ordering::Relaxed);
+ }
+ 
++/// Whether the bars are drawn.
++///
++/// This is what [`set_enabled`] installed; without it the terminal decides,
++/// see [`Progress::new`].
++pub fn is_enabled() -> bool {
++    enabled()
++}
++
++fn enabled() -> bool {
++    match ENABLED.load(Ordering::Relaxed) {
++        1 => true,
++        2 => false,
++        // `indicatif` only draws when standard error is a terminal, so the
++        // decision can be left to it as well.
++        _ => std::io::stderr().is_terminal(),
++    }
++}
++
+ /// Draws the frame progress of a running conversion.
+ pub struct Progress {
+     bar: Option<ProgressBar>,
+@@ -46,37 +61,36 @@
+ impl Progress {
+     /// Creates a bar that follows [`set_enabled`] and the terminal.
+     pub fn new() -> Self {
+-        let enabled = match ENABLED.load(Ordering::Relaxed) {
+-            1 => true,
+-            2 => false,
+-            // `indicatif` only draws when standard error is a terminal, so the
+-            // decision can be left to it as well.
+-            _ => std::io::stderr().is_terminal(),
+-        };
+         Progress {
+             bar: None,
+-            enabled,
++            enabled: enabled(),
+             spinner: false,
+         }
+     }
+ 
+-    /// Reports progress: `fraction` of the requested work is done, `frames`
+-    /// frames have been processed and the current frame is at `time`.
++    /// Reports progress: `frames` frames have been processed out of `total`
++    /// and the current frame is at `time`.
+     ///
+-    /// A `None` fraction (the total is unknown) draws the counters only.
+-    pub fn update(&mut self, fraction: Option<f64>, frames: u64, time: f64) {
++    /// The `pos/len` fields of the bar are the frame counter and the number of
++    /// frames in the input, so a `total` of zero (unknown, e.g. because the
++    /// count was not taken) draws the frame counter of the message only.
++    pub fn update(&mut self, frames: u64, total: u64, time: f64) {
+         if !self.enabled {
+             return;
+         }
+-        let message = format!("frame {frames:>7}  t={time:>10.3} ps");
+-        let spinner = fraction.is_none();
++        let spinner = total == 0;
++        let message = if spinner {
++            format!("frame {frames:>7}  t={time:>10.3} ps")
++        } else {
++            format!("t={time:>10.3} ps")
++        };
+         match &self.bar {
+             Some(bar) => {
+                 if self.spinner != spinner {
+                     self.spinner = spinner;
+                     apply_style(bar, spinner);
+                 }
+-                set_position(bar, fraction);
++                set_position(bar, frames, total);
+                 bar.set_message(message);
+                 if spinner {
+                     bar.tick();
+@@ -88,7 +102,7 @@
+                 // instead of an empty bar.
+                 let bar = ProgressBar::hidden();
+                 apply_style(&bar, spinner);
+-                set_position(&bar, fraction);
++                set_position(&bar, frames, total);
+                 bar.set_message(message);
+                 bar.set_draw_target(draw_target());
+                 self.bar = Some(bar);
+@@ -97,6 +111,15 @@
+         }
+     }
+ 
++    /// True when the bar is actually drawn.
++    ///
++    /// Callers that have to do extra work for the bar (counting the frames of
++    /// the input, which is a pass over the file) can use this to skip it when
++    /// nothing is drawn anyway, the way it happens when the output is piped.
++    pub fn is_enabled(&self) -> bool {
++        self.enabled
++    }
++
+     /// Removes the bar so that other messages get a clean line.
+     ///
+     /// The next [`Progress::update`] draws a fresh bar.
+@@ -137,11 +160,11 @@
+     terminal_target().unwrap_or_else(|| ProgressDrawTarget::stderr_with_hz(REFRESH_HZ))
+ }
+ 
+-/// Scales `fraction` to the length of the bar.
+-fn set_position(bar: &ProgressBar, fraction: Option<f64>) {
+-    if let Some(fraction) = fraction {
+-        bar.set_length(LENGTH);
+-        bar.set_position((fraction.clamp(0.0, 1.0) * LENGTH as f64).round() as u64);
++/// Scales the bar to the frame counter.
++fn set_position(bar: &ProgressBar, frames: u64, total: u64) {
++    if total > 0 {
++        bar.set_length(total);
++        bar.set_position(frames.min(total));
+     }
+ }
+ 
+--- a/src/trr.rs
++++ b/src/trr.rs
+@@ -200,7 +200,14 @@
+ ///
+ /// All section sizes are part of the header, so the exact frame length is known
+ /// before the payload is read.  Returns `Ok(None)` at a clean end of file.
+-pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
++/// Reads the fixed part of one frame: the frame header with the sizes of all
++/// sections.
++///
++/// Returns the bytes read together with the number of payload bytes that
++/// follow them, or `None` at a clean end of file.  Splitting a frame this way
++/// lets [`read_frame_bytes`] decode it and [`frame_count`] skip the payload of
++/// a trajectory that is never decoded.
++fn read_frame_prefix<R: std::io::Read>(r: &mut R) -> Result<Option<(Vec<u8>, usize)>> {
+     use crate::xdr::{read_exact, read_or_eof, xdr_pad};
+ 
+     let mut buf: Vec<u8> = Vec::with_capacity(4096);
+@@ -255,12 +262,41 @@
+         + get(7).max(0) as usize
+         + get(8).max(0) as usize
+         + get(9).max(0) as usize;
++    Ok(Some((buf, payload)))
++}
++
++pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
++    use crate::xdr::read_exact;
++
++    let Some((mut buf, payload)) = read_frame_prefix(r)? else {
++        return Ok(None);
++    };
+     let mut data = vec![0u8; payload];
+     read_exact(r, &mut data)?;
+     buf.extend_from_slice(&data);
+     Ok(Some(buf))
+ }
+ 
++/// Counts the frames of a TRR file.
++///
++/// Only the fixed part of every frame is read; the coordinates, velocities and
++/// forces are skipped with a seek, so a trajectory much larger than memory is
++/// counted without decoding a single frame.
++pub fn frame_count(path: &str) -> Result<usize> {
++    use std::io::{BufReader, Seek, SeekFrom};
++
++    let file = std::fs::File::open(path)
++        .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
++    let mut r = BufReader::with_capacity(1 << 16, file);
++    let mut frames = 0usize;
++    while let Some((_, payload)) = read_frame_prefix(&mut r)? {
++        r.seek(SeekFrom::Current(payload as i64))
++            .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
++        frames += 1;
++    }
++    Ok(frames)
++}
++
+ /// Decodes a frame produced by [`read_frame_bytes`].
+ pub fn decode_frame(bytes: &[u8]) -> Result<Frame> {
+     let mut r = Reader::new(bytes);
+--- a/src/trx.rs
++++ b/src/trx.rs
+@@ -223,6 +223,23 @@
+     Ok((format, frames))
+ }
+ 
++/// Number of frames in a trajectory or structure file.
++///
++/// `xtc` and `trr` files are counted by walking their frame headers, which
++/// skips the payload of every frame; structure files are read.  The count is
++/// what the progress bars use as their total.
++pub fn frame_count(path: &str) -> Result<usize> {
++    match format_from_path(path) {
++        Some(TrxFormat::Xtc) => xtc::frame_count(path),
++        Some(TrxFormat::Trr) => trr::frame_count(path),
++        Some(TrxFormat::Gro) => Ok(gro::read_all(path)?.len()),
++        Some(TrxFormat::Pdb) => Ok(pdb::read_all(path)?.len()),
++        None => Err(XdrError::Invalid(format!(
++            "File {path} is not a supported trajectory or structure file"
++        ))),
++    }
++}
++
+ /// Streams frames one at a time so that trajectories much larger than memory
+ /// can be processed.
+ pub enum FrameSource {
+--- a/src/xtc.rs
++++ b/src/xtc.rs
+@@ -694,7 +694,14 @@
+ /// The frame is assembled in a small buffer and then decoded with
+ /// [`read_frame`], which lets the tools process trajectories that are far
+ /// larger than memory.  Returns `Ok(None)` at a clean end of file.
+-pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
++/// Reads the fixed part of one frame: the frame header and the header of the
++/// compressed coordinate block.
++///
++/// Returns the bytes read together with the number of payload bytes that
++/// follow them, or `None` at a clean end of file.  Splitting a frame this way
++/// lets [`read_frame_bytes`] decode it and [`frame_count`] skip the payload of
++/// a trajectory that is never decoded.
++fn read_frame_prefix<R: std::io::Read>(r: &mut R) -> Result<Option<(Vec<u8>, usize)>> {
+     use crate::xdr::{read_exact, read_or_eof, xdr_pad};
+ 
+     let mut buf: Vec<u8> = Vec::with_capacity(4096);
+@@ -727,10 +734,7 @@
+     let size = lsize as usize;
+     if size <= 9 {
+         // Stored as plain single precision coordinates.
+-        let mut raw = vec![0u8; size * 3 * 4];
+-        read_exact(r, &mut raw)?;
+-        buf.extend_from_slice(&raw);
+-        return Ok(Some(buf));
++        return Ok(Some((buf, size * 3 * 4)));
+     }
+ 
+     // precision, minint[3], maxint[3] and smallidx.
+@@ -750,14 +754,44 @@
+         i32::from_be_bytes(b) as usize
+     };
+ 
+-    // The payload is opaque XDR data and therefore padded to four bytes; the
+-    // padding is kept so that the buffer can be decoded as a whole.
+-    let mut payload = vec![0u8; buffer_size + xdr_pad(buffer_size)];
+-    read_exact(r, &mut payload)?;
+-    buf.extend_from_slice(&payload);
++    // The payload is opaque XDR data and therefore padded to four bytes.
++    Ok(Some((buf, buffer_size + xdr_pad(buffer_size))))
++}
++
++pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
++    use crate::xdr::read_exact;
++
++    let Some((mut buf, payload)) = read_frame_prefix(r)? else {
++        return Ok(None);
++    };
++    // The padding of the opaque payload is kept so that the buffer can be
++    // decoded as a whole.
++    let mut data = vec![0u8; payload];
++    read_exact(r, &mut data)?;
++    buf.extend_from_slice(&data);
+     Ok(Some(buf))
+ }
+ 
++/// Counts the frames of an XTC file.
++///
++/// Only the fixed part of every frame is read and the compressed coordinates
++/// are skipped with a seek, so a trajectory much larger than memory is counted
++/// without decoding a single frame.
++pub fn frame_count(path: &str) -> Result<usize> {
++    use std::io::{BufReader, Seek, SeekFrom};
++
++    let file = std::fs::File::open(path)
++        .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
++    let mut r = BufReader::with_capacity(1 << 16, file);
++    let mut frames = 0usize;
++    while let Some((_, payload)) = read_frame_prefix(&mut r)? {
++        r.seek(SeekFrom::Current(payload as i64))
++            .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
++        frames += 1;
++    }
++    Ok(frames)
++}
++
+ /// True when `boxm` needs all nine values on disk (used by the GRO writer too).
+ pub fn box_is_triclinic(boxm: &Matrix) -> bool {
+     is_triclinic(boxm)
+--- a/tests/roundtrip.rs
++++ b/tests/roundtrip.rs
+@@ -4,7 +4,9 @@
+ use gmx_rs_tools::frame::{Atom, Atoms, Frame, PbcType, ResInfo};
+ use gmx_rs_tools::index::{self, IndexGroup};
+ use gmx_rs_tools::{gro, tpr, trr, xdr, xtc};
+-use gmx_rs_tools::trx::{read_coordinates, CoordinateReader, FrameRange};
++use gmx_rs_tools::trx::{
++    frame_count, read_coordinates, read_frames, CoordinateReader, FrameRange,
++};
+ 
+ fn sample_frame(n: usize, seed: f32) -> Frame {
+     let mut f = Frame::new(n);
+@@ -388,3 +390,35 @@
+         assert_eq!(checked, 5);
+     }
+ }
++
++/// The frame count of a trajectory is what the progress bars show as their
++/// total, so it has to agree with the frames the readers actually return.
++#[test]
++fn frame_count_matches_the_frames_that_are_read() {
++    let xtc_path = std::env::temp_dir().join("gmx-rs-tools-frame_count.xtc");
++    let mut w = xdr::Writer::new();
++    for f in 0..7 {
++        let mut frame = sample_frame(12, f as f32);
++        frame.time = Some(f as f64);
++        xtc::write_frame(&mut w, &frame, 1000.0);
++    }
++    std::fs::write(&xtc_path, w.into_vec()).unwrap();
++    let xtc_path = xtc_path.to_str().unwrap();
++    assert_eq!(frame_count(xtc_path).unwrap(), 7);
++    assert_eq!(frame_count(xtc_path).unwrap(), read_frames(xtc_path).unwrap().1.len());
++
++    let trr_path = std::env::temp_dir().join("gmx-rs-tools-frame_count.trr");
++    let mut w = xdr::Writer::new();
++    for f in 0..5 {
++        let mut frame = sample_frame(12, f as f32);
++        frame.time = Some(f as f64);
++        trr::write_frame(&mut w, &frame);
++    }
++    std::fs::write(&trr_path, w.into_vec()).unwrap();
++    let trr_path = trr_path.to_str().unwrap();
++    assert_eq!(frame_count(trr_path).unwrap(), 5);
++    assert_eq!(frame_count(trr_path).unwrap(), read_frames(trr_path).unwrap().1.len());
++
++    std::fs::remove_file(xtc_path).ok();
++    std::fs::remove_file(trr_path).ok();
++}
+--- a/README.md
++++ b/README.md
+@@ -75,14 +75,16 @@
+ bar on standard error:
+ 
+ ```text
+-[00:00:24] ===============================>------------------ 64/100 frame       6  t=  5000.000 ps
++[00:00:24] ==========================>----------------------- 6/11 t=  4000.000 ps
+ ```
+ 
+ The bar (`indicatif`) only appears when standard error is a terminal, so pipes
+ and logs stay clean.  The style comes from `utils::set_style`, the same
+ template s_mmpbsa prints its own bars with.  A host program that links the
+ crate can control the bars with `progress::set_enabled`: `false` switches them
+-off and `true` forces them on (they are then drawn on `/dev/tty`).
++off and `true` forces them on (they are then drawn on `/dev/tty`).  The
++`pos/len` fields of the bar are the frames read and the number of frames in
++the input, which is counted from the frame headers when the bar is drawn.
+ 
+ ## Reading coordinates
+ 
+--- a/NOTES.md
++++ b/NOTES.md
+@@ -104,7 +104,7 @@
+ `indicatif` crate (`progress.rs`):
+ 
+ ```text
+-[00:00:24] ===============================>------------------ 64/100 frame       6  t=  5000.000 ps
++[00:00:24] ==========================>----------------------- 6/11 t=  4000.000 ps
+ ```
+ 
+ * It is written to standard error, so it never mixes with the data a tool
+@@ -112,18 +112,22 @@
+ * The layout is the one of `utils::set_style`, the template s_mmpbsa prints its
+   own bars with, but the bar is drawn with `utils::set_style_plain`: it keeps
+   the colour of the surrounding output instead of forcing its own, because
+-  s_mmpbsa greys the terminal while it extracts trajectories.  When the total
+-  is not known the counters-only variant of `utils` is used instead.
++  s_mmpbsa greys the terminal while it extracts trajectories.  The `pos/len`
++  fields are the frame counter and the number of frames in the input; when the
++  count is not taken (see below) the counters-only variant of `utils` is used
++  instead and the message carries the frame number.
+ * `indicatif` only draws on a terminal, so redirecting standard error gives
+   exactly the message stream that the parity tests compare.  A host program
+   can call `progress::set_enabled(false)` to switch the bars off, or
+   `progress::set_enabled(true)` to force them on by drawing them on `/dev/tty`
+   (useful when the output is piped, e.g. `... 2>&1 | tee log`).
+-* `trjconv`/`coords` measure progress against the requested time window when
+-  `-e` is given, and against the number of bytes read from the trajectory
+-  otherwise (which is what "convert the whole file" means).  Frames that are
+-  read but not written (before `-b`, or after the last frame of the window)
+-  still advance the bar, as they do in GROMACS.
++* The total of the bar is `trx::frame_count()`, which walks the frame headers
++  of an `xtc`/`trr` input and skips the payload of every frame, so counting a
++  trajectory much larger than memory costs one pass over the headers and no
++  decoding.  It is only taken when the bar is drawn (`progress::is_enabled()`),
++  which keeps piped runs and the parity tests away from the extra pass.
++* Frames that are read but not written (before `-b`, or after the last frame of
++  the window) still advance the bar, as they do in GROMACS.
+ * The bar is finished and cleared while the index group prompts are printed and
+   a fresh one is started for the frame loop, so the prompts and the final
+   `Last written:` line never mix with the bar.

@@ -41,6 +41,7 @@ fn dump_xtc(path: &str) -> i32 {
         }
     };
     let mut progress = crate::progress::Progress::new();
+    let total = frame_total(&mut progress, path);
     let mut nframe = 0usize;
     loop {
         let fr = match source.next_frame() {
@@ -51,8 +52,7 @@ fn dump_xtc(path: &str) -> i32 {
                 return 1;
             }
         };
-        let fraction = source.read_progress().and_then(|p| p.fraction());
-        progress.update(fraction, nframe as u64 + 1, fr.time.unwrap_or(0.0));
+        progress.update(nframe as u64 + 1, total, fr.time.unwrap_or(0.0));
         let mut out = String::new();
         let _ = writeln!(out, "{path} frame {nframe}:");
         let _ = writeln!(
@@ -94,6 +94,7 @@ fn dump_trr(path: &str) -> i32 {
         }
     };
     let mut progress = crate::progress::Progress::new();
+    let total = frame_total(&mut progress, path);
     let mut nframe = 0usize;
     loop {
         let fr = match source.next_frame() {
@@ -104,8 +105,7 @@ fn dump_trr(path: &str) -> i32 {
                 return 1;
             }
         };
-        let fraction = source.read_progress().and_then(|p| p.fraction());
-        progress.update(fraction, nframe as u64 + 1, fr.time.unwrap_or(0.0));
+        progress.update(nframe as u64 + 1, total, fr.time.unwrap_or(0.0));
         let mut out = String::new();
         let _ = writeln!(out, "{path} frame {nframe}:");
         let _ = writeln!(
@@ -384,4 +384,15 @@ pub fn dump_frames_string(frames: &[Frame]) -> String {
         }
     }
     out
+}
+
+/// Total number of frames of `path`, counted only when the bar is drawn.
+///
+/// Counting is a pass over the frame headers of the file, so it is skipped
+/// when nothing is drawn anyway (piped output, `set_enabled(false)`).
+fn frame_total(progress: &crate::progress::Progress, path: &str) -> u64 {
+    if !progress.is_enabled() {
+        return 0;
+    }
+    trx::frame_count(path).unwrap_or(0) as u64
 }

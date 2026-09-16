@@ -16,11 +16,10 @@ The crate is a workspace member and is used through
 
 ## Local changes
 
-The tree currently **tracks upstream verbatim**: there is no `local.patch`, so
-the copy is exactly what https://github.com/supernova4869/gmx-rs-tools
-contains.  The changes s_mmpbsa needed while it was being wired in have been
-folded into the upstream project, and the file is only re-created when a local
-change has to be carried for a while:
+`local.patch` holds the changes this copy carries on top of the checkout it was
+synced from.  Everything s_mmpbsa needed while it was being wired in is part of
+the upstream project; the entries below are either that history or a change
+that has not been pushed yet:
 
 * `tpr.rs` — `Mtop::ffparams` and the `nbfp` accessors (`FfParams::lj_sr()`,
   `FfParams::atnr_usize()`) are part of the crate itself.
@@ -43,6 +42,10 @@ change has to be carried for a while:
 * `progress.rs` — the bars follow `progress::set_enabled` and the terminal
   only: the `GMXRS_PROGRESS` environment variable was dropped, and the styles
   come from `utils` instead of being built in this module.
+* `progress.rs`, `trx.rs`, `xtc.rs`, `trr.rs`, `cmd/*.rs` — the `pos/len`
+  fields of the bars are the frame counter and the number of frames of the
+  input (`trx::frame_count()`, a header walk that skips the payload of every
+  frame) instead of a 0..100 scaled fraction.
 
 To carry a new local change, write it into this directory and record the
 difference against the checkout, e.g.:

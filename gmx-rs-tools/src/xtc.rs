@@ -694,7 +694,14 @@ pub fn read_frame(r: &mut Reader) -> Result<Option<Frame>> {
 /// The frame is assembled in a small buffer and then decoded with
 /// [`read_frame`], which lets the tools process trajectories that are far
 /// larger than memory.  Returns `Ok(None)` at a clean end of file.
-pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
+/// Reads the fixed part of one frame: the frame header and the header of the
+/// compressed coordinate block.
+///
+/// Returns the bytes read together with the number of payload bytes that
+/// follow them, or `None` at a clean end of file.  Splitting a frame this way
+/// lets [`read_frame_bytes`] decode it and [`frame_count`] skip the payload of
+/// a trajectory that is never decoded.
+fn read_frame_prefix<R: std::io::Read>(r: &mut R) -> Result<Option<(Vec<u8>, usize)>> {
     use crate::xdr::{read_exact, read_or_eof, xdr_pad};
 
     let mut buf: Vec<u8> = Vec::with_capacity(4096);
@@ -727,10 +734,7 @@ pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> 
     let size = lsize as usize;
     if size <= 9 {
         // Stored as plain single precision coordinates.
-        let mut raw = vec![0u8; size * 3 * 4];
-        read_exact(r, &mut raw)?;
-        buf.extend_from_slice(&raw);
-        return Ok(Some(buf));
+        return Ok(Some((buf, size * 3 * 4)));
     }
 
     // precision, minint[3], maxint[3] and smallidx.
@@ -750,12 +754,42 @@ pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> 
         i32::from_be_bytes(b) as usize
     };
 
-    // The payload is opaque XDR data and therefore padded to four bytes; the
-    // padding is kept so that the buffer can be decoded as a whole.
-    let mut payload = vec![0u8; buffer_size + xdr_pad(buffer_size)];
-    read_exact(r, &mut payload)?;
-    buf.extend_from_slice(&payload);
+    // The payload is opaque XDR data and therefore padded to four bytes.
+    Ok(Some((buf, buffer_size + xdr_pad(buffer_size))))
+}
+
+pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
+    use crate::xdr::read_exact;
+
+    let Some((mut buf, payload)) = read_frame_prefix(r)? else {
+        return Ok(None);
+    };
+    // The padding of the opaque payload is kept so that the buffer can be
+    // decoded as a whole.
+    let mut data = vec![0u8; payload];
+    read_exact(r, &mut data)?;
+    buf.extend_from_slice(&data);
     Ok(Some(buf))
+}
+
+/// Counts the frames of an XTC file.
+///
+/// Only the fixed part of every frame is read and the compressed coordinates
+/// are skipped with a seek, so a trajectory much larger than memory is counted
+/// without decoding a single frame.
+pub fn frame_count(path: &str) -> Result<usize> {
+    use std::io::{BufReader, Seek, SeekFrom};
+
+    let file = std::fs::File::open(path)
+        .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+    let mut r = BufReader::with_capacity(1 << 16, file);
+    let mut frames = 0usize;
+    while let Some((_, payload)) = read_frame_prefix(&mut r)? {
+        r.seek(SeekFrom::Current(payload as i64))
+            .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+        frames += 1;
+    }
+    Ok(frames)
 }
 
 /// True when `boxm` needs all nine values on disk (used by the GRO writer too).

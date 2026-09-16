@@ -223,6 +223,23 @@ pub fn read_frames(path: &str) -> Result<(TrxFormat, Vec<Frame>)> {
     Ok((format, frames))
 }
 
+/// Number of frames in a trajectory or structure file.
+///
+/// `xtc` and `trr` files are counted by walking their frame headers, which
+/// skips the payload of every frame; structure files are read.  The count is
+/// what the progress bars use as their total.
+pub fn frame_count(path: &str) -> Result<usize> {
+    match format_from_path(path) {
+        Some(TrxFormat::Xtc) => xtc::frame_count(path),
+        Some(TrxFormat::Trr) => trr::frame_count(path),
+        Some(TrxFormat::Gro) => Ok(gro::read_all(path)?.len()),
+        Some(TrxFormat::Pdb) => Ok(pdb::read_all(path)?.len()),
+        None => Err(XdrError::Invalid(format!(
+            "File {path} is not a supported trajectory or structure file"
+        ))),
+    }
+}
+
 /// Streams frames one at a time so that trajectories much larger than memory
 /// can be processed.
 pub enum FrameSource {
