@@ -117,4 +117,4 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 - To refresh the vendored solver code from a local apbs-rs checkout, run `scripts/sync_apbs_rs.sh`.
 
 ## Built-in Gromacs tools
-- `gmx dump`, `gmx trjconv`, `gmx convert-tpr` and `gmx make_ndx` are replaced by the Rust port from https://github.com/supernova4869/gmx-rs-tools, vendored under `gmx-rs-tools/` and compiled directly into the s_mmpbsa executable. `src/gmx.rs` is the code that drives it, so no external Gromacs program or sub-process is used.
+- `gmx dump`, `gmx trjconv`, `gmx convert-tpr` and `gmx make_ndx` are replaced by the Rust port, vendored under `gmx-rs-tools/` and compiled directly into the s_mmpbsa executable. `src/gmx.rs` is the code that drives it, so no external Gromacs program or sub-process is used.
