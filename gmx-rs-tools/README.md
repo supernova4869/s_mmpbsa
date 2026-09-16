@@ -19,9 +19,16 @@ XDR, the compressed XTC coordinates (`libxdrf.cpp`), TRR, GRO, PDB, index files
 and the run input (TPR) container.  See [NOTES.md](NOTES.md) for the
 function-by-function mapping to the C++ code and for the known simplifications.
 
+`dump -s` (and the run-input handling of the other tools) decodes **every tpx
+version GROMACS itself accepts**, i.e. version 58 and later; both body
+encodings are supported (plain XDR before `tpxv_AddSizeField`, the compact
+in-memory serializer from GROMACS 2021 on).
+
 ## Building and running
 
-The crate has no dependencies, so it builds offline:
+The crate uses `indicatif` (and, through it, `console`) for the progress bar of
+the streaming tools; everything else is implemented from scratch.  Both crates
+are in the local registry, so the build works offline:
 
 ```console
 $ cd rust/gmx-rs-tools
@@ -64,6 +71,19 @@ directly, or `-s topol.tpr` for the default groups.  `-b`/`-e`/`-skip` behave
 exactly like `gmx trjconv`'s and frames are streamed, so a window can be pulled
 out of a 25 GB trajectory without loading it.
 
+While frames are being read, `trjconv`, `dump -f` and `coords` draw a progress
+bar on standard error:
+
+```text
+[00:00:24] ===============================>------------------ 64/100 frame       6  t=  5000.000 ps
+```
+
+The bar (`indicatif`) only appears when standard error is a terminal, so pipes
+and logs stay clean.  The style comes from `utils::set_style`, the same
+template s_mmpbsa prints its own bars with.  A host program that links the
+crate can control the bars with `progress::set_enabled`: `false` switches them
+off and `true` forces them on (they are then drawn on `/dev/tty`).
+
 ## Reading coordinates
 
 The same capability is available as a library API:
@@ -92,8 +112,13 @@ collects them into a `Vec<CoordFrame>` when that is more convenient, and
 files) if the coordinates are not the only thing needed.
 
 **`dump`** prints XTC/TRR frames (byte-identical formatting to GROMACS,
-including the `%12.5e`/`%g` field widths), the TPR header and inputrec, the
-topology summary and the group statistics.
+including the `%12.5e`/`%g` field widths) and the complete `gmx dump -s`
+listing of a run input file: the full inputrec (including the force field
+parameter blocks, free energy, pull, AWH, enforced rotation, IMD, walls, swap
+ions, QMMM, the `applied-forces`/`fast-multipole-method` module parameter tree
+and `grpopts`), the header, the whole topology (`pr_mtop()`, molecule by
+molecule), the state matrices, the coordinates/velocities and the group
+statistics.  `-nr`/`-nonr`, `-param` and `-orgir` behave like the original.
 
 **`trjconv`** implements the frame loop of the original: `-skip`, `-dt`,
 `-round`, `-dump`, `-t0`, `-timestep`, `-pbc none|atom|mol|res|whole|nojump|cluster`,
@@ -136,6 +161,35 @@ group per remaining residue name, `Water_and_ions`).
 
 ## Verification
 
+### Run input files of every version
+
+`gmx dump -s` was compared **line by line** against `gmx` for **all 1341 `.tpr`
+files on the test machine**, covering tpx versions 73 to 138 / GROMACS 4.5.5 to
+2026.3, in four modes (default, `-orgir yes`, `-param` and `-nonr`): all four
+modes are byte-identical for 1340 files.  The one exception has an interaction
+list entry with type index `-1`, which makes `gmx dump -s -param` index
+`functype[-1]`/`iparams[-1]` and print uninitialized memory; this port prints
+zeros there (see [NOTES.md](NOTES.md)).
+
+| GROMACS version | tpx version | files | result |
+| --- | --- | --- | --- |
+| 4.5.5 / 4.5.5-dev | 73 | 4 | identical |
+| 2016 / 2016-dev / 2017-dev | 110 / 111 | 3 | identical |
+| 2019.6 | 116 | 91 | identical |
+| 2021.3 / 2021.5 | 122 | 272 | identical |
+| 2022.4 / 2022.5 | 127 | 13 | identical |
+| 2023-rc1 / 2023.1 / 2023.2 / 2023.3 | 129 | 75 | identical |
+| 2024.1 / 2024.2 | 133 | 147 | identical |
+| 2025.2 | 137 | 668 | identical |
+| 2026.1 / 2026.3 | 138 | 68 | identical |
+
+The five run input files that ship in the GROMACS source tree (including the
+4.5.5 and double-precision 2016 ones) are parsed by a regression test in
+`tests/roundtrip.rs`, and `make_ndx`, `trjconv` (all `-pbc` modes) and
+`convert-tpr` were checked against `gmx` on old-version files as well.
+
+### Command behaviour
+
 Every implementation was compared against the matching GROMACS 2026.3 binary
 (`gmx`, built from this source tree) on a 21 frame, 923 atom trajectory plus its
 `topol.tpr`:
@@ -162,7 +216,7 @@ trajectory.
 
 | Case | Result |
 | --- | --- |
-| `dump -s md.tpr` | parses header, topology, state and inputrec |
+| `dump -s md.tpr` | byte identical (whole dump, including the 48908 line topology) |
 | `dump -f md.xtc` (first 2000 lines) | byte identical |
 | `trjconv -dump 0.2 -o out.gro` | byte identical (0.5 s, single frame read) |
 | `trjconv -b 2 -e 6 -pbc mol -o out.gro` | byte identical (19.6 MB, only the frames in the window are read) |

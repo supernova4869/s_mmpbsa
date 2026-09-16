@@ -12,7 +12,6 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-xdrfile = "0.3.0"
 regex = "^1.6.0"
 toml = "^0.5.2"
 ndarray = { version = "^0.17.2", features = ["rayon", "serde"] }

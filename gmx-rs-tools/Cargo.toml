@@ -9,8 +9,12 @@ license = "LGPL-2.1-or-later"
 name = "gmx_rs_tools"
 path = "src/lib.rs"
 
-[[bin]]
-name = "gmx-rs-tools"
-path = "src/main.rs"
+# [[bin]]
+# name = "gmx-rs-tools"
+# path = "src/main.rs"
 
 [dependencies]
+# Progress bar of the streaming tools (`progress.rs`).
+indicatif = "0.17.1"
+# Reached through `indicatif`; used to draw on /dev/tty when forced.
+console = "0.15.2"

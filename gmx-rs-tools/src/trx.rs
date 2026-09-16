@@ -145,6 +145,11 @@ impl CoordinateReader {
             return Ok(Some(out));
         }
     }
+
+    /// Position in the input, forwarded to [`FrameSource::read_progress`].
+    pub fn read_progress(&mut self) -> Option<ReadProgress> {
+        self.source.read_progress()
+    }
 }
 
 /// Convenience wrapper: reads every requested frame into memory.
@@ -223,7 +228,42 @@ pub fn read_frames(path: &str) -> Result<(TrxFormat, Vec<Frame>)> {
 pub enum FrameSource {
     Xtc(std::io::BufReader<std::fs::File>),
     Trr(std::io::BufReader<std::fs::File>),
-    Memory(std::vec::IntoIter<Frame>),
+    Memory {
+        iter: std::vec::IntoIter<Frame>,
+        total: usize,
+    },
+}
+
+/// How far a [`FrameSource`] has progressed through its input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadProgress {
+    /// Bytes consumed and the size of the input file.
+    Bytes(u64, u64),
+    /// Frames read and the number of frames in the file.
+    Frames(u64, u64),
+}
+
+impl ReadProgress {
+    /// Amount of the input consumed so far.
+    pub fn done(self) -> u64 {
+        match self {
+            ReadProgress::Bytes(done, _) => done,
+            ReadProgress::Frames(done, _) => done,
+        }
+    }
+
+    /// Fraction of the input that has been consumed, when it is known.
+    pub fn fraction(self) -> Option<f64> {
+        let (done, total) = match self {
+            ReadProgress::Bytes(done, total) => (done, total),
+            ReadProgress::Frames(done, total) => (done, total),
+        };
+        if total == 0 {
+            None
+        } else {
+            Some(done as f64 / total as f64)
+        }
+    }
 }
 
 impl FrameSource {
@@ -245,10 +285,43 @@ impl FrameSource {
                 std::fs::File::open(path)
                     .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?,
             )),
-            TrxFormat::Gro => FrameSource::Memory(gro::read_all(path)?.into_iter()),
-            TrxFormat::Pdb => FrameSource::Memory(pdb::read_all(path)?.into_iter()),
+            TrxFormat::Gro => {
+                let frames = gro::read_all(path)?;
+                let total = frames.len();
+                FrameSource::Memory {
+                    iter: frames.into_iter(),
+                    total,
+                }
+            }
+            TrxFormat::Pdb => {
+                let frames = pdb::read_all(path)?;
+                let total = frames.len();
+                FrameSource::Memory {
+                    iter: frames.into_iter(),
+                    total,
+                }
+            }
         };
         Ok((format, source))
+    }
+
+    /// Position in the input, for the progress bar.
+    ///
+    /// Binary trajectories report the number of bytes consumed of the file
+    /// size, files that are read into memory report the frame count.
+    pub fn read_progress(&mut self) -> Option<ReadProgress> {
+        match self {
+            FrameSource::Xtc(reader) | FrameSource::Trr(reader) => {
+                use std::io::Seek as _;
+                let total = reader.get_ref().metadata().ok()?.len();
+                let consumed = reader.stream_position().ok()?;
+                Some(ReadProgress::Bytes(consumed, total))
+            }
+            FrameSource::Memory { iter, total } => Some(ReadProgress::Frames(
+                (*total - iter.len()) as u64,
+                *total as u64,
+            )),
+        }
     }
 
     /// Returns the next frame, or `None` at the end of the file.
@@ -265,7 +338,7 @@ impl FrameSource {
                 Some(bytes) => Ok(Some(trr::decode_frame(&bytes)?)),
                 None => Ok(None),
             },
-            FrameSource::Memory(it) => Ok(it.next()),
+            FrameSource::Memory { iter, .. } => Ok(iter.next()),
         }
     }
 }

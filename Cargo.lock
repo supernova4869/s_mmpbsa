@@ -152,9 +152,6 @@ name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
-dependencies = [
- "jobserver",
-]
 
 [[package]]
 name = "cfg-if"
@@ -608,6 +605,10 @@ dependencies = [
 [[package]]
 name = "gmx-rs-tools"
 version = "0.1.0"
+dependencies = [
+ "console",
+ "indicatif",
+]
 
 [[package]]
 name = "hashbrown"
@@ -732,15 +733,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fad582f4b9e86b6caa621cabeb0963332d92eea04729ab12892c2533951e6440"
 
 [[package]]
-name = "jobserver"
-version = "0.1.32"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48d1dbcbbeb6a7fec7e059840aa538bd62aaccf972c7346c4d9d2059312853d0"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "jpeg-decoder"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -754,12 +746,6 @@ checksum = "1868808506b929d7b0cfa8f75951347aa71bb21144b7791bae35d9bccfcfe37a"
 dependencies = [
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "lazy-init"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e71f2233af239a915476da8ee21a57331d82b9880c78220451ece7cb5862d313"
 
 [[package]]
 name = "lazy_static"
@@ -1184,7 +1170,6 @@ dependencies = [
  "serde-pickle",
  "serde_yaml",
  "toml",
- "xdrfile",
 ]
 
 [[package]]
@@ -1851,16 +1836,6 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
-]
-
-[[package]]
-name = "xdrfile"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf1595f570602d54ac2e301f814d6ad5c00446043930d7912525ab3d10985b4f"
-dependencies = [
- "cc",
- "lazy-init",
 ]
 
 [[package]]

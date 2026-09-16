@@ -2,14 +2,14 @@ use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use crate::fun_para_system::normalize_index;
-use crate::settings::Settings;
-use crate::utils::{self, is_amino};
+use std::env;
 use ndarray::parallel::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
-use std::env;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use chrono::{Local, Duration};
+use crate::fun_para_system::normalize_index;
+use crate::settings::Settings;
+use crate::utils::{self, is_amino, set_style};
 use crate::coefficients::{self, Coefficients};
 use crate::analysis::{SMResult, SMResults};
 use crate::parse_tpr::Residue;
@@ -151,12 +151,6 @@ fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordi
     let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, ndx_lig);
 
     return (new_coordinates.select(Axis(1), &retain_id).clone(), new_aps, new_ndx_rec, new_ndx_lig)
-}
-
-pub fn set_style(pb: &ProgressBar) {
-    pb.set_style(ProgressStyle::with_template(
-        "[{elapsed_precise}] {bar:50.cyan/cyan} {pos}/{len} {msg}").unwrap()
-        .progress_chars("=>-"));
 }
 
 fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 

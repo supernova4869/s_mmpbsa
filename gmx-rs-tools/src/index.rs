@@ -404,7 +404,7 @@ fn group_matches_atomname(def: &ProtGroupDef, atomname: &str) -> bool {
 
 fn analyse_prot(restype: &[String], atoms: &Atoms, groups: &mut Vec<IndexGroup>) {
     let is_protein = |resind: usize| strcasecmp(&restype[resind], "Protein") == 0;
-    for def in PROTEIN_GROUPS {
+    for (gi, def) in PROTEIN_GROUPS.iter().enumerate() {
         let mut aid: Vec<usize> = Vec::new();
         for n in 0..atoms.nr() {
             let resind = atoms.atom[n].resind as usize;
@@ -415,16 +415,34 @@ fn analyse_prot(restype: &[String], atoms: &Atoms, groups: &mut Vec<IndexGroup>)
                 }
             }
         }
+        // `compareto` is relative to the position of this entry in the table:
+        // `grp_cmp(*indexGroups, aid, compareto - i)`, where a negative index
+        // counts from the end (and `-1` means "always add").
         let skip = if def.compareto == -1 {
             false
         } else {
-            let other = &groups[groups.len() - 1 - def.compareto as usize].particle_indices;
-            other == &aid
+            let index = def.compareto - gi as i32;
+            if index >= groups.len() as i32 {
+                gmx_fatal_no_such_group(index, groups.len());
+                false
+            } else {
+                let idx = if index >= 0 {
+                    index as usize
+                } else {
+                    (groups.len() as i32 - 1 + index) as usize
+                };
+                groups[idx].particle_indices == aid
+            }
         };
         if !skip {
             groups.push(IndexGroup::new(def.group_name, aid));
         }
     }
+}
+
+/// Mirrors the `gmx_fatal` in `grp_cmp()` when the group index is out of range.
+fn gmx_fatal_no_such_group(index: i32, size: usize) {
+    eprintln!("no such index group {index} in index groups (nr={size})");
 }
 
 fn analyse_other(restype: &[String], atoms: &Atoms, groups: &mut Vec<IndexGroup>) {

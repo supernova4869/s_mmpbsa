@@ -1,8 +1,7 @@
 //! Run input (.tpr) file handling, mirroring `gromacs/fileio/tpxio.cpp`.
 //!
-//! Only the modern layout (`fileVersion >= tpxv_AddSizeField`, i.e. GROMACS
-//! 2021 and later) is decoded.  The file consists of an XDR header followed by
-//! a single opaque body blob which, in order, contains
+//! Every layout GROMACS itself accepts (version 58 and later) is decoded.  The
+//! file consists of an XDR header followed by a body which, in order, contains
 //!
 //! ```text
 //! state   : boxm, box_rel, boxv, temperature coupling state
@@ -11,8 +10,15 @@
 //! state   : x, v
 //! ir      : pbc type, periodic molecules, inputrec
 //! ```
+//!
+//! Files before `tpxv_AddSizeField` (119) store the body as plain XDR, newer
+//! ones as a single opaque blob written with the compact in-memory serializer;
+//! `CReader`/`CWriter` switch between the two.
+//!
+//! The inputrec itself is decoded by [`crate::ir::parse_inputrec`], and the
+//! topology printing lives in [`crate::tpdump`].
 
-use crate::frame::{Atom, Atoms, Matrix, PbcType, ResInfo, Rvec};
+use crate::frame::{Atom, Atoms, Matrix, ResInfo, Rvec};
 use crate::xdr::{Reader, Result, Writer, XdrError};
 
 /// When `GMXRS_TRACE` is set, prints the reader position at each parsing stage.
@@ -30,14 +36,19 @@ pub struct CReader<'a> {
     data: &'a [u8],
     pos: usize,
     double_precision: bool,
+    /// True when the body was written through the XDR serializer (tpx files
+    /// older than `tpxv_AddSizeField`), which stores strings as XDR strings
+    /// and pads `bool`/`uchar`/`ushort` to four bytes.
+    xdr: bool,
 }
 
 impl<'a> CReader<'a> {
-    pub fn new(data: &'a [u8], double_precision: bool) -> Self {
+    pub fn new(data: &'a [u8], double_precision: bool, xdr: bool) -> Self {
         CReader {
             data,
             pos: 0,
             double_precision,
+            xdr,
         }
     }
 
@@ -71,16 +82,28 @@ impl<'a> CReader<'a> {
     }
 
     pub fn bool(&mut self) -> Result<bool> {
-        Ok(self.bytes(1)?[0] != 0)
+        if self.xdr {
+            Ok(self.int()? != 0)
+        } else {
+            Ok(self.bytes(1)?[0] != 0)
+        }
     }
 
     pub fn uchar(&mut self) -> Result<u8> {
-        Ok(self.bytes(1)?[0])
+        if self.xdr {
+            Ok(self.int()? as u8)
+        } else {
+            Ok(self.bytes(1)?[0])
+        }
     }
 
     pub fn ushort(&mut self) -> Result<u16> {
-        let b = self.bytes(2)?;
-        Ok(u16::from_be_bytes([b[0], b[1]]))
+        if self.xdr {
+            Ok(self.int()? as u16)
+        } else {
+            let b = self.bytes(2)?;
+            Ok(u16::from_be_bytes([b[0], b[1]]))
+        }
     }
 
     pub fn float(&mut self) -> Result<f32> {
@@ -97,13 +120,30 @@ impl<'a> CReader<'a> {
 
     pub fn real(&mut self) -> Result<f64> {
         if self.double_precision {
-            self.double()
+            // `real` is `float` in this build, so a double precision file is
+            // truncated on read, exactly as GROMACS does.
+            Ok(self.double()? as f32 as f64)
         } else {
             Ok(self.float()? as f64)
         }
     }
 
     pub fn string(&mut self) -> Result<String> {
+        if self.xdr {
+            // `XdrSerializer::doString()`: length including the null byte,
+            // then the plain XDR string.
+            let _len_plus_one = self.int()?;
+            let len = self.int()?;
+            if len < 0 {
+                return Err(XdrError::Invalid("negative string length in tpr body".into()));
+            }
+            let len = len as usize;
+            let raw = self.bytes(len)?;
+            let pad = (4 - (len % 4)) % 4;
+            let _ = self.bytes(pad)?;
+            let end = raw.iter().position(|&c| c == 0).unwrap_or(raw.len());
+            return Ok(String::from_utf8_lossy(&raw[..end]).into_owned());
+        }
         let len = self.int64()?;
         if len < 0 {
             return Err(XdrError::Invalid("negative string length in tpr body".into()));
@@ -134,6 +174,32 @@ pub const TPXV_ADD_SIZE_FIELD: i32 = 119;
 /// `TpxGeneration::AddSizeField` (values start at `Initial = 26`), the first
 /// generation that stores `sizeOfTprBody` in the header.
 pub const TPX_GENERATION_ADD_SIZE_FIELD: i32 = 27;
+/// Oldest tpx version this code accepts, matching `tpx_incompatible_version`.
+pub const TPX_MIN_SUPPORTED_VERSION: i32 = 58;
+/// Value of `tpx_version` (the version this code writes).
+pub const TPX_VERSION: i32 = 138;
+/// Value of `tpx_generation`.
+pub const TPX_GENERATION: i32 = 29;
+
+// Versions that changed a serialized structure; see the `tpxv` enum in
+// `gmx-2026.3/src/gromacs/fileio/tpxio.cpp`.
+const TPXV_V51: i32 = 51; // box_rel in the state
+const TPXV_V56: i32 = 56; // extra (removed) matrix in the state
+const TPXV_V60: i32 = 60; // implicit solvent atom type arrays
+const TPXV_V62: i32 = 62; // nsteps/init_step became int64
+const TPXV_V63: i32 = 63; // resinfo gained nr/ic
+const TPXV_V65: i32 = 65; // cmap
+const TPXV_V66: i32 = 66; // ffparams reppow
+const TPXV_V69: i32 = 69; // single temperature coupling array in the state
+const TPXV_V79: i32 = 79; // fep_state, Urey-Bradley/Morse B state
+const TPXV_V82: i32 = 82; // dihedral restraints B state, nstcalclr
+const TPXV_V103: i32 = 103; // intermolecular interactions
+const TPXV_V113: i32 = 113; // implicit solvation removed
+const TPXV_V120: i32 = 120; // intermolecular exclusion group
+const TPXV_V127: i32 = 127; // Thole rfac removed
+const TPXV_V128: i32 = 128; // atomtypes removed from the topology
+const TPXV_V134: i32 = 134; // Martini bonded B-state parameters
+const TPXV_V135: i32 = 135; // multiple COM groups for refcoord-scaling
 /// Number of `InteractionFunction` values (including the energies).
 pub const INTERACTION_FUNCTION_COUNT: usize = 95;
 /// `ftupd[]` from `tpxio.cpp`: interaction function types that were inserted
@@ -195,6 +261,49 @@ pub struct TpxHeader {
     pub size_of_tpr_body: i64,
 }
 
+/// One serialized force field parameter value (`t_iparams` is a union of
+/// reals and ints, dumped in the order they appear in the file).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PVal {
+    Real(f64),
+    Int(i64),
+}
+
+/// `gmx_ffparams_t`, keeping the parameter values so that `dump` can print
+/// them the way `pr_iparams()` does.
+#[derive(Debug, Clone, Default)]
+pub struct FfParams {
+    pub atnr: i32,
+    pub functype: Vec<i32>,
+    pub reppow: f64,
+    pub fudge_qq: f64,
+    /// Values per `functype` entry, in serialization order.
+    pub iparams: Vec<Vec<PVal>>,
+}
+
+impl FfParams {
+    /// `(c6, c12)` of parameter entry `i` when it is a short range
+    /// Lennard-Jones pair (`LJ_SR`).
+    ///
+    /// The first `atnr * atnr` entries of the parameter list are these pairs,
+    /// in the same order as `nbfp[i * atnr + j]`.
+    pub fn lj_sr(&self, i: usize) -> Option<(f64, f64)> {
+        if self.functype.get(i).copied() != Some(37) {
+            return None;
+        }
+        let p = self.iparams.get(i)?;
+        match (p.first()?, p.get(1)?) {
+            (PVal::Real(c6), PVal::Real(c12)) => Some((*c6, *c12)),
+            _ => None,
+        }
+    }
+
+    /// `atnr` as `usize`.
+    pub fn atnr_usize(&self) -> usize {
+        self.atnr.max(0) as usize
+    }
+}
+
 /// A molecule type (`gmx_moltype_t`) reduced to what the tools need.
 #[derive(Debug, Clone, Default)]
 pub struct MolType {
@@ -221,34 +330,6 @@ pub struct MolBlock {
     pub posres_xb: Vec<[f32; 3]>,
 }
 
-/// Force field parameters (`gmx_ffparams_t`).
-///
-/// The first `atnr * atnr` function types are the Lennard-Jones pair
-/// parameters, stored in the same order in which `gmx dump` lists them (and in
-/// which `nbfp[i * atnr + j]` is indexed).
-#[derive(Debug, Clone, Default)]
-pub struct FfParams {
-    /// Number of atom types (`atnr`).
-    pub atnr: usize,
-    /// Function type of every parameter entry, after the `ftupd[]` shift.
-    pub functype: Vec<i32>,
-    /// Parameters of every function type, in file order.  Integer parameters
-    /// (e.g. the table index of a tabulated interaction) are stored as `f64`.
-    pub iparams: Vec<Vec<f64>>,
-}
-
-impl FfParams {
-    /// `(c6, c12)` of the Lennard-Jones function type `i`, when it is a
-    /// short range Lennard-Jones pair (`LJ_SR`).
-    pub fn lj_sr(&self, i: usize) -> Option<(f64, f64)> {
-        if self.functype.get(i).copied() != Some(37) {
-            return None;
-        }
-        let p = self.iparams.get(i)?;
-        Some((*p.first()?, *p.get(1)?))
-    }
-}
-
 /// Global topology (`gmx_mtop_t`), partially decoded.
 #[derive(Debug, Clone, Default)]
 pub struct Mtop {
@@ -257,13 +338,21 @@ pub struct Mtop {
     pub natoms: usize,
     pub moltypes: Vec<MolType>,
     pub molblocks: Vec<MolBlock>,
-    /// Force field parameters, i.e. the `nbfp` array of the run input file.
     pub ffparams: FfParams,
+    pub b_intermolecular: bool,
+    /// System wide interaction lists, printed when
+    /// `bIntermolecularInteractions` is set.
+    pub intermolecular_ilists: Vec<Vec<i32>>,
     /// Group indices for each `SimulationAtomGroupType`.
     pub groups: Vec<Vec<i32>>,
     pub group_names: Vec<String>,
     /// Per atom group numbers for each `SimulationAtomGroupType`.
     pub group_numbers: Vec<Vec<u8>>,
+    /// `cmap_grid->grid_spacing` (0 when the file has no cmap).
+    pub cmap_grid_spacing: i32,
+    /// One `grid_spacing^2 * 4` block of dihedral energy correction values
+    /// per grid.
+    pub cmap_data: Vec<Vec<f32>>,
 }
 
 impl Mtop {
@@ -341,67 +430,7 @@ impl Mtop {
     }
 }
 
-/// Inputrec prefix, i.e. the fields up to `epsilon_surface`.
-#[derive(Debug, Clone, Default)]
-pub struct InputRec {
-    pub pbc_type: i32,
-    pub b_periodic_mols: bool,
-    pub integrator: i32,
-    pub nsteps: i64,
-    pub init_step: i64,
-    pub simulation_part: i32,
-    pub use_mts: bool,
-    pub mass_repartition_factor: f64,
-    pub ensemble_temperature_setting: i32,
-    pub ensemble_temperature: f64,
-    pub nstcalcenergy: i32,
-    pub cutoff_scheme: i32,
-    pub nstlist: i32,
-    pub rtpi: f64,
-    pub nstcomm: i32,
-    pub comm_mode: i32,
-    pub nstcgsteep: i32,
-    pub nbfgscorr: i32,
-    pub nstlog: i32,
-    pub nstxout: i32,
-    pub nstvout: i32,
-    pub nstfout: i32,
-    pub nstenergy: i32,
-    pub nstxout_compressed: i32,
-    pub init_t: f64,
-    pub delta_t: f64,
-    pub x_compression_precision: f64,
-    pub verletbuf_tol: f64,
-    pub verlet_buffer_pressure_tolerance: f64,
-    pub rlist: f64,
-    pub coulombtype: i32,
-    pub coulomb_modifier: i32,
-    pub rcoulomb_switch: f64,
-    pub rcoulomb: f64,
-    pub vdwtype: i32,
-    pub vdw_modifier: i32,
-    pub rvdw_switch: f64,
-    pub rvdw: f64,
-    pub disp_corr: i32,
-    pub epsilon_r: f64,
-    pub epsilon_rf: f64,
-    pub tabext: f64,
-    pub fourier_spacing: f64,
-    pub nkx: i32,
-    pub nky: i32,
-    pub nkz: i32,
-    pub pme_order: i32,
-    pub ewald_rtol: f64,
-    pub ewald_rtol_lj: f64,
-    pub ewald_geometry: i32,
-    pub epsilon_surface: f64,
-}
-
-impl InputRec {
-    pub fn pbc(&self) -> PbcType {
-        PbcType::from_int(self.pbc_type)
-    }
-}
+pub use crate::ir::InputRec;
 
 /// The decoded body of a tpr file.
 #[derive(Debug, Clone, Default)]
@@ -453,7 +482,16 @@ impl TprFile {
     pub fn read(path: &str) -> Result<TprFile> {
         let data = std::fs::read(path)
             .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
-        TprFile::from_bytes(&data)
+        let file = TprFile::from_bytes(&data)?;
+        // `do_tpxheader()` reports this on stderr for every tool that reads a
+        // run input file.
+        eprintln!(
+            "Reading file {}, {} ({} precision)",
+            path,
+            file.header.version_string,
+            if file.header.is_double { "double" } else { "single" }
+        );
+        Ok(file)
     }
 
     pub fn from_bytes(data: &[u8]) -> Result<TprFile> {
@@ -570,7 +608,12 @@ impl TprFile {
             ));
         }
         let off = body.nsteps_offset;
-        out.body[off..off + 8].copy_from_slice(&nsteps.to_be_bytes());
+        if self.header.file_version >= TPXV_V62 {
+            out.body[off..off + 8].copy_from_slice(&nsteps.to_be_bytes());
+        } else {
+            // Before version 62 the step counts are stored as 32 bit integers.
+            out.body[off..off + 4].copy_from_slice(&(nsteps as i32).to_be_bytes());
+        }
         Ok(out)
     }
 }
@@ -578,22 +621,38 @@ impl TprFile {
 /// Decodes the tpr body.
 /// Decodes the tpr body.
 pub fn parse_body(header: &TpxHeader, body: &[u8]) -> Result<TprBody> {
-    if header.file_version < TPXV_ADD_SIZE_FIELD {
+    if header.file_version < TPX_MIN_SUPPORTED_VERSION {
         return Err(XdrError::Invalid(format!(
-            "tpx version {} is too old; only versions >= {} are supported",
-            header.file_version, TPXV_ADD_SIZE_FIELD
+            "reading tpx file version {} is not supported (the oldest supported \
+             version is {}, matching GROMACS' own limit)",
+            header.file_version, TPX_MIN_SUPPORTED_VERSION
         )));
     }
-    let mut r = CReader::new(body, header.is_double);
+    // The body is stored as one opaque blob (serialized with the compact
+    // in-memory serializer) only from `tpxv_AddSizeField` and
+    // `TpxGeneration::AddSizeField` on; older files are plain XDR.
+    let xdr_body = !(header.file_version >= TPXV_ADD_SIZE_FIELD
+        && header.file_generation >= TPX_GENERATION_ADD_SIZE_FIELD);
+    let mut r = CReader::new(body, header.is_double, xdr_body);
     let mut out = TprBody::default();
 
     // --- state, first part -------------------------------------------------
     if header.b_box {
         out.boxm = Some(read_matrix(&mut r)?);
-        out.box_rel = Some(read_matrix(&mut r)?);
+        if header.file_version >= TPXV_V51 {
+            out.box_rel = Some(read_matrix(&mut r)?);
+        }
         out.boxv = Some(read_matrix(&mut r)?);
+        if header.file_version < TPXV_V56 {
+            // Unused extra matrix in very old files.
+            let _ = read_matrix(&mut r)?;
+        }
     }
     if header.ngtc > 0 {
+        if header.file_version < TPXV_V69 {
+            // Obsolete Berendsen temperature coupling lambdas.
+            let _ = r.real_array(header.ngtc as usize)?;
+        }
         let _ = r.real_array(header.ngtc as usize)?;
     }
 
@@ -629,12 +688,42 @@ pub fn parse_body(header: &TpxHeader, body: &[u8]) -> Result<TprBody> {
     // --- inputrec ----------------------------------------------------------
     if header.b_ir {
         out.ir_offset = r.position();
-        let (ir, nsteps_offset) = parse_inputrec(&mut r, header)?;
+        let (ir, nsteps_offset) = crate::ir::parse_inputrec(&mut r, header)?;
         out.nsteps_offset = nsteps_offset;
         out.ir = Some(ir);
         trace("inputrec prefix end", &r);
     }
+    do_tpx_finalize(header, &mut out);
     Ok(out)
+}
+
+/// `do_tpx_finalize()`: the parts of the post-processing that change what
+/// `gmx dump` prints.
+fn do_tpx_finalize(header: &TpxHeader, body: &mut TprBody) {
+    if header.file_version >= TPXV_V135 {
+        return;
+    }
+    let ir = match body.ir.as_mut() {
+        Some(ir) => ir,
+        None => return,
+    };
+    let mtop = match body.mtop.as_ref() {
+        Some(mtop) => mtop,
+        None => return,
+    };
+    // `gmx_mtop_ftype_count()` over the position restraint interaction types.
+    let mut n_posres = 0usize;
+    for moltype in &mtop.moltypes {
+        for ftype in [52usize, 53] {
+            let list = moltype.ilists.get(ftype).map(|l| l.len()).unwrap_or(0);
+            n_posres += list / (1 + interaction_function_nratoms_pub(ftype));
+        }
+    }
+    // `RefCoordScaling::Com`
+    if n_posres == 0 || ir.refcoord_scaling != 2 {
+        ir.posres_com.clear();
+        ir.posres_com_b.clear();
+    }
 }
 
 /// Reads `do_symtab`.
@@ -726,7 +815,7 @@ fn atomicnumber_to_element(n: i32) -> &'static str {
     }
 }
 
-fn parse_atoms(r: &mut CReader, symtab: &[String]) -> Result<Atoms> {
+fn parse_atoms(r: &mut CReader, symtab: &[String], file_version: i32) -> Result<Atoms> {
     let nr = r.int()? as usize;
     let nres = r.int()? as usize;
     let mut atom = Vec::with_capacity(nr);
@@ -766,10 +855,13 @@ fn parse_atoms(r: &mut CReader, symtab: &[String]) -> Result<Atoms> {
         atom[i].atom_type_b = symstr(r, symtab)?;
     }
     let mut resinfo = Vec::with_capacity(nres);
-    for _ in 0..nres {
+    for j in 0..nres {
         let name = symstr(r, symtab)?;
-        let nr_ = r.int()?;
-        let ic = r.uchar()?;
+        let (nr_, ic) = if file_version >= TPXV_V63 {
+            (r.int()?, r.uchar()?)
+        } else {
+            (j as i32 + 1, b' ')
+        };
         resinfo.push(ResInfo {
             name,
             nr: nr_,
@@ -784,93 +876,120 @@ fn parse_atoms(r: &mut CReader, symtab: &[String]) -> Result<Atoms> {
     })
 }
 
-/// `do_iparams`: reads the parameters of one function type in file order.
-///
-/// Integer parameters (the table index of a tabulated interaction, the
-/// function type of a restraint, ...) are converted to `f64` so that every
-/// function type is described by a single `Vec<f64>` that callers can index
-/// exactly like `gmx dump` does.
-fn read_iparams(r: &mut CReader, ftype: i32) -> Result<Vec<f64>> {
-    fn reals(r: &mut CReader, n: usize, out: &mut Vec<f64>) -> Result<()> {
+/// `do_iparams`: advances the reader over the parameters of one function type.
+/// `do_iparams()`: reads the parameter values of one function type.
+/// `do_iparams()`: reads the parameter values of one function type, in the
+/// order they are serialized (reals and ints interleaved for some types).
+fn parse_iparams(r: &mut CReader, ftype: i32, file_version: i32) -> Result<Vec<PVal>> {
+    let mut vals: Vec<PVal> = Vec::new();
+    fn reals(vals: &mut Vec<PVal>, r: &mut CReader, n: usize) -> Result<()> {
         for _ in 0..n {
-            out.push(r.real()?);
+            vals.push(PVal::Real(r.real()?));
         }
         Ok(())
     }
-    let mut out: Vec<f64> = Vec::new();
+    fn ints(vals: &mut Vec<PVal>, r: &mut CReader, n: usize) -> Result<()> {
+        for _ in 0..n {
+            vals.push(PVal::Int(r.int()? as i64));
+        }
+        Ok(())
+    }
     match ftype {
         // Bonds, GROMOS96Bonds, HarmonicPotential, Angles, GROMOS96Angles,
-        // ImproperDihedrals, RestrictedBendingPotential (modern version).
-        0 | 1 | 5 | 10 | 11 | 12 | 24 => reals(r, 4, &mut out)?,
-        13 => reals(r, 4, &mut out)?,   // LinearAngles
-        6 => reals(r, 2, &mut out)?,    // FENEBonds
-        9 => reals(r, 8, &mut out)?,    // RestraintBonds
+        // ImproperDihedrals.
+        0 | 1 | 5 | 10 | 11 | 24 => reals(&mut vals, r, 4)?,
+        // RestrictedBendingPotential: the B state was added in version 134.
+        12 => reals(&mut vals, r, if file_version >= TPXV_V134 { 4 } else { 2 })?,
+        13 => reals(&mut vals, r, 4)?, // LinearAngles
+        6 => reals(&mut vals, r, 2)?,  // FENEBonds
+        9 => reals(&mut vals, r, 8)?,  // RestraintBonds
+        // Tabulated bonds/angles/dihedrals: kA, table, kB
         7 | 8 | 18 | 26 => {
-            // Tabulated bonds/angles/dihedrals: kA, table, kB
-            out.push(r.real()?);
-            out.push(r.int()? as f64);
-            out.push(r.real()?);
+            vals.push(PVal::Real(r.real()?));
+            vals.push(PVal::Int(r.int()? as i64));
+            vals.push(PVal::Real(r.real()?));
         }
-        14 => reals(r, 3, &mut out)?,   // CrossBondBonds
-        15 => reals(r, 4, &mut out)?,   // CrossBondAngles
-        16 => reals(r, 8, &mut out)?,   // UreyBradleyPotential
-        17 => reals(r, 6, &mut out)?,   // QuarticAngles (theta + 5 coefficients)
-        38 => reals(r, 3, &mut out)?,   // BuckinghamShortRange
-        2 => reals(r, 6, &mut out)?,    // MorsePotential
-        3 => reals(r, 3, &mut out)?,    // CubicBonds
-        4 => {}                         // ConnectBonds
-        48 => reals(r, 1, &mut out)?,   // Polarization
-        51 => reals(r, 3, &mut out)?,   // AnharmonicPolarization
-        49 => reals(r, 6, &mut out)?,   // WaterPolarization
-        50 => reals(r, 3, &mut out)?,   // TholePolarization (no rfac for modern files)
-        37 => reals(r, 2, &mut out)?,   // LennardJonesShortRange
-        33 => reals(r, 4, &mut out)?,   // LennardJones14
-        35 => reals(r, 5, &mut out)?,   // LennardJonesCoulomb14Q
-        36 => reals(r, 4, &mut out)?,   // LennardJonesCoulombNonBondedPairs
+        14 => reals(&mut vals, r, 3)?, // CrossBondBonds
+        15 => reals(&mut vals, r, 4)?, // CrossBondAngles
+        // UreyBradleyPotential: B state added in version 79.
+        16 => reals(&mut vals, r, if file_version >= TPXV_V79 { 8 } else { 4 })?,
+        17 => reals(&mut vals, r, 6)?, // QuarticAngles (theta + 5 coefficients)
+        38 => reals(&mut vals, r, 3)?, // BuckinghamShortRange
+        // MorsePotential: B state added in version 79.
+        2 => reals(&mut vals, r, if file_version >= TPXV_V79 { 6 } else { 3 })?,
+        3 => reals(&mut vals, r, 3)?, // CubicBonds
+        4 => {}                       // ConnectBonds
+        48 => reals(&mut vals, r, 1)?, // Polarization
+        51 => reals(&mut vals, r, 3)?, // AnharmonicPolarization
+        49 => reals(&mut vals, r, 6)?, // WaterPolarization
+        // TholePolarization: the unused rfac parameter was removed in 127.
+        50 => reals(&mut vals, r, if file_version < TPXV_V127 { 4 } else { 3 })?,
+        37 => reals(&mut vals, r, 2)?, // LennardJonesShortRange
+        33 => reals(&mut vals, r, 4)?, // LennardJones14
+        35 => reals(&mut vals, r, 5)?, // LennardJonesCoulomb14Q
+        36 => reals(&mut vals, r, 4)?, // LennardJonesCoulombNonBondedPairs
+        // Proper/periodic improper dihedrals, angle restraints
         19 | 25 | 58 | 59 => {
-            // Proper/periodic improper dihedrals, angle restraints
-            reals(r, 4, &mut out)?;
-            out.push(r.int()? as f64);
+            reals(&mut vals, r, 4)?;
+            vals.push(PVal::Int(r.int()? as i64));
         }
-        21 => reals(r, 4, &mut out)?,   // RestrictedTorsionPotential
+        // RestrictedTorsionPotential: B state added in version 134.
+        21 => reals(&mut vals, r, if file_version >= TPXV_V134 { 4 } else { 2 })?,
         54 => {
             // DistanceRestraints
-            out.push(r.int()? as f64);
-            out.push(r.int()? as f64);
-            reals(r, 4, &mut out)?;
+            ints(&mut vals, r, 2)?;
+            reals(&mut vals, r, 4)?;
         }
         56 => {
             // OrientationRestraints
-            out.push(r.int()? as f64);
-            out.push(r.int()? as f64);
-            out.push(r.int()? as f64);
-            reals(r, 3, &mut out)?;
+            ints(&mut vals, r, 3)?;
+            reals(&mut vals, r, 3)?;
         }
-        60 => reals(r, 6, &mut out)?,   // DihedralRestraints
-        52 => reals(r, 12, &mut out)?,  // PositionRestraints (4 rvecs)
+        // DihedralRestraints: two obsolete ints before version 82.
+        60 => {
+            if file_version >= TPXV_V82 {
+                reals(&mut vals, r, 6)?;
+            } else {
+                ints(&mut vals, r, 2)?;
+                reals(&mut vals, r, 3)?;
+            }
+        }
+        52 => reals(&mut vals, r, 12)?, // PositionRestraints (4 rvecs)
         53 => {
             // FlatBottomedPositionRestraints
-            out.push(r.int()? as f64);
-            reals(r, 5, &mut out)?;
+            vals.push(PVal::Int(r.int()? as i64));
+            reals(&mut vals, r, 5)?;
         }
-        22 => reals(r, 2 * NR_DIHEDRAL_PARAMS, &mut out)?, // CombinedBendingTorsion
-        20 | 23 => reals(r, 2 * NR_DIHEDRAL_PARAMS, &mut out)?, // RB / Fourier dihedrals
-        62 | 63 => reals(r, 2, &mut out)?, // Constraints
-        64 => reals(r, 2, &mut out)?,      // SETTLE
-        65 => {}                           // VirtualSite1
-        66 | 67 => reals(r, 1, &mut out)?, // VirtualSite2 variants
-        68 | 69 | 70 => reals(r, 2, &mut out)?, // VirtualSite3 variants
-        71 | 72 | 73 => reals(r, 3, &mut out)?, // VirtualSite3Outside / VirtualSite4
+        // CombinedBendingTorsion: B state added in version 134.
+        22 => reals(&mut vals, r, if file_version >= TPXV_V134 { 2 * NR_DIHEDRAL_PARAMS } else { NR_DIHEDRAL_PARAMS })?,
+        20 | 23 => reals(&mut vals, r, 2 * NR_DIHEDRAL_PARAMS)?, // RB / Fourier dihedrals
+        62 | 63 => reals(&mut vals, r, 2)?, // Constraints
+        64 => reals(&mut vals, r, 2)?,      // SETTLE
+        65 => {}                            // VirtualSite1
+        66 | 67 => reals(&mut vals, r, 1)?, // VirtualSite2 variants
+        // VirtualSite3, VirtualSite3FlexibleDistance,
+        // VirtualSite3FlexibleAngleDistance: `a`, `b`
+        68 | 69 | 70 => reals(&mut vals, r, 2)?,
+        // VirtualSite3Outside, VirtualSite4FlexibleDistance,
+        // VirtualSite4FlexibleDistanceNormalization: `a`, `b`, `c`
+        71 | 72 | 73 => reals(&mut vals, r, 3)?,
         74 => {
             // VirtualSiteN
-            out.push(r.int()? as f64);
-            reals(r, 1, &mut out)?;
+            vals.push(PVal::Int(r.int()? as i64));
+            reals(&mut vals, r, 1)?;
         }
-        28 | 29 | 30 => {} // Implicit solvent (no longer stored)
+        28 | 29 | 30 => {
+            // Implicit solvent parameters: read (and ignored) for old files.
+            if file_version < 68 {
+                reals(&mut vals, r, 4)?;
+            }
+            if file_version < TPXV_V113 {
+                reals(&mut vals, r, 5)?;
+            }
+        }
         27 => {
             // DihedralEnergyCorrectionMap
-            out.push(r.int()? as f64);
-            out.push(r.int()? as f64);
+            ints(&mut vals, r, 2)?;
         }
         other => {
             return Err(XdrError::Invalid(format!(
@@ -878,7 +997,7 @@ fn read_iparams(r: &mut CReader, ftype: i32) -> Result<Vec<f64>> {
             )))
         }
     }
-    Ok(out)
+    Ok(vals)
 }
 
 fn parse_ffparams(r: &mut CReader, file_version: i32) -> Result<FfParams> {
@@ -888,8 +1007,13 @@ fn parse_ffparams(r: &mut CReader, file_version: i32) -> Result<FfParams> {
         return Err(XdrError::Invalid("negative force field type count".into()));
     }
     let mut functype = r.int_array(num_types as usize)?;
-    let _reppow = r.double()?;
-    let _fudge_qq = r.real()?;
+    // `reppow` only exists in files from version 66 on.
+    let reppow = if file_version >= TPXV_V66 {
+        r.double()?
+    } else {
+        12.0
+    };
+    let fudge_qq = r.real()?;
     // Shift the function types of files written before a type was inserted
     // into the enum (see `ftupd[]` in tpxio.cpp).
     for ft in functype.iter_mut() {
@@ -899,13 +1023,15 @@ fn parse_ffparams(r: &mut CReader, file_version: i32) -> Result<FfParams> {
             }
         }
     }
-    let mut iparams: Vec<Vec<f64>> = Vec::with_capacity(functype.len());
+    let mut iparams = Vec::with_capacity(functype.len());
     for ft in &functype {
-        iparams.push(read_iparams(r, *ft)?);
+        iparams.push(parse_iparams(r, *ft, file_version)?);
     }
     Ok(FfParams {
-        atnr: atnr.max(0) as usize,
+        atnr,
         functype,
+        reppow,
+        fudge_qq,
         iparams,
     })
 }
@@ -942,6 +1068,11 @@ fn parse_ilists(
 ) -> Result<()> {
     for iftype in 0..INTERACTION_FUNCTION_COUNT {
         if ilist_is_absent(iftype, file_version) {
+            // `do_ilists()` clears the list without reading anything, so the
+            // entries stay indexed by interaction function type.
+            if let Some(all) = all.as_deref_mut() {
+                all.push(Vec::new());
+            }
             continue;
         }
         let nr = r.int()?;
@@ -995,7 +1126,7 @@ fn parse_list_of_lists(r: &mut CReader) -> Result<Vec<Vec<i32>>> {
 
 fn parse_moltype(r: &mut CReader, symtab: &[String], file_version: i32) -> Result<MolType> {
     let name = symstr(r, symtab)?;
-    let atoms = parse_atoms(r, symtab)?;
+    let atoms = parse_atoms(r, symtab, file_version)?;
     let mut bonds = Vec::new();
     let mut ilists = Vec::new();
     parse_ilists(r, file_version, Some(&mut bonds), Some(&mut ilists))?;
@@ -1066,17 +1197,41 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
     out.natoms = natoms;
     out.mtop_tail_offset = r.position();
 
-    let b_intermolecular = r.bool()?;
-    if b_intermolecular {
-        parse_ilists(r, header.file_version, None, None)?;
+    let mut b_intermolecular = false;
+    let mut intermolecular_ilists = Vec::new();
+    if header.file_version >= TPXV_V103 {
+        b_intermolecular = r.bool()?;
+        if b_intermolecular {
+            parse_ilists(r, header.file_version, None, Some(&mut intermolecular_ilists))?;
+        }
+    }
+
+    // `do_atomtypes()` (removed from the format in version 128)
+    if header.file_version < TPXV_V128 {
+        let nr = r.int()?;
+        if nr > 0 {
+            if header.file_version < TPXV_V113 {
+                let _ = r.real_array(nr as usize * 3)?;
+            }
+            let _ = r.int_array(nr as usize)?;
+            if header.file_version >= TPXV_V60 && header.file_version < TPXV_V113 {
+                let _ = r.real_array(nr as usize * 2)?;
+            }
+        }
     }
 
     // cmap
-    let ngrid = r.int()?;
-    let grid_spacing = r.int()?;
-    let nelem = (grid_spacing * grid_spacing) as usize;
-    if ngrid > 0 {
-        let _ = r.real_array(ngrid as usize * nelem * 4)?;
+    let mut cmap_grid_spacing = 0i32;
+    let mut cmap_data: Vec<Vec<f32>> = Vec::new();
+    if header.file_version >= TPXV_V65 {
+        let ngrid = r.int()?;
+        let grid_spacing = r.int()?;
+        cmap_grid_spacing = grid_spacing;
+        let nelem = (grid_spacing * grid_spacing) as usize;
+        for _ in 0..ngrid.max(0) {
+            let values = r.real_array(nelem * 4)?;
+            cmap_data.push(values.into_iter().map(|v| v as f32).collect());
+        }
     }
     trace("cmap done", r);
 
@@ -1109,10 +1264,12 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
     }
     trace("groups done", r);
 
-    // intermolecular exclusion group
-    let excl_size = r.int64()?;
-    if excl_size > 0 {
-        let _ = r.int_array(excl_size as usize)?;
+    // intermolecular exclusion group (added in version 120)
+    if header.file_version >= TPXV_V120 {
+        let excl_size = r.int64()?;
+        if excl_size > 0 {
+            let _ = r.int_array(excl_size as usize)?;
+        }
     }
     trace("mtop end", r);
 
@@ -1124,82 +1281,14 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
         moltypes,
         molblocks,
         ffparams,
+        b_intermolecular,
+        intermolecular_ilists,
         groups,
         group_names,
         group_numbers,
+        cmap_grid_spacing,
+        cmap_data,
     })
-}
-
-/// Parses the inputrec prefix and returns it together with the absolute byte
-/// offset of `nsteps` inside the body blob.
-fn parse_inputrec(r: &mut CReader, header: &TpxHeader) -> Result<(InputRec, usize)> {
-    let mut ir = InputRec::default();
-    ir.pbc_type = r.int()?;
-    ir.b_periodic_mols = r.bool()?;
-
-    ir.integrator = r.int()?;
-    let nsteps_offset = r.position();
-    ir.nsteps = r.int64()?;
-    ir.init_step = r.int64()?;
-    ir.simulation_part = r.int()?;
-    ir.use_mts = r.bool()?;
-    if ir.use_mts {
-        let num_levels = r.int()?;
-        for _ in 0..num_levels {
-            let _ = r.int()?; // force groups
-            let _ = r.int()?; // step factor
-        }
-    }
-    ir.mass_repartition_factor = r.real()?;
-    ir.ensemble_temperature_setting = r.int()?;
-    ir.ensemble_temperature = r.real()?;
-    ir.nstcalcenergy = r.int()?;
-    ir.cutoff_scheme = r.int()?;
-    let _ = r.int()?; // used to be ns_type
-    ir.nstlist = r.int()?;
-    let _ = r.int()?; // used to be ndelta
-    ir.rtpi = r.real()?;
-    ir.nstcomm = r.int()?;
-    ir.comm_mode = r.int()?;
-    ir.nstcgsteep = r.int()?;
-    ir.nbfgscorr = r.int()?;
-    ir.nstlog = r.int()?;
-    ir.nstxout = r.int()?;
-    ir.nstvout = r.int()?;
-    ir.nstfout = r.int()?;
-    ir.nstenergy = r.int()?;
-    ir.nstxout_compressed = r.int()?;
-    ir.init_t = r.double()?;
-    ir.delta_t = r.double()?;
-    ir.x_compression_precision = r.real()?;
-    ir.verletbuf_tol = r.real()?;
-    ir.verlet_buffer_pressure_tolerance = r.real()?;
-    ir.rlist = r.real()?;
-    let _ = r.int()?; // obsolete nstcalclr
-    ir.coulombtype = r.int()?;
-    ir.coulomb_modifier = r.int()?;
-    ir.rcoulomb_switch = r.real()?;
-    ir.rcoulomb = r.real()?;
-    ir.vdwtype = r.int()?;
-    ir.vdw_modifier = r.int()?;
-    ir.rvdw_switch = r.real()?;
-    ir.rvdw = r.real()?;
-    ir.disp_corr = r.int()?;
-    ir.epsilon_r = r.real()?;
-    ir.epsilon_rf = r.real()?;
-    ir.tabext = r.real()?;
-    ir.fourier_spacing = r.real()?;
-    ir.nkx = r.int()?;
-    ir.nky = r.int()?;
-    ir.nkz = r.int()?;
-    ir.pme_order = r.int()?;
-    ir.ewald_rtol = r.real()?;
-    ir.ewald_rtol_lj = r.real()?;
-    ir.ewald_geometry = r.int()?;
-    ir.epsilon_surface = r.real()?;
-
-    let _ = header;
-    Ok((ir, nsteps_offset))
 }
 
 /// Serializes a symbol reference: `do_symstr()` writes the index of the string
@@ -1210,13 +1299,15 @@ fn parse_inputrec(r: &mut CReader, header: &TpxHeader) -> Result<(InputRec, usiz
 pub struct CWriter {
     pub data: Vec<u8>,
     double_precision: bool,
+    xdr: bool,
 }
 
 impl CWriter {
-    pub fn new(double_precision: bool) -> Self {
+    pub fn new(double_precision: bool, xdr: bool) -> Self {
         CWriter {
             data: Vec::new(),
             double_precision,
+            xdr,
         }
     }
 
@@ -1225,15 +1316,27 @@ impl CWriter {
     }
 
     pub fn bool(&mut self, v: bool) {
-        self.data.push(if v { 1 } else { 0 });
+        if self.xdr {
+            self.int(if v { 1 } else { 0 });
+        } else {
+            self.data.push(if v { 1 } else { 0 });
+        }
     }
 
     pub fn uchar(&mut self, v: u8) {
-        self.data.push(v);
+        if self.xdr {
+            self.int(v as i32);
+        } else {
+            self.data.push(v);
+        }
     }
 
     pub fn ushort(&mut self, v: u16) {
-        self.data.extend_from_slice(&v.to_be_bytes());
+        if self.xdr {
+            self.int(v as i32);
+        } else {
+            self.data.extend_from_slice(&v.to_be_bytes());
+        }
     }
 
     pub fn real(&mut self, v: f64) {
@@ -1250,6 +1353,22 @@ impl CWriter {
 
     pub fn into_vec(self) -> Vec<u8> {
         self.data
+    }
+
+    /// `doString()` in the XDR serializer: length, then the XDR string.
+    pub fn string(&mut self, s: &str) {
+        if self.xdr {
+            self.int(s.len() as i32 + 1);
+            self.int(s.len() as i32);
+            self.data.extend_from_slice(s.as_bytes());
+            for _ in 0..(4 - (s.len() % 4)) % 4 {
+                self.data.push(0);
+            }
+        } else {
+            self.data
+                .extend_from_slice(&(s.len() as u64).to_be_bytes());
+            self.data.extend_from_slice(s.as_bytes());
+        }
     }
 }
 
@@ -1289,8 +1408,13 @@ fn put_atoms(w: &mut CWriter, atoms: &Atoms, symtab: &std::collections::HashMap<
     }
 }
 
-fn put_ilists(w: &mut CWriter, ilists: &[Vec<i32>]) {
+fn put_ilists(w: &mut CWriter, ilists: &[Vec<i32>], file_version: i32) {
     for i in 0..INTERACTION_FUNCTION_COUNT {
+        // Lists of interaction types that did not exist yet are not stored at
+        // all in older files, so they must not be written either.
+        if ilist_is_absent(i, file_version) {
+            continue;
+        }
         let list = ilists.get(i).map(|l| l.as_slice()).unwrap_or(&[]);
         w.int(list.len() as i32);
         for v in list {
@@ -1484,14 +1608,16 @@ pub fn write_subset_body(
 
     // --- serialize ---------------------------------------------------------
     let dp = tpr.header.is_double;
-    let mut w = CWriter::new(dp);
+    let xdr_body = !(tpr.header.file_version >= TPXV_ADD_SIZE_FIELD
+        && tpr.header.file_generation >= TPX_GENERATION_ADD_SIZE_FIELD);
+    let mut w = CWriter::new(dp, xdr_body);
     // state, first part, and the symbol table + name + force field parameters
     w.bytes(&tpr.body[..body.moltype_count_offset]);
     // a single molecule type containing the whole selection
     w.int(1);
     w.int(body.mtop_name_symidx);
     put_atoms(&mut w, &atoms, &symidx);
-    put_ilists(&mut w, &ilists);
+    put_ilists(&mut w, &ilists, tpr.header.file_version);
     // obsolete charge groups: one per atom
     w.int(atoms.nr() as i32);
     for i in 0..=atoms.nr() {
@@ -1571,6 +1697,10 @@ fn real_size(double_precision: bool) -> usize {
 
 /// Number of particles of each interaction function (`interaction_function[]`
 /// in `topology/ifunc.cpp`).
+pub fn interaction_function_nratoms_pub(iftype: usize) -> usize {
+    interaction_function_nratoms(iftype)
+}
+
 fn interaction_function_nratoms(iftype: usize) -> usize {
     match iftype {
         0..=9 => 2,      // bonds

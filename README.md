@@ -118,5 +118,3 @@ If you encountered any difficulty while using s_mmpbsa, or you found any bugs, o
 
 ## Built-in Gromacs tools
 - `gmx dump`, `gmx trjconv`, `gmx convert-tpr` and `gmx make_ndx` are replaced by the Rust port from https://github.com/supernova4869/gmx-rs-tools, vendored under `gmx-rs-tools/` and compiled directly into the s_mmpbsa executable. `src/gmx.rs` is the code that drives it, so no external Gromacs program or sub-process is used.
-- Run input files written by Gromacs 2021 and later (tpx version >= 119) are read directly. Files from older Gromacs versions are still supported, but only by calling the `gmx` program named by `gmx_path` in `settings.ini`, which is empty (turned off) by default. Re-converting such a file once with `gmx convert-tpr -s old.tpr -o new.tpr` makes even that unnecessary.
-- To refresh the vendored tools from a local gmx-rs-tools checkout, run `scripts/sync_gmx_rs_tools.sh`.

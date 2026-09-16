@@ -7,6 +7,7 @@ use crate::cmd::Args;
 use crate::frame::{Atoms, Frame, Matrix, Rvec};
 use crate::index::{self, IndexGroup};
 use crate::pbc::{self, ECenter};
+use crate::progress::Progress;
 use crate::tpr;
 use crate::trx::{self, TrxFormat, TrxWriter};
 
@@ -53,6 +54,50 @@ enum FitMode {
 }
 
 use crate::cmd::select_group as require_group;
+
+/// The frame progress of a running conversion.
+///
+/// Progress is measured against the requested time window when one was given
+/// (`-b`/`-e`), and against the position in the input file otherwise, which is
+/// what "converting the whole trajectory" means.
+struct FrameProgress {
+    bar: Progress,
+    time_window: Option<(f64, f64)>,
+}
+
+impl FrameProgress {
+    fn new(time_window: Option<(f64, f64)>) -> Self {
+        FrameProgress {
+            bar: Progress::new(),
+            time_window,
+        }
+    }
+
+    /// Reports the frame that has just been read.
+    ///
+    /// The state is updated for every frame so that the final draw is exact;
+    /// `Progress` throttles the redraws itself.
+    fn tick(&mut self, source: &mut trx::FrameSource, frames: u64, time: f64) {
+        let fraction = match self.time_window {
+            // A window with an unbounded end (`-e inf`, which is how "the whole
+            // trajectory" is passed in) carries no information about how far
+            // along the conversion is, so the position in the file is used.
+            Some((start, end)) if end.is_finite() && end > start => {
+                Some(((time - start) / (end - start)).clamp(0.0, 1.0))
+            }
+            _ => source.read_progress().and_then(|p| p.fraction()),
+        };
+        self.bar.update(fraction, frames, time);
+    }
+
+    fn suspend(&mut self) {
+        self.bar.pause();
+    }
+
+    fn finish(&mut self) {
+        self.bar.finish();
+    }
+}
 
 fn rmod(x: f64, first: f64, step: f64) -> bool {
     if step == 0.0 {
@@ -343,8 +388,9 @@ pub fn run(argv: Vec<String>) -> i32 {
             return 1;
         }
     };
+    // `fprintf(stderr, "Will write %s: %s\n", ...)`
     eprintln!(
-        "Will write {}: {}\n",
+        "Will write {}: {}",
         out_format.extension(),
         out_format.description()
     );
@@ -431,10 +477,14 @@ pub fn run(argv: Vec<String>) -> i32 {
             return 1;
         }
     };
+    // A bounded `-e` gives an exact fraction to report; otherwise the bar
+    // follows how much of the input file has been read.
+    let mut progress = FrameProgress::new(if b_end { Some((tbegin, tend)) } else { None });
     // Frames before -b are skipped while reading, like read_first_frame().
     let mut first_frame = loop {
         match source.next_frame() {
             Ok(Some(f)) => {
+                progress.tick(&mut source, 0, f.time.unwrap_or(0.0));
                 if b_begin && f.time.unwrap_or(0.0) < tbegin {
                     continue;
                 }
@@ -450,6 +500,14 @@ pub fn run(argv: Vec<String>) -> i32 {
             }
         }
     };
+    if b_end && !b_begin {
+        // Without -b the window starts at the first frame that is read.
+        progress.time_window = Some((first_frame.time.unwrap_or(0.0), tend));
+    }
+    // The run input file is read and the groups are picked next; the bar has
+    // to stop drawing before the first of those messages, otherwise they would
+    // be printed on top of it.  It starts again for the frame loop.
+    progress.suspend();
     // Topology: prefer the run input file.
     let mut mtop: Option<tpr::Mtop> = None;
     let mut atoms: Option<Atoms> = None;
@@ -548,6 +606,9 @@ pub fn run(argv: Vec<String>) -> i32 {
     };
 
     // Fit group.
+    // The bar is erased while the groups are being picked, so that its line
+    // does not mix with the prompts.
+    progress.suspend();
     let mut fit_index: Vec<usize> = Vec::new();
     if b_reset {
         println!("Select group for {} fit", if b_fit { "least squares" } else { "translational" });
@@ -809,6 +870,7 @@ pub fn run(argv: Vec<String>) -> i32 {
         }
     } {
         n_frames += 1;
+        progress.tick(&mut source, n_frames as u64, fr.time.unwrap_or(0.0));
         let t_process_start = std::time::Instant::now();
         // -e stops reading (and writing) beyond the requested end time.
         if b_end && fr.time.unwrap_or(0.0) > tend {
@@ -986,7 +1048,9 @@ pub fn run(argv: Vec<String>) -> i32 {
         }
 
         if b_tdump {
-            eprintln!("\nDumping frame at t= {frout_time} ps\n");
+            // The leading newline of the original terminates its in-line
+            // progress output, which this port does not print.
+            eprintln!("Dumping frame at t= {frout_time} ps");
         }
 
         let mut outfr = fr.clone();
@@ -1082,15 +1146,13 @@ pub fn run(argv: Vec<String>) -> i32 {
             return 1;
         }
     }
+    progress.finish();
     eprintln!(
-        "\nLast written: frame {:6} time {:8.3}",
+        "Last written: frame {:6} time {:8.3}",
         last_written.0, last_written.1
     );
     if outframe == 0 {
-        eprintln!(
-            "\nWARNING no output, last frame read at t={}",
-            last_written.1
-        );
+        eprintln!("WARNING no output, last frame read at t={}", last_written.1);
     }
     if b_time {
         eprintln!(

@@ -53,9 +53,9 @@ impl TPR {
     /// Builds the system description straight out of a run input file, using
     /// the vendored `gmx-rs-tools` reader instead of parsing `gmx dump` text.
     ///
-    /// This is the path taken for run input files GROMACS 2021 and later wrote
-    /// (tpx version >= 119); older files are rejected here and are handled
-    /// through [`TPR::from`] after `gmx dump`, see `crate::gmx`.
+    /// This is the path taken for every run input file the vendored crate can
+    /// decode, i.e. tpx version 58 and later (GROMACS 4.0 on); [`TPR::from`]
+    /// after `gmx dump` is only a fallback, see `crate::gmx`.
     pub fn from_run_input(tpr_path: &str) -> Result<TPR, String> {
         use gmx_rs_tools::tpr as rs;
 
@@ -73,7 +73,7 @@ impl TPR {
 
         // Lennard-Jones parameters of every atom type pair, in the order of
         // `nbfp` (`gmx dump` prints them as `functype[i]=LJ_SR`).
-        let atnr = mtop.ffparams.atnr;
+        let atnr = mtop.ffparams.atnr_usize();
         let mut lj_sr_params: Vec<LJType> = Vec::with_capacity(atnr * atnr);
         let mut radius: Vec<f64> = Vec::with_capacity(atnr);
         const INV_SIX: f64 = 1.0 / 6.0;

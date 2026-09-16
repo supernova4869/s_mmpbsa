@@ -95,8 +95,9 @@ pub fn select_group(groups: &[IndexGroup], prompt: &str) -> Option<usize> {
         }
     }
     if groups.len() == 1 {
+        // `qgroup()`: `fprintf(stderr, "There is one group in the index\n")`.
         if !is_scripted() {
-            eprintln!("There is one group in the index\n");
+            eprintln!("There is one group in the index");
         }
         return Some(0);
     }
@@ -118,13 +119,14 @@ pub fn select_group(groups: &[IndexGroup], prompt: &str) -> Option<usize> {
         }
         if let Ok(v) = s.parse::<usize>() {
             if v < groups.len() {
-                eprintln!("Selected {}: '{}'\n", v, groups[v].name);
+                // `qgroup()`: `printf("Selected %d: '%s'\n", ...)` on stdout.
+                println!("Selected {}: '{}'", v, groups[v].name);
                 return Some(v);
             }
         } else {
             let g = crate::index::find_group(s, groups);
             if g >= 0 {
-                eprintln!("Selected {}: '{}'\n", g, groups[g as usize].name);
+                println!("Selected {}: '{}'", g, groups[g as usize].name);
                 return Some(g as usize);
             }
         }
@@ -202,6 +204,22 @@ impl Args {
         }
     }
 
+    /// gmx style boolean option with a `true` default: `-nr`/`-nonr` or
+    /// `-nr yes|no`, as in `BooleanOption("nr").defaultValue(true)`.
+    pub fn flag_default_true(&self, name: &str) -> bool {
+        let mut value = true;
+        if self.has(&format!("no{name}")) {
+            value = false;
+        }
+        if let Some((_, v)) = self.opts.iter().find(|(n, _)| n == name) {
+            value = match v.first() {
+                None => true,
+                Some(s) => !matches!(s.as_str(), "no" | "false" | "0"),
+            };
+        }
+        value
+    }
+
     pub fn int(&self, name: &str, default: i64) -> i64 {
         self.get(name)
             .and_then(|s| s.parse().ok())
@@ -234,7 +252,18 @@ pub fn fmt_g(v: f64, width: usize, precision: usize) -> String {
     let s = if v == 0.0 {
         "0".to_string()
     } else {
-        let exp = v.abs().log10().floor() as i32;
+        // `%g` picks the `%e` style when the exponent of the value rounded to
+        // `precision` significant digits is below -4 or not below the
+        // precision.  Using the rounded exponent matters: 9.9999997e-05, the
+        // single precision representation of 1e-4, has exponent -4 and is
+        // therefore printed as 0.0001.
+        let exp = {
+            let s = format!("{:.*e}", precision - 1, v);
+            match s.find('e') {
+                Some(pos) => s[pos + 1..].parse::<i32>().unwrap_or(0),
+                None => 0,
+            }
+        };
         if exp < -4 || exp >= precision as i32 {
             let mut s = format!("{:.*e}", precision - 1, v);
             // Normalise the exponent to at least two digits with a sign.

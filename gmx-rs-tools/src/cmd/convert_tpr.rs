@@ -224,12 +224,12 @@ pub fn run(argv: Vec<String>) -> i32 {
         }
         if b_sel {
             eprintln!(
-                "Will write subset {} of original tpx containing {} atoms\n",
+                "Will write subset {} of original tpx containing {} atoms",
                 groups[g].name, gnx
             );
             subset = Some(index);
         } else {
-            eprintln!("Will write full tpx file (no selection)\n");
+            eprintln!("Will write full tpx file (no selection)");
         }
     }
 

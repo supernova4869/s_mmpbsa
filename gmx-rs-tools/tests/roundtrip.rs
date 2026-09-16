@@ -328,3 +328,63 @@ fn coordinate_reader_applies_range_and_selection() {
 
     let _ = std::fs::remove_file(path);
 }
+
+/// Run input files written by several GROMACS releases are parsed with the
+/// version-dependent layouts of `tpxio.cpp` (the body switched from XDR to the
+/// compact in-memory serializer in tpx version 119).
+///
+/// The files ship with the GROMACS source tree, so the test is skipped when the
+/// crate is built outside of it.
+#[test]
+fn old_tpr_versions_parse() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("src/gromacs");
+    // (relative path, expected natoms, expected nsteps, expected tpx version)
+    let cases: [(&str, i32, i64, i32); 5] = [
+        ("trajectoryanalysis/tests/freevolume.tpr", 5540, 50000000, 73),
+        ("trajectoryanalysis/tests/clustsize.tpr", 24, 25000, 110),
+        ("energyanalysis/tests/dhdl.tpr", 1793, 500, 110),
+        ("energyanalysis/tests/orires.tpr", 1007, 10, 111),
+        ("trajectoryanalysis/tests/trpcage.tpr", 3793, 5000, 129),
+    ];
+    let mut checked = 0;
+    for (rel, natoms, nsteps, version) in cases {
+        let path = root.join(rel);
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        let path = path.to_string_lossy().to_string();
+        let file = tpr::TprFile::from_bytes(&bytes).expect("header");
+        assert_eq!(
+            file.header.file_version, version,
+            "{path} has an unexpected tpx version"
+        );
+        let body = tpr::parse_body(&file.header, &file.body).expect("body");
+        assert_eq!(file.header.natoms, natoms, "{path}");
+        let ir = body.ir.as_ref().expect("inputrec");
+        assert_eq!(ir.nsteps, nsteps, "{path}");
+        assert!((ir.delta_t - 0.002).abs() < 1e-9, "{path}");
+        // The topology must be complete enough to build the default groups.
+        let mtop = body.mtop.as_ref().expect("topology");
+        let atoms = mtop.global_atoms();
+        assert_eq!(atoms.nr(), natoms as usize, "{path}");
+        // The Lennard-Jones pairs have to be readable straight out of the
+        // force field parameters (`nbfp[i * atnr + j]`).
+        let atnr = mtop.ffparams.atnr_usize();
+        assert!(atnr > 0, "{path}");
+        let pairs: Vec<(f64, f64)> = (0..atnr * atnr)
+            .filter_map(|i| mtop.ffparams.lj_sr(i))
+            .collect();
+        assert_eq!(pairs.len(), atnr * atnr, "{path}");
+        assert!(pairs.iter().all(|(c6, c12)| *c6 >= 0.0 && *c12 >= 0.0), "{path}");
+        let groups = index::analyse(&atoms, false);
+        assert!(!groups.is_empty(), "{path}");
+        checked += 1;
+    }
+    if checked == 0 {
+        eprintln!("skipping: the GROMACS test run input files were not found");
+    } else {
+        assert_eq!(checked, 5);
+    }
+}

@@ -6,11 +6,11 @@
 //! is linked into the s_mmpbsa binary, so no external GROMACS program is
 //! needed.
 //!
-//! `gmx-rs-tools` decodes run input files written by GROMACS 2021 and later
-//! (tpx version >= 119).  Run input files from older GROMACS versions are
-//! still handled, but only by calling the GROMACS binary named by `gmx_path`
-//! in `settings.ini`.  That setting is off by default, so no external program
-//! is used unless it is written into settings.ini.
+//! `gmx-rs-tools` decodes every run input file GROMACS itself accepts (tpx
+//! version >= 58, i.e. GROMACS 4.0 and later), so old files no longer need an
+//! external program.  The GROMACS binary named by `gmx_path` in `settings.ini`
+//! is only used as a fallback when the built-in reader cannot decode a file at
+//! all.  That setting is off by default.
 
 use std::io::Write;
 use std::path::Path;
@@ -21,40 +21,13 @@ use gmx_rs_tools::{cmd, index, tpr};
 use crate::parse_tpr::TPR;
 use crate::settings::Settings;
 
-/// True when the vendored reader cannot decode this run input file, i.e. when
-/// the GROMACS binary is still needed to read it.
-///
-/// A file that cannot be read at all reports `false` so that the in-process
-/// reader produces the error message.
-pub fn needs_gmx(tpr_path: &str) -> bool {
-    match tpx_version(tpr_path) {
-        Some(v) => v < tpr::TPXV_ADD_SIZE_FIELD,
-        None => false,
-    }
-}
-
-/// The tpx version of a run input file, when its header can be decoded.
-fn tpx_version(tpr_path: &str) -> Option<i32> {
-    let data = std::fs::read(tpr_path).ok()?;
-    tpr::TprFile::from_bytes(&data).ok().map(|t| t.header.file_version)
-}
-
 /// Loads the system description of a run input file, in-process whenever the
-/// file is new enough and through `gmx dump` otherwise.
+/// file can be decoded and through `gmx dump` otherwise.
 pub fn load_tpr(tpr_path: &str, settings: &Settings) -> TPR {
-    let reason: String;
-    if !needs_gmx(tpr_path) {
-        match TPR::from_run_input(tpr_path) {
-            Ok(tpr) => return tpr,
-            Err(e) => {
-                reason = format!("the built-in reader could not read it ({})", e);
-            }
-        }
-    } else {
-        reason = "it was written by a GROMACS version older than 2021, which the built-in \
-                  reader does not support"
-            .to_string();
-    }
+    let reason = match TPR::from_run_input(tpr_path) {
+        Ok(tpr) => return tpr,
+        Err(e) => format!("the built-in reader could not read it ({})", e),
+    };
     let gmx = match gmx_program(settings) {
         Some(gmx) => gmx,
         None => {
@@ -85,27 +58,35 @@ fn dump_path(tpr_path: &str) -> String {
 /// right away writes the default groups unchanged, which is what the index
 /// generator does directly.
 pub fn make_ndx(options: &[&str], wd: &Path, settings: &Settings, f: &str, n: &str, o: &str) {
-    if !needs_gmx(f) {
-        let quits = options.iter().all(|opt| opt.eq_ignore_ascii_case("q"));
-        if quits {
-            match default_index_groups(f, n, o) {
-                Ok(()) => return,
-                Err(e) => {
-                    println!("Error: unable to generate {}:\n{}", o, e);
+    let quits = options.iter().all(|opt| opt.eq_ignore_ascii_case("q"));
+    if quits {
+        match default_index_groups(f, n, o) {
+            Ok(()) => return,
+            Err(e) => {
+                println!("Error: unable to generate {}:\n{}", o, e);
+                if gmx_program(settings).is_none() {
                     return;
                 }
             }
         }
+    } else {
         let mut args: Vec<String> = vec!["-f".into(), f.into(), "-o".into(), o.into()];
         if !n.is_empty() {
             args.extend(["-n".to_string(), n.to_string()]);
         }
         cmd::set_scripted_input(options.iter().map(|s| s.to_string()));
-        let _ = cmd::make_ndx::run(args);
+        let code = cmd::make_ndx::run(args);
         cmd::clear_scripted_input();
-        return;
+        if code == 0 {
+            return;
+        }
+        if gmx_program(settings).is_none() {
+            println!("Error: the built-in make_ndx could not write {}.", o);
+            return;
+        }
     }
     let gmx = gmx_or_advice(settings, f);
+    println!("Note: falling back to {}.", gmx);
     let args = match n.is_empty() {
         true => ["make_ndx", "-f", f, "-o", o, "-quiet"].to_vec(),
         false => ["make_ndx", "-f", f, "-n", n, "-o", o, "-quiet"].to_vec(),
@@ -131,20 +112,22 @@ fn default_index_groups(tpr_path: &str, n: &str, o: &str) -> Result<(), String> 
 /// Extracts and manipulates a trajectory.
 pub fn trjconv(options: &[&str], wd: &Path, settings: &Settings, f: &str, s: &str, n: &str,
                o: &str, others: &[&str]) {
-    if !needs_gmx(s) {
-        let args: Vec<String> = ["-f", f, "-s", s, "-n", n, "-o", o].iter()
-            .map(|a| a.to_string())
-            .chain(others.iter().map(|a| a.to_string()))
-            .collect();
-        cmd::set_scripted_input(options.iter().map(|s| s.to_string()));
-        let code = cmd::trjconv::run(args);
-        cmd::clear_scripted_input();
-        if code != 0 {
-            println!("Error: the built-in trjconv could not write {}.", o);
-        }
+    let args: Vec<String> = ["-f", f, "-s", s, "-n", n, "-o", o].iter()
+        .map(|a| a.to_string())
+        .chain(others.iter().map(|a| a.to_string()))
+        .collect();
+    cmd::set_scripted_input(options.iter().map(|s| s.to_string()));
+    let code = cmd::trjconv::run(args);
+    cmd::clear_scripted_input();
+    if code == 0 {
+        return;
+    }
+    if gmx_program(settings).is_none() {
+        println!("Error: the built-in trjconv could not write {}.", o);
         return;
     }
     let gmx = gmx_or_advice(settings, s);
+    println!("Note: falling back to {}.", gmx);
     let args: Vec<&str> = ["trjconv", "-f", f, "-s", s, "-n", n, "-o", o, "-quiet"].iter()
         .chain(others.iter()).cloned().collect();
     run_gmx(&gmx, options, &args, wd, settings);
@@ -152,26 +135,28 @@ pub fn trjconv(options: &[&str], wd: &Path, settings: &Settings, f: &str, s: &st
 
 /// Writes a subset run input file, `gmx convert-tpr -n`.
 pub fn convert_tpr(options: &[&str], wd: &Path, settings: &Settings, s: &str, n: &str, o: &str) {
-    if !needs_gmx(s) {
-        let args: Vec<String> = ["-s", s, "-n", n, "-o", o].iter()
-            .map(|a| a.to_string()).collect();
-        cmd::set_scripted_input(options.iter().map(|s| s.to_string()));
-        let code = cmd::convert_tpr::run(args);
-        cmd::clear_scripted_input();
-        if code != 0 {
-            println!("Error: the built-in convert-tpr could not write {}.", o);
-        }
+    let args: Vec<String> = ["-s", s, "-n", n, "-o", o].iter()
+        .map(|a| a.to_string()).collect();
+    cmd::set_scripted_input(options.iter().map(|s| s.to_string()));
+    let code = cmd::convert_tpr::run(args);
+    cmd::clear_scripted_input();
+    if code == 0 {
+        return;
+    }
+    if gmx_program(settings).is_none() {
+        println!("Error: the built-in convert-tpr could not write {}.", o);
         return;
     }
     let gmx = gmx_or_advice(settings, s);
+    println!("Note: falling back to {}.", gmx);
     let args = ["convert-tpr", "-s", s, "-n", n, "-o", o, "-quiet"];
     run_gmx(&gmx, options, &args, wd, settings);
 }
 
 // --- GROMACS binary fallback ------------------------------------------------
 //
-// Only used for run input files from GROMACS versions older than 2021, which
-// the built-in reader cannot decode.
+// Only used when the built-in reader cannot decode a run input file at all and
+// `gmx_path` names a GROMACS program.
 
 /// `gmx dump -s <tpr>`, written to `dump_to`.
 fn dump_tpr(tpr_path: &str, dump_to: &str, gmx: &str, settings: &Settings) {

@@ -16,7 +16,7 @@ fn print_rvecs(out: &mut String, indent: usize, title: &str, v: &[[f32; 3]]) {
         let _ = write!(
             out,
             "{}{}[{:5}]={{",
-            " ".repeat(indent + INDENT),
+            " ".repeat(indent + 3),
             title,
             i
         );
@@ -40,6 +40,7 @@ fn dump_xtc(path: &str) -> i32 {
             return 1;
         }
     };
+    let mut progress = crate::progress::Progress::new();
     let mut nframe = 0usize;
     loop {
         let fr = match source.next_frame() {
@@ -50,6 +51,8 @@ fn dump_xtc(path: &str) -> i32 {
                 return 1;
             }
         };
+        let fraction = source.read_progress().and_then(|p| p.fraction());
+        progress.update(fraction, nframe as u64 + 1, fr.time.unwrap_or(0.0));
         let mut out = String::new();
         let _ = writeln!(out, "{path} frame {nframe}:");
         let _ = writeln!(
@@ -78,6 +81,7 @@ fn dump_xtc(path: &str) -> i32 {
         let _ = std::io::stdout().flush();
         nframe += 1;
     }
+    progress.finish();
     0
 }
 
@@ -89,6 +93,7 @@ fn dump_trr(path: &str) -> i32 {
             return 1;
         }
     };
+    let mut progress = crate::progress::Progress::new();
     let mut nframe = 0usize;
     loop {
         let fr = match source.next_frame() {
@@ -99,6 +104,8 @@ fn dump_trr(path: &str) -> i32 {
                 return 1;
             }
         };
+        let fraction = source.read_progress().and_then(|p| p.fraction());
+        progress.update(fraction, nframe as u64 + 1, fr.time.unwrap_or(0.0));
         let mut out = String::new();
         let _ = writeln!(out, "{path} frame {nframe}:");
         let _ = writeln!(
@@ -127,58 +134,20 @@ fn dump_trr(path: &str) -> i32 {
         let _ = std::io::stdout().flush();
         nframe += 1;
     }
+    progress.finish();
     0
 }
 
-/// Prints a compact summary of the tpr topology (the C tool prints every
-/// topology substructure with `pr_mtop`; here only the essentials are shown).
-fn print_mtop(out: &mut String, mtop: &tpr::Mtop, indent: usize) {
-    let pad = " ".repeat(indent);
-    let _ = writeln!(out, "{pad}natoms = {}", mtop.natoms);
-    let _ = writeln!(out, "{pad}molecule types ({})", mtop.moltypes.len());
-    for (i, mt) in mtop.moltypes.iter().enumerate() {
-        let _ = writeln!(
-            out,
-            "{pad}  moltype[{}] '{}' with {} atoms",
-            i,
-            mt.name,
-            mt.atoms.nr()
-        );
-    }
-    let _ = writeln!(out, "{pad}molecule blocks ({})", mtop.molblocks.len());
-    for (i, mb) in mtop.molblocks.iter().enumerate() {
-        let _ = writeln!(
-            out,
-            "{pad}  molblock[{}]: type {} with {} molecules",
-            i, mb.moltype_index, mb.nmol
-        );
-    }
-    let _ = writeln!(out, "{pad}groups ({})", mtop.group_names.len());
-    for (i, g) in mtop.groups.iter().enumerate() {
-        if !g.is_empty() {
-            let _ = writeln!(out, "{pad}  group[{}] has {} entries", i, g.len());
-        }
-    }
-}
 
 fn group_short_name(i: usize) -> &'static str {
-    // Mirrors the SimulationAtomGroupType names used by "Group statistics".
-    const NAMES: [&str; 10] = [
-        "Temp.",
-        "Energy",
-        "Acceleration",
-        "Freeze",
-        "User1",
-        "User2",
-        "VCM",
-        "Compressed",
-        "Or. res. fit",
-        "QMMM",
-    ];
-    NAMES.get(i).copied().unwrap_or("Unknown")
+    // `shortName()` from `topology/topology.cpp`.
+    crate::tparsenames::GROUP_SHORT_NAMES
+        .get(i)
+        .copied()
+        .unwrap_or("Unknown")
 }
 
-fn dump_tpr(path: &str, show_numbers: bool, _show_params: bool) -> i32 {
+fn dump_tpr(path: &str, show_numbers: bool, show_params: bool, original_inputrec: bool) -> i32 {
     let tpr = match tpr::TprFile::read(path) {
         Ok(t) => t,
         Err(e) => {
@@ -198,36 +167,7 @@ fn dump_tpr(path: &str, show_numbers: bool, _show_params: bool) -> i32 {
     let mut out = String::new();
     let _ = writeln!(out, "{path}:");
     if let Some(ir) = &body.ir {
-        let _ = writeln!(out, "inputrec:");
-        let fields: [(&str, String); 24] = [
-            ("integrator", format!("{}", integrator_name(ir.integrator))),
-            ("tinit", fmt_g(ir.init_t, 0, 6)),
-            ("dt", fmt_g(ir.delta_t, 0, 6)),
-            ("nsteps", format!("{}", ir.nsteps)),
-            ("init-step", format!("{}", ir.init_step)),
-            ("simulation-part", format!("{}", ir.simulation_part)),
-            ("mts", format!("{}", ir.use_mts)),
-            ("mass-repartition-factor", fmt_g(ir.mass_repartition_factor, 0, 6)),
-            ("comm-mode", format!("{}", comm_mode_name(ir.comm_mode))),
-            ("nstcomm", format!("{}", ir.nstcomm)),
-            ("rtpi", fmt_g(ir.rtpi, 0, 6)),
-            ("nstxout", format!("{}", ir.nstxout)),
-            ("nstvout", format!("{}", ir.nstvout)),
-            ("nstfout", format!("{}", ir.nstfout)),
-            ("nstlog", format!("{}", ir.nstlog)),
-            ("nstcalcenergy", format!("{}", ir.nstcalcenergy)),
-            ("nstenergy", format!("{}", ir.nstenergy)),
-            ("nstxout-compressed", format!("{}", ir.nstxout_compressed)),
-            ("compressed-x-precision", fmt_g(ir.x_compression_precision, 0, 6)),
-            ("cutoff-scheme", format!("{}", cutoff_scheme_name(ir.cutoff_scheme))),
-            ("nstlist", format!("{}", ir.nstlist)),
-            ("pbc", format!("{}", ir.pbc().name())),
-            ("rlist", fmt_g(ir.rlist, 0, 6)),
-            ("rcoulomb", fmt_g(ir.rcoulomb, 0, 6)),
-        ];
-        for (name, value) in fields {
-            let _ = writeln!(out, "   {:<30} = {}", name, value);
-        }
+        crate::irdump::print_inputrec(&mut out, ir, original_inputrec);
     }
 
     let _ = writeln!(out, "header:");
@@ -238,23 +178,58 @@ fn dump_tpr(path: &str, show_numbers: bool, _show_params: bool) -> i32 {
     let _ = writeln!(out, "   bV     = {}present", if h.b_v { "" } else { "not " });
     let _ = writeln!(out, "   bF     = {}present", if h.b_f { "" } else { "not " });
     let _ = writeln!(out, "   natoms = {}", h.natoms);
-    let _ = writeln!(out, "   lambda = {:e}", h.lambda);
+    let _ = writeln!(out, "   lambda = {}", fmt_e(h.lambda, 0, 6));
     let _ = writeln!(out, "   buffer size = {}", h.size_of_tpr_body);
 
     if let Some(mtop) = &body.mtop {
-        let _ = writeln!(out, "topology:");
-        print_mtop(&mut out, mtop, INDENT);
+        crate::tpdump::pr_mtop(&mut out, 0, "topology", mtop, show_numbers, show_params);
     }
-    if let Some(boxm) = &body.boxm {
-        print_rvecs(&mut out, INDENT, "box", boxm);
+    // `list_tpr()` prints every state matrix, using "not available" for the
+    // ones the file does not contain.
+    let zeros = [[0.0f32; 3]; 3];
+    match &body.boxm {
+        Some(m) => print_rvecs(&mut out, 0, "box", m),
+        None => out.push_str("box: not available\n"),
     }
-    if let Some(x) = &body.x {
-        print_rvecs(&mut out, INDENT, "x", x);
+    match &body.box_rel {
+        Some(m) => print_rvecs(&mut out, 0, "box_rel", m),
+        None => out.push_str("box_rel: not available\n"),
     }
-    if let Some(v) = &body.v {
-        print_rvecs(&mut out, INDENT, "v", v);
+    match &body.boxv {
+        Some(m) => print_rvecs(&mut out, 0, "boxv", m),
+        None => out.push_str("boxv: not available\n"),
     }
-    let _ = show_numbers;
+    for name in ["pres_prev", "svir_prev", "fvir_prev"] {
+        if h.b_box {
+            print_rvecs(&mut out, 0, name, &zeros);
+        } else {
+            let _ = writeln!(out, "{name}: not available");
+        }
+    }
+    // `nosehoover_xi` is only filled in when the file has no temperature
+    // coupling state, in which case `do_tpx_finalize()` creates it from the
+    // inputrec.
+    let nh = match &body.ir {
+        Some(ir) if h.ngtc == 0 => ir.opts.nhchainlength.max(0) * ir.opts.ngtc.max(0),
+        _ => 0,
+    };
+    if nh > 0 {
+        let _ = write!(out, "nosehoover_xi:\t");
+        for _ in 0..nh {
+            let _ = write!(out, "  {:>10}", "0");
+        }
+        out.push('\n');
+    } else {
+        out.push_str("nosehoover_xi: not available\n");
+    }
+    match &body.x {
+        Some(x) => print_rvecs(&mut out, 0, "x", x),
+        None => out.push_str("x: not available\n"),
+    }
+    match &body.v {
+        Some(v) => print_rvecs(&mut out, 0, "v", v),
+        None => out.push_str("v: not available\n"),
+    }
     print!("{out}");
 
     // Group statistics, mirroring the tail of list_tpr().
@@ -262,23 +237,25 @@ fn dump_tpr(path: &str, show_numbers: bool, _show_params: bool) -> i32 {
         println!("Group statistics");
         for g in 0..mtop.groups.len().min(10) {
             let n = mtop.groups[g].len();
-            if n == 0 {
-                continue;
-            }
             let mut counts = vec![0usize; n];
             let mut total = 0usize;
-            for &gi in &mtop.group_numbers.get(g).cloned().unwrap_or_default() {
-                if (gi as usize) < counts.len() {
-                    counts[gi as usize] += 1;
+            let numbers = mtop.group_numbers.get(g);
+            for i in 0..mtop.natoms {
+                // `getGroupType()`: an empty array means group 0 for every
+                // atom.
+                let gi = match numbers {
+                    Some(v) if !v.is_empty() => v.get(i).copied().unwrap_or(0) as usize,
+                    _ => 0,
+                };
+                if gi < counts.len() {
+                    counts[gi] += 1;
                     total += 1;
                 }
             }
             let mut line = String::new();
             let _ = write!(line, "{:<12}: ", group_short_name(g));
-            if total > 0 {
-                for c in &counts {
-                    let _ = write!(line, "  {:5}", c);
-                }
+            for c in &counts {
+                let _ = write!(line, "  {:5}", c);
             }
             let _ = write!(line, "  (total {total} atoms)");
             println!("{line}");
@@ -287,43 +264,6 @@ fn dump_tpr(path: &str, show_numbers: bool, _show_params: bool) -> i32 {
     0
 }
 
-fn integrator_name(v: i32) -> &'static str {
-    // IntegrationAlgorithm, see gromacs/mdtypes/md_enums.cpp
-    const NAMES: [&str; 13] = [
-        "md",
-        "steep",
-        "cg",
-        "bd",
-        "sd2 - removed",
-        "nm",
-        "l-bfgs",
-        "tpi",
-        "tpic",
-        "sd",
-        "md-vv",
-        "md-vv-avek",
-        "mimic",
-    ];
-    NAMES.get(v as usize).copied().unwrap_or("unknown")
-}
-
-fn comm_mode_name(v: i32) -> &'static str {
-    match v {
-        0 => "Linear",
-        1 => "Angular",
-        2 => "No",
-        _ => "unknown",
-    }
-}
-
-fn cutoff_scheme_name(v: i32) -> &'static str {
-    // CutoffScheme: Verlet = 0, Group = 1
-    match v {
-        0 => "Verlet",
-        1 => "Group",
-        _ => "unknown",
-    }
-}
 
 /// Dumps a topology file by echoing it with the preprocessor applied.  The C
 /// tool runs the full C preprocessor; here only `#include` free files are
@@ -400,7 +340,26 @@ pub fn run(argv: Vec<String>) -> i32 {
         };
     }
     if let Some(s) = args.get("s") {
-        return dump_tpr(&s, args.flag("nr"), args.flag("param"));
+        if args.has("om") {
+            eprintln!(
+                "gmx-rs-tools dump: writing an mdp file with -om is not implemented in this \
+                 minimal port"
+            );
+            return 1;
+        }
+        if args.flag("sys") {
+            eprintln!(
+                "gmx-rs-tools dump: -sys (whole system topology instead of per molecule type) \
+                 is not implemented in this minimal port"
+            );
+            return 1;
+        }
+        return dump_tpr(
+            &s,
+            args.flag_default_true("nr"),
+            args.flag("param"),
+            args.flag("orgir"),
+        );
     }
     if let Some(p) = args.get("p") {
         return dump_top(&p);

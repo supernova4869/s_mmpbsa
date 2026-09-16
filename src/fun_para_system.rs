@@ -17,7 +17,7 @@ use crate::parse_tpr::TPR;
 use crate::atom_property::AtomProperties;
 use crate::parse_tpr::Residue;
 use crate::gmx::{convert_tpr, trjconv};
-use crate::read_xtc::read_xtc;
+use crate::read_traj::read_traj;
 
 pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Option<Config>, 
                     tpr_path: &str, settings: &mut Settings) {
@@ -389,7 +389,7 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 5: Read trajectory and get time and coordinate
         println!("\x1b[0mPreparing trajectories for IE calculation...");
         println!("Loading trajectory coordinates...");
-        let time_box_info = read_xtc(&trj_mmpbsa);
+        let time_box_info = read_traj(&trj_mmpbsa);
         let (time_list_ie, coordinates_ie): (Vec<f64>, Vec<Vec<[f32; 3]>>) = time_box_info
             .par_iter()
             .map(|frame| (frame.0 as f64, frame.1.clone()))

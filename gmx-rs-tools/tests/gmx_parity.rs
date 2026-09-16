@@ -73,6 +73,36 @@ fn dump_xtc_matches_gmx() {
     );
 }
 
+/// `gmx dump -s` prints the whole run input file; the four option combinations
+/// that change what is printed are compared here.
+#[test]
+fn dump_tpr_matches_gmx() {
+    let (Some(gmx), Some(dir)) = (gmx_bin(), testdata()) else {
+        eprintln!("skipping: set GMXRS_PARITY_TESTDATA and GMX_BIN to run parity tests");
+        return;
+    };
+    let tpr = dir.join("topol.tpr");
+    for extra in [
+        &[][..],
+        &["-param"][..],
+        &["-nonr"][..],
+        &["-param", "-nonr"][..],
+        &["-orgir", "yes"][..],
+    ] {
+        let mut mine = Command::new(env!("CARGO_BIN_EXE_gmx-rs-tools"));
+        mine.arg("dump").arg("-s").arg(&tpr).args(extra);
+        let mut reference = Command::new(&gmx);
+        reference.arg("dump").arg("-s").arg(&tpr).args(extra);
+        let mine = run(&mut mine, "");
+        let reference = run(&mut reference, "");
+        assert_eq!(
+            String::from_utf8_lossy(&mine),
+            String::from_utf8_lossy(&reference),
+            "gmx-rs-tools dump -s {extra:?} does not match gmx dump -s"
+        );
+    }
+}
+
 #[test]
 fn trjconv_gro_matches_gmx() {
     let (Some(gmx), Some(dir)) = (gmx_bin(), testdata()) else {

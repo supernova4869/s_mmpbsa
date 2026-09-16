@@ -3,7 +3,7 @@ mod mmpbsa;
 mod parse_tpr;
 mod parse_pdb;
 mod parse_gro;
-mod read_xtc;
+mod read_traj;
 mod analysis;
 mod fun_para_basic;
 mod fun_para_system;
@@ -69,8 +69,13 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/09/14";
+    let compile_date = "2026/09/16";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
+
+    // Keep the progress bars of the embedded gmx-rs-tools tools (trajectory
+    // extraction and reading) visible: nothing else, in particular no
+    // environment variable, switches them off.
+    gmx_rs_tools::progress::set_enabled(true);
     
     // Show version info
     if cli.version {

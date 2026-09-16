@@ -3,6 +3,7 @@ use std::path::Path;
 use std::io;
 use std::str::FromStr;
 use std::fmt::Debug;
+use indicatif::ProgressBar;
 use ndarray::{Array2, Axis};
 use crate::parse_tpr::Residue;
 use rand::random_range;
@@ -131,6 +132,12 @@ pub fn get_residue_range_ca(coord: &Array2<f64>, ref_ids: &BTreeSet<usize>, cuto
         }
     }
     res_range
+}
+
+/// Applies the progress bar style shared with the embedded gmx-rs-tools
+/// tools, so that every bar of a run looks the same.
+pub fn set_style(pb: &ProgressBar) {
+    gmx_rs_tools::utils::set_style(pb);
 }
 
 pub fn show_famous_quotes() {
