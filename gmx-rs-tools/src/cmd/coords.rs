@@ -12,34 +12,6 @@ use crate::index;
 use crate::tpr;
 use crate::trx::{self, FrameRange};
 
-/// The frame progress of a running extraction.
-///
-/// Progress is the frame counter of the input trajectory.
-struct FrameProgress {
-    bar: crate::progress::Progress,
-    /// Number of frames of the input, or zero when it was not counted because
-    /// the bar is not drawn.
-    total: u64,
-}
-
-impl FrameProgress {
-    fn new(total: u64) -> Self {
-        FrameProgress {
-            bar: crate::progress::Progress::new(),
-            total,
-        }
-    }
-
-    /// Reports the frame that has just been read.
-    fn tick(&mut self, frames: u64, time: f64) {
-        self.bar.update(frames, self.total, time);
-    }
-
-    fn finish(&mut self) {
-        self.bar.finish();
-    }
-}
-
 pub fn run(argv: Vec<String>) -> i32 {
     let args = Args::parse(argv);
     let in_file = match args.get("f") {
@@ -150,12 +122,13 @@ pub fn run(argv: Vec<String>) -> i32 {
     }
     let mut nframes = 0usize;
     let mut natoms_out = 0usize;
-    // The bar counts the frames of the input; the count is a pass over the
-    // frame headers and is therefore only taken when the bar is drawn.
-    let mut progress = FrameProgress::new(if crate::progress::is_enabled() {
-        trx::frame_count(&in_file).unwrap_or(0) as u64
-    } else {
-        0
+    // The bar follows the frame counter, the requested time window when there
+    // is a bounded one, and how much of the input has been read otherwise;
+    // counting the frames first would cost a pass over the whole file.
+    let mut progress = crate::progress::Progress::new();
+    progress.set_time_window(match (range.begin, range.end) {
+        (_, Some(end)) if end.is_finite() => Some((range.begin.unwrap_or(0.0), end)),
+        _ => None,
     });
     loop {
         let frame = match reader.next_frame() {
@@ -166,7 +139,7 @@ pub fn run(argv: Vec<String>) -> i32 {
                 return 1;
             }
         };
-        progress.tick(nframes as u64 + 1, frame.time.unwrap_or(0.0));
+        progress.update_from(reader.read_progress(), nframes as u64 + 1, frame.time.unwrap_or(0.0));
         let time = frame.time.unwrap_or(0.0);
         let step = frame.step.unwrap_or(0);
         if natoms_out == 0 {

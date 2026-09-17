@@ -55,41 +55,6 @@ enum FitMode {
 
 use crate::cmd::select_group as require_group;
 
-/// The frame progress of a running conversion.
-///
-/// Progress is the frame counter of the input trajectory.
-struct FrameProgress {
-    bar: Progress,
-    /// Number of frames of the input, or zero when it was not counted because
-    /// the bar is not drawn.
-    total: u64,
-}
-
-impl FrameProgress {
-    fn new(total: u64) -> Self {
-        FrameProgress {
-            bar: Progress::new(),
-            total,
-        }
-    }
-
-    /// Reports the frame that has just been read.
-    ///
-    /// The state is updated for every frame so that the final draw is exact;
-    /// `Progress` throttles the redraws itself.
-    fn tick(&mut self, frames: u64, time: f64) {
-        self.bar.update(frames, self.total, time);
-    }
-
-    fn suspend(&mut self) {
-        self.bar.pause();
-    }
-
-    fn finish(&mut self) {
-        self.bar.finish();
-    }
-}
-
 fn rmod(x: f64, first: f64, step: f64) -> bool {
     if step == 0.0 {
         return false;
@@ -468,19 +433,22 @@ pub fn run(argv: Vec<String>) -> i32 {
             return 1;
         }
     };
-    // The bar counts the frames of the input; the count is a pass over the
-    // frame headers and is therefore only taken when the bar is drawn.
-    let frames_in_input = if crate::progress::is_enabled() {
-        trx::frame_count(&in_file).unwrap_or(0) as u64
+    // The bar follows the frame counter, the requested time window when there
+    // is a bounded one, and how much of the input has been read otherwise.
+    // Counting the frames of the input first would cost a pass over the whole
+    // file, which is not worth it in front of a conversion of that same file
+    // (`trx::frame_count()` is there for callers that want the number).
+    let mut progress = Progress::new();
+    progress.set_time_window(if b_end {
+        Some((tbegin, tend))
     } else {
-        0
-    };
-    let mut progress = FrameProgress::new(frames_in_input);
+        None
+    });
     // Frames before -b are skipped while reading, like read_first_frame().
     let mut first_frame = loop {
         match source.next_frame() {
             Ok(Some(f)) => {
-                progress.tick(0, f.time.unwrap_or(0.0));
+                progress.update_from(source.read_progress(), 0, f.time.unwrap_or(0.0));
                 if b_begin && f.time.unwrap_or(0.0) < tbegin {
                     continue;
                 }
@@ -499,7 +467,7 @@ pub fn run(argv: Vec<String>) -> i32 {
     // The run input file is read and the groups are picked next; the bar has
     // to stop drawing before the first of those messages, otherwise they would
     // be printed on top of it.  It starts again for the frame loop.
-    progress.suspend();
+    progress.pause();
     // Topology: prefer the run input file.
     let mut mtop: Option<tpr::Mtop> = None;
     let mut atoms: Option<Atoms> = None;
@@ -600,7 +568,7 @@ pub fn run(argv: Vec<String>) -> i32 {
     // Fit group.
     // The bar is erased while the groups are being picked, so that its line
     // does not mix with the prompts.
-    progress.suspend();
+    progress.pause();
     let mut fit_index: Vec<usize> = Vec::new();
     if b_reset {
         println!("Select group for {} fit", if b_fit { "least squares" } else { "translational" });
@@ -764,6 +732,8 @@ pub fn run(argv: Vec<String>) -> i32 {
     };
     if !atoms.atom.is_empty() {
         writer.set_atoms(&atoms, &out_index_for_writer);
+    } else {
+        writer.set_index(&out_index_for_writer);
     }
 
     let mut tshift = 0.0f64;
@@ -862,7 +832,7 @@ pub fn run(argv: Vec<String>) -> i32 {
         }
     } {
         n_frames += 1;
-        progress.tick(n_frames as u64, fr.time.unwrap_or(0.0));
+        progress.update_from(source.read_progress(), n_frames as u64, fr.time.unwrap_or(0.0));
         let t_process_start = std::time::Instant::now();
         // -e stops reading (and writing) beyond the requested end time.
         if b_end && fr.time.unwrap_or(0.0) > tend {
@@ -1069,10 +1039,7 @@ pub fn run(argv: Vec<String>) -> i32 {
             // the compressed coordinate block) straight into the output
             // frame, so a trajectory is re-encoded at the precision it was
             // written with instead of the next power of ten above it.
-            let p = fr.prec.unwrap();
-            if let TrxWriter::Xtc { prec, .. } = &mut writer {
-                *prec = p;
-            }
+            writer.set_precision(fr.prec.unwrap());
         }
         if b_shift {
             if let Some(x) = &mut outfr.x {
@@ -1106,11 +1073,13 @@ pub fn run(argv: Vec<String>) -> i32 {
             };
             if !atoms.atom.is_empty() {
                 single.set_atoms(&atoms, &out_index_for_writer);
+            } else {
+                single.set_index(&out_index_for_writer);
             }
-            let r = single.write_frame(&outfr, &out_index_for_writer, &title);
+            let r = single.write_frame(outfr, &title);
             r.and_then(|_| single.finish())
         } else {
-            writer.write_frame(&outfr, &out_index_for_writer, &title)
+            writer.write_frame(outfr, &title)
         };
         t_write += t_write_start.elapsed();
         if let Err(e) = result {
@@ -1133,10 +1102,14 @@ pub fn run(argv: Vec<String>) -> i32 {
     // With -sep every frame is written to its own file, so the combined output
     // file is not created at all (matching gmx trjconv).
     if !b_sep {
+        // The frames are encoded in batches, so most of the writing happens
+        // when the writer is finished.
+        let t_flush = std::time::Instant::now();
         if let Err(e) = writer.finish() {
             eprintln!("{e}");
             return 1;
         }
+        t_write += t_flush.elapsed();
     }
     progress.finish();
     eprintln!(

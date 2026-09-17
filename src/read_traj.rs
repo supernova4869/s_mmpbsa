@@ -11,21 +11,13 @@
 //! GROMACS trajectory and structure formats (`trr`, `gro`, `pdb`) as well.
 
 use gmx_rs_tools::progress::Progress;
-use gmx_rs_tools::trx::{self, CoordinateReader, FrameRange};
+use gmx_rs_tools::trx::{CoordinateReader, FrameRange};
 
 pub fn read_traj(trj: &str) -> Vec<(f64, Vec<[f32; 3]>)> {
     let (_, mut reader) = CoordinateReader::open(trj, None, FrameRange::default())
         .unwrap_or_else(|e| panic!("Cannot open trajectory {}: {}", trj, e));
 
     let mut progress = Progress::new();
-    // The bar counts frames, so the number of frames of the trajectory is
-    // needed before reading it.  Counting walks the frame headers of the file,
-    // which is only worth it when the bar is actually drawn.
-    let total = if progress.is_enabled() {
-        trx::frame_count(trj).unwrap_or(0) as u64
-    } else {
-        0
-    };
     let mut frame_data: Vec<(f64, Vec<[f32; 3]>)> = Vec::new();
     loop {
         let frame = match reader.next_frame() {
@@ -35,7 +27,7 @@ pub fn read_traj(trj: &str) -> Vec<(f64, Vec<[f32; 3]>)> {
         };
         let time = frame.time.unwrap_or(0.0);
         let frames = frame_data.len() as u64 + 1;
-        progress.update(frames, total, time);
+        progress.update_from(reader.read_progress(), frames, time);
         frame_data.push((time, frame.x));
     }
     progress.pause();

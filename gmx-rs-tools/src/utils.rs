@@ -16,15 +16,17 @@ pub fn set_style(pb: &ProgressBar) {
     );
 }
 
-/// Same layout as [`set_style`], but without the colour of the bar.
+/// Style of the tools of this crate: the same layout as [`set_style`] without
+/// the colour and without the counters.
 ///
-/// The tools of this crate draw their bars with this style so that they keep
-/// the colour of the surrounding output: s_mmpbsa switches the terminal to
-/// grey while it extracts trajectories, and a bar that carried its own colour
-/// would stand out of it.
+/// The colour is left to the surrounding output, since s_mmpbsa switches the
+/// terminal to grey while it extracts trajectories and a bar that carried its
+/// own colour would stand out of it.  The frame counter is part of the message
+/// instead of the `pos`/`len` fields, because the number of frames of a
+/// streamed trajectory is not always known (see `progress::update`).
 pub fn set_style_plain(pb: &ProgressBar) {
     pb.set_style(
-        ProgressStyle::with_template("[{elapsed_precise}] {bar:50} {pos}/{len} {msg}")
+        ProgressStyle::with_template("[{elapsed_precise}] {bar:50} {msg}")
             .expect("valid progress bar template")
             .progress_chars("=>-"),
     );

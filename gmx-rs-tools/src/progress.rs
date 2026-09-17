@@ -16,8 +16,12 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use indicatif::{ProgressBar, ProgressDrawTarget};
 
+use crate::trx::ReadProgress;
+
 /// Redraw rate of the bar, in hertz.
 const REFRESH_HZ: u8 = 10;
+/// Length the byte fraction is scaled to when the frame total is unknown.
+const FRACTION_LENGTH: u64 = 1000;
 
 /// Program wide switch: 0 = not set, 1 = forced on, 2 = forced off.
 static ENABLED: AtomicU8 = AtomicU8::new(0);
@@ -56,6 +60,8 @@ pub struct Progress {
     bar: Option<ProgressBar>,
     enabled: bool,
     spinner: bool,
+    /// Requested time window (`-b`/`-e`), when the caller gave a bounded one.
+    window: Option<(f64, f64)>,
 }
 
 impl Progress {
@@ -65,24 +71,37 @@ impl Progress {
             bar: None,
             enabled: enabled(),
             spinner: false,
+            window: None,
         }
+    }
+
+    /// Makes the bar follow a requested time window instead of the position in
+    /// the input.
+    ///
+    /// A conversion that reads a window out of a much larger trajectory would
+    /// otherwise show almost no progress: the frames before the window are read
+    /// and discarded, so its position in the file says very little.
+    pub fn set_time_window(&mut self, window: Option<(f64, f64)>) {
+        self.window = window;
     }
 
     /// Reports progress: `frames` frames have been processed out of `total`
     /// and the current frame is at `time`.
     ///
-    /// The `pos/len` fields of the bar are the frame counter and the number of
-    /// frames in the input, so a `total` of zero (unknown, e.g. because the
-    /// count was not taken) draws the frame counter of the message only.
-    pub fn update(&mut self, frames: u64, total: u64, time: f64) {
+    /// A `total` of zero means that the number of frames is not known; the bar
+    /// then follows `fraction`, how much of the input has been read, and the
+    /// message carries the frame counter alone.  Counting the frames of an
+    /// `xtc`/`trr` input would cost a pass over the whole file, which is not
+    /// worth it in front of a conversion of that same file.
+    pub fn update(&mut self, frames: u64, total: u64, fraction: Option<f64>, time: f64) {
         if !self.enabled {
             return;
         }
-        let spinner = total == 0;
-        let message = if spinner {
-            format!("frame {frames:>7}  t={time:>10.3} ps")
+        let spinner = total == 0 && fraction.is_none();
+        let message = if total > 0 {
+            format!("frame {frames:>7}/{total:<7} t={time:>10.3} ps")
         } else {
-            format!("t={time:>10.3} ps")
+            format!("frame {frames:>7}  t={time:>10.3} ps")
         };
         match &self.bar {
             Some(bar) => {
@@ -90,7 +109,7 @@ impl Progress {
                     self.spinner = spinner;
                     apply_style(bar, spinner);
                 }
-                set_position(bar, frames, total);
+                set_position(bar, frames, total, fraction);
                 bar.set_message(message);
                 if spinner {
                     bar.tick();
@@ -102,13 +121,27 @@ impl Progress {
                 // instead of an empty bar.
                 let bar = ProgressBar::hidden();
                 apply_style(&bar, spinner);
-                set_position(&bar, frames, total);
+                set_position(&bar, frames, total, fraction);
                 bar.set_message(message);
                 bar.set_draw_target(draw_target());
                 self.bar = Some(bar);
                 self.spinner = spinner;
             }
         }
+    }
+
+    /// Reports progress from a [`ReadProgress`], which either knows the number
+    /// of frames of the input (`gro`, `pdb`) or how much of a streamed file has
+    /// been read.
+    pub fn update_from(&mut self, read: Option<ReadProgress>, frames: u64, time: f64) {
+        let total = read.and_then(|p| p.known_total()).unwrap_or(0);
+        let fraction = match self.window {
+            Some((begin, end)) if end.is_finite() && end > begin => {
+                Some(((time - begin) / (end - begin)).clamp(0.0, 1.0))
+            }
+            _ => read.and_then(|p| p.fraction()),
+        };
+        self.update(frames, total, fraction, time);
     }
 
     /// True when the bar is actually drawn.
@@ -160,11 +193,15 @@ fn draw_target() -> ProgressDrawTarget {
     terminal_target().unwrap_or_else(|| ProgressDrawTarget::stderr_with_hz(REFRESH_HZ))
 }
 
-/// Scales the bar to the frame counter.
-fn set_position(bar: &ProgressBar, frames: u64, total: u64) {
+/// Scales the bar to the frame counter, or to the byte fraction when the
+/// number of frames is not known.
+fn set_position(bar: &ProgressBar, frames: u64, total: u64, fraction: Option<f64>) {
     if total > 0 {
         bar.set_length(total);
         bar.set_position(frames.min(total));
+    } else if let Some(fraction) = fraction {
+        bar.set_length(FRACTION_LENGTH);
+        bar.set_position((fraction.clamp(0.0, 1.0) * FRACTION_LENGTH as f64).round() as u64);
     }
 }
 

@@ -6,6 +6,8 @@ use crate::frame::{Atoms, Frame};
 use crate::xdr::{Result, XdrError};
 use crate::{gro, pdb, trr, xtc};
 
+use rayon::prelude::*;
+
 /// A trajectory frame reduced to the coordinates of the selected atoms.
 ///
 /// This is what [`CoordinateReader`] yields; it is deliberately plain data so
@@ -249,6 +251,29 @@ pub enum FrameSource {
         iter: std::vec::IntoIter<Frame>,
         total: usize,
     },
+    /// Frames decoded on a worker pool.
+    ///
+    /// One thread reads the raw frames, which keeps the disk busy, and the
+    /// coordinates of a batch of frames are decoded in parallel by the rest of
+    /// the pool.
+    Parallel(crate::decode::ParallelSource),
+}
+
+/// Number of threads the tools may use: the size of the global worker pool of
+/// `rayon`.
+///
+/// The host program owns that number.  s_mmpbsa sizes the pool from
+/// `n_kernels` in its `settings.ini`, so the setting controls how the
+/// trajectory frames are decoded and encoded as well; the standalone tools
+/// follow rayon's own configuration (one thread per CPU, or `RAYON_NUM_THREADS`
+/// when it is set).
+pub fn threads() -> usize {
+    rayon::current_num_threads()
+}
+
+/// Whether the tools may use a worker pool.
+pub fn threads_enabled() -> bool {
+    threads() > 1
 }
 
 /// How far a [`FrameSource`] has progressed through its input.
@@ -266,6 +291,15 @@ impl ReadProgress {
         match self {
             ReadProgress::Bytes(done, _) => done,
             ReadProgress::Frames(done, _) => done,
+        }
+    }
+
+    /// Number of frames in the input, when the progress counts frames rather
+    /// than bytes of it.
+    pub fn known_total(self) -> Option<u64> {
+        match self {
+            ReadProgress::Bytes(..) => None,
+            ReadProgress::Frames(_, total) => Some(total),
         }
     }
 
@@ -291,17 +325,22 @@ impl FrameSource {
                 "File {path} is not a supported trajectory or structure file"
             ))
         })?;
+        let open_reader = || -> Result<std::io::BufReader<std::fs::File>> {
+            Ok(std::io::BufReader::with_capacity(
+                1 << 20,
+                std::fs::File::open(path)
+                    .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?,
+            ))
+        };
+        // Streamed trajectories are decoded by a worker pool, which keeps the
+        // disk busy while the frames are decoded; `GMXRS_THREADS=1` selects the
+        // plain single threaded readers.
         let source = match format {
-            TrxFormat::Xtc => FrameSource::Xtc(std::io::BufReader::with_capacity(
-                1 << 20,
-                std::fs::File::open(path)
-                    .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?,
-            )),
-            TrxFormat::Trr => FrameSource::Trr(std::io::BufReader::with_capacity(
-                1 << 20,
-                std::fs::File::open(path)
-                    .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?,
-            )),
+            TrxFormat::Xtc | TrxFormat::Trr if threads_enabled() => {
+                FrameSource::Parallel(crate::decode::ParallelSource::open(path)?)
+            }
+            TrxFormat::Xtc => FrameSource::Xtc(open_reader()?),
+            TrxFormat::Trr => FrameSource::Trr(open_reader()?),
             TrxFormat::Gro => {
                 let frames = gro::read_all(path)?;
                 let total = frames.len();
@@ -338,6 +377,7 @@ impl FrameSource {
                 (*total - iter.len()) as u64,
                 *total as u64,
             )),
+            FrameSource::Parallel(source) => Some(source.read_progress()),
         }
     }
 
@@ -356,6 +396,7 @@ impl FrameSource {
                 None => Ok(None),
             },
             FrameSource::Memory { iter, .. } => Ok(iter.next()),
+            FrameSource::Parallel(source) => source.next_frame(),
         }
     }
 }
@@ -404,28 +445,39 @@ pub fn read_first_frame(path: &str) -> Result<Frame> {
 }
 
 /// Streaming writer for trajectory output.
-pub enum TrxWriter {
-    Xtc {
-        path: String,
-        out: std::io::BufWriter<std::fs::File>,
-        prec: f32,
-    },
-    Trr {
-        path: String,
-        out: std::io::BufWriter<std::fs::File>,
-    },
-    Gro {
-        path: String,
-        out: std::io::BufWriter<std::fs::File>,
-        prefixes: Vec<Vec<u8>>,
-    },
-    Pdb {
-        path: String,
-        out: std::io::BufWriter<std::fs::File>,
-        prefixes: Vec<Vec<u8>>,
-        suffixes: Vec<Vec<u8>>,
-        model: i32,
-    },
+/// A frame that was handed to [`TrxWriter::write_frame`] and is waiting to be
+/// encoded.
+enum Pending {
+    Xtc { frame: Frame, prec: f32 },
+    Trr { frame: Frame },
+    Gro { frame: Frame, title: String },
+    Pdb { frame: Frame, title: String, model: i32 },
+}
+
+/// How many frames are encoded in one parallel batch.
+const ENCODE_BATCH: usize = 16;
+
+/// Writes a trajectory or a structure file.
+///
+/// Frames are collected and encoded in batches, which lets the worker pool
+/// encode several frames at once; encoding a frame (the XTC compression in
+/// particular) is the most expensive part of converting a large trajectory.
+/// `GMXRS_THREADS=1` keeps the encoding in the calling thread.
+pub struct TrxWriter {
+    path: String,
+    format: TrxFormat,
+    out: std::io::BufWriter<std::fs::File>,
+    /// Precision (multiplication factor) of the XTC output.
+    prec: f32,
+    /// Atoms written to the output.
+    index: Vec<usize>,
+    /// Precomputed per atom fields of the text output formats.
+    prefixes: Vec<Vec<u8>>,
+    suffixes: Vec<Vec<u8>>,
+    /// Model number of the next PDB frame.
+    model: i32,
+    /// Frames that have not been encoded yet.
+    pending: Vec<Pending>,
 }
 
 /// Opens the output file with a buffer large enough for a whole frame.
@@ -437,113 +489,163 @@ fn create_output(path: &str) -> Result<std::io::BufWriter<std::fs::File>> {
 
 impl TrxWriter {
     pub fn create(path: &str, format: TrxFormat, prec: f32) -> Result<TrxWriter> {
-        match format {
-            TrxFormat::Xtc => Ok(TrxWriter::Xtc {
-                path: path.to_string(),
-                out: create_output(path)?,
-                prec,
-            }),
-            TrxFormat::Trr => Ok(TrxWriter::Trr {
-                path: path.to_string(),
-                out: create_output(path)?,
-            }),
-            TrxFormat::Gro => Ok(TrxWriter::Gro {
-                path: path.to_string(),
-                out: create_output(path)?,
-                prefixes: Vec::new(),
-            }),
-            TrxFormat::Pdb => Ok(TrxWriter::Pdb {
-                path: path.to_string(),
-                out: create_output(path)?,
-                prefixes: Vec::new(),
-                suffixes: Vec::new(),
-                model: 0,
-            }),
-        }
+        Ok(TrxWriter {
+            path: path.to_string(),
+            format,
+            out: create_output(path)?,
+            prec,
+            index: Vec::new(),
+            prefixes: Vec::new(),
+            suffixes: Vec::new(),
+            model: 0,
+            pending: Vec::new(),
+        })
     }
 
-    /// Sets the topology used for text output formats.
+    /// Sets the topology used for text output formats and the atoms written.
     pub fn set_atoms(&mut self, atoms: &Atoms, index: &[usize]) {
-        match self {
-            TrxWriter::Gro { prefixes, .. } => *prefixes = gro::atom_prefixes(atoms, index),
-            TrxWriter::Pdb {
-                prefixes,
-                suffixes,
-                ..
-            } => {
+        match self.format {
+            TrxFormat::Gro => self.prefixes = gro::atom_prefixes(atoms, index),
+            TrxFormat::Pdb => {
                 let (p, s) = pdb::atom_fields(atoms, index);
-                *prefixes = p;
-                *suffixes = s;
+                self.prefixes = p;
+                self.suffixes = s;
             }
             _ => {}
         }
+        self.index = index.to_vec();
     }
 
-    pub fn write_frame(&mut self, frame: &Frame, index: &[usize], title: &str) -> Result<()> {
-        match self {
-            TrxWriter::Xtc { out, prec, .. } => {
+    /// Sets the atoms written to the output; needed when there is no topology
+    /// to build the fields of the text formats from (`set_atoms` does it for
+    /// the formats that need one).
+    pub fn set_index(&mut self, index: &[usize]) {
+        self.index = index.to_vec();
+    }
+
+    /// Sets the precision of the XTC output for the frames written from now on.
+    pub fn set_precision(&mut self, prec: f32) {
+        self.prec = prec;
+    }
+
+    /// Hands one frame over to be written.  The frame is consumed, since it
+    /// may be encoded later (and in parallel with the following frames).
+    pub fn write_frame(&mut self, frame: Frame, title: &str) -> Result<()> {
+        let job = match self.format {
+            TrxFormat::Xtc => Pending::Xtc {
+                frame,
+                prec: self.prec,
+            },
+            TrxFormat::Trr => Pending::Trr { frame },
+            TrxFormat::Gro => Pending::Gro {
+                frame,
+                title: title.to_string(),
+            },
+            TrxFormat::Pdb => {
+                self.model += 1;
+                Pending::Pdb {
+                    frame,
+                    title: title.to_string(),
+                    model: self.model,
+                }
+            }
+        };
+        self.pending.push(job);
+        if self.pending.len() >= ENCODE_BATCH {
+            self.flush()?;
+        }
+        Ok(())
+    }
+
+    /// Encodes the frames that were handed over and writes them in order.
+    fn flush(&mut self) -> Result<()> {
+        if self.pending.is_empty() {
+            return Ok(());
+        }
+        let pending = std::mem::take(&mut self.pending);
+        let encoded: Vec<Vec<u8>> = if pending.len() > 1 && threads_enabled() {
+            pending
+                .par_iter()
+                .map(|job| self.encode(job))
+                .collect::<Result<Vec<Vec<u8>>>>()?
+        } else {
+            pending
+                .iter()
+                .map(|job| self.encode(job))
+                .collect::<Result<Vec<Vec<u8>>>>()?
+        };
+        for bytes in encoded {
+            self.out.write_all(&bytes).map_err(|e| {
+                XdrError::Invalid(format!("cannot write {}: {e}", self.path))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Encodes one frame.  The encoders keep no state across frames, so the
+    /// frames of a batch can be encoded in any order.
+    fn encode(&self, job: &Pending) -> Result<Vec<u8>> {
+        match job {
+            Pending::Xtc { frame, prec } => {
                 let mut w = crate::xdr::Writer::new();
                 xtc::write_frame(&mut w, frame, *prec);
-                out.write_all(&w.data)
-                    .map_err(|e| XdrError::Invalid(format!("write error: {e}")))?;
-                Ok(())
+                Ok(w.data)
             }
-            TrxWriter::Trr { out, .. } => {
+            Pending::Trr { frame } => {
                 let mut w = crate::xdr::Writer::new();
                 trr::write_frame(&mut w, frame);
-                out.write_all(&w.data)
-                    .map_err(|e| XdrError::Invalid(format!("write error: {e}")))?;
-                Ok(())
+                Ok(w.data)
             }
-            TrxWriter::Gro { out, prefixes, .. } => {
-                let x = frame.x.clone().unwrap_or_default();
+            Pending::Gro { frame, title } => {
+                let mut buf: Vec<u8> = Vec::new();
                 gro::write_frame(
-                    out,
+                    &mut buf,
                     title,
-                    prefixes,
-                    &x,
-                    index,
+                    &self.prefixes,
+                    frame.x.as_deref().unwrap_or(&[]),
+                    &self.index,
                     frame.v.as_deref(),
                     &frame.boxm.unwrap_or([[0.0; 3]; 3]),
                 );
-                Ok(())
+                Ok(buf)
             }
-            TrxWriter::Pdb {
-                out,
-                prefixes,
-                suffixes,
+            Pending::Pdb {
+                frame,
+                title,
                 model,
-                ..
             } => {
-                let x = frame.x.clone().unwrap_or_default();
-                *model += 1;
+                let mut buf: Vec<u8> = Vec::new();
                 pdb::write_frame(
-                    out,
+                    &mut buf,
                     title,
-                    prefixes,
-                    suffixes,
-                    &x,
-                    index,
+                    &self.prefixes,
+                    &self.suffixes,
+                    frame.x.as_deref().unwrap_or(&[]),
+                    &self.index,
                     frame.pbc_type,
                     &frame.boxm.unwrap_or([[0.0; 3]; 3]),
                     *model,
                 );
-                Ok(())
+                Ok(buf)
             }
         }
     }
 
     /// Writes the accumulated output to `path` (binary formats use the path
     /// provided at creation time).
-    pub fn finish(self) -> Result<()> {
-        match self {
-            TrxWriter::Xtc { path, mut out, .. }
-            | TrxWriter::Trr { path, mut out }
-            | TrxWriter::Gro { path, mut out, .. }
-            | TrxWriter::Pdb { path, mut out, .. } => {
-                out.flush()
-                    .map_err(|e| XdrError::Invalid(format!("cannot write {path}: {e}")))
-            }
-        }
+    pub fn finish(mut self) -> Result<()> {
+        self.flush()?;
+        self.out
+            .flush()
+            .map_err(|e| XdrError::Invalid(format!("cannot write {}: {e}", self.path)))
+    }
+}
+
+impl Drop for TrxWriter {
+    fn drop(&mut self) {
+        // Frames that were handed over but never written must not be lost when
+        // a caller forgets `finish()`; the file itself is flushed by the
+        // `BufWriter` when it is dropped.
+        let _ = self.flush();
     }
 }

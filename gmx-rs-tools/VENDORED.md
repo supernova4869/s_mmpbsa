@@ -16,10 +16,12 @@ The crate is a workspace member and is used through
 
 ## Local changes
 
-`local.patch` holds the changes this copy carries on top of the checkout it was
-synced from.  Everything s_mmpbsa needed while it was being wired in is part of
-the upstream project; the entries below are either that history or a change
-that has not been pushed yet:
+The tree currently **tracks upstream verbatim**: there is no `local.patch`, so
+the copy is exactly what https://github.com/supernova4869/gmx-rs-tools
+contains.  Everything s_mmpbsa needed while it was being wired in has been
+folded into the upstream project; the list below is that history, and is also
+the place to look when a change has to be carried here for a while before it is
+pushed:
 
 * `tpr.rs` — `Mtop::ffparams` and the `nbfp` accessors (`FfParams::lj_sr()`,
   `FfParams::atnr_usize()`) are part of the crate itself.
@@ -42,10 +44,17 @@ that has not been pushed yet:
 * `progress.rs` — the bars follow `progress::set_enabled` and the terminal
   only: the `GMXRS_PROGRESS` environment variable was dropped, and the styles
   come from `utils` instead of being built in this module.
-* `progress.rs`, `trx.rs`, `xtc.rs`, `trr.rs`, `cmd/*.rs` — the `pos/len`
-  fields of the bars are the frame counter and the number of frames of the
-  input (`trx::frame_count()`, a header walk that skips the payload of every
-  frame) instead of a 0..100 scaled fraction.
+* `progress.rs`, `trx.rs`, `xtc.rs`, `trr.rs`, `cmd/*.rs` — the bars show the
+  frame counter instead of a 0..100 scaled fraction, and they are filled from
+  the number of frames (structure files), the requested time window, or the
+  position in the file.  Counting the frames of an `xtc`/`trr` input first
+  (`trx::frame_count()`) costs a pass over the whole file, so the tools no
+  longer do it: on a 27 GB trajectory that pass alone is about two minutes.
+* `decode.rs` (new), `trx.rs`, `cmd/trjconv.rs`, `Cargo.toml` — trajectory
+  frames are decoded and encoded on a `rayon` worker pool (a reader thread plus
+  parallel batch decoding, and batched parallel encoding in `TrxWriter`), which
+  is what makes a 27 GB trajectory usable.  The pool size is the host's:
+  s_mmpbsa sizes the global `rayon` pool from `n_kernels` in `settings.ini`.
 
 To carry a new local change, write it into this directory and record the
 difference against the checkout, e.g.:

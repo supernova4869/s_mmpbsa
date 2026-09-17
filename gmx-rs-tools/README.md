@@ -75,16 +75,19 @@ While frames are being read, `trjconv`, `dump -f` and `coords` draw a progress
 bar on standard error:
 
 ```text
-[00:00:24] ==========================>----------------------- 6/11 t=  4000.000 ps
+[00:00:24] ==========================>----------------------- frame 1200 t=  4000.000 ps
 ```
 
 The bar (`indicatif`) only appears when standard error is a terminal, so pipes
 and logs stay clean.  The style comes from `utils::set_style`, the same
 template s_mmpbsa prints its own bars with.  A host program that links the
 crate can control the bars with `progress::set_enabled`: `false` switches them
-off and `true` forces them on (they are then drawn on `/dev/tty`).  The
-`pos/len` fields of the bar are the frames read and the number of frames in
-the input, which is counted from the frame headers when the bar is drawn.
+off and `true` forces them on (they are then drawn on `/dev/tty`).  The message
+is the frame counter (plus the number of frames when the input is a structure
+file, or when a caller counted them) and the bar follows the requested time
+window or the position in the file; the number of frames of a streamed
+trajectory is not counted first, since that would read the whole file before
+the conversion starts (`trx::frame_count()` is there for callers that want it).
 
 ## Reading coordinates
 
@@ -248,6 +251,24 @@ instead of once per frame.  On the 145382 atom system (21 frames):
 
 `gmx-rs-tools dump -f` is still about 1.5x slower than `gmx dump -f` because the
 per-line formatting dominates; it does print the identical text.
+
+Frames are decoded and encoded on a worker pool, which is what a trajectory
+with tens of thousands of frames needs: the XTC codec is pure CPU work and a
+conversion is otherwise bound by it.  One thread reads the raw frames while
+the pool decodes them, and the frames of a conversion are encoded in batches,
+keeping the frames in order and the output byte for byte the same.  The pool is
+the global pool of `rayon`: a host program sizes it (s_mmpbsa uses `n_kernels`
+from its `settings.ini`) and the standalone tools follow `RAYON_NUM_THREADS`
+and the number of CPUs.  On a 27 GB, 50 000 frame production trajectory (34578
+atoms, on a spinning disk):
+
+| Case | one core | 32 cores |
+| --- | --- | --- |
+| `-b 0 -e 2000 -pbc whole -o out.xtc` (1002 frames, 1.1 GB in and out) | 19.4 s | 6.8 s |
+| `-b 20000 -e 22000 -pbc whole -o out.xtc` (skips 10 000 frames first) | 62.2 s | 14.4 s |
+
+Converting 5002 frames (2.9 GB) takes the same 26-33 s for every pool size:
+at that point the conversion is bound by the disk, not by the codec.
 
 The comparison is automated:
 

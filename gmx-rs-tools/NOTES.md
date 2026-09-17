@@ -97,6 +97,41 @@ original messages start with a newline that only exists to terminate its
 in-line progress output, so those newlines are dropped here; without them the
 tools would emit blank lines that have no counterpart in the original output.
 
+### Parallel decoding and encoding
+
+A conversion is a pipeline of four steps — read, decode, process, encode — and
+the codec at both ends is pure CPU work that dominated the runtime of a large
+trajectory.  Both ends now run on a worker pool (`decode.rs` and `TrxWriter` in
+`trx.rs`):
+
+* `decode::ParallelSource` reads the raw frames in one thread, so that the disk
+  stays busy, and decodes a batch of 16 frames with `rayon`; the frames are
+  handed over in input order through a bounded channel (`DECODE_DEPTH`, 32
+  frames), which keeps the memory of the pipeline bounded.
+* `TrxWriter` collects the frames handed to `write_frame()` and encodes them in
+  batches of 16.  The encoders hold no state across frames, so the batch can be
+  encoded in any order and is then written in input order.
+* The pool is the global pool of `rayon`, so the thread count is whatever the
+  host program configured: s_mmpbsa sizes it from `n_kernels` in its
+  `settings.ini`, which is what makes that setting control the trajectory
+  codec too.  The standalone tools use one thread per CPU, or
+  `RAYON_NUM_THREADS` when it is set; a pool of one thread keeps the old
+  single threaded path.
+* The frame processing between the two stages stays in the calling thread: it
+  is what carries the state of `-pbc nojump` and `-fit progressive`, and it is
+  usually hidden behind the reading anyway.
+
+Measured on a 27 GB, 50 000 frame trajectory (34578 atoms, spinning disk):
+`-b 0 -e 2000 -pbc whole` takes 19.4 s per 1002 frames with one core and 6.8 s
+with the pool; a window deep in the file (`-b 20000`), where the frames before
+the window have to be read and discarded, goes from 62.2 s to 14.4 s.  Larger
+windows become disk bound: 5002 frames (2.9 GB in and out) take 26-33 s for
+every pool size.  The output of both paths is byte identical.
+
+`TrxWriter::write_frame` therefore takes the frame by value (it may be encoded
+after the call returns), and `set_index()` / `set_precision()` replace the
+fields that used to be matched from the enum.
+
 ### Frame progress
 
 Instead of the in-line `\rReading frame ...` line of GROMACS, the streaming
@@ -112,20 +147,25 @@ tools (`trjconv`, `dump -f` and `coords`) draw a progress bar with the
 * The layout is the one of `utils::set_style`, the template s_mmpbsa prints its
   own bars with, but the bar is drawn with `utils::set_style_plain`: it keeps
   the colour of the surrounding output instead of forcing its own, because
-  s_mmpbsa greys the terminal while it extracts trajectories.  The `pos/len`
-  fields are the frame counter and the number of frames in the input; when the
-  count is not taken (see below) the counters-only variant of `utils` is used
-  instead and the message carries the frame number.
+  s_mmpbsa greys the terminal while it extracts trajectories.  The message
+  carries the frame counter (with the number of frames when it is known, see
+  below), so no field has to stand in for a quantity that is not known.
 * `indicatif` only draws on a terminal, so redirecting standard error gives
   exactly the message stream that the parity tests compare.  A host program
   can call `progress::set_enabled(false)` to switch the bars off, or
   `progress::set_enabled(true)` to force them on by drawing them on `/dev/tty`
   (useful when the output is piped, e.g. `... 2>&1 | tee log`).
-* The total of the bar is `trx::frame_count()`, which walks the frame headers
-  of an `xtc`/`trr` input and skips the payload of every frame, so counting a
-  trajectory much larger than memory costs one pass over the headers and no
-  decoding.  It is only taken when the bar is drawn (`progress::is_enabled()`),
-  which keeps piped runs and the parity tests away from the extra pass.
+* What the bar is filled with depends on what is known about the input: the
+  number of frames for a structure file (`gro`, `pdb`) or a frame source that
+  counts frames, the requested time window when `-b`/`-e` gave a bounded one,
+  and the position in the file otherwise.
+* The number of frames of an `xtc`/`trr` input is deliberately *not* counted by
+  the tools.  `trx::frame_count()` can do it (it walks the frame headers and
+  skips the payload of every frame, so nothing is decoded), but that is a pass
+  over the whole file: on a 27 GB trajectory it costs about 120 s, and it is
+  wasted work in front of a conversion that is about to read the same file.
+  The counter therefore lives in the message, and callers that want the number
+  can ask for it: `trx::frame_count(path)`.
 * Frames that are read but not written (before `-b`, or after the last frame of
   the window) still advance the bar, as they do in GROMACS.
 * The bar is finished and cleared while the index group prompts are printed and

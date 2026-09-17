@@ -6,6 +6,7 @@
 //! logic needed by the four tools above are implemented.
 
 pub mod cmd;
+pub mod decode;
 pub mod frame;
 pub mod gro;
 pub mod index;
