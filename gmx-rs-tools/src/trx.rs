@@ -487,6 +487,29 @@ fn create_output(path: &str) -> Result<std::io::BufWriter<std::fs::File>> {
     Ok(std::io::BufWriter::with_capacity(1 << 20, f))
 }
 
+/// Selects the requested atoms from a frame before binary output.
+fn select_frame(frame: &Frame, index: &[usize]) -> Frame {
+    // An empty index means "write every atom"; avoid a needless copy.
+    if index.is_empty() {
+        return frame.clone();
+    }
+    let select = |data: &Option<Vec<crate::frame::Rvec>>| {
+        data.as_ref().map(|values| {
+            index.iter()
+                .filter(|&&i| i < values.len())
+                .map(|&i| values[i])
+                .collect::<Vec<_>>()
+        })
+    };
+    Frame {
+        natoms: index.len(),
+        x: select(&frame.x),
+        v: select(&frame.v),
+        f: select(&frame.f),
+        ..frame.clone()
+    }
+}
+
 impl TrxWriter {
     pub fn create(path: &str, format: TrxFormat, prec: f32) -> Result<TrxWriter> {
         Ok(TrxWriter {
@@ -587,13 +610,15 @@ impl TrxWriter {
     fn encode(&self, job: &Pending) -> Result<Vec<u8>> {
         match job {
             Pending::Xtc { frame, prec } => {
+                let frame = select_frame(frame, &self.index);
                 let mut w = crate::xdr::Writer::new();
-                xtc::write_frame(&mut w, frame, *prec);
+                xtc::write_frame(&mut w, &frame, *prec);
                 Ok(w.data)
             }
             Pending::Trr { frame } => {
+                let frame = select_frame(frame, &self.index);
                 let mut w = crate::xdr::Writer::new();
-                trr::write_frame(&mut w, frame);
+                trr::write_frame(&mut w, &frame);
                 Ok(w.data)
             }
             Pending::Gro { frame, title } => {
