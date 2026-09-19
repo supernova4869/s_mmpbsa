@@ -6,8 +6,6 @@ use crate::frame::{Atoms, Frame};
 use crate::xdr::{Result, XdrError};
 use crate::{gro, pdb, trr, xtc};
 
-use rayon::prelude::*;
-
 /// A trajectory frame reduced to the coordinates of the selected atoms.
 ///
 /// This is what [`CoordinateReader`] yields; it is deliberately plain data so
@@ -251,29 +249,6 @@ pub enum FrameSource {
         iter: std::vec::IntoIter<Frame>,
         total: usize,
     },
-    /// Frames decoded on a worker pool.
-    ///
-    /// One thread reads the raw frames, which keeps the disk busy, and the
-    /// coordinates of a batch of frames are decoded in parallel by the rest of
-    /// the pool.
-    Parallel(crate::decode::ParallelSource),
-}
-
-/// Number of threads the tools may use: the size of the global worker pool of
-/// `rayon`.
-///
-/// The host program owns that number.  s_mmpbsa sizes the pool from
-/// `n_kernels` in its `settings.ini`, so the setting controls how the
-/// trajectory frames are decoded and encoded as well; the standalone tools
-/// follow rayon's own configuration (one thread per CPU, or `RAYON_NUM_THREADS`
-/// when it is set).
-pub fn threads() -> usize {
-    rayon::current_num_threads()
-}
-
-/// Whether the tools may use a worker pool.
-pub fn threads_enabled() -> bool {
-    threads() > 1
 }
 
 /// How far a [`FrameSource`] has progressed through its input.
@@ -332,13 +307,7 @@ impl FrameSource {
                     .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?,
             ))
         };
-        // Streamed trajectories are decoded by a worker pool, which keeps the
-        // disk busy while the frames are decoded; `GMXRS_THREADS=1` selects the
-        // plain single threaded readers.
         let source = match format {
-            TrxFormat::Xtc | TrxFormat::Trr if threads_enabled() => {
-                FrameSource::Parallel(crate::decode::ParallelSource::open(path)?)
-            }
             TrxFormat::Xtc => FrameSource::Xtc(open_reader()?),
             TrxFormat::Trr => FrameSource::Trr(open_reader()?),
             TrxFormat::Gro => {
@@ -377,7 +346,6 @@ impl FrameSource {
                 (*total - iter.len()) as u64,
                 *total as u64,
             )),
-            FrameSource::Parallel(source) => Some(source.read_progress()),
         }
     }
 
@@ -396,7 +364,6 @@ impl FrameSource {
                 None => Ok(None),
             },
             FrameSource::Memory { iter, .. } => Ok(iter.next()),
-            FrameSource::Parallel(source) => source.next_frame(),
         }
     }
 }
@@ -445,8 +412,7 @@ pub fn read_first_frame(path: &str) -> Result<Frame> {
 }
 
 /// Streaming writer for trajectory output.
-/// A frame that was handed to [`TrxWriter::write_frame`] and is waiting to be
-/// encoded.
+/// A frame ready for serial encoding by [`TrxWriter`].
 enum Pending {
     Xtc { frame: Frame, prec: f32 },
     Trr { frame: Frame },
@@ -454,15 +420,9 @@ enum Pending {
     Pdb { frame: Frame, title: String, model: i32 },
 }
 
-/// How many frames are encoded in one parallel batch.
-const ENCODE_BATCH: usize = 16;
-
 /// Writes a trajectory or a structure file.
 ///
-/// Frames are collected and encoded in batches, which lets the worker pool
-/// encode several frames at once; encoding a frame (the XTC compression in
-/// particular) is the most expensive part of converting a large trajectory.
-/// `GMXRS_THREADS=1` keeps the encoding in the calling thread.
+/// Each frame is encoded and written immediately on the calling thread.
 pub struct TrxWriter {
     path: String,
     format: TrxFormat,
@@ -476,8 +436,6 @@ pub struct TrxWriter {
     suffixes: Vec<Vec<u8>>,
     /// Model number of the next PDB frame.
     model: i32,
-    /// Frames that have not been encoded yet.
-    pending: Vec<Pending>,
 }
 
 /// Opens the output file with a buffer large enough for a whole frame.
@@ -521,7 +479,6 @@ impl TrxWriter {
             prefixes: Vec::new(),
             suffixes: Vec::new(),
             model: 0,
-            pending: Vec::new(),
         })
     }
 
@@ -551,8 +508,7 @@ impl TrxWriter {
         self.prec = prec;
     }
 
-    /// Hands one frame over to be written.  The frame is consumed, since it
-    /// may be encoded later (and in parallel with the following frames).
+    /// Encodes and writes one frame immediately.
     pub fn write_frame(&mut self, frame: Frame, title: &str) -> Result<()> {
         let job = match self.format {
             TrxFormat::Xtc => Pending::Xtc {
@@ -573,40 +529,14 @@ impl TrxWriter {
                 }
             }
         };
-        self.pending.push(job);
-        if self.pending.len() >= ENCODE_BATCH {
-            self.flush()?;
-        }
+        let bytes = self.encode(&job)?;
+        self.out.write_all(&bytes).map_err(|e| {
+            XdrError::Invalid(format!("cannot write {}: {e}", self.path))
+        })?;
         Ok(())
     }
 
-    /// Encodes the frames that were handed over and writes them in order.
-    fn flush(&mut self) -> Result<()> {
-        if self.pending.is_empty() {
-            return Ok(());
-        }
-        let pending = std::mem::take(&mut self.pending);
-        let encoded: Vec<Vec<u8>> = if pending.len() > 1 && threads_enabled() {
-            pending
-                .par_iter()
-                .map(|job| self.encode(job))
-                .collect::<Result<Vec<Vec<u8>>>>()?
-        } else {
-            pending
-                .iter()
-                .map(|job| self.encode(job))
-                .collect::<Result<Vec<Vec<u8>>>>()?
-        };
-        for bytes in encoded {
-            self.out.write_all(&bytes).map_err(|e| {
-                XdrError::Invalid(format!("cannot write {}: {e}", self.path))
-            })?;
-        }
-        Ok(())
-    }
-
-    /// Encodes one frame.  The encoders keep no state across frames, so the
-    /// frames of a batch can be encoded in any order.
+    /// Encodes one frame.
     fn encode(&self, job: &Pending) -> Result<Vec<u8>> {
         match job {
             Pending::Xtc { frame, prec } => {
@@ -659,18 +589,8 @@ impl TrxWriter {
     /// Writes the accumulated output to `path` (binary formats use the path
     /// provided at creation time).
     pub fn finish(mut self) -> Result<()> {
-        self.flush()?;
         self.out
             .flush()
             .map_err(|e| XdrError::Invalid(format!("cannot write {}: {e}", self.path)))
-    }
-}
-
-impl Drop for TrxWriter {
-    fn drop(&mut self) {
-        // Frames that were handed over but never written must not be lost when
-        // a caller forgets `finish()`; the file itself is flushed by the
-        // `BufWriter` when it is dropped.
-        let _ = self.flush();
     }
 }

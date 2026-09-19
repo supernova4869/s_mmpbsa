@@ -50,11 +50,8 @@ pushed:
   position in the file.  Counting the frames of an `xtc`/`trr` input first
   (`trx::frame_count()`) costs a pass over the whole file, so the tools no
   longer do it: on a 27 GB trajectory that pass alone is about two minutes.
-* `decode.rs` (new), `trx.rs`, `cmd/trjconv.rs`, `Cargo.toml` — trajectory
-  frames are decoded and encoded on a `rayon` worker pool (a reader thread plus
-  parallel batch decoding, and batched parallel encoding in `TrxWriter`), which
-  is what makes a 27 GB trajectory usable.  The pool size is the host's:
-  s_mmpbsa sizes the global `rayon` pool from `n_kernels` in `settings.ini`.
+* `trx.rs`, `cmd/trjconv.rs`, `Cargo.toml` — trajectory frames are decoded and
+  encoded serially, in input order, on the calling thread.
 
 To carry a new local change, write it into this directory and record the
 difference against the checkout, e.g.:

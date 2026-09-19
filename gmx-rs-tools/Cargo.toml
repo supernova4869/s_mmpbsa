@@ -18,5 +18,3 @@ path = "src/lib.rs"
 indicatif = "0.17.1"
 # Reached through `indicatif`; used to draw on /dev/tty when forced.
 console = "0.15.2"
-# Decoding and encoding of trajectory frames run on a worker pool.
-rayon = "1.7"

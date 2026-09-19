@@ -608,7 +608,6 @@ version = "0.1.0"
 dependencies = [
  "console",
  "indicatif",
- "rayon",
 ]
 
 [[package]]

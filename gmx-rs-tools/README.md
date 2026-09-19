@@ -252,23 +252,9 @@ instead of once per frame.  On the 145382 atom system (21 frames):
 `gmx-rs-tools dump -f` is still about 1.5x slower than `gmx dump -f` because the
 per-line formatting dominates; it does print the identical text.
 
-Frames are decoded and encoded on a worker pool, which is what a trajectory
-with tens of thousands of frames needs: the XTC codec is pure CPU work and a
-conversion is otherwise bound by it.  One thread reads the raw frames while
-the pool decodes them, and the frames of a conversion are encoded in batches,
-keeping the frames in order and the output byte for byte the same.  The pool is
-the global pool of `rayon`: a host program sizes it (s_mmpbsa uses `n_kernels`
-from its `settings.ini`) and the standalone tools follow `RAYON_NUM_THREADS`
-and the number of CPUs.  On a 27 GB, 50 000 frame production trajectory (34578
-atoms, on a spinning disk):
-
-| Case | one core | 32 cores |
-| --- | --- | --- |
-| `-b 0 -e 2000 -pbc whole -o out.xtc` (1002 frames, 1.1 GB in and out) | 19.4 s | 6.8 s |
-| `-b 20000 -e 22000 -pbc whole -o out.xtc` (skips 10 000 frames first) | 62.2 s | 14.4 s |
-
-Converting 5002 frames (2.9 GB) takes the same 26-33 s for every pool size:
-at that point the conversion is bound by the disk, not by the codec.
+Frames are decoded and encoded serially on the calling thread.  This keeps
+trajectories in input order, avoids worker-pool resource use, and preserves the
+output byte for byte.
 
 The comparison is automated:
 
