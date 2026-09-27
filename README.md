@@ -50,7 +50,7 @@ s_mmpbsa -f md_pbc.xtc -s md.tpr -n index.ndx
 2 # select ligand group
 [ligand group number]
 0 # go to next step (MM-PBSA Parameters)
-# Other options usually no need to change. The PB and SA parameters could be modified by 8 and 9
+# Other options usually no need to change. The PB and SA parameters could be modified by 10 and 11 (a commented PB_settings.yaml / SA_settings.yaml is written, edit it and press ENTER to reload; misspelled values are rejected with the list of valid choices). Menu item 9 loads a named PB parameter preset (default / fast / fine / npbe)
 0 # go to next step (start calculation)
 [return] # use default name "system" or input specific name
 # Wait for calculation finish
