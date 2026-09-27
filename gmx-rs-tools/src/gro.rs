@@ -39,6 +39,9 @@ fn read_one(lines: &[String], pos: &mut usize) -> XResult<Option<GroFrameRaw>> {
         .trim()
         .parse()
         .map_err(|_| XdrError::Invalid("gro file does not have the number of atoms on the second line".into()))?;
+    if natoms < 0 {
+        return Err(XdrError::Invalid(format!("negative atom count {natoms} in gro file")));
+    }
     let natoms = natoms as usize;
 
     let mut names = Vec::with_capacity(natoms);
@@ -82,9 +85,12 @@ fn read_one(lines: &[String], pos: &mut usize) -> XResult<Option<GroFrameRaw>> {
             }
         }
 
-        let resnr: i32 = line[0..5].trim().parse().unwrap_or(0);
-        let resname: String = line[5..10].trim().to_string();
-        let atomname: String = line[10..15].trim().to_string();
+        // The fixed columns are sliced as bytes: a `&str` slice would panic
+        // on a multi-byte character (e.g. a residue name with an accent).
+        let lb = line.as_bytes();
+        let resnr: i32 = std::str::from_utf8(&lb[0..5]).unwrap_or("").trim().parse().unwrap_or(0);
+        let resname: String = String::from_utf8_lossy(&lb[5..10]).trim().to_string();
+        let atomname: String = String::from_utf8_lossy(&lb[10..15]).trim().to_string();
         names.push((atomname, resname, b' ', resnr));
 
         let bytes = line.as_bytes();

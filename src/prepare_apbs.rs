@@ -1,8 +1,11 @@
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::path::Path;
 use ndarray::{Array1, ArrayView2};
+use apbs_generic::valist::Valist;
+use crate::apbs_runner::MemMols;
 use crate::parameters::*;
 use crate::atom_property::AtomProperties;
 use crate::settings::Settings;
@@ -56,20 +59,23 @@ pub fn prepare_pqr(cur_frm: usize, times: &Vec<f64>,
     }
 }
 
-pub fn write_apbs_input(ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, coord: &ArrayView2<f64>,
+/// Builds the APBS input text for one frame in memory.
+///
+/// The returned text references molecules as `mol 1` (complex), `mol 2`
+/// (receptor) and `mol 3` (ligand), matching [`build_molecules`].
+pub fn build_apbs_input_text(ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, coord: &ArrayView2<f64>,
                   atom_radius: &Array1<f64>, pbe_set: &PBESet, pba_set: &PBASet,
-                  temp_dir: &PathBuf, f_name: &String, settings: &Settings) {
-    let mut input_apbs = File::create(temp_dir.join(format!("{}.apbs", f_name))).unwrap();
-    writeln!(input_apbs, "read").expect("Failed writing apbs file.");
+                  f_name: &str, settings: &Settings) -> String {
+    let mut input_apbs = String::from("read\n");
     if ndx_lig.is_some() {
-        writeln!(input_apbs, "  mol pqr {}_com.pqr", f_name).expect("Failed writing apbs file.");
-        writeln!(input_apbs, "  mol pqr {}_rec.pqr", f_name).expect("Failed writing apbs file.");
-        writeln!(input_apbs, "  mol pqr {}_lig.pqr", f_name).expect("Failed writing apbs file.");
+        input_apbs.push_str(&format!("  mol pqr {}_com.pqr\n", f_name));
+        input_apbs.push_str(&format!("  mol pqr {}_rec.pqr\n", f_name));
+        input_apbs.push_str(&format!("  mol pqr {}_lig.pqr\n", f_name));
     } else {
-        writeln!(input_apbs, "  mol pqr {}_rec.pqr", f_name).expect("Failed writing apbs file.");
+        input_apbs.push_str(&format!("  mol pqr {}_rec.pqr\n", f_name));
     }
-    writeln!(input_apbs, "end\n").expect("Failed writing apbs file.");
-    
+    input_apbs.push_str("end\n\n");
+
     let (rec_box, lig_box, com_box) =
         gen_mesh_edges(ndx_rec, ndx_lig, coord, atom_radius);
 
@@ -81,20 +87,56 @@ pub fn write_apbs_input(ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usi
     pba_set_modify.bconc = 0.0;
 
     if let Some(com_box) = com_box {
-        input_apbs.write_all(prepare_apbs_content(format!("{}_com", f_name).as_str(), 1,
-            com_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
-            .expect("Failed writing apbs file.");
-        input_apbs.write_all(prepare_apbs_content(format!("{}_rec", f_name).as_str(), 2,
-            rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
-            .expect("Failed writing apbs file.");
-        input_apbs.write_all(prepare_apbs_content(format!("{}_lig", f_name).as_str(), 3,
-            lig_box.unwrap(), settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
-            .expect("Failed writing apbs file.");
+        input_apbs.push_str(&prepare_apbs_content(format!("{}_com", f_name).as_str(), 1,
+            com_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify));
+        input_apbs.push_str(&prepare_apbs_content(format!("{}_rec", f_name).as_str(), 2,
+            rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify));
+        input_apbs.push_str(&prepare_apbs_content(format!("{}_lig", f_name).as_str(), 3,
+            lig_box.unwrap(), settings, pbe_set, &pbe_set_vacuum, &pba_set_modify));
     } else {
-        input_apbs.write_all(prepare_apbs_content(format!("{}_rec", f_name).as_str(), 1,
-            rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify).as_bytes())
-            .expect("Failed writing apbs file.");
+        input_apbs.push_str(&prepare_apbs_content(format!("{}_rec", f_name).as_str(), 1,
+            rec_box, settings, pbe_set, &pbe_set_vacuum, &pba_set_modify));
     }
+    input_apbs
+}
+
+/// Builds the complex/receptor/ligand molecule lists that the APBS input
+/// references as `mol 1/2/3`, straight from the in-memory coordinates.
+///
+/// Coordinates are in Angstrom, exactly what a PQR file would have carried,
+/// so the solver sees identical input without the disk round-trip.
+pub fn build_molecules(aps: &AtomProperties, coord: &ArrayView2<f64>,
+                       ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>) -> MemMols {
+    fn valist_from(aps: &AtomProperties, coord: &ArrayView2<f64>,
+                   indices: impl Iterator<Item = usize>) -> Valist {
+        let mut alist = Valist::new();
+        for (i, at_id) in indices.enumerate() {
+            let ap = &aps.atom_props[at_id];
+            let mut atom = apbs_generic::vatom::Vatom::new();
+            atom.set_position([coord[[at_id, 0]], coord[[at_id, 1]], coord[[at_id, 2]]]);
+            atom.set_charge(ap.charge);
+            atom.set_radius(ap.radius);
+            atom.set_atom_name(&ap.name);
+            atom.set_res_name(&ap.resname);
+            atom.set_atom_id(i as i32);
+            alist.atoms.push(atom);
+        }
+        alist.get_statistics();
+        alist
+    }
+
+    let mut mols = MemMols::new();
+    match ndx_lig {
+        Some(ndx_lig) => {
+            mols.insert("1".to_string(), Arc::new(valist_from(aps, coord, 0..aps.atom_props.len())));
+            mols.insert("2".to_string(), Arc::new(valist_from(aps, coord, ndx_rec.iter().copied())));
+            mols.insert("3".to_string(), Arc::new(valist_from(aps, coord, ndx_lig.iter().copied())));
+        }
+        None => {
+            mols.insert("1".to_string(), Arc::new(valist_from(aps, coord, ndx_rec.iter().copied())));
+        }
+    }
+    mols
 }
 
 fn get_bounds(ndx: &BTreeSet<usize>, coord: &ArrayView2<f64>, atom_radius: &Array1<f64>) -> [f64; 6] {
@@ -207,4 +249,123 @@ pub fn prepare_apbs_content(file: &str, mol_index: i32, box_: [f64;6],
     print apolEnergy {}_SAS end\n\n", file, xyz_set, pbe_set.to_string(), file,
                    xyz_set, pbe_set0.to_string(), file, mol_index,
                    pba_set.to_string(), file, file, file);
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::apbs_runner::run_apbs_in_process_text;
+    use ndarray::Array2;
+
+    fn tiny_aps(charges: [f64; 3]) -> AtomProperties {
+        let names = ["CA", "CB", "OW"];
+        let resnames = ["ALA", "ALA", "SOL"];
+        AtomProperties {
+            c6: Array2::zeros((0, 0)),
+            c12: Array2::zeros((0, 0)),
+            at_map: std::collections::HashMap::new(),
+            radius_type: "mBondi".to_string(),
+            atom_props: names
+                .iter()
+                .enumerate()
+                .map(|(i, &name)| crate::atom_property::AtomProperty {
+                    charge: charges[i],
+                    radius: 1.4,
+                    type_id: 0,
+                    id: i,
+                    name: name.to_string(),
+                    at_type: "C".to_string(),
+                    resname: resnames[i].to_string(),
+                    resid: i,
+                })
+                .collect(),
+        }
+    }
+
+    /// The in-memory path (input text + in-memory molecules) must run the real
+    /// solver end to end and yield per-atom results for every calculation of
+    /// the complex/receptor/ligand decomposition.
+    #[test]
+    fn in_memory_input_runs_full_pbsa_decomposition() {
+        let aps = tiny_aps([0.4, -0.2, -0.2]);
+        let coord = Array2::from_shape_vec((3, 3), vec![0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 9.0, 0.0, 0.0])
+            .unwrap();
+        let ndx_rec: BTreeSet<usize> = [0usize, 1].into_iter().collect();
+        let ndx_lig: Option<BTreeSet<usize>> = Some([2usize].into_iter().collect());
+
+        let mols = build_molecules(&aps, &coord.view(), &ndx_rec, &ndx_lig);
+        assert_eq!(mols["1"].number_atoms(), 3, "complex = every atom");
+        assert_eq!(mols["2"].number_atoms(), 2, "receptor subset");
+        assert_eq!(mols["3"].number_atoms(), 1, "ligand subset");
+        // The in-memory atoms carry the same coordinates and charges that the
+        // PQR files used to hold.
+        let a0 = mols["2"].get_atom(0);
+        assert_eq!(a0.position, [0.0, 0.0, 0.0]);
+        assert_eq!(a0.charge, 0.4);
+        assert_eq!(a0.radius, 1.4);
+
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+        let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+        let text = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord.view(), &radius,
+            &pbe_set, &pba_set, "t_0ns", &settings);
+        assert!(text.contains("mol pqr t_0ns_com.pqr"));
+        assert!(text.contains("ELEC name t_0ns_com_SOL"));
+        assert!(text.contains("APOLAR name t_0ns_com_SAS"));
+
+        let run = run_apbs_in_process_text(&text, &mols)
+            .expect("in-memory PB/SA run must succeed");
+        let names: Vec<&str> = run.calcs.iter().map(|c| c.name.as_str()).collect();
+        for want in [
+            "t_0ns_com_SOL", "t_0ns_com_VAC",
+            "t_0ns_rec_SOL", "t_0ns_rec_VAC",
+            "t_0ns_lig_SOL", "t_0ns_lig_VAC",
+            "t_0ns_com_SAS", "t_0ns_rec_SAS", "t_0ns_lig_SAS",
+        ] {
+            assert!(names.contains(&want), "missing {want} in {names:?}");
+        }
+        for calc in &run.calcs {
+            let expect = if calc.name.contains("_com_") {
+                3
+            } else if calc.name.contains("_rec_") {
+                2
+            } else {
+                1
+            };
+            assert_eq!(calc.per_atom.len(), expect, "{}", calc.name);
+            assert!(calc.per_atom.iter().all(|v| v.is_finite()), "{}", calc.name);
+        }
+    }
+
+    /// Without a ligand only the receptor molecule and its SOL/VAC/SAS set
+    /// exist.
+    #[test]
+    fn in_memory_input_without_ligand_has_receptor_only() {
+        let aps = tiny_aps([0.4, -0.2, -0.2]);
+        let coord = Array2::from_shape_vec((3, 3), vec![0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 9.0, 0.0, 0.0])
+            .unwrap();
+        let ndx_rec: BTreeSet<usize> = (0..3).collect();
+
+        let mols = build_molecules(&aps, &coord.view(), &ndx_rec, &None);
+        assert_eq!(mols.len(), 1);
+        assert_eq!(mols["1"].number_atoms(), 3);
+
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+        let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+        let text = build_apbs_input_text(&ndx_rec, &None, &coord.view(), &radius,
+            &pbe_set, &pba_set, "t_0ns", &settings);
+        assert!(text.contains("mol pqr t_0ns_rec.pqr"));
+        assert!(!text.contains("_com"));
+        assert!(!text.contains("_lig"));
+
+        let run = run_apbs_in_process_text(&text, &mols)
+            .expect("in-memory PB/SA run must succeed");
+        let names: Vec<&str> = run.calcs.iter().map(|c| c.name.as_str()).collect();
+        for want in ["t_0ns_rec_SOL", "t_0ns_rec_VAC", "t_0ns_rec_SAS"] {
+            assert!(names.contains(&want), "missing {want} in {names:?}");
+        }
+        assert_eq!(names.len(), 3, "no complex/ligand calcs expected: {names:?}");
+    }
 }

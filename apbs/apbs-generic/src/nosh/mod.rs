@@ -85,6 +85,11 @@ impl NOsh {
         let content = std::fs::read_to_string(filename)
             .map_err(|e| ApbsError::Io(format!("{}: {}", filename, e)))?;
 
+        self.read_str(&content)
+    }
+
+    /// Parse input text assembled in memory instead of read from a file.
+    pub fn read_str(&mut self, content: &str) -> ApbsResult<()> {
         let cleaned_lines: Vec<String> = content
             .lines()
             .filter_map(|line| {

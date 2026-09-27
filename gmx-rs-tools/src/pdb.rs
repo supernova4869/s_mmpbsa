@@ -75,7 +75,9 @@ pub fn read_all(path: &str) -> XResult<Vec<Frame>> {
     for (line_no, line) in content.lines().enumerate() {
         let _ = line_no;
         if line.len() >= 6 {
-            let rec = &line[0..6];
+            // Sliced as bytes: a `&str` slice would panic on a multi-byte
+            // character within the first six columns.
+            let rec = String::from_utf8_lossy(&line.as_bytes()[0..6]);
             if rec == "ENDMDL" {
                 finish(
                     &mut frames,

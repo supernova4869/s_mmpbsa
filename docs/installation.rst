@@ -122,7 +122,8 @@ The configuration file contains the following main parameters:
 
 - **gmx_path**: Path to the Gromacs program. It is empty by default, which disables it: leave it empty unless you have a run input (tpr) file written before Gromacs 2021, which the built-in reader does not support. Such a file can also be converted once with `gmx convert-tpr -s old.tpr -o new.tpr`, after which the setting is not needed at all.
 - **nkernels**: Number of cores used for parallel computing
-- **debug_mode**: Whether to enable debug mode (y/n). When enabled, intermediate files will not be deleted.
+- **debug_mode**: Whether to enable debug mode (y/n). When enabled, intermediate files will not be deleted. Off by default.
+- **exit_on_error**: Whether to stop with a non-zero exit code when a frame of the PB/SA calculation fails (y/n). Off by default: the run then continues, the failed frames are counted as zero PB/SA energy and a prominent warning is printed; the average binding energy of such a run is not reliable.
 - **r_cutoff**: Cutoff distance for non-bonded interactions. 0 means no cutoff.
 - **elec_screen**: Electrostatic shielding method setting. 0 means not using electrostatic shielding. 1 means using Debye-Hückel shielding.
 

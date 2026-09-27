@@ -359,17 +359,18 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
         if settings.calc_mm { "enabled" } else { "disabled" },
         if settings.calc_pbsa { "enabled" } else { "disabled" });
 
-    // Temp directory for PBSA
+    // Temp directory for PBSA.  Coordinates are handed to the solver in
+    // memory, so intermediate files only exist when debug mode keeps them.
     let temp_dir = &env::current_dir().unwrap().join(sys_name);
-    if settings.calc_pbsa {
-        println!("Temporary files will be placed at {}/", temp_dir.display());
+    if settings.calc_pbsa && settings.debug_mode {
+        println!("Intermediate PB/SA files will be placed at {}/", temp_dir.display());
         if !temp_dir.is_dir() {
             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         } else {
             fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         }
-    } else {
+    } else if !settings.calc_pbsa {
         println!("Note: PBSA calculation is disabled, solvation energy will not be calculated.");
     };
     

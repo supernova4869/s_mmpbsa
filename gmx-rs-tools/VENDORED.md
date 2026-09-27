@@ -16,12 +16,36 @@ The crate is a workspace member and is used through
 
 ## Local changes
 
-The tree currently **tracks upstream verbatim**: there is no `local.patch`, so
-the copy is exactly what https://github.com/supernova4869/gmx-rs-tools
-contains.  Everything s_mmpbsa needed while it was being wired in has been
-folded into the upstream project; the list below is that history, and is also
-the place to look when a change has to be carried here for a while before it is
-pushed:
+The tree carries a `local.patch` on top of the upstream checkout; it holds
+the hardening of the binary parsers against corrupt input (see below) until
+it is folded into upstream.  The list below is the change history, and is
+also the place to look when a change has to be carried here for a while
+before it is pushed:
+
+* `xdr.rs` — `read_exact_chunked()`: reads a file-provided byte count a
+  chunk at a time so a corrupt declared size cannot drive a huge
+  allocation before the read fails.
+* `xtc.rs` — `receivebits()` bounds-checks the bit buffer and
+  `receiveints()` reports a corrupt file instead of panicking on a zero
+  size; `read_3dfcoord()` validates the magic-integer index and rejects
+  negative block sizes; `read_frame()` rejects negative atom counts;
+  `frame_count()` detects a seek past the end of a truncated file.
+* `trr.rs` — `n_float_size()` no longer divides by a zero atom count;
+  `read_frame()` rejects negative counts and checks every section size
+  against the remaining bytes before allocating; `read_frame_bytes()`
+  reads the payload in chunks; `frame_count()` detects truncation like the
+  XTC one.
+* `tpr.rs` — negative or oversized file-provided counts (symtab, atoms,
+  residue info, molecule types/blocks, group names, charge groups) now
+  return errors instead of driving `Vec::with_capacity`; the coordinate
+  section is checked against the remaining body bytes; `parse_list_of_lists()`
+  validates its range endpoints; the cmap grid spacing is range-checked
+  (its square used to overflow i32).
+* `gro.rs` — a negative atom count is an error; the fixed-column slices
+  are taken on bytes so multi-byte characters cannot panic.
+* `pdb.rs` — the record-type slice is taken on bytes for the same reason.
+
+Earlier changes, already folded into upstream:
 
 * `tpr.rs` — `Mtop::ffparams` and the `nbfp` accessors (`FfParams::lj_sr()`,
   `FfParams::atnr_usize()`) are part of the crate itself.

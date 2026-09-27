@@ -298,7 +298,6 @@ impl Valist {
     pub fn read_xml(&mut self, params: Option<&Vparam>, filename: &str) -> ApbsResult<()> {
         let file = File::open(filename).map_err(|e| ApbsError::Io(format!("{}: {}", filename, e)))?;
         let mut reader = Reader::from_reader(BufReader::new(file));
-        reader.trim_text(true);
         let mut buf = Vec::new();
 
         self.atoms.clear();
@@ -307,7 +306,7 @@ impl Valist {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
                     let tag = e.name().as_ref().to_ascii_lowercase();
-                    if tag.as_slice() == b"atom" {
+                    if tag == "atom" {
                         if let Some(mut atom) = Self::parse_xml_atom(&e, params)? {
                             atom.set_atom_id(self.atoms.len() as i32);
                             self.atoms.push(atom);
@@ -346,8 +345,8 @@ impl Valist {
         let mut epsilon = None;
 
         for a in e.attributes().flatten() {
-            let key = String::from_utf8_lossy(a.key.as_ref()).to_ascii_lowercase();
-            let val = String::from_utf8_lossy(a.value.as_ref()).to_string();
+            let key = a.key.as_ref().to_ascii_lowercase();
+            let val = a.value.to_string();
             match key.as_str() {
                 "name" | "atom_name" | "atom" => atom_name = val,
                 "res_name" | "residue" | "res" => res_name = val,

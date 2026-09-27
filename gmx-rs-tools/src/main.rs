@@ -30,13 +30,15 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     eprintln!(
-        "gmx-rs-tools - minimal Rust port of selected GROMACS tools\n\n\
-         Usage: gmx-rs-tools <command> [options]\n\n\
-         Commands:\n\
-         \x20 dump         Make binary files human readable\n\
-         \x20 coords       Read coordinates out of a trajectory\n\
-         \x20 trjconv      Convert and manipulate trajectories\n\
-         \x20 convert-tpr  Make a modified run-input file\n\
-         \x20 make_ndx     Make index files\n"
+        "gmx-rs-tools - minimal Rust port of selected GROMACS tools
+
+Usage: gmx-rs-tools <command> [options]
+
+Commands:
+  dump         Make binary files human readable
+  coords       Read coordinates out of a trajectory
+  trjconv      Convert and manipulate trajectories
+  convert-tpr  Make a modified run-input file
+  make_ndx     Make index files"
     );
 }

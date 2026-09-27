@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,7 @@ use crate::analysis::{SMResult, SMResults};
 use crate::parse_tpr::Residue;
 use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
-use crate::prepare_apbs::{prepare_pqr, write_apbs_input};
+use crate::prepare_apbs::{build_apbs_input_text, build_molecules, prepare_pqr};
 use crate::apbs_runner::{self, SolverCalcKind, SolverRun};
 
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
@@ -70,18 +70,12 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
     let sm_results = SMResults::new(result_ala_scan);
     sm_results.to_bin(Path::new(&format!("MMPBSA_{}.sm", sys_name)));
 
-    // whether remove temp directory
-    if !settings.debug_mode && settings.calc_pbsa {
-        fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
-    }
-
     sm_results
 }
 
 fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordinates: &Array3<f64>, 
                 ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>)
                 -> (Array3<f64>, AtomProperties, BTreeSet<usize>, Option<BTreeSet<usize>>) {
-    let mut new_coordinates = coordinates.clone();
     let mut new_aps = aps.clone();
     let as_atoms: Vec<AtomProperty> = aps.atom_props.iter().filter_map(|a| if a.resid == asr.id {
         Some(a.clone())
@@ -102,41 +96,21 @@ fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordi
         } else {
             None
         }}).collect();
+    // 脯氨酸需要把CD改成H（CD因此保留，不进入删除列表）
+    let pro_cd: Option<&AtomProperty> = if asr.name.eq("PRO") {
+        sc_out.retain(|&a| a.name.ne("CD"));
+        Some(as_atoms.iter().find(|&a| a.name == "CD").unwrap())
+    } else {
+        None
+    };
+    // 突变残基中重命名的原子（CG/SG/OG* 与脯氨酸CD）在删除列表之外保留
     for xg in xgs.iter() {
         new_aps.atom_props[xg.id].change_atom(aps.at_map.get("H"), "HB3", "HC", &aps.radius_type);
-        // 获取新的HB坐标
-        for layer in 0..new_coordinates.shape()[0] {
-            let cb_coords: Array1<f64> = new_coordinates.slice(s![layer, cb[0].id, ..]).to_owned();
-            let hg_coords: Array1<f64> = new_coordinates.slice(s![layer, xg.id, ..]).to_owned();
-            let new_hg_coord: Array1<f64> = transform_coordinate(&cb_coords, &hg_coords, 1.09);
-            new_coordinates[[layer, xg.id, 0]] = new_hg_coord[0];
-            new_coordinates[[layer, xg.id, 1]] = new_hg_coord[1];
-            new_coordinates[[layer, xg.id, 2]] = new_hg_coord[2];
-        }
     }
-    // 脯氨酸需要把CD改成H
-    // 通过N定位新的HN
-    if asr.name.eq("PRO") {
-        let n: Vec<AtomProperty> = as_atoms.iter().filter_map(|a| {
-            if a.name.eq("N") {
-                Some(a.clone())
-            } else {
-                None
-            }}).collect();
-        sc_out.retain(|&a| a.name.ne("CD"));
-        let cd = as_atoms.iter().find(|&a| a.name == "CD").unwrap();
+    if let Some(cd) = pro_cd {
         new_aps.atom_props[cd.id].change_atom(aps.at_map.get("H"), "H", "H", &aps.radius_type);
-        // 获取新的HN坐标
-        for layer in 0..new_coordinates.shape()[0] {
-            let n_coords: Array1<f64> = new_coordinates.slice(s![layer, n[0].id, ..]).to_owned();
-            let hn_coords: Array1<f64> = new_coordinates.slice(s![layer, cd.id, ..]).to_owned();
-            let new_hn_coord = transform_coordinate(&n_coords, &hn_coords, 1.07);
-            new_coordinates[[layer, cd.id, 0]] = new_hn_coord[0];
-            new_coordinates[[layer, cd.id, 1]] = new_hn_coord[1];
-            new_coordinates[[layer, cd.id, 2]] = new_hn_coord[2];
-        }
     }
-    
+
     // delete other atoms in the scanned residue
     let del_list: Vec<usize> = sc_out.iter().map(|a| a.id).collect();
     let xg_list: Vec<usize> = xgs.iter().map(|a| a.id).collect();
@@ -146,11 +120,48 @@ fn ala_mutate(aps: &AtomProperties, asr: &Residue, exclude_list: &[&str], coordi
     for (i, ap) in new_aps.atom_props.iter_mut().enumerate() {
         ap.id = i;
     };
+
+    // 只拷贝保留的原子：先 select 出子轨迹，再在子集上重建氢原子坐标，
+    // 避免对整条轨迹做一次全量克隆
+    let mut new_coordinates = coordinates.select(Axis(1), &retain_id);
+    let new_index: HashMap<usize, usize> = retain_id.iter()
+        .enumerate()
+        .map(|(i, &old_id)| (old_id, i))
+        .collect();
+
+    // 获取新的HB坐标
+    for xg in xgs.iter() {
+        let cb_id = new_index[&cb[0].id];
+        let xg_id = new_index[&xg.id];
+        for layer in 0..new_coordinates.shape()[0] {
+            let cb_coords: Array1<f64> = new_coordinates.slice(s![layer, cb_id, ..]).to_owned();
+            let hg_coords: Array1<f64> = new_coordinates.slice(s![layer, xg_id, ..]).to_owned();
+            let new_hg_coord: Array1<f64> = transform_coordinate(&cb_coords, &hg_coords, 1.09);
+            new_coordinates[[layer, xg_id, 0]] = new_hg_coord[0];
+            new_coordinates[[layer, xg_id, 1]] = new_hg_coord[1];
+            new_coordinates[[layer, xg_id, 2]] = new_hg_coord[2];
+        }
+    }
+    if let Some(cd) = pro_cd {
+        let n = as_atoms.iter().find(|&a| a.name == "N").unwrap();
+        let n_id = new_index[&n.id];
+        let cd_id = new_index[&cd.id];
+        // 获取新的HN坐标
+        for layer in 0..new_coordinates.shape()[0] {
+            let n_coords: Array1<f64> = new_coordinates.slice(s![layer, n_id, ..]).to_owned();
+            let hn_coords: Array1<f64> = new_coordinates.slice(s![layer, cd_id, ..]).to_owned();
+            let new_hn_coord = transform_coordinate(&n_coords, &hn_coords, 1.07);
+            new_coordinates[[layer, cd_id, 0]] = new_hn_coord[0];
+            new_coordinates[[layer, cd_id, 1]] = new_hn_coord[1];
+            new_coordinates[[layer, cd_id, 2]] = new_hn_coord[2];
+        }
+    }
+
     let mut new_ndx_rec = ndx_rec.clone();
     new_ndx_rec.retain(|&x| !del_list.contains(&x) || xg_list.contains(&x));
     let (new_ndx_rec, new_ndx_lig) = normalize_index(&new_ndx_rec, ndx_lig);
 
-    return (new_coordinates.select(Axis(1), &retain_id).clone(), new_aps, new_ndx_rec, new_ndx_lig)
+    (new_coordinates, new_aps, new_ndx_rec, new_ndx_lig)
 }
 
 fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
@@ -210,12 +221,15 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     pgb.inc(0);
     pgb.set_message(format!("at {} ns...", times[0]));
 
+    // Frames whose PB/SA solve failed; they count as zero, which would
+    // silently distort the average binding energy if nobody was told.
+    let mut failed_pb_frames: Vec<f64> = Vec::new();
     for cur_frm in 0..time_list.len() {
         // MM
         if settings.calc_mm {
             let coord = coordinates.slice(s![cur_frm, .., ..]);
             if let Some(ndx_lig) = ndx_lig {
-                let (de_elec, de_vdw) = 
+                let (de_elec, de_vdw) =
                     calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallel);
                 elec_atom.row_mut(cur_frm).assign(&de_elec);
                 vdw_atom.row_mut(cur_frm).assign(&de_vdw);
@@ -225,20 +239,38 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         // PBSA
         if settings.calc_pbsa {
             let coord = coordinates.slice(s![cur_frm, .., ..]);
-            let (de_pb, de_sa) = 
-                calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
-            pb_atom.row_mut(cur_frm).assign(&de_pb);
-            sa_atom.row_mut(cur_frm).assign(&de_sa);
+            match calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir,
+                            aps, pbe_set, pba_set, settings) {
+                Some((de_pb, de_sa)) => {
+                    pb_atom.row_mut(cur_frm).assign(&de_pb);
+                    sa_atom.row_mut(cur_frm).assign(&de_sa);
+                }
+                None => failed_pb_frames.push(times[cur_frm]),
+            }
         }
 
         pgb.inc(1);
-        pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s", 
+        pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s",
                                         times[cur_frm],
-                                        vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() + 
+                                        vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() +
                                         pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
                                         pgb.eta().as_secs()));
     }
     pgb.finish();
+
+    if !failed_pb_frames.is_empty() {
+        report_failed_pb_frames(&failed_pb_frames, time_list.len());
+        // Every frame failed: the whole result would be zero-filled noise, so
+        // there is no point in writing it out.
+        if failed_pb_frames.len() == time_list.len() {
+            println!("All frames failed: the PB/SA terms of the whole result would be zero. Aborting.");
+            std::process::exit(1);
+        }
+        if settings.exit_on_error {
+            println!("exit_on_error is enabled: aborting because of the PB/SA failures above.");
+            std::process::exit(1);
+        }
+    }
 
     let mm_ie: Option<Array1<f64>> = if settings.inter_entropy {
         println!("Start IE calculation...");
@@ -402,27 +434,32 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
     (de_elec, de_vdw)
 }
 
-fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>, 
-            ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &str, temp_dir: &PathBuf, 
-            aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> (Array1<f64>, Array1<f64>) {
+fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
+            ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &str, temp_dir: &PathBuf,
+            aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Option<(Array1<f64>, Array1<f64>)> {
     // the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is subsequently calculated
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
     if settings.calc_pbsa {
-        prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
-        write_apbs_input(ndx_rec, ndx_lig, coord, 
-                &Array1::from_iter(aps.atom_props.iter().map(|a| a.radius)),
-                pbe_set, pba_set, temp_dir, &f_name, settings);
+        // Assemble the APBS input and the molecule lists in memory; the PQR
+        // files are only written (and the input text saved next to them) when
+        // debug mode keeps intermediate files for inspection.
+        let atom_radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+        let input_text = build_apbs_input_text(ndx_rec, ndx_lig, coord,
+                &atom_radius, pbe_set, pba_set, &f_name, settings);
+        let mem_mols = build_molecules(aps, coord, ndx_rec, ndx_lig);
+        if settings.debug_mode {
+            prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
+            let apbs_input = temp_dir.join(format!("{}.apbs", f_name));
+            fs::write(&apbs_input, &input_text).expect("Failed to write apbs input file.");
+        }
         // solve the PB/SA calculations in-process with the built-in APBS
         // solver (apbs-rs), no external process is spawned.
-        let apbs_input = temp_dir.join(format!("{}.apbs", f_name));
-        let solver_run = match apbs_runner::run_apbs_in_process(
-            apbs_input.to_str().expect("APBS input path is not valid unicode."),
-        ) {
+        let solver_run = match apbs_runner::run_apbs_in_process_text(&input_text, &mem_mols) {
             Ok(run) => run,
             Err(e) => {
                 println!("PBSA calculation failed at {} ns: {}", times[cur_frm], e);
-                return (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()));
+                return None;
             }
         };
         if settings.debug_mode {
@@ -468,14 +505,36 @@ fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
         if pb.len() != aps.atom_props.len() || sa.len() != aps.atom_props.len() {
             println!("Warning: The number of PB/SA values does not match the number of atoms. \
                 This may indicate an issue with the in-process APBS solver results.");
-            let pb = pad_to_len(&pb.to_vec(), aps.atom_props.len());
-            let sa = pad_to_len(&sa.to_vec(), aps.atom_props.len());
-            return (Array1::from_vec(pb), Array1::from_vec(sa));
+            return None;
         }
-        (pb, sa)
+        Some((pb, sa))
     } else {
-        (Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len()))
+        Some((Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len())))
     }
+}
+
+/// Prints a prominent report of the frames whose PB/SA solve failed.
+///
+/// `exit_on_error` already decided to continue when this runs: the frames
+/// are counted as zero, which is honest only if it is impossible to miss.
+fn report_failed_pb_frames(failed_ns: &[f64], total: usize) {
+    eprintln!();
+    eprintln!("========================================================================");
+    eprintln!("WARNING: PB/SA failed for {} of {} frames.", failed_ns.len(), total);
+    eprintln!("Those frames are counted with zero PB/SA energy, so the PB/SA terms");
+    eprintln!("and the average binding energy are NOT reliable.");
+    let shown = failed_ns.iter().take(10)
+        .map(|t| format!("{t}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    if failed_ns.len() > 10 {
+        eprintln!("Failed frames (ns): {} ... ({} more)", shown, failed_ns.len() - 10);
+    } else {
+        eprintln!("Failed frames (ns): {}", shown);
+    }
+    eprintln!("Set `exit_on_error = \"y\"` in settings.ini to stop instead.");
+    eprintln!("========================================================================");
+    eprintln!();
 }
 
 #[derive(Default)]
@@ -533,12 +592,6 @@ fn transform_coordinate(base: &Array1<f64>, origin: &Array1<f64>, target_length:
     let lambda = target_length / cur_len;
     let new_v_ch: Array1<f64> = Array1::from_iter(v_ch.iter().map(|r| r * lambda));
     return base + new_v_ch
-}
-
-fn pad_to_len(data: &[f64], target_len: usize) -> Vec<f64> {
-    let mut vec = data.to_vec();
-    vec.resize(target_len, 0.0); // 不变化用0填充
-    vec
 }
 
 #[cfg(test)]
@@ -608,5 +661,132 @@ mod tests {
         assert_eq!(r.com_sa, vec![44.0, 45.0]);
         assert_eq!(r.rec_sa, vec![6.6]);
         assert_eq!(r.lig_sa, vec![7.7]);
+    }
+
+    fn aps_from_atoms(atoms: &[(&str, &str)], resid: usize) -> AtomProperties {
+        AtomProperties {
+            c6: Array2::zeros((0, 0)),
+            c12: Array2::zeros((0, 0)),
+            at_map: HashMap::new(),
+            radius_type: "mBondi".to_string(),
+            atom_props: atoms
+                .iter()
+                .enumerate()
+                .map(|(i, &(name, resname))| AtomProperty {
+                    charge: 0.0,
+                    radius: 1.4,
+                    type_id: 0,
+                    id: i,
+                    name: name.to_string(),
+                    at_type: "C".to_string(),
+                    resname: resname.to_string(),
+                    resid,
+                })
+                .collect(),
+        }
+    }
+
+    /// `ala_mutate` keeps the backbone and CB, renames the side-chain gamma
+    /// atom to HB3 with its coordinate rebuilt along CB -> Xg at 1.09 A, and
+    /// deletes the rest of the side chain — on a per-atom subset, leaving
+    /// every other frame coordinate untouched.
+    #[test]
+    fn ala_mutate_leu_rebuilds_hb_and_drops_rest_of_sidechain() {
+        let aps = aps_from_atoms(
+            &[("N", "LEU"), ("CA", "LEU"), ("C", "LEU"), ("O", "LEU"),
+              ("CB", "LEU"), ("CG", "LEU"), ("CD1", "LEU")],
+            0,
+        );
+        // Two frames; CB -> CG is 1.54 A along +z in both.
+        let coordinates = Array3::from_shape_vec(
+            (2, 7, 3),
+            vec![
+                0.0, 0.0, 0.0,  0.0, 0.0, 0.5,  0.0, 0.0, 1.0,  0.0, 0.0, 1.5,
+                0.0, 0.0, 2.0,  0.0, 0.0, 3.54, 1.0, 0.0, 3.54,
+                1.0, 2.0, 3.0,  1.0, 2.0, 3.5,  1.0, 2.0, 4.0,  1.0, 2.0, 4.5,
+                1.0, 2.0, 5.0,  1.0, 2.0, 6.54, 2.0, 2.0, 6.54,
+            ],
+        )
+        .unwrap();
+        let exclude_list = ["N", "CA", "C", "O", "CB", "H", "HA", "HB1", "HB2"];
+        let asr = Residue { id: 0, name: "LEU".to_string(), nr: 1 };
+        let ndx_rec: BTreeSet<usize> = (0..7).collect();
+
+        let (new_coordinates, new_aps, new_ndx_rec, new_ndx_lig) =
+            ala_mutate(&aps, &asr, &exclude_list, &coordinates, &ndx_rec, &None);
+
+        // CD1 is gone; CG survives as the new HB3.
+        assert_eq!(new_coordinates.dim(), (2, 6, 3));
+        let names: Vec<&str> = new_aps.atom_props.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["N", "CA", "C", "O", "CB", "CG"]);
+        assert_eq!(new_aps.atom_props.iter().map(|a| a.id).collect::<Vec<_>>(), (0..6).collect::<Vec<_>>());
+        assert_eq!(new_ndx_rec, (0..6).collect::<BTreeSet<usize>>());
+        assert_eq!(new_ndx_lig, None);
+
+        // Backbone and CB coordinates are untouched and in the expected slots.
+        for layer in 0..2 {
+            for atom in 0..5 {
+                for d in 0..3 {
+                    assert_eq!(
+                        new_coordinates[[layer, atom, d]],
+                        coordinates[[layer, atom, d]],
+                        "frame {layer} atom {atom} coord {d}"
+                    );
+                }
+            }
+        }
+        // The new HB sits 1.09 A from CB along the old CB -> CG direction.
+        for layer in 0..coordinates.shape()[0] {
+            let cb = new_coordinates.slice(s![layer, 4, ..]);
+            let hb = new_coordinates.slice(s![layer, 5, ..]);
+            let dist: f64 = (0..3usize).map(|d| (hb[d] - cb[d]).powi(2)).sum::<f64>().sqrt();
+            assert!((dist - 1.09).abs() < 1e-12, "frame {layer}: |HB-CB| = {dist}");
+            let cg_old = coordinates.slice(s![layer, 5, ..]);
+            let dot: f64 = (0..3usize)
+                .map(|d| (hb[d] - cb[d]) * (cg_old[d] - cb[d]))
+                .sum();
+            assert!(
+                dot > 0.0,
+                "frame {layer}: HB must lie on the CB -> CG ray"
+            );
+        }
+    }
+
+    /// Proline keeps both ring atoms: CG becomes HB3 (along CB -> CG) and CD
+    /// becomes H (along N -> CD).
+    #[test]
+    fn ala_mutate_pro_rebuilds_both_ring_hydrogens() {
+        let aps = aps_from_atoms(
+            &[("N", "PRO"), ("CA", "PRO"), ("C", "PRO"), ("O", "PRO"),
+              ("CB", "PRO"), ("CG", "PRO"), ("CD", "PRO")],
+            0,
+        );
+        let coordinates = Array3::from_shape_vec(
+            (1, 7, 3),
+            vec![
+                0.0, 0.0, 0.0,  0.0, 0.0, 0.5,  0.0, 0.0, 1.0,  0.0, 0.0, 1.5,
+                1.0, 0.0, 0.0,  1.0, 0.0, 1.54, 0.0, 0.0, 1.5,
+            ],
+        )
+        .unwrap();
+        let exclude_list = ["N", "CA", "C", "O", "CB", "H", "HA", "HB1", "HB2"];
+        let asr = Residue { id: 0, name: "PRO".to_string(), nr: 1 };
+        let ndx_rec: BTreeSet<usize> = (0..7).collect();
+
+        let (new_coordinates, _new_aps, _, _) =
+            ala_mutate(&aps, &asr, &exclude_list, &coordinates, &ndx_rec, &None);
+
+        // Nothing is deleted: both ring atoms turn into hydrogens.
+        assert_eq!(new_coordinates.dim(), (1, 7, 3));
+        // HB3: 1.09 A from CB along the old CB -> CG direction ([1, 0, 1.09]).
+        for d in 0..3 {
+            let want = [1.0, 0.0, 1.09][d];
+            assert!((new_coordinates[[0, 5, d]] - want).abs() < 1e-12);
+        }
+        // H: 1.07 A from N along the old N -> CD direction ([0, 0, 1.07]).
+        for d in 0..3 {
+            let want = [0.0, 0.0, 1.07][d];
+            assert!((new_coordinates[[0, 6, d]] - want).abs() < 1e-12);
+        }
     }
 }

@@ -5,28 +5,28 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use rayon::prelude::*;
 
 // 预编译所有正则表达式
-static RE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name\\s*=\\s*\"(.*)\"").unwrap());
-static RE_ATOMS_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"#atoms\s*=\s*(\d+)").unwrap());
-static RE_MOLBLOCK: Lazy<Regex> = Lazy::new(|| Regex::new(r"#molblock\s*=\s*(\d+)").unwrap());
-static RE_MOLTYPE: Lazy<Regex> = Lazy::new(|| Regex::new("moltype\\s*=\\s*\\d+\\s*\"(.*)\"").unwrap());
-static RE_MOLECULES_NUM: Lazy<Regex> = Lazy::new(|| Regex::new(r"#molecules\s*=\s*(\d+)").unwrap());
-static RE_ATNR: Lazy<Regex> = Lazy::new(|| Regex::new(r"atnr\s*=\s*(\d+)").unwrap());
-static RE_FUNCTYPE: Lazy<Regex> = Lazy::new(|| 
+static RE_NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new("name\\s*=\\s*\"(.*)\"").unwrap());
+static RE_ATOMS_NUM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#atoms\s*=\s*(\d+)").unwrap());
+static RE_MOLBLOCK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#molblock\s*=\s*(\d+)").unwrap());
+static RE_MOLTYPE: LazyLock<Regex> = LazyLock::new(|| Regex::new("moltype\\s*=\\s*\\d+\\s*\"(.*)\"").unwrap());
+static RE_MOLECULES_NUM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#molecules\s*=\s*(\d+)").unwrap());
+static RE_ATNR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"atnr\s*=\s*(\d+)").unwrap());
+static RE_FUNCTYPE: LazyLock<Regex> = LazyLock::new(|| 
     Regex::new(r"functype\[(\d*)]=LJ_SR,\s*c6\s*=\s*(\S*),\s*c12\s*=\s*(\S*)").unwrap());
-static RE_MOLTYPE_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"moltype \((\d+)\)").unwrap());
-static RE_ATOM_PARAMS: Lazy<Regex> = Lazy::new(|| 
+static RE_MOLTYPE_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"moltype \((\d+)\)").unwrap());
+static RE_ATOM_PARAMS: LazyLock<Regex> = LazyLock::new(|| 
     Regex::new(r".*type=\s*(\d+).*q=\s*([^,]+),.*resind=\s*(\d+).*").unwrap());
-static RE_ATOM_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name=\"(.*)\"").unwrap());
-static RE_TYPE_NAME: Lazy<Regex> = Lazy::new(|| Regex::new("name=\"(.*)\",").unwrap());
-static RE_RESIDUE: Lazy<Regex> = Lazy::new(|| 
+static RE_ATOM_NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new("name=\"(.*)\"").unwrap());
+static RE_TYPE_NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new("name=\"(.*)\",").unwrap());
+static RE_RESIDUE: LazyLock<Regex> = LazyLock::new(|| 
     Regex::new("residue\\[(\\d+)]=\\{name=\"(.+)\",.*nr=([\\d\\-]+).*").unwrap());
-static RE_COORD: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\s*(.*),\s*(.*),\s*(.*)\}").unwrap());
-static RE_ATOM_COUNT: Lazy<Regex> = Lazy::new(|| Regex::new(r"atom \((\d+)\):").unwrap());
-static RE_RESIDUE_COUNT: Lazy<Regex> = Lazy::new(|| Regex::new(r"residue \((\d+)\)").unwrap());
+static RE_COORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\s*(.*),\s*(.*),\s*(.*)\}").unwrap());
+static RE_ATOM_COUNT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"atom \((\d+)\):").unwrap());
+static RE_RESIDUE_COUNT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"residue \((\d+)\)").unwrap());
 
 pub struct TPR {
     pub name: String,

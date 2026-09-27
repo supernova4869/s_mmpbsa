@@ -84,14 +84,27 @@ pub fn write_frame(w: &mut Writer, frame: &Frame) {
 fn n_float_size(box_size: i32, x_size: i32, v_size: i32, f_size: i32, natoms: i32) -> Result<i32> {
     let nflsize = if box_size != 0 {
         box_size / 9
-    } else if x_size != 0 {
-        x_size / (natoms * 3)
-    } else if v_size != 0 {
-        v_size / (natoms * 3)
-    } else if f_size != 0 {
-        f_size / (natoms * 3)
     } else {
-        return Err(XdrError::Invalid("Can not determine precision of trr file".into()));
+        let size = if x_size != 0 {
+            x_size
+        } else if v_size != 0 {
+            v_size
+        } else if f_size != 0 {
+            f_size
+        } else {
+            return Err(XdrError::Invalid("Can not determine precision of trr file".into()));
+        };
+        // The atom count comes from the file: with zero atoms the division
+        // below would panic, and a large count would overflow first.
+        let per_atom = natoms
+            .checked_mul(3)
+            .ok_or_else(|| XdrError::Invalid(format!("trr atom count {natoms} overflows")))?;
+        if per_atom <= 0 {
+            return Err(XdrError::Invalid(format!(
+                "trr section size {size} is inconsistent with {natoms} atoms"
+            )));
+        }
+        size / per_atom
     };
     if nflsize != 4 && nflsize != 8 {
         return Err(XdrError::Invalid(format!("Float size {nflsize}. Maybe different CPU?")));
@@ -122,7 +135,11 @@ pub fn read_frame(r: &mut Reader) -> Result<Option<Frame>> {
     let x_size = r.int()?;
     let v_size = r.int()?;
     let f_size = r.int()?;
-    let natoms = r.int()? as usize;
+    let natoms = r.int()?;
+    if natoms < 0 {
+        return Err(XdrError::Invalid(format!("negative atom count {natoms}")));
+    }
+    let natoms = natoms as usize;
     let step = r.int()? as i64;
     let _nre = r.int()?;
 
@@ -134,6 +151,25 @@ pub fn read_frame(r: &mut Reader) -> Result<Option<Frame>> {
         return Err(XdrError::Invalid(
             "trr file contains inputrec/energies/topology/symbol table".into(),
         ));
+    }
+
+    // The section sizes all come from the file; checking them against the
+    // bytes that are actually left keeps a corrupt header from driving huge
+    // allocations before the reads fail.
+    for (size, what) in [
+        (box_size, "trr box"),
+        (vir_size, "trr virial"),
+        (pres_size, "trr pressure"),
+        (x_size, "trr coordinates"),
+        (v_size, "trr velocities"),
+        (f_size, "trr forces"),
+    ] {
+        if size < 0 {
+            return Err(XdrError::Invalid(format!("negative {what} section size {size}")));
+        }
+        if r.remaining() < size as usize {
+            return Err(XdrError::Truncated(what));
+        }
     }
 
     let mut frame = Frame::new(natoms);
@@ -257,23 +293,29 @@ fn read_frame_prefix<R: std::io::Read>(r: &mut R) -> Result<Option<(Vec<u8>, usi
     read_exact(r, &mut reals)?;
     buf.extend_from_slice(&reals);
 
-    // Payload: box, virial, pressure, x, v, f.
-    let payload: usize = (1..=6).map(|i| get(i).max(0) as usize).sum::<usize>()
-        + get(7).max(0) as usize
-        + get(8).max(0) as usize
-        + get(9).max(0) as usize;
+    let payload = {
+        let sizes = [get(1), get(2), get(3), get(4), get(5), get(6), get(7), get(8), get(9)];
+        if sizes.iter().any(|&s| s < 0) {
+            return Err(XdrError::Invalid("negative trr section size".into()));
+        }
+        // The total is a sum of file-provided i32s; keep it in range so the
+        // seek below cannot be driven far past the end of the file.
+        let total: i64 = sizes.iter().map(|&s| s as i64).sum();
+        if total > i32::MAX as i64 {
+            return Err(XdrError::Invalid("trr frame payload too large".into()));
+        }
+        total as usize
+    };
     Ok(Some((buf, payload)))
 }
 
 pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
-    use crate::xdr::read_exact;
-
     let Some((mut buf, payload)) = read_frame_prefix(r)? else {
         return Ok(None);
     };
-    let mut data = vec![0u8; payload];
-    read_exact(r, &mut data)?;
-    buf.extend_from_slice(&data);
+    // The payload size comes from the file, so it is read a chunk at a time:
+    // a corrupt size must not be allocated up front.
+    buf.extend(crate::xdr::read_exact_chunked(r, payload)?);
     Ok(Some(buf))
 }
 
@@ -287,11 +329,21 @@ pub fn frame_count(path: &str) -> Result<usize> {
 
     let file = std::fs::File::open(path)
         .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+    let file_len = file
+        .metadata()
+        .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?
+        .len();
     let mut r = BufReader::with_capacity(1 << 16, file);
     let mut frames = 0usize;
     while let Some((_, payload)) = read_frame_prefix(&mut r)? {
-        r.seek(SeekFrom::Current(payload as i64))
+        // A seek past the end of the file succeeds silently; without this
+        // check a truncated file would count as a complete trajectory.
+        let pos = r
+            .seek(SeekFrom::Current(payload as i64))
             .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+        if pos > file_len {
+            return Err(XdrError::Truncated("trr frame"));
+        }
         frames += 1;
     }
     Ok(frames)

@@ -21,6 +21,9 @@ pub struct Settings {
     pub pymol_path: Option<String>,
     pub nkernels: usize,
     pub debug_mode: bool,
+    /// Stop with a non-zero exit code when a PB/SA frame fails instead of
+    /// counting it as zero and continuing.
+    pub exit_on_error: bool,
     pub last_opened: String,
 }
 
@@ -42,6 +45,7 @@ impl Settings {
             pymol_path: None,
             nkernels: 1,
             debug_mode: false,
+            exit_on_error: false,
             last_opened: String::new(),
         }
     }
@@ -78,8 +82,12 @@ impl Settings {
         let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
         let pymol_path = Some(pymol_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
         let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
-        let debug_mode = parse_param(&setting_values, "debug_mode", "\"y\"".to_string());
+        // debug mode preserves intermediate files, which the default run
+        // should not do: an absent key means off, like Settings::new().
+        let debug_mode = parse_param(&setting_values, "debug_mode", "\"n\"".to_string());
         let debug_mode = get_settings_bool(&debug_mode);
+        let exit_on_error = parse_param(&setting_values, "exit_on_error", "\"n\"".to_string());
+        let exit_on_error = get_settings_bool(&exit_on_error);
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
 
@@ -99,6 +107,7 @@ impl Settings {
             pymol_path,
             nkernels,
             debug_mode,
+            exit_on_error,
             last_opened,
         }
     }
@@ -183,6 +192,40 @@ mod tests {
         fs::remove_file(&path).ok();
         assert!(settings.gmx_path.is_none());
     }
+
+    #[test]
+    fn debug_mode_defaults_to_off() {
+        // An absent key must not silently enable the debug mode (the pre-1.0.2
+        // default was "y", which kept intermediate files for every run).
+        let path = std::env::temp_dir().join("s_mmpbsa_settings_debug_off.ini");
+        fs::write(&path, "mm = \"y\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(!settings.debug_mode);
+        assert!(!settings.exit_on_error);
+    }
+
+    #[test]
+    fn debug_mode_can_be_enabled_and_exit_on_error_parsed() {
+        let path = std::env::temp_dir().join("s_mmpbsa_settings_debug_on.ini");
+        fs::write(&path, "debug_mode = \"y\"\nexit_on_error = \"y\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(settings.debug_mode);
+        assert!(settings.exit_on_error);
+    }
+
+    #[test]
+    fn bool_values_cannot_panic_on_malformed_settings() {
+        // TOML bools and short values used to slice out of bounds.
+        assert!(!get_settings_bool(&"0".to_string()));
+        assert!(!get_settings_bool(&"true".to_string()));
+        assert!(!get_settings_bool(&String::new()));
+        assert!(get_settings_bool(&"\"y\"".to_string()));
+        assert!(get_settings_bool(&"\"Y\"".to_string()));
+        assert!(get_settings_bool(&"\"yes\"".to_string()));
+        assert!(!get_settings_bool(&"\"n\"".to_string()));
+    }
 }
 
 fn parse_param<T: FromStr>(setting_values: &Value, key: &str, default: T) -> T {
@@ -224,9 +267,9 @@ pub fn get_base_settings() -> PathBuf {
 }
 
 fn get_settings_bool(item: &String) -> bool {
-    match item[1..2].to_string().as_str() {
-        "y" => true,
-        "Y" => true,
-        _ => false
-    }
+    // The value arrives as the TOML rendering, so strings still carry their
+    // quotes; trim them instead of slicing bytes, which would panic on a
+    // short or unquoted value (e.g. `debug_mode = 0`).
+    let s = item.trim().trim_matches('"');
+    s.starts_with('y') || s.starts_with('Y')
 }

@@ -101,7 +101,10 @@ fn sendbits(buffer: &mut WriteBuffer, mut num_of_bits: i32, num: i32) {
 }
 
 /// `receivebits`: extracts `num_of_bits` bits from the stream.
-fn receivebits(buffer: &mut ReadBuffer, mut num_of_bits: i32) -> i32 {
+///
+/// A corrupt bit stream can ask for more bits than the payload holds, so
+/// every byte is bounds-checked and an overrun is reported as an error.
+fn receivebits(buffer: &mut ReadBuffer, mut num_of_bits: i32) -> Result<i32> {
     let mask: u32 = if num_of_bits >= 32 {
         u32::MAX
     } else {
@@ -112,7 +115,12 @@ fn receivebits(buffer: &mut ReadBuffer, mut num_of_bits: i32) -> i32 {
     let mut num: u32 = 0;
 
     while num_of_bits >= 8 {
-        lastbyte = (lastbyte << 8) | buffer.data[buffer.index] as u32;
+        let byte = *buffer
+            .data
+            .get(buffer.index)
+            .ok_or(XdrError::Truncated("compressed coordinates"))?
+            as u32;
+        lastbyte = (lastbyte << 8) | byte;
         buffer.index += 1;
         num |= (lastbyte >> lastbits) << (num_of_bits - 8);
         num_of_bits -= 8;
@@ -120,7 +128,12 @@ fn receivebits(buffer: &mut ReadBuffer, mut num_of_bits: i32) -> i32 {
     if num_of_bits > 0 {
         if lastbits < num_of_bits {
             lastbits += 8;
-            lastbyte = (lastbyte << 8) | buffer.data[buffer.index] as u32;
+            let byte = *buffer
+                .data
+                .get(buffer.index)
+                .ok_or(XdrError::Truncated("compressed coordinates"))?
+                as u32;
+            lastbyte = (lastbyte << 8) | byte;
             buffer.index += 1;
         }
         lastbits -= num_of_bits;
@@ -128,7 +141,7 @@ fn receivebits(buffer: &mut ReadBuffer, mut num_of_bits: i32) -> i32 {
     }
     buffer.lastbits = lastbits;
     buffer.lastbyte = lastbyte;
-    (num & mask) as i32
+    Ok((num & mask) as i32)
 }
 
 /// `sizeofint`: number of bits needed to store an integer with the given max size.
@@ -227,21 +240,23 @@ fn sendints(buffer: &mut WriteBuffer, num_of_ints: usize, num_of_bits: i32, size
     }
 }
 
-fn receiveints(buffer: &mut ReadBuffer, num_of_ints: usize, mut num_of_bits: i32, sizes: &[u32], nums: &mut [i32]) {
+fn receiveints(buffer: &mut ReadBuffer, num_of_ints: usize, mut num_of_bits: i32, sizes: &[u32], nums: &mut [i32]) -> Result<()> {
     let mut bytes = [0u32; 32];
     let mut num_of_bytes: usize = 0;
     while num_of_bits > 8 {
-        bytes[num_of_bytes] = receivebits(buffer, 8) as u32;
+        bytes[num_of_bytes] = receivebits(buffer, 8)? as u32;
         num_of_bytes += 1;
         num_of_bits -= 8;
     }
     if num_of_bits > 0 {
-        bytes[num_of_bytes] = receivebits(buffer, num_of_bits) as u32;
+        bytes[num_of_bytes] = receivebits(buffer, num_of_bits)? as u32;
         num_of_bytes += 1;
     }
     for i in (1..num_of_ints).rev() {
         if sizes[i] == 0 {
-            panic!("Cannot read trajectory, file possibly corrupted.");
+            return Err(XdrError::Invalid(
+                "Cannot read trajectory, file possibly corrupted.".into(),
+            ));
         }
         let mut num: u32 = 0;
         for j in (0..num_of_bytes).rev() {
@@ -253,6 +268,7 @@ fn receiveints(buffer: &mut ReadBuffer, num_of_ints: usize, mut num_of_bits: i32
         nums[i] = num as i32;
     }
     nums[0] = (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) as i32;
+    Ok(())
 }
 
 /// Writes compressed coordinates (`xdr3dfcoord`), e.g. everything after the boxm.
@@ -520,15 +536,29 @@ fn read_3dfcoord(r: &mut Reader, magic_number: i32) -> Result<(Vec<Rvec>, f32)> 
     } else {
         bitsize = sizeofints(3, &sizeint);
     }
-    let mut smallidx = r.int()? as usize;
+    let smallidx = r.int()?;
+    if !(FIRSTIDX as i32..LASTIDX as i32).contains(&smallidx) {
+        return Err(XdrError::Invalid(format!(
+            "invalid magic-integer index {smallidx} in compressed coordinates"
+        )));
+    }
+    let mut smallidx = smallidx as usize;
     let mut smaller = MAGICINTS[std::cmp::max(FIRSTIDX, smallidx.saturating_sub(1))] / 2;
     let mut smallnum = MAGICINTS[smallidx] / 2;
     let mut sizesmall = [MAGICINTS[smallidx] as u32; 3];
 
     let buffer_size = if magic_number == XTC_NEW_MAGIC {
-        r.int64()? as usize
+        let n = r.int64()?;
+        if n < 0 {
+            return Err(XdrError::Invalid(format!("negative compressed block size {n}")));
+        }
+        n as usize
     } else {
-        r.int()? as usize
+        let n = r.int()?;
+        if n < 0 {
+            return Err(XdrError::Invalid(format!("negative compressed block size {n}")));
+        }
+        n as usize
     };
     // `xdr_opaque` pads the encoded block to a multiple of four bytes, so the
     // padding has to be skipped here as well.
@@ -552,12 +582,12 @@ fn read_3dfcoord(r: &mut Reader, magic_number: i32) -> Result<(Vec<Rvec>, f32)> 
     let mut out: usize = 0;
     while i < size {
         if bitsize == 0 {
-            thiscoord[0] = receivebits(&mut buffer, bitsizeint[0]);
-            thiscoord[1] = receivebits(&mut buffer, bitsizeint[1]);
-            thiscoord[2] = receivebits(&mut buffer, bitsizeint[2]);
+            thiscoord[0] = receivebits(&mut buffer, bitsizeint[0])?;
+            thiscoord[1] = receivebits(&mut buffer, bitsizeint[1])?;
+            thiscoord[2] = receivebits(&mut buffer, bitsizeint[2])?;
         } else {
             let mut tmp = [0i32; 3];
-            receiveints(&mut buffer, 3, bitsize, &sizeint, &mut tmp);
+            receiveints(&mut buffer, 3, bitsize, &sizeint, &mut tmp)?;
             thiscoord = tmp;
         }
         i += 1;
@@ -566,10 +596,10 @@ fn read_3dfcoord(r: &mut Reader, magic_number: i32) -> Result<(Vec<Rvec>, f32)> 
         }
         prevcoord = thiscoord;
 
-        let flag = receivebits(&mut buffer, 1);
+        let flag = receivebits(&mut buffer, 1)?;
         let mut is_smaller = 0;
         if flag == 1 {
-            run = receivebits(&mut buffer, 5);
+            run = receivebits(&mut buffer, 5)?;
             is_smaller = run % 3;
             run -= is_smaller;
             is_smaller -= 1;
@@ -578,7 +608,7 @@ fn read_3dfcoord(r: &mut Reader, magic_number: i32) -> Result<(Vec<Rvec>, f32)> 
             let mut k = 0;
             while k < run {
                 let mut tmp = [0i32; 3];
-                receiveints(&mut buffer, 3, smallidx as i32, &sizesmall, &mut tmp);
+                receiveints(&mut buffer, 3, smallidx as i32, &sizesmall, &mut tmp)?;
                 thiscoord = tmp;
                 i += 1;
                 for d in 0..3 {
@@ -615,7 +645,15 @@ fn read_3dfcoord(r: &mut Reader, magic_number: i32) -> Result<(Vec<Rvec>, f32)> 
             out += 1;
         }
 
+        // A corrupt bit stream can set the run flags so that the index walks
+        // out of the magic-integer table; GROMACS keeps it in range by
+        // construction, so anything else is a corrupted file.
         smallidx = (smallidx as i32 + is_smaller) as usize;
+        if !(FIRSTIDX..LASTIDX).contains(&smallidx) {
+            return Err(XdrError::Invalid(format!(
+                "corrupt compressed coordinates: magic-integer index {smallidx} out of range"
+            )));
+        }
         if is_smaller < 0 {
             smallnum = smaller;
             if smallidx > FIRSTIDX {
@@ -668,7 +706,11 @@ pub fn read_frame(r: &mut Reader) -> Result<Option<Frame>> {
             "Magic Number Error in XTC file (read {magic}, should be {XTC_MAGIC} or {XTC_NEW_MAGIC})"
         )));
     }
-    let natoms = r.int()? as usize;
+    let natoms = r.int()?;
+    if natoms < 0 {
+        return Err(XdrError::Invalid(format!("negative atom count {natoms}")));
+    }
+    let natoms = natoms as usize;
     let step = r.int()? as i64;
     let time = r.float()? as f64;
 
@@ -746,29 +788,32 @@ fn read_frame_prefix<R: std::io::Read>(r: &mut R) -> Result<Option<(Vec<u8>, usi
         let mut b = [0u8; 8];
         read_exact(r, &mut b)?;
         buf.extend_from_slice(&b);
-        i64::from_be_bytes(b) as usize
+        i64::from_be_bytes(b)
     } else {
         let mut b = [0u8; 4];
         read_exact(r, &mut b)?;
         buf.extend_from_slice(&b);
-        i32::from_be_bytes(b) as usize
+        i32::from_be_bytes(b) as i64
     };
+    if buffer_size < 0 {
+        return Err(XdrError::Invalid(format!(
+            "negative compressed block size {buffer_size}"
+        )));
+    }
+    let buffer_size = buffer_size as usize;
 
     // The payload is opaque XDR data and therefore padded to four bytes.
     Ok(Some((buf, buffer_size + xdr_pad(buffer_size))))
 }
 
 pub fn read_frame_bytes<R: std::io::Read>(r: &mut R) -> Result<Option<Vec<u8>>> {
-    use crate::xdr::read_exact;
-
     let Some((mut buf, payload)) = read_frame_prefix(r)? else {
         return Ok(None);
     };
     // The padding of the opaque payload is kept so that the buffer can be
-    // decoded as a whole.
-    let mut data = vec![0u8; payload];
-    read_exact(r, &mut data)?;
-    buf.extend_from_slice(&data);
+    // decoded as a whole.  The payload size comes from the file, so it is
+    // read a chunk at a time: a corrupt size must not be allocated up front.
+    buf.extend(crate::xdr::read_exact_chunked(r, payload)?);
     Ok(Some(buf))
 }
 
@@ -782,11 +827,21 @@ pub fn frame_count(path: &str) -> Result<usize> {
 
     let file = std::fs::File::open(path)
         .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+    let file_len = file
+        .metadata()
+        .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?
+        .len();
     let mut r = BufReader::with_capacity(1 << 16, file);
     let mut frames = 0usize;
     while let Some((_, payload)) = read_frame_prefix(&mut r)? {
-        r.seek(SeekFrom::Current(payload as i64))
+        // A seek past the end of the file succeeds silently; without this
+        // check a truncated file would count as a complete trajectory.
+        let pos = r
+            .seek(SeekFrom::Current(payload as i64))
             .map_err(|e| XdrError::Invalid(format!("cannot read {path}: {e}")))?;
+        if pos > file_len {
+            return Err(XdrError::Truncated("xtc frame"));
+        }
         frames += 1;
     }
     Ok(frames)
