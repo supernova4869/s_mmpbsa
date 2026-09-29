@@ -1,7 +1,9 @@
 // APBS PMGC smooth - Smoother dispatcher
-// Port of pmgc/smoothd.c
+// Port of pmgc/smoothd.c (Vsmooth)
 
-/// Smooth the solution using Gauss-Seidel or CG
+/// Smooth the solution using Gauss-Seidel or CG.
+/// `meth` follows Vsmooth: 0 = wjac (unsupported), 1 = Vgsrb,
+/// 4 = Vcghs. The 27-point (numdia 14) operator is only valid with Vgsrb.
 pub fn smooth(
     nx: usize, ny: usize, nz: usize,
     ipc: &[i32], rpc: &[f64],
@@ -11,11 +13,13 @@ pub fn smooth(
     numdia: i32,
     nu: i32,       // number of smoothing iterations
     omega: f64,
-    isolves: i32,  // solver type: 0=CG, 1=GSRB
+    meth: i32,
+    iresid: i32,
     iadjoint: i32,
 ) {
-    if isolves == 0 {
-        // Conjugate Gradient
+    if meth == 4 {
+        // Conjugate Gradient (used to solve the coarsest level when
+        // mgsolv == 0, mirroring Vmvcs's mgsmoo_s = 4 call)
         let errtol = 1.0e-8;
         let mut iters = 0;
         let rinf_norm = crate::blas::xnrm2(nx * ny * nz, fc, 0);
@@ -25,17 +29,12 @@ pub fn smooth(
             nu, &mut iters, errtol, rinf_norm,
         );
     } else {
-        // Gauss-Seidel Red-Black
-        let errtol = 1.0e-8;
+        // Gauss-Seidel Red-Black (Vgsrb)
         let mut iters = 0;
-        let o_c = &ac[0..nx * ny * nz];
-        let o_e = &ac[nx * ny * nz..2 * nx * ny * nz];
-        let o_n = &ac[2 * nx * ny * nz..3 * nx * ny * nz];
-        let u_c = &ac[3 * nx * ny * nz..4 * nx * ny * nz];
         crate::gs::gsrb(
-            nx, ny, nz, ipc, rpc, o_c, cc, fc, o_e, o_n, u_c,
+            nx, ny, nz, ipc, rpc, ac, cc, fc,
             x, w1, w2, r,
-            nu, &mut iters, errtol, omega, 0, iadjoint, numdia,
+            nu, &mut iters, 0.0, omega, iresid, iadjoint, numdia,
         );
     }
 }

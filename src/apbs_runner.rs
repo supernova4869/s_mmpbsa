@@ -1845,7 +1845,9 @@ pub(crate) fn run_apbs_in_process(input_file: &str) -> ApbsResult<SolverRun> {
                 match run_elec(&nosh, elecalc, focus_ref) {
                     Ok(ElecResult::Mg { energy, vpmg }) => {
                         println!("Finished ELEC calc: {} ({:.6e} kT)", elecalc.name, energy);
-                        if !is_focus_level_name(&elecalc.name) {
+                        if !is_focus_level_name(&elecalc.name)
+                            || std::env::var_os("APBS_DUMP_FOCUS_LEVELS").is_some()
+                        {
                             run.calcs.push(SolverCalcResult {
                                 name: elecalc.name.clone(),
                                 kind: SolverCalcKind::Elec,
@@ -2100,3 +2102,45 @@ fn per_atom_elec_energies(
 
 //     Ok(())
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Manual comparison harness against a reference APBS binary.
+    ///
+    /// Set APBS_COMPARE_DIR to a folder holding an APBS input file (e.g.
+    /// produced by prepare_apbs) and run:
+    ///   cargo test --release compare_reference_binary -- --nocapture
+    /// Per-atom energies of every ELEC calc are written to
+    /// <dir>/rust_atoms.txt in the same "Atom %d: %1.12E kJ/mol" format
+    /// printed by the reference binary, for direct diffing.
+    #[test]
+    fn compare_reference_binary() {
+        let dir = match std::env::var("APBS_COMPARE_DIR") {
+            Ok(dir) if !dir.is_empty() => dir,
+            _ => return, // not requested; skip
+        };
+        let entries = std::fs::read_dir(&dir).expect("APBS_COMPARE_DIR not readable");
+        let input = entries
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .find(|p| p.extension().map_or(false, |ext| ext == "in"))
+            .expect("No .in file in APBS_COMPARE_DIR");
+
+        let run = run_apbs_in_process(input.to_str().unwrap()).expect("in-process run failed");
+
+        let mut out = String::new();
+        for calc in &run.calcs {
+            if calc.kind == SolverCalcKind::Elec {
+                for (i, &e) in calc.per_atom.iter().enumerate() {
+                    out.push_str(&format!("      Atom {}:  {:1.12E} kJ/mol\n", i, e));
+                }
+                out.push_str(&format!("CALC {} ({} atoms)\n", calc.name, calc.per_atom.len()));
+            }
+        }
+        let out_path = std::path::Path::new(&dir).join("rust_atoms.txt");
+        std::fs::write(&out_path, out).expect("write rust_atoms.txt");
+        println!("wrote {}", out_path.display());
+    }
+}

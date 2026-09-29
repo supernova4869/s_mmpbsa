@@ -487,3 +487,190 @@ mod tests {
         assert!((xout[center] - (1.0 * 1.5 + 2.0 * 2.0 + 3.0 * 4.0)).abs() < 1.0e-12);
     }
 }
+
+/// 7-point operator bands: [oC, oE, oN, uC], each of length n.
+#[derive(Clone, Copy)]
+pub struct Bands4<'a> {
+    pub o_c: &'a [f64],
+    pub o_e: &'a [f64],
+    pub o_n: &'a [f64],
+    pub u_c: &'a [f64],
+}
+
+/// 27-point operator bands (Galerkin coarse grids): C ac column order
+/// [oC, oE, oN, uC, oNE, oNW, uE, uW, uN, uS, uNE, uNW, uSE, uSW].
+#[derive(Clone, Copy)]
+pub struct Bands14<'a> {
+    pub o_c: &'a [f64],
+    pub o_e: &'a [f64],
+    pub o_n: &'a [f64],
+    pub u_c: &'a [f64],
+    pub o_ne: &'a [f64],
+    pub o_nw: &'a [f64],
+    pub u_e: &'a [f64],
+    pub u_w: &'a [f64],
+    pub u_n: &'a [f64],
+    pub u_s: &'a [f64],
+    pub u_ne: &'a [f64],
+    pub u_nw: &'a [f64],
+    pub u_se: &'a [f64],
+    pub u_sw: &'a [f64],
+}
+
+pub fn split_bands4<'a>(ac: &'a [f64], n: usize) -> Option<Bands4<'a>> {
+    if ac.len() < 4 * n {
+        return None;
+    }
+    Some(Bands4 {
+        o_c: &ac[0..n],
+        o_e: &ac[n..2 * n],
+        o_n: &ac[2 * n..3 * n],
+        u_c: &ac[3 * n..4 * n],
+    })
+}
+
+pub fn split_bands14<'a>(ac: &'a [f64], n: usize) -> Option<Bands14<'a>> {
+    if ac.len() < 14 * n {
+        return None;
+    }
+    Some(Bands14 {
+        o_c: &ac[0..n],
+        o_e: &ac[n..2 * n],
+        o_n: &ac[2 * n..3 * n],
+        u_c: &ac[3 * n..4 * n],
+        o_ne: &ac[4 * n..5 * n],
+        o_nw: &ac[5 * n..6 * n],
+        u_e: &ac[6 * n..7 * n],
+        u_w: &ac[7 * n..8 * n],
+        u_n: &ac[8 * n..9 * n],
+        u_s: &ac[9 * n..10 * n],
+        u_ne: &ac[10 * n..11 * n],
+        u_nw: &ac[11 * n..12 * n],
+        u_se: &ac[12 * n..13 * n],
+        u_sw: &ac[13 * n..14 * n],
+    })
+}
+
+/// Residual r = f - A*x for the 7-point stencil, written for interior
+/// points only and grouped exactly as in Vmresid7_1s (matvecd.c).
+/// Boundary entries of `r` are left untouched.
+pub fn mresid7_c(
+    nx: usize, ny: usize, nz: usize,
+    b: &Bands4, cc: &[f64], fc: &[f64],
+    x: &[f64], r: &mut [f64],
+) {
+    if nx < 3 || ny < 3 || nz < 3 {
+        return;
+    }
+    let nxny = nx * ny;
+    for k in 1..nz - 1 {
+        for j in 1..ny - 1 {
+            for i in 1..nx - 1 {
+                let ip = i + j * nx + k * nxny;
+                r[ip] = fc[ip]
+                    + b.o_n[ip] * x[ip + nx]
+                    + b.o_n[ip - nx] * x[ip - nx]
+                    + b.o_e[ip] * x[ip + 1]
+                    + b.o_e[ip - 1] * x[ip - 1]
+                    + b.u_c[ip - nxny] * x[ip - nxny]
+                    + b.u_c[ip] * x[ip + nxny]
+                    - (b.o_c[ip] + cc[ip]) * x[ip];
+            }
+        }
+    }
+}
+
+/// y = A*x for the 27-point stencil, interior points only, grouped as in
+/// Vmatvec27_1s (matvecd.c). Boundary entries of `y` are left untouched.
+pub fn matvec27_c(
+    nx: usize, ny: usize, nz: usize,
+    b: &Bands14, cc: &[f64],
+    x: &[f64], y: &mut [f64],
+) {
+    if nx < 3 || ny < 3 || nz < 3 {
+        return;
+    }
+    let nxny = nx * ny;
+    for k in 1..nz - 1 {
+        for j in 1..ny - 1 {
+            for i in 1..nx - 1 {
+                let ip = i + j * nx + k * nxny;
+                let tmp_o = -(b.o_n[ip] * x[ip + nx]
+                    + b.o_n[ip - nx] * x[ip - nx]
+                    + b.o_e[ip] * x[ip + 1]
+                    + b.o_e[ip - 1] * x[ip - 1]
+                    + b.o_ne[ip] * x[ip + nx + 1]
+                    + b.o_nw[ip] * x[ip + nx - 1]
+                    + b.o_nw[ip - nx + 1] * x[ip - nx + 1]
+                    + b.o_ne[ip - nx - 1] * x[ip - nx - 1]);
+                let tmp_u = -(b.u_c[ip] * x[ip + nxny]
+                    + b.u_n[ip] * x[ip + nxny + nx]
+                    + b.u_s[ip] * x[ip + nxny - nx]
+                    + b.u_e[ip] * x[ip + nxny + 1]
+                    + b.u_w[ip] * x[ip + nxny - 1]
+                    + b.u_ne[ip] * x[ip + nxny + nx + 1]
+                    + b.u_nw[ip] * x[ip + nxny + nx - 1]
+                    + b.u_se[ip] * x[ip + nxny - nx + 1]
+                    + b.u_sw[ip] * x[ip + nxny - nx - 1]);
+                let tmp_d = -(b.u_c[ip - nxny] * x[ip - nxny]
+                    + b.u_s[ip - nxny + nx] * x[ip - nxny + nx]
+                    + b.u_n[ip - nxny - nx] * x[ip - nxny - nx]
+                    + b.u_w[ip - nxny + 1] * x[ip - nxny + 1]
+                    + b.u_e[ip - nxny - 1] * x[ip - nxny - 1]
+                    + b.u_sw[ip - nxny + nx + 1] * x[ip - nxny + nx + 1]
+                    + b.u_se[ip - nxny + nx - 1] * x[ip - nxny + nx - 1]
+                    + b.u_nw[ip - nxny + 1 - nx] * x[ip - nxny + 1 - nx]
+                    + b.u_ne[ip - nxny - nx - 1] * x[ip - nxny - nx - 1]);
+                y[ip] = tmp_o + tmp_u + tmp_d + (b.o_c[ip] + cc[ip]) * x[ip];
+            }
+        }
+    }
+}
+
+/// Residual r = f - A*x for the 27-point stencil, interior points only,
+/// grouped as in Vmresid27_1s (matvecd.c). Boundary of `r` untouched.
+pub fn mresid27_c(
+    nx: usize, ny: usize, nz: usize,
+    b: &Bands14, cc: &[f64], fc: &[f64],
+    x: &[f64], r: &mut [f64],
+) {
+    if nx < 3 || ny < 3 || nz < 3 {
+        return;
+    }
+    let nxny = nx * ny;
+    for k in 1..nz - 1 {
+        for j in 1..ny - 1 {
+            for i in 1..nx - 1 {
+                let ip = i + j * nx + k * nxny;
+                let tmp_o = b.o_n[ip] * x[ip + nx]
+                    + b.o_n[ip - nx] * x[ip - nx]
+                    + b.o_e[ip] * x[ip + 1]
+                    + b.o_e[ip - 1] * x[ip - 1]
+                    + b.o_ne[ip] * x[ip + nx + 1]
+                    + b.o_nw[ip] * x[ip + nx - 1]
+                    + b.o_nw[ip - nx + 1] * x[ip - nx + 1]
+                    + b.o_ne[ip - nx - 1] * x[ip - nx - 1];
+                let tmp_u = b.u_c[ip] * x[ip + nxny]
+                    + b.u_n[ip] * x[ip + nxny + nx]
+                    + b.u_s[ip] * x[ip + nxny - nx]
+                    + b.u_e[ip] * x[ip + nxny + 1]
+                    + b.u_w[ip] * x[ip + nxny - 1]
+                    + b.u_ne[ip] * x[ip + nxny + nx + 1]
+                    + b.u_nw[ip] * x[ip + nxny + nx - 1]
+                    + b.u_se[ip] * x[ip + nxny - nx + 1]
+                    + b.u_sw[ip] * x[ip + nxny - nx - 1];
+                let tmp_d = b.u_c[ip - nxny] * x[ip - nxny]
+                    + b.u_s[ip - nxny + nx] * x[ip - nxny + nx]
+                    + b.u_n[ip - nxny - nx] * x[ip - nxny - nx]
+                    + b.u_w[ip - nxny + 1] * x[ip - nxny + 1]
+                    + b.u_e[ip - nxny - 1] * x[ip - nxny - 1]
+                    + b.u_sw[ip - nxny + nx + 1] * x[ip - nxny + nx + 1]
+                    + b.u_se[ip - nxny + nx - 1] * x[ip - nxny + nx - 1]
+                    + b.u_nw[ip - nxny + 1 - nx] * x[ip - nxny + 1 - nx]
+                    + b.u_ne[ip - nxny - nx - 1] * x[ip - nxny - nx - 1];
+                r[ip] = fc[ip] + tmp_o + tmp_u + tmp_d
+                    - (b.o_c[ip] + cc[ip]) * x[ip];
+            }
+        }
+    }
+}

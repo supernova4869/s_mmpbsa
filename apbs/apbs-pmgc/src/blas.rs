@@ -95,8 +95,7 @@ pub fn mresid(
     o_c: &[f64], o_e: &[f64], o_n: &[f64], u_c: &[f64],
     cc: &[f64],
     x: &[f64], fc: &[f64], r: &mut [f64],
-) {
-    let n = nx * ny * nz;
+) {    let n = nx * ny * nz;
     let r_len = n.min(r.len());
     r[..r_len].fill(0.0);
     if nx < 3 || ny < 3 || nz < 3 {
@@ -139,6 +138,49 @@ pub fn mresid(
                 ax -= u_c[ip] * x[ip + nxny];
                 ax += cc[ip] * x[ip];
                 r[ip] = fc[ip] - ax;
+            }
+        }
+    }
+}
+
+/// Interior L1 norm: port of Vxnrm1 (mikpckd.c). Sums |x| over the
+/// interior points (1..n-1 per axis) in k/j/i order.
+pub fn xnrm1_grid(nx: usize, ny: usize, nz: usize, x: &[f64]) -> f64 {
+    let nxny = nx * ny;
+    let mut sum = 0.0;
+    for k in 1..nz.saturating_sub(1) {
+        for j in 1..ny.saturating_sub(1) {
+            for i in 1..nx.saturating_sub(1) {
+                sum += x[i + j * nx + k * nxny].abs();
+            }
+        }
+    }
+    sum
+}
+
+/// Interior dot product: port of Vxdot (mikpckd.c).
+pub fn xdot_grid(nx: usize, ny: usize, nz: usize, x: &[f64], y: &[f64]) -> f64 {
+    let nxny = nx * ny;
+    let mut sum = 0.0;
+    for k in 1..nz.saturating_sub(1) {
+        for j in 1..ny.saturating_sub(1) {
+            for i in 1..nx.saturating_sub(1) {
+                let ip = i + j * nx + k * nxny;
+                sum += x[ip] * y[ip];
+            }
+        }
+    }
+    sum
+}
+
+/// Interior axpy y += alpha * x: port of Vxaxpy (mikpckd.c).
+pub fn xaxpy_grid(nx: usize, ny: usize, nz: usize, alpha: f64, x: &[f64], y: &mut [f64]) {
+    let nxny = nx * ny;
+    for k in 1..nz.saturating_sub(1) {
+        for j in 1..ny.saturating_sub(1) {
+            for i in 1..nx.saturating_sub(1) {
+                let ip = i + j * nx + k * nxny;
+                y[ip] += alpha * x[ip];
             }
         }
     }

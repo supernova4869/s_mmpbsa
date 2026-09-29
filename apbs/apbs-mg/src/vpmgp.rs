@@ -123,7 +123,7 @@ impl Vpmgp {
             narr: nf,
             ipkey: 0,
             xcent, ycent, zcent,
-            errtol: 1.0e-6,
+            errtol: if mgparm.setetol { mgparm.etol } else { 1.0e-6 },
             itmax: 200,
             istop: 1,
             iinfo: 1,
@@ -153,25 +153,20 @@ impl Vpmgp {
     }
 
     /// Compute number of multigrid levels
+    /// MGparm_check's rule: nlev is one less than the number of times
+    /// (dime - 1) can be halved before it turns odd, minimized over the
+    /// three dimensions (dime = 65 therefore yields 5 levels).
     fn compute_nlev(nx: i32, ny: i32, nz: i32) -> i32 {
-        let mut lev = 0;
-        loop {
-            lev += 1;
-            let iden = 1_i32 << (lev - 1);
-
-            let nxc = (nx - 1) / iden + 1;
-            let nyc = (ny - 1) / iden + 1;
-            let nzc = (nz - 1) / iden + 1;
-
-            let done =
-                ((nxc - 1) * iden != (nx - 1)) || (nxc <= 2) ||
-                ((nyc - 1) * iden != (ny - 1)) || (nyc <= 2) ||
-                ((nzc - 1) * iden != (nz - 1)) || (nzc <= 2);
-
-            if done {
-                return (lev - 1).max(1);
+        fn lev_of(dime: i32) -> i32 {
+            let mut ti = dime - 1;
+            let mut t = 0;
+            while ti > 0 && ti % 2 == 0 {
+                t += 1;
+                ti = (ti as f64 * 0.5).ceil() as i32;
             }
+            (t - 1).max(1)
         }
+        lev_of(nx).min(lev_of(ny)).min(lev_of(nz))
     }
 
     /// Compute array sizes
@@ -283,8 +278,11 @@ mod tests {
 
     #[test]
     fn test_compute_nlev_matches_apbs_c_vmaxlev_examples() {
-        assert_eq!(Vpmgp::compute_nlev(97, 129, 129), 6);
-        assert_eq!(Vpmgp::compute_nlev(129, 129, 129), 7);
-        assert_eq!(Vpmgp::compute_nlev(33, 33, 33), 5);
+        // MGparm_check: tnlev[i] = halvings(dime[i]-1) - 1, nlev = min(tnlev).
+        // 96 -> 48/24/12/6/3 gives 4; 128 -> .../2/1 gives 6; 32 gives 5.
+        assert_eq!(Vpmgp::compute_nlev(97, 129, 129), 4);
+        assert_eq!(Vpmgp::compute_nlev(129, 129, 129), 6);
+        assert_eq!(Vpmgp::compute_nlev(33, 33, 33), 4);
+        assert_eq!(Vpmgp::compute_nlev(65, 65, 65), 5);
     }
 }

@@ -12,7 +12,6 @@ pub mod build_g;
 pub mod build_b;
 pub mod lapack;
 pub mod build_str;
-pub mod build_ops;
 pub mod mgcs;
 pub mod mgfas;
 pub mod mgdriv;

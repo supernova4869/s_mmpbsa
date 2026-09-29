@@ -226,7 +226,7 @@ fn smooth_nonlinear(
             ac, cc, &rhs_nl,
             &mut du, w1, w2, r,
             numdia, 1, omega,
-            1, 0,
+            1, 0, 0,
         );
 
         // Update solution

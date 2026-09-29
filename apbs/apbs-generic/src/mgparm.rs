@@ -39,6 +39,7 @@ pub struct MGparm {
     pub nlev: i32,
     /// Error tolerance
     pub etol: f64,
+    pub setetol: bool,
     /// Grid spacings (hx, hy, hz)
     pub grid: [f64; 3],
     /// Grid side lengths (glenx, gleny, glenz)
@@ -99,6 +100,7 @@ impl Default for MGparm {
             chgs: crate::vhal::VchrgSrc::Charge,
             nlev: 0,
             etol: 1.0e-9,
+            setetol: false,
             grid: [0.0; 3],
             glen: [0.0; 3],
             cmeth: MGparmCentMeth::Molecule,
@@ -236,6 +238,13 @@ impl MGparm {
                     line: 0,
                     message: format!("Invalid nlev: {}", value),
                 })?;
+            }
+            "etol" => {
+                self.etol = value.trim().parse().map_err(|_| ApbsError::Parse {
+                    line: 0,
+                    message: format!("Invalid etol: {}", value),
+                })?;
+                self.setetol = true;
             }
             "chgm" => {
                 self.chgm = match value.to_ascii_lowercase().as_str() {

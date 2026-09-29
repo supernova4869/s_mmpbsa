@@ -107,8 +107,17 @@ pub fn parse_elec(lines: &[&str], start: usize, nosh: &mut NOsh) -> ApbsResult<u
                     "bcfl", "nion", "calcenergy", "calcforce", "zmem", "lmem",
                     "mdie", "memv", "smsize", "smvolume", "usemap", "write",
                 ];
+                let mgparm_tokens = ["etol", "nlev", "dime", "cglen", "fglen",
+                    "cgcent", "fgcent", "cfac", "fadd", "glen", "grid",
+                    "mol", "cgcent", "pdie"];
                 if pbeparm_tokens.contains(&token_lower.as_str()) {
                     pbeparm.parse_token(&token_lower, &value)?;
+                } else if token_lower == "etol" {
+                    mgparm.parse_token(&token_lower, &value)?;
+                } else if mgparm_tokens.contains(&token_lower.as_str()) {
+                    // MG-param tokens are handled by the mgparm branch above;
+                    // fall through to it for completeness.
+                    mgparm.parse_token(&token_lower, &value)?;
                 } else {
                     return Err(ApbsError::InvalidParameter(format!(
                         "Unsupported ELEC token: {}",
