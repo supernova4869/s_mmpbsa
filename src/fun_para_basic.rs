@@ -57,7 +57,7 @@ pub fn set_para_basic_tpr(mut tpr: TPR, trj_path: &Option<String>,
         };
         if !Path::new(&trj).is_file() {
             println!("Not valid trajectory file in config: {}. Check again.", trj);
-            exit(0);
+            exit(1);
         }
         if !Path::new(&ndx).is_file() {
             println!("{} not found. Generating default index.ndx.", ndx);

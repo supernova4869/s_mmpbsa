@@ -1,0 +1,23 @@
+# PB (Poisson-Boltzmann) parameters for s_mmpbsa.
+# Edit the values, save the file, then press ENTER in s_mmpbsa to reload.
+temp: 300                               # temperature (K)
+pdie: 2                                 # solute dielectric constant
+sdie: 78.4                              # solvent dielectric constant (water: 78.4 at 298.15 K, vacuum: 1)
+pb_solver: lpbe                         # PB equation: lpbe (linear, recommended) | npbe (nonlinear)
+bcfl: mdh                               # boundary condition: zero | sdh | mdh (recommended) | focus | mem | map
+srfm: smol                              # surface definition: mol | smol (recommended) | spline | spline3 | spline4 | sacc
+chgm: spl4                              # charge mapping: tril | spl2 | spl4 (recommended)
+swin: 0.3                               # spline window (A), only for spline/spline3/spline4 surfaces
+srad: 1.4                               # solvent probe radius (A)
+sdens: 10                               # surface density (grid points/A^2), for mol/sacc surfaces
+calc_energy: comps                      # energy output: no | total | comps (comps is what s_mmpbsa needs)
+ions:                                   # mobile ions (charge in e, conc in M, radius in A), one block per species
+- charge: 1
+  conc: 0.15
+  radius: 0.95
+- charge: -1
+  conc: 0.15
+  radius: 1.81
+cfac: 1.5                               # coarse grid expansion factor (with -c config; interactive: menu 6)
+fadd: 5                                 # fine grid padding (A) (with -c config; interactive: menu 7)
+df: 0.5                                 # fine mesh spacing (A) (with -c config; interactive: menu 8)

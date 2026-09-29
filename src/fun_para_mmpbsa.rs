@@ -8,7 +8,7 @@ use ndarray::Array3;
 use crate::utils::{self, get_input, get_input_selection, get_residue_range_ca, is_amino};
 use crate::parse_ndx::Index;
 use crate::settings::Settings;
-use crate::parameters::{Config, PBASet, PBESet};
+use crate::parameters::{Config, PBASet, PBESet, PbePreset};
 use std::io::Write;
 use std::fs::{File, self};
 use crate::atom_property::AtomProperties;
@@ -33,6 +33,9 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
             PBESet::new(tpr.temp)
         }
     };
+    // Which PB parameter set is currently loaded: a named preset or
+    // whatever the user edited by hand / read from a config file.
+    let mut pbe_source = if config.is_some() { "custom (config)" } else { "default" };
     let mut pba_set = if let Some(config) = config {
         config.pba_set.clone()
     } else {
@@ -76,8 +79,9 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         println!("  6 Input coarse grid expand factor (cfac), current: {}", settings.cfac);
         println!("  7 Input fine grid expand amount (fadd), current: {} A", settings.fadd);
         println!("  8 Input fine mesh spacing (df), current: {} A", settings.df);
-        println!("  9 Prepare PB parameters for APBS");
-        println!(" 10 Prepare SA parameters for APBS");
+        println!("  9 Load a PB parameter preset, current: {}", pbe_source);
+        println!(" 10 Prepare PB parameters for APBS");
+        println!(" 11 Prepare SA parameters for APBS");
         let i = get_input_selection();
         match i {
             Ok(-10) => return,
@@ -291,6 +295,27 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                 }
             }
             Ok(9) => {
+                println!("Select a PB parameter preset (everything you changed elsewhere is kept):");
+                println!(" 0 Return");
+                for (i, (_, label, desc)) in PbePreset::all().iter().enumerate() {
+                    println!(" {}) {:<8} {}", i + 1, label, desc);
+                }
+                let selection = get_input_selection::<usize>().ok();
+                if let Some(sel) = selection {
+                    let presets = PbePreset::all();
+                    if sel >= 1 && sel <= presets.len() {
+                        let (preset, label, _) = presets[sel - 1];
+                        preset.apply(&mut pbe_set);
+                        // The mesh spacing of the preset also drives the run,
+                        // which reads it from the program settings.
+                        settings.df = pbe_set.df;
+                        pbe_source = label;
+                        println!("PB parameters preset '{}' loaded. Current df = {} A.",
+                            label, pbe_set.df);
+                    }
+                }
+            }
+            Ok(10) => {
                 let pb_fpath = "PB_settings.yaml";
                 pbe_set.save(&pb_fpath);
                 println!("PB parameters have been wrote to {}.\n\
@@ -301,6 +326,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     match new_pbe_set {
                         Ok(new_pbe_set) => {
                             pbe_set = new_pbe_set;
+                            pbe_source = "custom";
                             break;
                         },
                         Err(e) => {
@@ -311,7 +337,7 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
                     };
                 }
             }
-            Ok(10) => {
+            Ok(11) => {
                 let sa_fpath = "SA_settings.yaml";
                 pba_set.save(&sa_fpath);
                 println!("SA parameters have been wrote to {}.\n\
@@ -359,17 +385,18 @@ fn run_mmpbsa_calculations(radius_types: &Vec<&str>, time_list: &Vec<f64>, time_
         if settings.calc_mm { "enabled" } else { "disabled" },
         if settings.calc_pbsa { "enabled" } else { "disabled" });
 
-    // Temp directory for PBSA
+    // Temp directory for PBSA.  Coordinates are handed to the solver in
+    // memory, so intermediate files only exist when debug mode keeps them.
     let temp_dir = &env::current_dir().unwrap().join(sys_name);
-    if settings.calc_pbsa {
-        println!("Temporary files will be placed at {}/", temp_dir.display());
+    if settings.calc_pbsa && settings.debug_mode {
+        println!("Intermediate PB/SA files will be placed at {}/", temp_dir.display());
         if !temp_dir.is_dir() {
             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         } else {
             fs::remove_dir_all(&temp_dir).expect("Remove dir failed");
             fs::create_dir(&temp_dir).expect(format!("Failed to create temp directory: {}.", sys_name).as_str());
         }
-    } else {
+    } else if !settings.calc_pbsa {
         println!("Note: PBSA calculation is disabled, solvation energy will not be calculated.");
     };
     

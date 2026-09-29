@@ -34,7 +34,7 @@ impl SMResults {
             serde_pickle::from_reader(&result_deserialize, serde_pickle::DeOptions::new())
         } else {
             println!("Result file '{}' not found.", result_serialize.red());
-            exit(0);
+            exit(1);
         }
     }
 }

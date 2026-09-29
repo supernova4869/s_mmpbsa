@@ -6,8 +6,8 @@ license = "BSD-2-Clause"
 description = "APBS core data structures and utilities"
 
 [dependencies]
-thiserror = "1"
-quick-xml = "0.31"
+thiserror = "2"
+quick-xml = "0.42"
 rayon = "1.10"
 
 [dev-dependencies]

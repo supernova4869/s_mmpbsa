@@ -2,8 +2,7 @@ use core::f64;
 use std::{env, fs};
 use std::process::exit;
 use colored::*;
-use ndarray::{Array3};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use ndarray::Array3;
 use std::collections::BTreeSet;
 
 use crate::parameters::Config;
@@ -52,12 +51,12 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
         if receptor_grp.is_none() {
             println!("Receptor group {} not found in config, please set correct receptor group.", 
                 config.as_ref().unwrap().mm_set.rec_grp.red());
-            exit(0);
+            exit(1);
         } else if ligand_grp.is_none() {
             if !config.as_ref().unwrap().mm_set.lig_grp.trim().is_empty() {
                 println!("Ligand group {} not found in config, please set correct ligand group.", 
                     config.as_ref().unwrap().mm_set.lig_grp.red());
-                exit(0);
+                exit(1);
             } else {
                 println!("Receptor: {}, solvation calculation only.", config.as_ref().unwrap().mm_set.rec_grp.yellow());
                 prepare_system(receptor_grp.unwrap(), ligand_grp, trj, tpr, &ndx, fix_pbc, tpr_path, ndx_name, bt, et, dt, 
@@ -171,7 +170,7 @@ pub fn set_para_trj(trj: &String, tpr: &mut TPR, ndx_name: &String, config: &Opt
                 if settings.inter_entropy {
                     println!("Input interpolation multiplier (positive integer) for IE:");
                     let mut new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
-                    while new_ie_multi <= 0 {
+                    while new_ie_multi == 0 {
                         println!("Must be positive integer, input again:");
                         new_ie_multi = get_input_selection::<usize>().unwrap_or(10);
                     }
@@ -389,20 +388,13 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 5: Read trajectory and get time and coordinate
         println!("\x1b[0mPreparing trajectories for IE calculation...");
         println!("Loading trajectory coordinates...");
-        let time_box_info = read_traj(&trj_mmpbsa);
-        let (time_list_ie, coordinates_ie): (Vec<f64>, Vec<Vec<[f32; 3]>>) = time_box_info
-            .par_iter()
-            .map(|frame| (frame.0 as f64, frame.1.clone()))
-            .unzip();
+        // Frames arrive already as one f64 array (nm); scale to Angstrom in
+        // place, which is the unit the MM-PBSA calculation works in.
+        let (time_list_ie, mut coordinates_ie) = read_traj(&trj_mmpbsa);
+        coordinates_ie.mapv_inplace(|v| v * 10.0);
 
         println!("\nNote: The trajectory processed by s_mmpbsa may deviate from reality.");
         println!("Please check carefully by (e.g.): {}", format!("vmd {} {}", init_struct, trj_mmpbsa).cyan().bold());
-
-        let num_frames = time_box_info.len();
-        let num_atoms = if num_frames > 0 { time_box_info[0].1.len() } else { 0 };
-        let coordinates_ie = Array3::from_shape_fn((num_frames, num_atoms, 3), |(i, j, k)| {
-            coordinates_ie[i][j][k] as f64 * 10.0
-        });
 
         let start_time = time_list_ie.first().copied().unwrap_or(0.0);
         let end_time = time_list_ie.last().copied().unwrap_or(0.0);

@@ -97,36 +97,15 @@ original messages start with a newline that only exists to terminate its
 in-line progress output, so those newlines are dropped here; without them the
 tools would emit blank lines that have no counterpart in the original output.
 
-### Parallel decoding and encoding
+### Serial decoding and encoding
 
 A conversion is a pipeline of four steps — read, decode, process, encode — and
-the codec at both ends is pure CPU work that dominated the runtime of a large
-trajectory.  Both ends now run on a worker pool (`decode.rs` and `TrxWriter` in
-`trx.rs`):
-
-* `decode::ParallelSource` reads the raw frames in one thread, so that the disk
-  stays busy, and decodes a batch of 16 frames with `rayon`; the frames are
-  handed over in input order through a bounded channel (`DECODE_DEPTH`, 32
-  frames), which keeps the memory of the pipeline bounded.
-* `TrxWriter` collects the frames handed to `write_frame()` and encodes them in
-  batches of 16.  The encoders hold no state across frames, so the batch can be
-  encoded in any order and is then written in input order.
-* The pool is the global pool of `rayon`, so the thread count is whatever the
-  host program configured: s_mmpbsa sizes it from `n_kernels` in its
-  `settings.ini`, which is what makes that setting control the trajectory
-  codec too.  The standalone tools use one thread per CPU, or
-  `RAYON_NUM_THREADS` when it is set; a pool of one thread keeps the old
-  single threaded path.
-* The frame processing between the two stages stays in the calling thread: it
-  is what carries the state of `-pbc nojump` and `-fit progressive`, and it is
-  usually hidden behind the reading anyway.
-
-Measured on a 27 GB, 50 000 frame trajectory (34578 atoms, spinning disk):
-`-b 0 -e 2000 -pbc whole` takes 19.4 s per 1002 frames with one core and 6.8 s
-with the pool; a window deep in the file (`-b 20000`), where the frames before
-the window have to be read and discarded, goes from 62.2 s to 14.4 s.  Larger
-windows become disk bound: 5002 frames (2.9 GB in and out) take 26-33 s for
-every pool size.  The output of both paths is byte identical.
+codec at both ends is pure CPU work.  The trajectory layer is deliberately
+serial: `FrameSource` reads and decodes one frame at a time, and `TrxWriter`
+encodes and writes each frame immediately.  The frame processing in the middle
+also stays on the calling thread: it carries the state of `-pbc nojump` and
+`-fit progressive`.  This keeps resource use easy to reason about and preserves
+the input order and byte-for-byte output.
 
 `TrxWriter::write_frame` therefore takes the frame by value (it may be encoded
 after the call returns), and `set_index()` / `set_precision()` replace the

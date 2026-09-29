@@ -1,0 +1,6 @@
+# Keep Rust sources and shell scripts at LF in the working tree.
+# A `\`-line-continuation inside a string literal that is followed by CRLF is
+# accepted by rustc but reported as `unknown character escape` by
+# rust-analyzer's lexer, which breaks proc-macro expansion in the editor.
+*.rs text eol=lf
+*.sh text eol=lf

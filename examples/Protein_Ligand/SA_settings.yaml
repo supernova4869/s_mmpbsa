@@ -1,0 +1,12 @@
+# SA (solvent-accessible surface area) parameters for s_mmpbsa.
+# Edit the values, save the file, then press ENTER in s_mmpbsa to reload.
+temp: 300                               # temperature (K)
+srfm: sacc                              # surface model: sacc (recommended) | mol | smol | spline | spline3 | spline4
+swin: 0.3                               # spline window (A), only for spline/spline3/spline4 surfaces
+srad: 1.4                               # solvent probe radius (A)
+gamma: 0.0226778                        # surface tension (kJ/mol/A^2), multiplies the per-atom SASA
+press: 0                                # SAV pressure term (kJ/mol/A^3), total apolar energy only, usually 0
+bconc: 0.0334                           # bulk solvent density (A^-3); reserved for the WCA dispersion term, which is temporarily disabled and forced to 0 in the generated input
+sdens: 10                               # surface density (grid points/A^2)
+dpos: 0.2                               # displacement (A) for determining the surface
+calc_energy: comps                      # energy output: no | total | comps (comps is what s_mmpbsa needs)

@@ -251,5 +251,5 @@ fn no_gmx_advice() -> ! {
     );
     println!("Press ENTER to exit.");
     let _ = std::io::stdin().read_line(&mut String::new());
-    std::process::exit(0);
+    std::process::exit(1);
 }

@@ -7,6 +7,7 @@ use gmx_rs_tools::{gro, tpr, trr, xdr, xtc};
 use gmx_rs_tools::trx::{
     frame_count, read_coordinates, read_frames, CoordinateReader, FrameRange,
 };
+use gmx_rs_tools::trx::{TrxFormat, TrxWriter};
 
 fn sample_frame(n: usize, seed: f32) -> Frame {
     let mut f = Frame::new(n);
@@ -109,6 +110,36 @@ fn trr_roundtrip_is_exact() {
     assert_eq!(read.x, original.x);
     assert_eq!(read.v, original.v);
     assert_eq!(read.boxm, original.boxm);
+}
+
+/// Binary writers must apply the output selection, just like the text writers.
+#[test]
+fn xtc_writer_applies_output_index() {
+    let original = sample_frame(8, 1.0);
+    let index = vec![1, 4, 6];
+    let path = std::env::temp_dir().join("gmx-rs-tools-selected.xtc");
+    let mut writer = TrxWriter::create(
+        path.to_str().unwrap(),
+        TrxFormat::Xtc,
+        1000.0,
+    ).unwrap();
+    writer.set_index(&index);
+    writer.write_frame(original.clone(), "test").unwrap();
+    writer.finish().unwrap();
+
+    let (_, frames) = read_frames(path.to_str().unwrap()).unwrap();
+    assert_eq!(frames.len(), 1);
+    assert_eq!(frames[0].natoms, index.len());
+    let selected = index.iter()
+        .map(|&i| original.x.as_ref().unwrap()[i])
+        .collect::<Vec<_>>();
+    assert_eq!(frames[0].x.as_ref().unwrap().len(), selected.len());
+    for (a, b) in frames[0].x.as_ref().unwrap().iter().zip(&selected) {
+        for d in 0..3 {
+            assert!((a[d] - b[d]).abs() <= 1.0 / 1000.0);
+        }
+    }
+    std::fs::remove_file(&path).ok();
 }
 
 fn sample_atoms() -> Atoms {

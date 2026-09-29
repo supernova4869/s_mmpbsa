@@ -15,8 +15,6 @@ path = "src/lib.rs"
 
 [dependencies]
 # Progress bar of the streaming tools (`progress.rs`).
-indicatif = "0.17.1"
+indicatif = "0.18"
 # Reached through `indicatif`; used to draw on /dev/tty when forced.
-console = "0.15.2"
-# Decoding and encoding of trajectory frames run on a worker pool.
-rayon = "1.7"
+console = "0.16"

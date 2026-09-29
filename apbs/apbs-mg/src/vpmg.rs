@@ -3240,19 +3240,19 @@ impl Vpmg {
 
                     let c1 = if cb1 > VSMALL && denom > VSMALL {
                         let v = NA * cb1 * gpark.powf(k - 1.0) * a1 / denom;
-                        if v != v { 0.0 } else { v }
+                        if v.is_nan() { 0.0 } else { v }
                     } else {
                         0.0
                     };
                     let c2 = if cb2 > VSMALL && denom > VSMALL {
                         let v = NA * cb2 * (1.0 - frac_occ_b - frac_occ_c).powf(k - 1.0) * a2 / denom;
-                        if v != v { 0.0 } else { v }
+                        if v.is_nan() { 0.0 } else { v }
                     } else {
                         0.0
                     };
                     let c3 = if cb3 > VSMALL && denom > VSMALL {
                         let v = NA * cb3 * (1.0 - frac_occ_b - frac_occ_c).powf(k - 1.0) * a3 / denom;
-                        if v != v { 0.0 } else { v }
+                        if v.is_nan() { 0.0 } else { v }
                     } else {
                         0.0
                     };

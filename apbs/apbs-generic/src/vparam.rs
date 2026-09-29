@@ -147,7 +147,6 @@ impl Vparam {
         let file = File::open(filename)
             .map_err(|e| ApbsError::Io(format!("{}: {}", filename, e)))?;
         let mut reader = Reader::from_reader(BufReader::new(file));
-        reader.trim_text(true);
 
         let mut buf = Vec::new();
         let mut cur_res: Option<String> = None;
@@ -156,14 +155,14 @@ impl Vparam {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) => {
                     let name = e.name().as_ref().to_ascii_lowercase();
-                    if name.as_slice() == b"residue" {
+                    if name == "residue" {
                         for a in e.attributes().flatten() {
                             let k = a.key.as_ref().to_ascii_lowercase();
-                            if k.as_slice() == b"name" || k.as_slice() == b"res_name" {
-                                cur_res = Some(String::from_utf8_lossy(a.value.as_ref()).to_string());
+                            if k == "name" || k == "res_name" {
+                                cur_res = Some(a.value.to_string());
                             }
                         }
-                    } else if name.as_slice() == b"atom" {
+                    } else if name == "atom" {
                         if let Some(atom) = Self::parse_atom_xml(&e, cur_res.as_deref())? {
                             self.insert_atom(atom);
                         }
@@ -171,14 +170,14 @@ impl Vparam {
                 }
                 Ok(Event::Empty(e)) => {
                     let name = e.name().as_ref().to_ascii_lowercase();
-                    if name.as_slice() == b"residue" {
+                    if name == "residue" {
                         for a in e.attributes().flatten() {
                             let k = a.key.as_ref().to_ascii_lowercase();
-                            if k.as_slice() == b"name" || k.as_slice() == b"res_name" {
-                                cur_res = Some(String::from_utf8_lossy(a.value.as_ref()).to_string());
+                            if k == "name" || k == "res_name" {
+                                cur_res = Some(a.value.to_string());
                             }
                         }
-                    } else if name.as_slice() == b"atom" {
+                    } else if name == "atom" {
                         if let Some(atom) = Self::parse_atom_xml(&e, cur_res.as_deref())? {
                             self.insert_atom(atom);
                         }
@@ -186,7 +185,7 @@ impl Vparam {
                 }
                 Ok(Event::End(e)) => {
                     let name = e.name().as_ref().to_ascii_lowercase();
-                    if name.as_slice() == b"residue" {
+                    if name == "residue" {
                         cur_res = None;
                     }
                 }
@@ -237,8 +236,8 @@ impl Vparam {
         let mut epsilon = None;
 
         for a in e.attributes().flatten() {
-            let key = String::from_utf8_lossy(a.key.as_ref()).to_ascii_lowercase();
-            let val = String::from_utf8_lossy(a.value.as_ref()).to_string();
+            let key = a.key.as_ref().to_ascii_lowercase();
+            let val = a.value.to_string();
             match key.as_str() {
                 "res_name" | "residue" | "res" => res_name = val,
                 "atom_name" | "name" | "atom" => atom_name = val,

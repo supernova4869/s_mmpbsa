@@ -153,6 +153,11 @@ impl<'a> CReader<'a> {
     }
 
     pub fn int_array(&mut self, n: usize) -> Result<Vec<i32>> {
+        // The count comes from the file; a corrupt file must fail with an
+        // error instead of allocating `n` elements up front.
+        if n as u64 * 4 > self.remaining() as u64 {
+            return Err(XdrError::Truncated("tpr int array"));
+        }
         let mut v = Vec::with_capacity(n);
         for _ in 0..n {
             v.push(self.int()?);
@@ -161,6 +166,10 @@ impl<'a> CReader<'a> {
     }
 
     pub fn real_array(&mut self, n: usize) -> Result<Vec<f64>> {
+        let width = if self.double_precision { 8 } else { 4 };
+        if n as u64 * width > self.remaining() as u64 {
+            return Err(XdrError::Truncated("tpr real array"));
+        }
         let mut v = Vec::with_capacity(n);
         for _ in 0..n {
             v.push(self.real()?);
@@ -666,6 +675,21 @@ pub fn parse_body(header: &TpxHeader, body: &[u8]) -> Result<TprBody> {
     out.mtop_end_offset = r.position();
 
     // --- state, second part ------------------------------------------------
+    if header.b_x || header.b_v {
+        // The atom count comes from the header; each atom takes exactly three
+        // reals, so the size is fully predictable.
+        if header.natoms < 0 {
+            return Err(XdrError::Invalid(format!(
+                "negative atom count {} in tpr header",
+                header.natoms
+            )));
+        }
+        let width = if header.is_double { 8 } else { 4 };
+        let need = header.natoms as u64 * 3 * width;
+        if need > r.remaining() as u64 {
+            return Err(XdrError::Truncated("tpr coordinates"));
+        }
+    }
     if header.b_x {
         trace("x start", &r);
         let mut x = Vec::with_capacity(header.natoms as usize);
@@ -731,6 +755,10 @@ fn parse_symtab(r: &mut CReader) -> Result<Vec<String>> {
     let nr = r.int()?;
     if nr < 0 {
         return Err(XdrError::Invalid("negative symbol table size".into()));
+    }
+    // Every string serializes to at least its two length fields.
+    if nr as usize > r.remaining() / 8 {
+        return Err(XdrError::Truncated("tpr symbol table"));
     }
     let mut v = Vec::with_capacity(nr as usize);
     for _ in 0..nr {
@@ -816,8 +844,19 @@ fn atomicnumber_to_element(n: i32) -> &'static str {
 }
 
 fn parse_atoms(r: &mut CReader, symtab: &[String], file_version: i32) -> Result<Atoms> {
-    let nr = r.int()? as usize;
-    let nres = r.int()? as usize;
+    let nr = r.int()?;
+    let nres = r.int()?;
+    if nr < 0 || nres < 0 {
+        return Err(XdrError::Invalid("negative atom or residue count in tpr".into()));
+    }
+    // Every atom serializes to at least a dozen bytes and every residue at
+    // least to its symtab index; anything beyond what is left in the body
+    // cannot be read and must not be allocated either.
+    let nr = nr as usize;
+    let nres = nres as usize;
+    if nr > r.remaining() / 12 || nres > r.remaining() / 4 {
+        return Err(XdrError::Truncated("tpr atoms"));
+    }
     let mut atom = Vec::with_capacity(nr);
     for _ in 0..nr {
         let mass = r.real()?;
@@ -1111,14 +1150,24 @@ fn parse_ilists(
 }
 
 fn parse_list_of_lists(r: &mut CReader) -> Result<Vec<Vec<i32>>> {
-    let num_lists = r.int()? as usize;
-    let num_elements = r.int()? as usize;
+    let num_lists = r.int()?;
+    let num_elements = r.int()?;
+    if num_lists < 0 || num_elements < 0 {
+        return Err(XdrError::Invalid("negative list-of-lists size in tpr".into()));
+    }
+    let num_lists = num_lists as usize;
+    let num_elements = num_elements as usize;
     let ranges = r.int_array(num_lists + 1)?;
     let elements = r.int_array(num_elements)?;
     let mut out = Vec::with_capacity(num_lists);
     for i in 0..num_lists {
         let a = ranges[i] as usize;
         let b = ranges[i + 1] as usize;
+        // The range endpoints come from the file; a corrupt file would panic
+        // on the slice below, so validate them instead.
+        if a > b || b > elements.len() {
+            return Err(XdrError::Invalid("invalid list-of-lists range in tpr".into()));
+        }
         out.push(elements[a..b].to_vec());
     }
     Ok(out)
@@ -1132,6 +1181,9 @@ fn parse_moltype(r: &mut CReader, symtab: &[String], file_version: i32) -> Resul
     parse_ilists(r, file_version, Some(&mut bonds), Some(&mut ilists))?;
     // charge groups (obsolete): int nr, int[nr + 1]
     let nr = r.int()?;
+    if nr < 0 {
+        return Err(XdrError::Invalid("negative charge group count in tpr".into()));
+    }
     let _ = r.int_array(nr as usize + 1)?;
     let excls = parse_list_of_lists(r)?;
     Ok(MolType {
@@ -1157,7 +1209,15 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
     out.moltype_count_offset = r.position();
     let nmoltype = r.int()?;
     trace(&format!("nmoltype={nmoltype}"), r);
-    let mut moltypes = Vec::with_capacity(nmoltype.max(0) as usize);
+    if nmoltype < 0 {
+        return Err(XdrError::Invalid(format!("negative molecule type count {nmoltype}")));
+    }
+    // Every molecule type serializes to well over twenty bytes; a larger
+    // count cannot be read and must not be allocated either.
+    if nmoltype as usize > r.remaining() / 20 {
+        return Err(XdrError::Truncated("tpr molecule types"));
+    }
+    let mut moltypes = Vec::with_capacity(nmoltype as usize);
     for _ in 0..nmoltype {
         moltypes.push(parse_moltype(r, &symtab, header.file_version)?);
         trace("moltype done", r);
@@ -1165,7 +1225,13 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
     let nmolblock = r.int()?;
     out.molblock_count_offset = r.position() - 4;
     trace(&format!("nmolblock={nmolblock}"), r);
-    let mut molblocks = Vec::with_capacity(nmolblock.max(0) as usize);
+    if nmolblock < 0 {
+        return Err(XdrError::Invalid(format!("negative molecule block count {nmolblock}")));
+    }
+    if nmolblock as usize > r.remaining() / 16 {
+        return Err(XdrError::Truncated("tpr molecule blocks"));
+    }
+    let mut molblocks = Vec::with_capacity(nmolblock as usize);
     for _ in 0..nmolblock {
         let moltype_index = r.int()?;
         let nmol = r.int()?;
@@ -1192,7 +1258,11 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
         });
     }
     out.natoms_offset = r.position();
-    let natoms = r.int()? as usize;
+    let natoms = r.int()?;
+    if natoms < 0 {
+        return Err(XdrError::Invalid(format!("negative atom count {natoms} in tpr topology")));
+    }
+    let natoms = natoms as usize;
     trace(&format!("mtop natoms={natoms}"), r);
     out.natoms = natoms;
     out.mtop_tail_offset = r.position();
@@ -1227,7 +1297,15 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
         let ngrid = r.int()?;
         let grid_spacing = r.int()?;
         cmap_grid_spacing = grid_spacing;
-        let nelem = (grid_spacing * grid_spacing) as usize;
+        // The spacing comes from the file; real grids are tens of points
+        // wide, so anything outside a generous bound is corruption (and the
+        // square would overflow i32 besides).
+        if !(0..=1000).contains(&grid_spacing) {
+            return Err(XdrError::Invalid(format!(
+                "invalid cmap grid spacing {grid_spacing}"
+            )));
+        }
+        let nelem = (grid_spacing as usize) * (grid_spacing as usize);
         for _ in 0..ngrid.max(0) {
             let values = r.real_array(nelem * 4)?;
             cmap_data.push(values.into_iter().map(|v| v as f32).collect());
@@ -1247,7 +1325,13 @@ fn parse_mtop(r: &mut CReader, header: &TpxHeader, out: &mut TprBody) -> Result<
         groups.push(arr);
     }
     let n_group_names = r.int()?;
-    let mut group_names = Vec::with_capacity(n_group_names.max(0) as usize);
+    if n_group_names < 0 {
+        return Err(XdrError::Invalid(format!("negative group name count {n_group_names}")));
+    }
+    if n_group_names as usize > r.remaining() / 4 {
+        return Err(XdrError::Truncated("tpr group names"));
+    }
+    let mut group_names = Vec::with_capacity(n_group_names as usize);
     for _ in 0..n_group_names {
         group_names.push(symstr(r, &symtab)?);
     }

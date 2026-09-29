@@ -158,6 +158,41 @@ enum ElecResult {
     },
 }
 
+/// Molecules provided in memory instead of the PQR/PDB files named by the
+/// READ section, keyed by the molecule reference of the ELEC/APOLAR blocks
+/// (`mol 1` -> "1", `mol 2` -> "2", ...).  A missing key falls back to
+/// loading the file named in the READ section.
+pub(crate) type MemMols = HashMap<String, Arc<Valist>>;
+
+fn load_molecule(
+    nosh: &NOsh,
+    mem_mols: Option<&MemMols>,
+    name: &str,
+    input_format: apbs_generic::nosh::NOshInputFormat,
+) -> ApbsResult<Arc<Valist>> {
+    if let Some(mem) = mem_mols {
+        if let Some(alist) = mem.get(name) {
+            return Ok(alist.clone());
+        }
+    }
+    let mol_path = nosh.get_mol_path(name)?;
+    let mut alist = Valist::new();
+    match input_format {
+        apbs_generic::nosh::NOshInputFormat::Pqr => {
+            alist.read_pqr(None, &mol_path)?;
+        }
+        apbs_generic::nosh::NOshInputFormat::Pdb => {
+            alist.read_pdb(None, &mol_path)?;
+        }
+        _ => {
+            return Err(ApbsError::UnsupportedFormat(
+                "Only PQR and PDB input supported".to_string(),
+            ));
+        }
+    }
+    Ok(Arc::new(alist))
+}
+
 enum CalcEnergyResult {
     ElecMg {
         name: String,
@@ -238,13 +273,13 @@ pub fn run_apbs(input_file: &str) -> ApbsResult<()> {
     nosh.read(input_file)?;
 
     if parallel_blocks_enabled() {
-        return run_apbs_parallel_segments(&nosh);
+        return run_apbs_parallel_segments(&nosh, None);
     }
 
-    run_apbs_sequential(&nosh)
+    run_apbs_sequential(&nosh, None)
 }
 
-fn run_apbs_sequential(nosh: &NOsh) -> ApbsResult<()> {
+fn run_apbs_sequential(nosh: &NOsh, mem_mols: Option<&MemMols>) -> ApbsResult<()> {
     // Energy storage: name -> energy value (in kT for ELEC, kJ/mol for APOLAR)
     let mut energies: HashMap<String, f64> = HashMap::new();
     // Previous Vpmg for focus BC handoff
@@ -263,7 +298,7 @@ fn run_apbs_sequential(nosh: &NOsh) -> ApbsResult<()> {
                 }
                 let is_focus = elecalc.pbeparm.bcfl == apbs_generic::vhal::Vbcfl::Focus;
                 let focus_ref = if is_focus { prev_vpmg.as_mut() } else { None };
-                match run_elec(&nosh, elecalc, focus_ref) {
+                match run_elec(&nosh, elecalc, focus_ref, mem_mols) {
                     Ok(ElecResult::Mg { energy, vpmg }) => {
                         println!("Finished ELEC calc: {} ({:.6e} kT)", elecalc.name, energy);
                         energies.insert(elecalc.name.clone(), energy);
@@ -277,7 +312,7 @@ fn run_apbs_sequential(nosh: &NOsh) -> ApbsResult<()> {
             }
             NOshCalc::Apolar(apolarcalc) => {
                 println!("Running APOLAR calc: {}", apolarcalc.name);
-                match run_apolar(&nosh, apolarcalc) {
+                match run_apolar(&nosh, apolarcalc, mem_mols) {
                     Ok(energy) => {
                         println!("Finished APOLAR calc: {} ({:.6e} kJ/mol)", apolarcalc.name, energy);
                         energies.insert(apolarcalc.name.clone(), energy);
@@ -297,7 +332,7 @@ fn run_apbs_sequential(nosh: &NOsh) -> ApbsResult<()> {
     Ok(())
 }
 
-fn run_apbs_parallel_segments(nosh: &NOsh) -> ApbsResult<()> {
+fn run_apbs_parallel_segments(nosh: &NOsh, mem_mols: Option<&MemMols>) -> ApbsResult<()> {
     let mut energies: HashMap<String, f64> = HashMap::new();
     let mut prev_vpmg: Option<apbs_mg::vpmg::Vpmg> = None;
     let mut index = 0;
@@ -308,11 +343,11 @@ fn run_apbs_parallel_segments(nosh: &NOsh) -> ApbsResult<()> {
             while index < nosh.calcs.len() && calc_can_run_parallel(&nosh.calcs[index]) {
                 index += 1;
             }
-            run_parallel_segment(nosh, start, index, &mut energies, &mut prev_vpmg);
+            run_parallel_segment(nosh, start, index, &mut energies, &mut prev_vpmg, mem_mols);
             continue;
         }
 
-        run_one_calc_sequential(nosh, &nosh.calcs[index], &mut energies, &mut prev_vpmg);
+        run_one_calc_sequential(nosh, &nosh.calcs[index], &mut energies, &mut prev_vpmg, mem_mols);
         index += 1;
     }
 
@@ -326,6 +361,7 @@ fn run_parallel_segment(
     end: usize,
     energies: &mut HashMap<String, f64>,
     prev_vpmg: &mut Option<apbs_mg::vpmg::Vpmg>,
+    mem_mols: Option<&MemMols>,
 ) {
     let max_jobs = max_parallel_blocks();
     let mut all_results = Vec::with_capacity(end - start);
@@ -335,7 +371,7 @@ fn run_parallel_segment(
         let mut chunk_results = std::thread::scope(|scope| {
             let mut handles = Vec::with_capacity(chunk_end - chunk_start);
             for idx in chunk_start..chunk_end {
-                handles.push(scope.spawn(move || run_one_calc_captured(nosh, idx)));
+                handles.push(scope.spawn(move || run_one_calc_captured(nosh, idx, mem_mols)));
             }
 
             let mut results = Vec::with_capacity(handles.len());
@@ -359,8 +395,8 @@ fn run_parallel_segment(
     }
 }
 
-fn run_one_calc_captured(nosh: &NOsh, index: usize) -> CalcBlockResult {
-    let (result, log) = capture_stdout(|| execute_calc_without_focus(nosh, &nosh.calcs[index]));
+fn run_one_calc_captured(nosh: &NOsh, index: usize, mem_mols: Option<&MemMols>) -> CalcBlockResult {
+    let (result, log) = capture_stdout(|| execute_calc_without_focus(nosh, &nosh.calcs[index], mem_mols));
     CalcBlockResult { index, log, result }
 }
 
@@ -369,6 +405,7 @@ fn run_one_calc_sequential(
     calc: &NOshCalc,
     energies: &mut HashMap<String, f64>,
     prev_vpmg: &mut Option<apbs_mg::vpmg::Vpmg>,
+    mem_mols: Option<&MemMols>,
 ) {
     match calc {
         NOshCalc::Elec(elecalc) => {
@@ -381,7 +418,7 @@ fn run_one_calc_sequential(
             }
             let is_focus = elecalc.pbeparm.bcfl == apbs_generic::vhal::Vbcfl::Focus;
             let focus_ref = if is_focus { prev_vpmg.as_mut() } else { None };
-            let result = match run_elec(nosh, elecalc, focus_ref) {
+            let result = match run_elec(nosh, elecalc, focus_ref, mem_mols) {
                 Ok(ElecResult::Mg { energy, vpmg }) => {
                     println!("Finished ELEC calc: {} ({:.6e} kT)", elecalc.name, energy);
                     Some(CalcEnergyResult::ElecMg {
@@ -399,7 +436,7 @@ fn run_one_calc_sequential(
         }
         NOshCalc::Apolar(apolarcalc) => {
             println!("Running APOLAR calc: {}", apolarcalc.name);
-            let result = match run_apolar(nosh, apolarcalc) {
+            let result = match run_apolar(nosh, apolarcalc, mem_mols) {
                 Ok(energy) => {
                     println!("Finished APOLAR calc: {} ({:.6e} kJ/mol)", apolarcalc.name, energy);
                     Some(CalcEnergyResult::Apolar {
@@ -418,11 +455,11 @@ fn run_one_calc_sequential(
     }
 }
 
-fn execute_calc_without_focus(nosh: &NOsh, calc: &NOshCalc) -> Option<CalcEnergyResult> {
+fn execute_calc_without_focus(nosh: &NOsh, calc: &NOshCalc, mem_mols: Option<&MemMols>) -> Option<CalcEnergyResult> {
     match calc {
         NOshCalc::Elec(elecalc) => {
             println!("Running ELEC calc: {}", elecalc.name);
-            match run_elec(nosh, elecalc, None) {
+            match run_elec(nosh, elecalc, None, mem_mols) {
                 Ok(ElecResult::Mg { energy, vpmg }) => {
                     println!("Finished ELEC calc: {} ({:.6e} kT)", elecalc.name, energy);
                     Some(CalcEnergyResult::ElecMg {
@@ -439,7 +476,7 @@ fn execute_calc_without_focus(nosh: &NOsh, calc: &NOshCalc) -> Option<CalcEnergy
         }
         NOshCalc::Apolar(apolarcalc) => {
             println!("Running APOLAR calc: {}", apolarcalc.name);
-            match run_apolar(nosh, apolarcalc) {
+            match run_apolar(nosh, apolarcalc, mem_mols) {
                 Ok(energy) => {
                     println!("Finished APOLAR calc: {} ({:.6e} kJ/mol)", apolarcalc.name, energy);
                     Some(CalcEnergyResult::Apolar {
@@ -541,26 +578,12 @@ fn run_elec(
     nosh: &NOsh,
     elec: &apbs_generic::nosh::NOshElec,
     pmg_old: Option<&mut apbs_mg::vpmg::Vpmg>,
+    mem_mols: Option<&MemMols>,
 ) -> ApbsResult<ElecResult> {
     // Load molecules
     let mut molecules = Vec::new();
     for mol_name in &elec.molecules {
-        let mol_path = nosh.get_mol_path(mol_name)?;
-        let mut alist = Valist::new();
-        match elec.input_format {
-            apbs_generic::nosh::NOshInputFormat::Pqr => {
-                alist.read_pqr(None, &mol_path)?;
-            }
-            apbs_generic::nosh::NOshInputFormat::Pdb => {
-                alist.read_pdb(None, &mol_path)?;
-            }
-            _ => {
-                return Err(ApbsError::UnsupportedFormat(
-                    "Only PQR and PDB input supported".to_string(),
-                ));
-            }
-        }
-        molecules.push(Arc::new(alist));
+        molecules.push(load_molecule(nosh, mem_mols, mol_name, elec.input_format)?);
     }
 
     // Create PBE object
@@ -1188,8 +1211,9 @@ struct ApolarRunResult {
 fn run_apolar(
     nosh: &NOsh,
     apolar: &apbs_generic::nosh::NOshApolar,
+    mem_mols: Option<&MemMols>,
 ) -> ApbsResult<f64> {
-    Ok(run_apolar_full(nosh, apolar)?.energy)
+    Ok(run_apolar_full(nosh, apolar, mem_mols)?.energy)
 }
 
 /// Run an APOLAR (non-polar) calculation and return both the total energy and
@@ -1197,16 +1221,19 @@ fn run_apolar(
 fn run_apolar_full(
     nosh: &NOsh,
     apolar: &apbs_generic::nosh::NOshApolar,
+    mem_mols: Option<&MemMols>,
 ) -> ApbsResult<ApolarRunResult> {
     let mut apolparm = apolar.apolparm.clone();
 
     // Load molecules
     let mut molecules = Vec::new();
     for mol_name in &apolar.molecules {
-        let mol_path = nosh.get_mol_path(mol_name)?;
-        let mut alist = Valist::new();
-        alist.read_pqr(None, &mol_path)?;
-        molecules.push(Arc::new(alist));
+        molecules.push(load_molecule(
+            nosh,
+            mem_mols,
+            mol_name,
+            apbs_generic::nosh::NOshInputFormat::Pqr,
+        )?);
     }
 
     let alist = if !molecules.is_empty() {
@@ -1820,8 +1847,16 @@ fn is_focus_level_name(name: &str) -> bool {
 /// All normal APBS progress output is captured (and returned as `log`) so the
 /// caller can decide whether to surface it, e.g. in debug mode.
 pub(crate) fn run_apbs_in_process(input_file: &str) -> ApbsResult<SolverRun> {
+    let content = std::fs::read_to_string(input_file)
+        .map_err(|e| ApbsError::Io(format!("{}: {}", input_file, e)))?;
+    run_apbs_in_process_text(&content, &MemMols::new())
+}
+
+/// Solve an APBS input given as text, with every molecule supplied in memory
+/// (nothing is read from the PQR files named in the READ section).
+pub(crate) fn run_apbs_in_process_text(input_text: &str, mem_mols: &MemMols) -> ApbsResult<SolverRun> {
     let mut nosh = NOsh::new();
-    nosh.read(input_file)?;
+    nosh.read_str(input_text)?;
 
     // Route every println! in this module into the capture buffer.
     STDOUT_CAPTURE.with(|capture| {
@@ -1842,7 +1877,7 @@ pub(crate) fn run_apbs_in_process(input_file: &str) -> ApbsResult<SolverRun> {
                 } else {
                     None
                 };
-                match run_elec(&nosh, elecalc, focus_ref) {
+                match run_elec(&nosh, elecalc, focus_ref, Some(mem_mols)) {
                     Ok(ElecResult::Mg { energy, vpmg }) => {
                         println!("Finished ELEC calc: {} ({:.6e} kT)", elecalc.name, energy);
                         if !is_focus_level_name(&elecalc.name)
@@ -1869,7 +1904,7 @@ pub(crate) fn run_apbs_in_process(input_file: &str) -> ApbsResult<SolverRun> {
             }
             NOshCalc::Apolar(apolarcalc) => {
                 println!("Running APOLAR calc: {}", apolarcalc.name);
-                match run_apolar_full(&nosh, apolarcalc) {
+                match run_apolar_full(&nosh, apolarcalc, Some(mem_mols)) {
                     Ok(result) => {
                         println!(
                             "Finished APOLAR calc: {} ({:.6e} kJ/mol)",

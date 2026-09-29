@@ -62,6 +62,31 @@ pub fn xdr_pad(len: usize) -> usize {
     (4 - (len % 4)) % 4
 }
 
+/// Reads exactly `n` bytes into a buffer that only grows as data arrives.
+///
+/// Section sizes in a trajectory header come from the file itself, so a
+/// corrupt file can declare an absurd payload.  Allocating it up front would
+/// abort the process before the read fails; filling a chunk at a time turns
+/// that into an ordinary [`XdrError::Truncated`].
+pub fn read_exact_chunked<R: std::io::Read>(r: &mut R, n: usize) -> Result<Vec<u8>> {
+    let mut out: Vec<u8> = Vec::with_capacity(n.min(1 << 16));
+    let mut chunk = [0u8; 1 << 16];
+    let mut remaining = n;
+    while remaining > 0 {
+        let want = remaining.min(chunk.len());
+        match r.read(&mut chunk[..want]) {
+            Ok(0) => return Err(XdrError::Truncated("frame payload")),
+            Ok(k) => {
+                out.extend_from_slice(&chunk[..k]);
+                remaining -= k;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(XdrError::Invalid(format!("read error: {e}"))),
+        }
+    }
+    Ok(out)
+}
+
 /// Sequential big-endian reader over a byte slice.
 pub struct Reader<'a> {
     data: &'a [u8],
