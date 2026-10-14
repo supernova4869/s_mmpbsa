@@ -279,20 +279,18 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
                 set_style(&pgb);
                 pgb.inc(0);
-                let calc_ie_per_frame = |frame: ArrayView2<f64>| {
-                    let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, false);
-                    pgb.inc(1);
-                    pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
-                    de_elec.sum() + de_vdw.sum()
-                };
                 let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
-                    .into_par_iter()
                     .enumerate()
                     .map(|(i, frame)| 
                         if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
+                            pgb.inc(1);
+                            pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
                             vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
                         } else {
-                            calc_ie_per_frame(frame)
+                            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, use_parallel);
+                            pgb.inc(1);
+                            pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
+                            de_elec.sum() + de_vdw.sum()
                         }).collect();
                 pgb.finish();
                 Some(Array1::from_vec(atoms_ie))
@@ -306,7 +304,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         }
     } else {
         None
-    };    
+    };
 
     // end calculation
     let t_end = Local::now();
