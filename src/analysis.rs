@@ -287,6 +287,7 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     }
 
     let beta_kj = 1000.0 / 8.314462618 / results.temperature;
+    println!("{}", results.temperature);
     let dh_avg = results.dh.select(Axis(0), &ts_ids).mean().unwrap();
     let dh_err = results.dh.select(Axis(0), &ts_ids).std(0.0);
     let mm_avg = results.mm.select(Axis(0), &ts_ids).mean().unwrap();
@@ -310,6 +311,27 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     println!("Δvdw: {:.3} ± {:.3} kJ/mol", vdw_avg, vdw_err);
     println!();
 
+    // Interactive Entropy
+    let (tds, dg, ki) = if let Some(mm_ie) = &results.mm_ie {
+        let mm_ie_avg = mm_ie.select(Axis(0), &ts_ie_ids).mean().unwrap();
+        println!("{:?}", mm_ie_avg);
+        let mm_sum: f64 = mm_ie.select(Axis(0), &ts_ie_ids).iter().map(|&mm| ((mm - mm_ie_avg) * beta_kj).exp()).sum();
+        let mm_temp: Vec<f64> = mm_ie.select(Axis(0), &ts_ie_ids).into_iter().collect();
+        println!("{:?}", mm_temp);
+        let mm_temp: Vec<f64> = mm_ie.select(Axis(0), &ts_ie_ids).iter().map(|&mm| ((mm - mm_ie_avg) * beta_kj).exp()).collect();
+        println!("{:?}", mm_temp);
+        let tds = -(mm_sum / ts_ie_ids.len() as f64).ln() / beta_kj;
+        let dg = dh_avg - tds;
+        let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
+        println!("-TΔS: {:.3} kJ/mol", -tds);
+        println!("ΔG: {:.3} kJ/mol", dg);
+        println!("Ki: {:.9e} nM", ki);
+        println!();
+        (Some(tds), Some(dg), Some(ki))
+    } else {
+        (None, None, None)
+    };
+
     let def_name = format!("MMPBSA_{}({}-{}ns).csv", sys_name, results.times[ts_ids[0]], results.times[*ts_ids.last().unwrap()]);
     println!("Writing binding energy terms...");
     let mut energy_sum = fs::File::create(wd.join(&def_name)).unwrap();
@@ -322,19 +344,13 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     write!(energy_sum, "Δelec,{:.3},{:.3},(kJ/mol)\n", elec_avg, elec_err).unwrap();
     write!(energy_sum, "ΔvdW,{:.3},{:.3},(kJ/mol)\n", vdw_avg, vdw_err).unwrap();
     write!(energy_sum, "\n").unwrap();
-
-    // Interactive Entropy
-    if let Some(mm_ie) = &results.mm_ie {
-        let mm_ie_avg = mm_ie.select(Axis(0), &ts_ie_ids).mean().unwrap();
-        let mm_sum: f64 = mm_ie.select(Axis(0), &ts_ie_ids).iter().map(|&mm| ((mm - mm_ie_avg) * beta_kj).exp()).sum();
-        let tds = -(mm_sum / ts_ie_ids.len() as f64).ln() / beta_kj;
-        let dg = dh_avg - tds;
-        let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
-        println!("-TΔS: {:.3} kJ/mol", -tds);
-        println!("ΔG: {:.3} kJ/mol", dg);
-        println!("Ki: {:.9e} nM", ki);
+    if let Some(tds) = tds {
         write!(energy_sum, "-TΔS,{:.3},,(kJ/mol)\n", -tds).unwrap();
+    }
+    if let Some(dg) = dg {
         write!(energy_sum, "ΔG,{:.3},,ΔG=ΔH-TΔS (kJ/mol)\n", dg).unwrap();
+    }
+    if let Some(ki) = ki {
         write!(energy_sum, "Ki,{:.9e},,Ki=exp(ΔG/RT) (nM)\n", ki).unwrap();
     }
     println!("Binding energy terms have been writen to {}", &def_name);
