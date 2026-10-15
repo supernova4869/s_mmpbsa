@@ -148,12 +148,17 @@ impl TPR {
             println!("Molecule type {}: {}", mol.molecule_type_id, mol);
         }
 
-        // `ref-t` is not part of the decoded inputrec prefix; the ensemble
-        // temperature is the same value whenever every T-coupling group has
-        // the same reference temperature (and it is -1 otherwise, which the
-        // MM-PBSA parameters then report as "unknown").
+        // The ensemble temperature only carries a value when every T-coupling
+        // group has the same reference temperature; annealing, simulated
+        // tempering and uncoupled systems store -1.  The reference temperature
+        // of the first coupling group is always part of the inputrec (`ngtc`
+        // group options, every tpx version), so use it as the fallback.
         let temp = body.ir.as_ref()
-            .map(|ir| ir.ensemble_temperature)
+            .map(|ir| if ir.ensemble_temperature > 0.0 {
+                ir.ensemble_temperature
+            } else {
+                ir.opts.ref_t.first().copied().unwrap_or(0.0)
+            })
             .filter(|t| *t > 0.0)
             .unwrap_or(0.0);
 
@@ -213,8 +218,8 @@ impl TPR {
             let line = buf.trim();
             
             // 使用模式匹配提高可读性和性能
-            if line.starts_with("ref-t:") {
-                process_ref_t(line, &mut temperature);
+            if line.starts_with("ref-t") {
+                process_ref_t(&mut reader, &mut buf, &mut temperature);
             } else if line.starts_with("topology:") {
                 process_topology(&mut reader, &mut buf, &mut name, &mut atoms_num, 
                             &mut molecule_blocks_num, &mut molecule_blocks);
@@ -401,11 +406,17 @@ fn read_line<R: BufRead>(reader: &mut R, buf: &mut String) -> usize {
 
 // 分解的处理函数
 
-fn process_ref_t(line: &str, temp: &mut f64) {
-    let parts: Vec<&str> = line.split_whitespace().collect();
-    if parts.len() > 1 {
-        *temp = parts[1].parse().unwrap_or(0.0);
+fn process_ref_t<R: BufRead>(reader: &mut R, buf: &mut String, temp: &mut f64) {
+    // `gmx dump` prints the coupling-group vectors as `ref-t (0xN):` with the
+    // values on the following line, while the built-in dump prints `ref-t:`
+    // and the values on the same line; parse both.
+    let mut values = buf.split(':').nth(1).unwrap_or("").trim().to_string();
+    if values.is_empty() {
+        read_line(reader, buf);
+        values = buf.trim().to_string();
     }
+    *temp = values.split_whitespace()
+        .next().and_then(|v| v.parse().ok()).unwrap_or(0.0);
 }
 
 fn process_topology<R: BufRead>(
@@ -654,4 +665,46 @@ fn process_coordinates<R: BufRead>(
     
     // 3. 合并结果
     coordinates.extend(parsed_coords);
+}
+
+#[cfg(test)]
+mod temp_tests {
+    use super::*;
+    use std::io::BufReader;
+
+    #[test]
+    fn run_input_temperature_of_example_tpr() {
+        let tpr = TPR::from_run_input("examples/Protein_Ligand/md.tpr")
+            .expect("the built-in reader decodes the example run input file");
+        assert_eq!(tpr.temp, 300.0);
+    }
+
+    #[test]
+    fn ref_t_inline_format() {
+        let mut temp = 0.0;
+        let mut reader = BufReader::new("".as_bytes());
+        let mut buf = String::from("   ref-t:         300         300         300");
+        process_ref_t(&mut reader, &mut buf, &mut temp);
+        assert_eq!(temp, 300.0);
+    }
+
+    #[test]
+    fn ref_t_gmx_dump_vector_format() {
+        // Real `gmx dump` output: the group count suffix and the values on
+        // the following line.
+        let mut temp = 0.0;
+        let mut reader = BufReader::new("         300         300         300\n".as_bytes());
+        let mut buf = String::from("   ref-t (0x3):");
+        process_ref_t(&mut reader, &mut buf, &mut temp);
+        assert_eq!(temp, 300.0);
+    }
+
+    #[test]
+    fn ref_t_gmx_dump_single_value() {
+        let mut temp = 0.0;
+        let mut reader = BufReader::new("         298\n".as_bytes());
+        let mut buf = String::from("   ref-t (0x1):");
+        process_ref_t(&mut reader, &mut buf, &mut temp);
+        assert_eq!(temp, 298.0);
+    }
 }
