@@ -1,7 +1,7 @@
 program_set:
   sys_name: system
   calc_mm: true
-  calc_pbsa: false
+  calc_pbsa: true
   debug: false
   trj: md.xtc
   tpr: md.tpr
