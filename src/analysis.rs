@@ -287,7 +287,7 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     }
 
     let beta_kj = 1000.0 / 8.314462618 / results.temperature;
-    println!("{}", results.temperature);
+
     let dh_avg = results.dh.select(Axis(0), &ts_ids).mean().unwrap();
     let dh_err = results.dh.select(Axis(0), &ts_ids).std(0.0);
     let mm_avg = results.mm.select(Axis(0), &ts_ids).mean().unwrap();
@@ -314,12 +314,7 @@ fn analyze_summary(results: &SMResult, wd: &Path, sys_name: &String, tmin: f64, 
     // Interactive Entropy
     let (tds, dg, ki) = if let Some(mm_ie) = &results.mm_ie {
         let mm_ie_avg = mm_ie.select(Axis(0), &ts_ie_ids).mean().unwrap();
-        println!("{:?}", mm_ie_avg);
         let mm_sum: f64 = mm_ie.select(Axis(0), &ts_ie_ids).iter().map(|&mm| ((mm - mm_ie_avg) * beta_kj).exp()).sum();
-        let mm_temp: Vec<f64> = mm_ie.select(Axis(0), &ts_ie_ids).into_iter().collect();
-        println!("{:?}", mm_temp);
-        let mm_temp: Vec<f64> = mm_ie.select(Axis(0), &ts_ie_ids).iter().map(|&mm| ((mm - mm_ie_avg) * beta_kj).exp()).collect();
-        println!("{:?}", mm_temp);
         let tds = -(mm_sum / ts_ie_ids.len() as f64).ln() / beta_kj;
         let dg = dh_avg - tds;
         let ki = f64::exp(dg * beta_kj) * 1e9;    // nM
