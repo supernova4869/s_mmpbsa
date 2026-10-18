@@ -15,6 +15,7 @@ MM-PBSA method is the most popular method to rapidly calculate binding free ener
 - Less need for running environment preparation: PB/SA and the Gromacs tools s_mmpbsa needs have been ported to Rust and are compiled into the executable, so no Gromacs or APBS installation is required. A Python environment is only needed for plotting.
 - In contrast to other programs, s_mmpbsa is developed with Rust.
 - Interactive operation, no need to write parameter files. Also, user can write shell script to invoke s_mmpbsa for batch use.
+- Optional GPU acceleration of the MM pairwise kernel and the PB multigrid solver (`use_gpu = "y"` in settings.ini, or `use_gpu` in the config.yaml); falls back to the CPU automatically when no suitable GPU is found.
 - Considers electric screening effect, as "J. Chem. Inf. Model. 2021, 61, 2454".
 - Considers conformational entropy, as "J. Chem. Phys. 2017, 146, 124124".
 - Could store analysis results for further reproducable analysis.

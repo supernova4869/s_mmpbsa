@@ -388,9 +388,60 @@ pub mod vacc {
         pub clist: std::sync::Arc<Vclist>,
         pub atom_flags: Vec<bool>,
         pub ref_sphere: VaccSurf,
-        pub surf: Vec<Option<VaccSurf>>,
+        pub surf: Vec<Option<std::sync::Arc<VaccSurf>>>,
         pub surf_density: f64,
     }
+
+    /// FNV-1a over the bit patterns of the atom positions and radii.
+    fn surface_fingerprint(alist: &Valist, prad: f64, sdens: f64) -> u128 {
+        let mut h64 = 0xcbf29ce484222325u64;
+        let hash_word = |word: u64, h: &mut u64| {
+            for byte in word.to_ne_bytes() {
+                *h ^= byte as u64;
+                *h = h.wrapping_mul(0x100000001b3);
+            }
+        };
+        let num_atoms = alist.number_atoms();
+        hash_word(num_atoms as u64, &mut h64);
+        for iatom in 0..num_atoms {
+            let atom = alist.get_atom(iatom);
+            for v in atom.position.iter() {
+                hash_word(v.to_bits(), &mut h64);
+            }
+            hash_word(atom.radius.to_bits(), &mut h64);
+        }
+        hash_word(prad.to_bits(), &mut h64);
+        hash_word(sdens.to_bits(), &mut h64);
+        // Widen to 128 bits with a second, differently-seeded pass so a
+        // collision needs to agree on two independent 64-bit digests.
+        let mut h64b = 0x9e3779b97f4a7c15u64;
+        let hash_word_b = |word: u64, h: &mut u64| {
+            for byte in word.to_ne_bytes() {
+                *h ^= byte as u64;
+                *h = h.wrapping_mul(0x100000001b3);
+            }
+        };
+        hash_word_b(num_atoms as u64, &mut h64b);
+        for iatom in 0..num_atoms {
+            let atom = alist.get_atom(iatom);
+            for v in atom.position.iter() {
+                hash_word_b(v.to_bits(), &mut h64b);
+            }
+            hash_word_b(atom.radius.to_bits(), &mut h64b);
+        }
+        hash_word_b(prad.to_bits(), &mut h64b);
+        hash_word_b(sdens.to_bits(), &mut h64b);
+        ((h64 as u128) << 64) | (h64b as u128)
+    }
+
+    // Single-entry process-global cache of per-atom surfaces.  Within one
+    // trajectory frame the SOL / VAC / SAS calculations of the same molecule
+    // each own a fresh Vacc but share identical atom positions, so the
+    // expensive surface build runs once per molecule and frame and the rest
+    // become copies.  Keyed by a fingerprint of the atom coordinates,
+    // radii and generation parameters; always accessed as a leaf lock.
+    static SURF_CACHE: std::sync::Mutex<Option<(u128, f64, f64, Vec<Option<std::sync::Arc<VaccSurf>>>)>> =
+        std::sync::Mutex::new(None);
 
     impl Vacc {
         pub fn new(alist: &std::sync::Arc<Valist>, clist: &std::sync::Arc<Vclist>, surf_density: f64) -> Self {
@@ -496,6 +547,17 @@ pub mod vacc {
                 return;
             }
 
+            let fingerprint = surface_fingerprint(&self.alist, prad, self.surf_density);
+            if let Ok(cache) = SURF_CACHE.lock() {
+                if let Some((fp, _, _, cached)) = cache.as_ref() {
+                    if *fp == fingerprint && cached.len() == num_atoms {
+                        // O(1) per surface: the cached entry is already Arc-shared.
+                        self.surf = cached.clone();
+                        return;
+                    }
+                }
+            }
+
             let alist = std::sync::Arc::clone(&self.alist);
             let clist = std::sync::Arc::clone(&self.clist);
             let ref_sphere = self.ref_sphere.clone();
@@ -508,9 +570,14 @@ pub mod vacc {
                     Self::atom_surf_from(&alist, &clist, atom, &ref_sphere, prad)
                 })
                 .collect();
-            for (i, surface) in surfaces.into_iter().enumerate() {
-                self.surf[i] = Some(surface);
+            let shared: Vec<Option<std::sync::Arc<VaccSurf>>> = surfaces
+                .into_iter()
+                .map(|s| Some(std::sync::Arc::new(s)))
+                .collect();
+            if let Ok(mut cache) = SURF_CACHE.lock() {
+                *cache = Some((fingerprint, prad, self.surf_density, shared.clone()));
             }
+            self.surf = shared;
         }
 
         fn atom_surf(&self, atom: &Vatom, ref_sphere: &VaccSurf, prad: f64) -> VaccSurf {
@@ -551,12 +618,13 @@ pub mod vacc {
 
         /// Get SAS surface points for an atom (builds surfaces if needed)
         pub fn atom_sas_points(&mut self, atom_idx: usize, prad: f64) -> Option<&VaccSurf> {
+            #[allow(clippy::match_ref_pats)]
             if self.surf[atom_idx].is_none() {
                 let atom = self.alist.get_atom(atom_idx);
                 let ref_clone = self.ref_sphere.clone();
-                self.surf[atom_idx] = Some(self.atom_surf(atom, &ref_clone, prad));
+                self.surf[atom_idx] = Some(std::sync::Arc::new(self.atom_surf(atom, &ref_clone, prad)));
             }
-            self.surf[atom_idx].as_ref()
+            self.surf[atom_idx].as_deref()
         }
 
         /// Gradient of spline accessibility for a single atom (normalized by chi).
@@ -739,7 +807,7 @@ pub mod vacc {
             if needs_build {
                 let atom = self.alist.get_atom(atom_idx);
                 let ref_clone = self.ref_sphere.clone();
-                self.surf[atom_idx] = Some(self.atom_surf(atom, &ref_clone, radius));
+                self.surf[atom_idx] = Some(std::sync::Arc::new(self.atom_surf(atom, &ref_clone, radius)));
             }
 
             self.surf[atom_idx].as_ref().unwrap().area

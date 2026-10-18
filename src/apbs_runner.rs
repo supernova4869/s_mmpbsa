@@ -660,6 +660,7 @@ fn run_elec(
     vpmg.unset_part();
 
     // Fill coefficients
+    let t_fillco = std::time::Instant::now();
     vpmg.fillco(
         pbeparm.srfm,
         pbeparm.swin,
@@ -691,7 +692,10 @@ fn run_elec(
     }
 
     // Solve
+    let t_fillco_done = t_fillco.elapsed();
+    let t_solve = std::time::Instant::now();
     vpmg.solve()?;
+    let t_solve_done = t_solve.elapsed();
 
     // Debug: check solution
     let u_nan = vpmg.u[..nf].iter().any(|x| x.is_nan());
@@ -704,6 +708,7 @@ fn run_elec(
     if let Some(old) = pmg_old {
         vpmg.compute_ext_energy(old);
     }
+    let t_energy = std::time::Instant::now();
     let energy = vpmg.energy(pbeparm.calc_energy as i32);
     match pbeparm.calc_energy {
         apbs_generic::pbeparm::PBEparmCalcEnergy::Total => {
@@ -720,6 +725,14 @@ fn run_elec(
         write_output(&vpmg, write_spec)?;
     }
 
+    if std::env::var_os("APBS_RUST_PROFILE").is_some() {
+        eprintln!(
+            "[PROFILE-ELEC] fillco {:.3}s solve {:.3}s energy {:.3}s",
+            t_fillco_done.as_secs_f64(),
+            t_solve_done.as_secs_f64(),
+            t_energy.elapsed().as_secs_f64()
+        );
+    }
     Ok(ElecResult::Mg { energy, vpmg })
 }
 
@@ -1867,7 +1880,10 @@ pub(crate) fn run_apbs_in_process_text(input_text: &str, mem_mols: &MemMols) -> 
     // Previous Vpmg for focus BC handoff between focusing levels.
     let mut prev_vpmg: Option<apbs_mg::vpmg::Vpmg> = None;
 
+    let profile = std::env::var_os("APBS_RUST_PROFILE").is_some();
+    let mut profile_times: Vec<(String, f64)> = Vec::new();
     for calc in &nosh.calcs {
+        let t_calc = std::time::Instant::now();
         match calc {
             NOshCalc::Elec(elecalc) => {
                 println!("Running ELEC calc: {}", elecalc.name);
@@ -1915,6 +1931,7 @@ pub(crate) fn run_apbs_in_process_text(input_text: &str, mem_mols: &MemMols) -> 
                             kind: SolverCalcKind::Apolar,
                             per_atom: result.atomsasa,
                         });
+                        profile_times.push((format!("apolar {}", apolarcalc.name), t_calc.elapsed().as_secs_f64()));
                     }
                     Err(e) => {
                         let msg = format!("APOLAR calc '{}' failed: {}", apolarcalc.name, e);
@@ -1937,6 +1954,12 @@ pub(crate) fn run_apbs_in_process_text(input_text: &str, mem_mols: &MemMols) -> 
             .unwrap_or_default()
             .join("\n")
     });
+    if profile {
+        // stderr: the profile lines must not land in the captured run log.
+        for (name, secs) in &profile_times {
+            eprintln!("[PROFILE] {name}: {secs:.3}s");
+        }
+    }
     Ok(run)
 }
 

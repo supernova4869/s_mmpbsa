@@ -8,5 +8,8 @@ description = "APBS PMG multigrid kernels"
 [dependencies]
 thiserror = "2"
 rayon = "1.10"
+wgpu = "25"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
 
 [dev-dependencies]

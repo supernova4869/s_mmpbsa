@@ -13,6 +13,7 @@ mod parameters;
 mod prepare_apbs;
 mod settings;
 mod apbs_runner;
+mod gpu;
 mod atom_property;
 mod coefficients;
 mod utils;
@@ -266,6 +267,10 @@ fn env_check() -> Settings {
         .build_global()
         .unwrap();
     println!("Set global parallel kernels to {}.", settings.nkernels);
+
+    // GPU execution for the PB multigrid solver (falls back to CPU when no
+    // suitable GPU is found).
+    apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
 
     // check necessary dat path
     let cur_path = env::current_exe().unwrap();

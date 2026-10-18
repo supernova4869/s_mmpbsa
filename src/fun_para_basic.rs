@@ -12,6 +12,7 @@ use crate::fun_para_system;
 use crate::parse_tpr::TPR;
 
 fn list_basic_programs(settings: &mut Settings) {
+    println!(" -5 Toggle GPU for MM calculations, current: {}", if settings.use_gpu { "on" } else { "off" });
     println!(" -4 Set number of parallel kernels, current: {}", settings.nkernels);
     println!(" -3 Toggle whether do PBSA calculations, current: {}", settings.calc_pbsa);
     println!(" -2 Toggle whether do MM calculations, current: {}", settings.calc_mm);
@@ -27,14 +28,15 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
             let num_cores = thread::available_parallelism()
                 .map(|n| n.get())
                 .unwrap_or(1);
-            
+
             // 使用一半的核心
             let threads_to_use = (num_cores / 2).max(1);
-            
-            println!("Input number of parallel kernels (default: {}, currently {}):", 
+
+            println!("Input number of parallel kernels (default: {}, currently {}):",
                 threads_to_use, settings.nkernels);
             settings.nkernels = get_input(threads_to_use).max(1);
         }
+        -5 => settings.use_gpu = !settings.use_gpu,
         _ => {}
     }
 }
@@ -48,6 +50,7 @@ pub fn set_para_basic_tpr(mut tpr: TPR, trj_path: &Option<String>,
     if config.is_some() {
         settings.calc_mm = config.as_ref().unwrap().program_set.calc_mm;
         settings.calc_pbsa = config.as_ref().unwrap().program_set.calc_pbsa;
+        settings.use_gpu = config.as_ref().unwrap().program_set.use_gpu;
         let trj = config.as_ref().unwrap().program_set.trj.clone();
         let ndx = config.as_ref().unwrap().program_set.ndx.clone();
         let ndx = if ndx.is_empty() {

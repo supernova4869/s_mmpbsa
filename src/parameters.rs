@@ -206,6 +206,7 @@ impl Config {
         text += &yaml_field(2, "calc_mm", &yaml_scalar(&self.program_set.calc_mm), "calculate the molecular mechanics term");
         text += &yaml_field(2, "calc_pbsa", &yaml_scalar(&self.program_set.calc_pbsa), "calculate the PB/SA term");
         text += &yaml_field(2, "debug", &yaml_scalar(&self.program_set.debug), "keep intermediate PB/SA files");
+        text += &yaml_field(2, "use_gpu", &yaml_scalar(&self.program_set.use_gpu), "run the MM pairwise kernel on the GPU (CPU fallback when unsupported)");
         text += &yaml_field(2, "trj", &yaml_scalar(&self.program_set.trj), "trajectory file (xtc/trr/gro/pdb)");
         text += &yaml_field(2, "tpr", &yaml_scalar(&self.program_set.tpr), "run input file");
         text += &yaml_field(2, "ndx", &yaml_scalar(&self.program_set.ndx), "index file (generated when missing)");
@@ -249,6 +250,10 @@ pub struct ProgramSet {
     pub calc_mm: bool,
     pub calc_pbsa: bool,
     pub debug: bool,
+    /// Run the MM pairwise kernel / PB multigrid solver on the GPU.  Old
+    /// config files predate this switch and default it to on.
+    #[serde(default = "default_use_gpu")]
+    pub use_gpu: bool,
     pub trj: String,
     pub tpr: String,
     pub ndx: String,
@@ -262,12 +267,17 @@ impl ProgramSet {
             calc_mm: true,
             calc_pbsa: true,
             debug: false,
+            use_gpu: true,
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
             ndx: "index.ndx".to_string(),
             ala_scan_range: String::new(),
         }
     }
+}
+
+fn default_use_gpu() -> bool {
+    true
 }
 
 #[derive(Serialize, Deserialize)]
@@ -668,6 +678,25 @@ mod tests {
 
     /// The whole `-c config.yaml` template must deserialize back into the
     /// identical configuration.
+    /// Old config files predate the use_gpu switch; loading them must default
+    /// the switch to on, while an explicit value still wins.
+    #[test]
+    fn use_gpu_is_optional_in_configs() {
+        let legacy = "sys_name: system\n\
+                      calc_mm: true\n\
+                      calc_pbsa: true\n\
+                      debug: false\n\
+                      trj: md.xtc\n\
+                      tpr: md.tpr\n\
+                      ndx: index.ndx\n\
+                      ala_scan_range: \"\"";
+        let back: ProgramSet = serde_yaml::from_str(legacy).unwrap();
+        assert_eq!(back.use_gpu, true);
+        let explicit: ProgramSet =
+            serde_yaml::from_str(format!("{legacy}\nuse_gpu: true").as_str()).unwrap();
+        assert_eq!(explicit.use_gpu, true);
+    }
+
     #[test]
     fn config_save_writes_loadable_template() {
         let mut config = Config::new();

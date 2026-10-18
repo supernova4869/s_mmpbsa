@@ -95,6 +95,7 @@ fn linear_mgdriv(
     }
 
     // Fine-level operator (VbuildA on the finest grid).
+    let t_setup = std::time::Instant::now();
     let mut ac0 = vec![0.0f64; 4 * nf];
     let mut cc0 = vec![0.0f64; nf];
     let mut fc0 = vec![0.0f64; nf];
@@ -104,9 +105,11 @@ fn linear_mgdriv(
         xf, yf, zf, gxcf, gycf, gzcf,
         a1cf, a2cf, a3cf, ccf, fcf,
     );
+    let t_build_a = t_setup.elapsed();
 
     // Build the Galerkin hierarchy (VbuildP trilinear pc + VbuildG +
     // Vrestrc of cc/fc per level, as Vbuildops does for mgcoar = 2).
+    let t_hier = std::time::Instant::now();
     let mut levels: Vec<crate::mgcs::Level> = Vec::with_capacity(nlev);
     levels.push(crate::mgcs::Level {
         nx, ny, nz,
@@ -117,6 +120,10 @@ fn linear_mgdriv(
         pc: None,
         banded: None,
     });
+    let mut hier_build_p = std::time::Duration::ZERO;
+    let mut hier_galerkin = std::time::Duration::ZERO;
+    let mut hier_restrc = std::time::Duration::ZERO;
+    let mut hier_galerkin_gpu = 0usize;
     for lev in 1..nlev {
         let (pnx, pny, pnz) = sizes[lev - 1];
         let (cnx, cny, cnz) = sizes[lev];
@@ -124,23 +131,38 @@ fn linear_mgdriv(
         let ncl = cnx * cny * cnz;
         let prev = &levels[lev - 1];
 
+        let t = std::time::Instant::now();
         let pc = crate::build_p::build_p_trilin_block(cnx, cny, cnz);
+        hier_build_p += t.elapsed();
         let mut ac_c = vec![0.0f64; 14 * ncl];
-        let fine_op = if prev.numdia == 4 {
-            crate::build_g::FineOp::Seven(
-                crate::matvec::split_bands4(&prev.ac, npf).expect("bands4"),
-            )
+        let t = std::time::Instant::now();
+        let galerkin_done = crate::gpu_mg::galerkin_gpu(
+            &prev.ac, prev.numdia as u32, &pc,
+            (pnx, pny, pnz), (cnx, cny, cnz),
+            &mut ac_c,
+        );
+        hier_galerkin += t.elapsed();
+        if galerkin_done {
+            hier_galerkin_gpu += 1;
         } else {
-            crate::build_g::FineOp::TwentySeven(
-                crate::matvec::split_bands14(&prev.ac, npf).expect("bands14"),
-            )
-        };
-        crate::build_g::build_galerkin(pnx, pny, pnz, cnx, cny, cnz, &pc, fine_op, &mut ac_c);
+            let fine_op = if prev.numdia == 4 {
+                crate::build_g::FineOp::Seven(
+                    crate::matvec::split_bands4(&prev.ac, npf).expect("bands4"),
+                )
+            } else {
+                crate::build_g::FineOp::TwentySeven(
+                    crate::matvec::split_bands14(&prev.ac, npf).expect("bands14"),
+                )
+            };
+            crate::build_g::build_galerkin(pnx, pny, pnz, cnx, cny, cnz, &pc, fine_op, &mut ac_c);
+        }
 
+        let t = std::time::Instant::now();
         let mut cc_c = vec![0.0f64; ncl];
         let mut fc_c = vec![0.0f64; ncl];
         crate::matvec::restrc(pnx, pny, pnz, cnx, cny, cnz, &prev.cc, &mut cc_c, &pc);
         crate::matvec::restrc(pnx, pny, pnz, cnx, cny, cnz, &prev.fc, &mut fc_c, &pc);
+        hier_restrc += t.elapsed();
 
         levels[lev - 1].pc = Some(pc);
         levels.push(crate::mgcs::Level {
@@ -154,6 +176,7 @@ fn linear_mgdriv(
         });
     }
 
+    let t_hierarchy = t_hier.elapsed();
     // Factor the coarsest-level interior system (Vbuildband + Vdpbfa).
     // If the factorization fails, fall back to the iterative coarsest
     // solver exactly as Vbuildops does.
@@ -170,16 +193,39 @@ fn linear_mgdriv(
         }
     }
 
+    let t_band = t_hier.elapsed() - t_hierarchy;
+    let t_solve = std::time::Instant::now();
     let epsiln = 2.2204460492503131e-16; // Vnm_epsmac
-    let iters = crate::mgcs::mvcs(
+    // GPU path when requested (mgsolv == 1 direct coarsest solve, >1 level);
+    // mvcs_gpu leaves u untouched and returns None on any fallback condition.
+    let iters = match crate::gpu_mg::mvcs_gpu(
         u, &levels,
         nu1, nu2,
         itmax, errtol,
-        mgsolv_eff, epsiln,
-    );
+        mgsolv_eff,
+    ) {
+        Some(iters) => iters,
+        None => crate::mgcs::mvcs(
+            u, &levels,
+            nu1, nu2,
+            itmax, errtol,
+            mgsolv_eff, epsiln,
+        ),
+    };
 
     if debug_enabled() {
-        eprintln!("[DEBUG-MGDRV] linear mvcs iters={}", iters);
+        eprintln!(
+            "[DEBUG-MGDRV] build_a {:.3}s, hierarchy {:.3}s (build_p {:.3}s, galerkin {:.3}s via {} gpu levels, restrc {:.3}s), band {:.3}s, solve {:.3}s ({} iters)",
+            t_build_a.as_secs_f64(),
+            t_hierarchy.as_secs_f64(),
+            hier_build_p.as_secs_f64(),
+            hier_galerkin.as_secs_f64(),
+            hier_galerkin_gpu,
+            hier_restrc.as_secs_f64(),
+            t_band.as_secs_f64(),
+            t_solve.elapsed().as_secs_f64(),
+            iters
+        );
     }
 }
 

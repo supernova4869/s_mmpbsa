@@ -13,6 +13,7 @@ pub mod build_b;
 pub mod lapack;
 pub mod build_str;
 pub mod mgcs;
+pub mod gpu_mg;
 pub mod mgfas;
 pub mod mgdriv;
 pub mod power;

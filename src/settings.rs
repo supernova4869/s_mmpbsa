@@ -24,6 +24,9 @@ pub struct Settings {
     /// Stop with a non-zero exit code when a PB/SA frame fails instead of
     /// counting it as zero and continuing.
     pub exit_on_error: bool,
+    /// Run the MM pairwise kernel on the GPU.  Falls back to the CPU path
+    /// when no suitable GPU (64-bit float shader support) is found.
+    pub use_gpu: bool,
     pub last_opened: String,
 }
 
@@ -46,6 +49,7 @@ impl Settings {
             nkernels: 1,
             debug_mode: false,
             exit_on_error: false,
+            use_gpu: false,
             last_opened: String::new(),
         }
     }
@@ -88,6 +92,8 @@ impl Settings {
         let debug_mode = get_settings_bool(&debug_mode);
         let exit_on_error = parse_param(&setting_values, "exit_on_error", "\"n\"".to_string());
         let exit_on_error = get_settings_bool(&exit_on_error);
+        let use_gpu = parse_param(&setting_values, "use_gpu", "\"n\"".to_string());
+        let use_gpu = get_settings_bool(&use_gpu);
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
 
@@ -108,6 +114,7 @@ impl Settings {
             nkernels,
             debug_mode,
             exit_on_error,
+            use_gpu,
             last_opened,
         }
     }
@@ -213,6 +220,20 @@ mod tests {
         fs::remove_file(&path).ok();
         assert!(settings.debug_mode);
         assert!(settings.exit_on_error);
+    }
+
+    #[test]
+    fn use_gpu_defaults_to_cpu_and_can_be_enabled() {
+        let path = std::env::temp_dir().join("s_mmpbsa_settings_use_gpu.ini");
+        fs::write(&path, "mm = \"y\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(!settings.use_gpu, "use_gpu must default to CPU");
+
+        fs::write(&path, "use_gpu = \"y\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(settings.use_gpu);
     }
 
     #[test]

@@ -216,6 +216,14 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     let t_start = Local::now();
 
     println!("Start MM-PBSA calculation...");
+
+    // Bring both GPU contexts up before the progress bar starts, so the
+    // "GPU enabled" lines do not appear mid-progress on the first frame.
+    if settings.use_gpu {
+        crate::gpu::mm_context();
+        apbs_pmgc::gpu_mg::warm_up();
+    }
+
     let pgb = ProgressBar::new(time_list.len() as u64);
     set_style(&pgb);
     pgb.inc(0);
@@ -224,13 +232,17 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     // Frames whose PB/SA solve failed; they count as zero, which would
     // silently distort the average binding energy if nobody was told.
     let mut failed_pb_frames: Vec<f64> = Vec::new();
+    let mut mm_phase = std::time::Duration::ZERO;
+    let mut pb_phase = std::time::Duration::ZERO;
     for cur_frm in 0..time_list.len() {
         // MM
         if settings.calc_mm {
             let coord = coordinates.slice(s![cur_frm, .., ..]);
             if let Some(ndx_lig) = ndx_lig {
+                let t_mm = std::time::Instant::now();
                 let (de_elec, de_vdw) =
                     calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallel);
+                mm_phase += t_mm.elapsed();
                 elec_atom.row_mut(cur_frm).assign(&de_elec);
                 vdw_atom.row_mut(cur_frm).assign(&de_vdw);
             }
@@ -239,6 +251,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         // PBSA
         if settings.calc_pbsa {
             let coord = coordinates.slice(s![cur_frm, .., ..]);
+            let t_pb = std::time::Instant::now();
             match calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir,
                             aps, pbe_set, pba_set, settings) {
                 Some((de_pb, de_sa)) => {
@@ -247,6 +260,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 }
                 None => failed_pb_frames.push(times[cur_frm]),
             }
+            pb_phase += t_pb.elapsed();
         }
 
         pgb.inc(1);
@@ -257,6 +271,11 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                                         pgb.eta().as_secs()));
     }
     pgb.finish();
+    println!(
+        "Phase time breakdown: MM {:.2} s, PB/SA {:.2} s.",
+        mm_phase.as_secs_f64(),
+        pb_phase.as_secs_f64()
+    );
 
     if !failed_pb_frames.is_empty() {
         report_failed_pb_frames(&failed_pb_frames, time_list.len());
@@ -334,27 +353,65 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     )
 }
 
-fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>, 
+fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
             coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
-    let mut de_elec: Array1<f64> = Array1::zeros(n_atoms);
-    let mut de_vdw: Array1<f64> = Array1::zeros(n_atoms);
-    
+
     // 预计算常量
     let r_cutoff_sq = settings.r_cutoff.powi(2);
-    let a2nm = 1.0 / 10.0;
-    
+
     // 预提取数据
     let rec_props: Vec<_> = ndx_rec.iter().map(|&i| {
-        (i, aps.atom_props[i].charge, aps.atom_props[i].type_id, 
+        (i, aps.atom_props[i].charge, aps.atom_props[i].type_id,
         coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
     }).collect();
-    
+
     let lig_props: Vec<_> = ndx_lig.iter().map(|&j| {
-        (j, aps.atom_props[j].charge, aps.atom_props[j].type_id, 
+        (j, aps.atom_props[j].charge, aps.atom_props[j].type_id,
         coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
     }).collect();
-    
+
+    // GPU path when requested; a missing/unsupported GPU (or a failed launch)
+    // falls back to the CPU implementation below.
+    let ctx = crate::gpu::mm_context();
+    let (mut de_elec, mut de_vdw) = if settings.use_gpu {
+        if ctx.is_some() {
+            match crate::gpu::calc_mm_gpu(ctx.unwrap(), n_atoms, &rec_props, &lig_props,
+                    &aps.c6, &aps.c12, r_cutoff_sq, settings.elec_screen, coeff.lambda_d) {
+                Ok(result) => result,
+                Err(e) => {
+                    println!("GPU MM calculation failed ({}); recalculating on CPU.", e);
+                    calc_mm_cpu(n_atoms, &rec_props, &lig_props, aps, coeff, settings, r_cutoff_sq, use_parallel)
+                }
+            }
+        } else {
+            calc_mm_cpu(n_atoms, &rec_props, &lig_props, aps, coeff, settings, r_cutoff_sq, use_parallel)
+        }
+    } else {
+        calc_mm_cpu(n_atoms, &rec_props, &lig_props, aps, coeff, settings, r_cutoff_sq, use_parallel)
+    };
+
+    // 应用缩放因子
+    let elec_scale = coeff.f / coeff.pdie / 2.0;
+    let vdw_scale = 0.5;
+
+    de_elec = de_elec * elec_scale;
+    de_vdw = de_vdw * vdw_scale;
+
+    (de_elec, de_vdw)
+}
+
+/// The CPU implementation of the MM pairwise sums, returning the unscaled
+/// per-atom electrostatic and van-der-Waals terms.
+fn calc_mm_cpu(n_atoms: usize,
+               rec_props: &[(usize, f64, usize, f64, f64, f64)],
+               lig_props: &[(usize, f64, usize, f64, f64, f64)],
+               aps: &AtomProperties, coeff: &Coefficients, settings: &Settings,
+               r_cutoff_sq: f64, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
+    let mut de_elec: Array1<f64> = Array1::zeros(n_atoms);
+    let mut de_vdw: Array1<f64> = Array1::zeros(n_atoms);
+    let a2nm = 1.0 / 10.0;
+
     if use_parallel {
         // 并行版本
         let (par_elec, par_vdw): (Vec<f64>, Vec<f64>) = rec_props.par_iter()
@@ -362,7 +419,7 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
                 let mut local_elec = vec![0.0; n_atoms];
                 let mut local_vdw = vec![0.0; n_atoms];
                 
-                for &(j, qj, cj, xj, yj, zj) in &lig_props {
+                for &(j, qj, cj, xj, yj, zj) in lig_props {
                     let dx = xi - xj;
                     let dy = yi - yj;
                     let dz = zi - zj;
@@ -398,8 +455,8 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
         de_vdw = Array1::from_vec(par_vdw);
     } else {
         // 串行版本
-        for &(i, qi, ci, xi, yi, zi) in &rec_props {
-            for &(j, qj, cj, xj, yj, zj) in &lig_props {
+        for &(i, qi, ci, xi, yi, zi) in rec_props {
+            for &(j, qj, cj, xj, yj, zj) in lig_props {
                 let dx = xi - xj;
                 let dy = yi - yj;
                 let dz = zi - zj;
@@ -422,13 +479,7 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
         }
     }
     
-    // 应用缩放因子
-    let elec_scale = coeff.f / coeff.pdie / 2.0;
-    let vdw_scale = 0.5;
-    
-    de_elec = de_elec * elec_scale;
-    de_vdw = de_vdw * vdw_scale;
-    
+    // Scaling to physical units happens in the caller for both paths.
     (de_elec, de_vdw)
 }
 

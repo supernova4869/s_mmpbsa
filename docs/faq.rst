@@ -113,7 +113,7 @@ A: Currently, s_mmpbsa's alanine scanning function automatically scans all resid
 
 Q: Does s_mmpbsa support GPU acceleration?
 
-A: Currently, s_mmpbsa does not support GPU acceleration. This feature will be added in future versions.
+A: Yes. Setting `use_gpu = "y"` in settings.ini (or `use_gpu: true` under `program_set` in the config.yaml passed with `-c`) runs the MM pairwise kernel and the linear PB multigrid solver on the GPU. A GPU with 64-bit float shader support is required; when no suitable GPU is found (or a solve fails), s_mmpbsa automatically falls back to the CPU. The nonlinear PB solver (npbe) and the apolar surface-area calculation always run on the CPU.
 
 Result Analysis Issues
 -----------

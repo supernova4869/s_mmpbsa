@@ -112,7 +112,7 @@ A: 目前，s_mmpbsa的丙氨酸扫描功能会自动扫描受体组中的所有
 
 Q: s_mmpbsa是否支持GPU加速？
 
-A: 目前，s_mmpbsa还不支持GPU加速。将会在未来的版本中加入此项功能。
+A: 支持。在settings.ini中设置 `use_gpu = "y"`（或在使用 `-c` 指定的config.yaml的 `program_set` 中设置 `use_gpu: true`），即可将MM逐对计算和线性PB多重网格求解器放到GPU上运行。要求GPU支持64位浮点着色器；若未找到合适的GPU（或求解失败），s_mmpbsa会自动回退到CPU。非线性PB求解器（npbe）和极性表面积计算始终在CPU上运行。
 
 结果分析问题
 -----------

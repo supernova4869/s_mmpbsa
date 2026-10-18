@@ -365,6 +365,65 @@ impl Vpmg {
     }
 
     /// Mark all grid points within a sphere of radius rtot with markVal
+    /// Mark the union of spheres into `array`, parallel over disjoint k-slabs
+    /// (rayon chunks of the k-major layout, so threads never share points).
+    /// `spheres` holds (x, y, z, rtot) in absolute coordinates; the array
+    /// origin (xmin, ymin, zmin) differs per staggered grid.
+    fn mark_spheres_par(
+        spheres: &[(f64, f64, f64, f64)],
+        nx: usize, ny: usize, nz: usize,
+        hx: f64, hy: f64, hz: f64,
+        xmin: f64, ymin: f64, zmin: f64,
+        array: &mut [f64],
+        mark_val: f64,
+    ) {
+        use rayon::prelude::*;
+
+        let threads = rayon::current_num_threads().max(1);
+        let kchunk = ((nz + threads - 1) / threads).max(1);
+        array
+            .par_chunks_mut(nx * ny * kchunk)
+            .enumerate()
+            .for_each(|(ci, chunk)| {
+                let k0 = ci * kchunk;
+                let k1 = (k0 + kchunk).min(nz);
+                for &(px, py, pz, rtot) in spheres {
+                    let posx = px - xmin;
+                    let posy = py - ymin;
+                    let posz = pz - zmin;
+                    let rtot2 = rtot * rtot;
+                    let xr = rtot + 0.5 * hx;
+                    let yr = rtot + 0.5 * hy;
+                    let zr = rtot + 0.5 * hz;
+                    let imin = 0.max(((posx - xr) / hx).ceil() as i32) as usize;
+                    let jmin = 0.max(((posy - yr) / hy).ceil() as i32) as usize;
+                    let kmin = k0.max(0.max(((posz - zr) / hz).ceil() as i32) as usize);
+                    let imax = (nx - 1).min(((posx + xr) / hx).floor() as usize);
+                    let jmax = (ny - 1).min(((posy + yr) / hy).floor() as usize);
+                    let kmax = (k1 - 1).min((nz - 1).min(((posz + zr) / hz).floor() as usize));
+                    if imin > imax || jmin > jmax || kmin > kmax {
+                        continue;
+                    }
+                    for i in imin..=imax {
+                        let dx2 = (posx - hx * i as f64).powi(2);
+                        for j in jmin..=jmax {
+                            let dy2 = (posy - hy * j as f64).powi(2);
+                            if dx2 + dy2 > rtot2 {
+                                continue;
+                            }
+                            for k in kmin..=kmax {
+                                let dz2 = (posz - hz * k as f64).powi(2);
+                                if dx2 + dy2 + dz2 <= rtot2 {
+                                    chunk[i + j * nx + (k - k0) * nx * ny] = mark_val;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+    }
+
+    #[allow(dead_code)]
     fn mark_sphere(
         rtot: f64,
         tpos: [f64; 3],
@@ -436,14 +495,29 @@ impl Vpmg {
         }
 
         // Fill dielectric coefficients
+        let t_coef = std::time::Instant::now();
         self.fillco_coef()?;
+        let t_coef_done = t_coef.elapsed();
 
         // Fill charge array
+        let t_charge = std::time::Instant::now();
         self.fillco_charge()?;
+        let t_charge_done = t_charge.elapsed();
 
         // Compute boundary conditions (skip for focusing)
+        let t_bc = std::time::Instant::now();
         if self.pmgp.bcfl != Vbcfl::Focus && self.pmgp.bcfl != Vbcfl::Map {
             self.bc_calc()?;
+        }
+        let t_bc_done = t_bc.elapsed();
+
+        if std::env::var_os("APBS_RUST_PROFILE").is_some() {
+            eprintln!(
+                "[PROFILE-FILLCO] coef {:.3}s charge {:.3}s bc {:.3}s",
+                t_coef_done.as_secs_f64(),
+                t_charge_done.as_secs_f64(),
+                t_bc_done.as_secs_f64()
+            );
         }
 
         self.filled = true;
@@ -452,6 +526,7 @@ impl Vpmg {
 
     /// Fill dielectric and ion accessibility coefficients
     fn fillco_coef(&mut self) -> ApbsResult<()> {
+        let t_coef_total = std::time::Instant::now();
         let nx = self.pmgp.nx as usize;
         let ny = self.pmgp.ny as usize;
         let nz = self.pmgp.nz as usize;
@@ -468,6 +543,8 @@ impl Vpmg {
 
         let num_atoms = self.pbe.alist.number_atoms();
 
+        let mut t_atom_mark: Option<std::time::Duration> = None;
+        let mut t_sas_mark: Option<std::time::Duration> = None;
         if self.use_diel_x_map || self.use_diel_y_map || self.use_diel_z_map || self.use_kappa_map {
             // External map mode
             self.fillco_coef_map()?;
@@ -481,80 +558,102 @@ impl Vpmg {
             }
 
             // Step 2: For each atom with non-zero radius, mark its
-            // solvent-inflated VdW sphere as solute dielectric
-            for iatom in 0..num_atoms {
-                let atom = self.pbe.alist.get_atom(iatom);
-                let apos = atom.position;
-                let arad = atom.radius;
+            // solvent-inflated VdW sphere as solute dielectric (all marks
+            // write the same value, so the phase is a union -> slab-parallel).
+            let t_atoms = std::time::Instant::now();
+            let atom_spheres: Vec<(f64, f64, f64, f64)> = (0..num_atoms)
+                .filter_map(|iatom| {
+                    let atom = self.pbe.alist.get_atom(iatom);
+                    (atom.radius > VSMALL)
+                        .then(|| (atom.position[0], atom.position[1], atom.position[2], atom.radius + srad))
+                })
+                .collect();
+            Self::mark_spheres_par(
+                &atom_spheres, nx, ny, nz, hx, hy, hzed,
+                self.pmgp.xmin + 0.5 * hx, self.pmgp.ymin, self.pmgp.zmin,
+                &mut self.epsx, eps_solute,
+            );
+            Self::mark_spheres_par(
+                &atom_spheres, nx, ny, nz, hx, hy, hzed,
+                self.pmgp.xmin, self.pmgp.ymin + 0.5 * hy, self.pmgp.zmin,
+                &mut self.epsy, eps_solute,
+            );
+            Self::mark_spheres_par(
+                &atom_spheres, nx, ny, nz, hx, hy, hzed,
+                self.pmgp.xmin, self.pmgp.ymin, self.pmgp.zmin + 0.5 * hzed,
+                &mut self.epsz, eps_solute,
+            );
 
-                if arad > VSMALL {
-                    // Mark x-shifted dielectric (staggered grid)
-                    Self::mark_sphere(
-                        arad + srad, apos,
-                        nx, ny, nz, hx, hy, hzed,
-                        self.pmgp.xmin + 0.5 * hx, self.pmgp.ymin, self.pmgp.zmin,
-                        &mut self.epsx, eps_solute,
-                    );
-                    // Mark y-shifted dielectric
-                    Self::mark_sphere(
-                        arad + srad, apos,
-                        nx, ny, nz, hx, hy, hzed,
-                        self.pmgp.xmin, self.pmgp.ymin + 0.5 * hy, self.pmgp.zmin,
-                        &mut self.epsy, eps_solute,
-                    );
-                    // Mark z-shifted dielectric
-                    Self::mark_sphere(
-                        arad + srad, apos,
-                        nx, ny, nz, hx, hy, hzed,
-                        self.pmgp.xmin, self.pmgp.ymin, self.pmgp.zmin + 0.5 * hzed,
-                        &mut self.epsz, eps_solute,
-                    );
-                }
-            }
-
+            t_atom_mark = Some(t_atoms.elapsed());
+            let t_sas = std::time::Instant::now();
             // Step 3: SAS surface re-marking
             // For each SAS point, reset the dielectric back to solvent
+            let mut t_sasa_call = std::time::Duration::ZERO;
+            let mut t_sas_collect = std::time::Duration::ZERO;
+            let mut t_sas_mark_t = std::time::Duration::ZERO;
             if srad > VSMALL {
+                let t0 = std::time::Instant::now();
                 let _ = self.pbe.acc.lock().unwrap().sasa(srad);
-                let mut sas_points: Vec<[f64; 3]> = Vec::new();
+                t_sasa_call = t0.elapsed();
+                // Build the sphere list directly (position + probe radius),
+                // reserving capacity for the accessible points only.
+                let total_sas_pts = self
+                    .pbe
+                    .acc
+                    .lock()
+                    .unwrap()
+                    .surf
+                    .iter()
+                    .flatten()
+                    .map(|s| s.npts)
+                    .sum::<usize>();
+                let mut sas_spheres: Vec<(f64, f64, f64, f64)> =
+                    Vec::with_capacity(total_sas_pts);
                 {
                     let acc = self.pbe.acc.lock().unwrap();
-                    for iatom in 0..num_atoms {
-                        if let Some(surf) = acc.surf[iatom].as_ref() {
-                            for ipt in 0..surf.npts {
-                                if surf.bpts[ipt] {
-                                    sas_points.push([
-                                        surf.xpts[ipt],
-                                        surf.ypts[ipt],
-                                        surf.zpts[ipt],
-                                    ]);
-                                }
+                    for surf in acc.surf.iter().flatten() {
+                        for ipt in 0..surf.npts {
+                            if surf.bpts[ipt] {
+                                sas_spheres.push((
+                                    surf.xpts[ipt],
+                                    surf.ypts[ipt],
+                                    surf.zpts[ipt],
+                                    srad,
+                                ));
                             }
                         }
                     }
                 }
-                for position in sas_points {
-                    Self::mark_sphere(
-                        srad, position,
-                        nx, ny, nz, hx, hy, hzed,
-                        self.pmgp.xmin + 0.5 * hx, self.pmgp.ymin, self.pmgp.zmin,
-                        &mut self.epsx, eps_solvent,
-                    );
-                    Self::mark_sphere(
-                        srad, position,
-                        nx, ny, nz, hx, hy, hzed,
-                        self.pmgp.xmin, self.pmgp.ymin + 0.5 * hy, self.pmgp.zmin,
-                        &mut self.epsy, eps_solvent,
-                    );
-                    Self::mark_sphere(
-                        srad, position,
-                        nx, ny, nz, hx, hy, hzed,
-                        self.pmgp.xmin, self.pmgp.ymin, self.pmgp.zmin + 0.5 * hzed,
-                        &mut self.epsz, eps_solvent,
-                    );
-                }
+                t_sas_collect = t0.elapsed();
+                let t1 = std::time::Instant::now();
+                Self::mark_spheres_par(
+                    &sas_spheres, nx, ny, nz, hx, hy, hzed,
+                    self.pmgp.xmin + 0.5 * hx, self.pmgp.ymin, self.pmgp.zmin,
+                    &mut self.epsx, eps_solvent,
+                );
+                Self::mark_spheres_par(
+                    &sas_spheres, nx, ny, nz, hx, hy, hzed,
+                    self.pmgp.xmin, self.pmgp.ymin + 0.5 * hy, self.pmgp.zmin,
+                    &mut self.epsy, eps_solvent,
+                );
+                Self::mark_spheres_par(
+                    &sas_spheres, nx, ny, nz, hx, hy, hzed,
+                    self.pmgp.xmin, self.pmgp.ymin, self.pmgp.zmin + 0.5 * hzed,
+                    &mut self.epsz, eps_solvent,
+                );
+                t_sas_mark_t = t1.elapsed();
             }
 
+            let _ = t_sas;
+            t_sas_mark = Some(t_sasa_call + t_sas_collect + t_sas_mark_t);
+            if std::env::var_os("APBS_RUST_PROFILE").is_some() {
+                eprintln!(
+                    "[PROFILE-SAS] sasa {:.3}s collect {:.3}s mark {:.3}s",
+                    t_sasa_call.as_secs_f64(),
+                    t_sas_collect.as_secs_f64(),
+                    t_sas_mark_t.as_secs_f64()
+                );
+            }
             // Step 4: Smooth dielectric (Bruccoleri 9-point harmonic mean)
             if self.surf_meth == VsurfMeth::MolSmooth {
                 self.fillco_coef_smooth()?;
@@ -575,25 +674,41 @@ impl Vpmg {
 
         // Mark ion-inaccessible regions (inside inflated VdW spheres)
         if ionstr > VPMGSMALL {
-            for iatom in 0..num_atoms {
-                let atom = self.pbe.alist.get_atom(iatom);
-                let apos = atom.position;
-                let arad = atom.radius;
-
-                if arad > VSMALL {
-                    Self::mark_sphere(
-                        irad + arad, apos,
-                        nx, ny, nz, hx, hy, hzed,
-                        self.pmgp.xmin, self.pmgp.ymin, self.pmgp.zmin,
-                        &mut self.kappa, 0.0,
-                    );
-                }
-            }
+            let kappa_spheres: Vec<(f64, f64, f64, f64)> = (0..num_atoms)
+                .filter_map(|iatom| {
+                    let atom = self.pbe.alist.get_atom(iatom);
+                    (atom.radius > VSMALL)
+                        .then(|| (atom.position[0], atom.position[1], atom.position[2], irad + atom.radius))
+                })
+                .collect();
+            Self::mark_spheres_par(
+                &kappa_spheres, nx, ny, nz, hx, hy, hzed,
+                self.pmgp.xmin, self.pmgp.ymin, self.pmgp.zmin,
+                &mut self.kappa, 0.0,
+            );
         }
 
         // Fill Helmholtz term AFTER kappa is marked (ccf = zkappa2 * kappa)
         for i in 0..nf {
             self.ccf[i] = self.pbe.zkappa2 * self.kappa[i];
+        }
+
+        if std::env::var_os("APBS_RUST_PROFILE").is_some() {
+            let n_sas = if srad > VSMALL {
+                self.pbe.acc.lock().unwrap().surf.iter().flatten().map(|s| s.npts).sum::<usize>()
+            } else {
+                0
+            };
+            eprintln!(
+                "[PROFILE-COEF] atoms {} saspts {} atom-mark {:.3}s sasa+mark {:.3}s kappa-rest {:.3}s",
+                num_atoms,
+                n_sas,
+                t_atom_mark.map_or(0.0, |d| d.as_secs_f64()),
+                t_sas_mark.map_or(0.0, |d| d.as_secs_f64()),
+                t_coef_total.elapsed().as_secs_f64()
+                    - t_atom_mark.map_or(0.0, |d| d.as_secs_f64())
+                    - t_sas_mark.map_or(0.0, |d| d.as_secs_f64())
+            );
         }
 
         Ok(())
@@ -1263,8 +1378,15 @@ impl Vpmg {
     }
 
     /// Multi-ion Debye-Huckel boundary conditions (MDH)
-    /// Per-atom Debye-Huckel potential at each boundary grid point
+    /// Per-atom Debye-Huckel potential at each boundary grid point.
+    ///
+    /// Point-major formulation: each boundary point sums the DH potentials of
+    /// all atoms directly (no per-atom face arrays), and each face is
+    /// evaluated in parallel over its points.  The per-point atom summation
+    /// order (0..num_atoms) is deterministic.
     fn bcfl_mdh(&mut self) -> ApbsResult<()> {
+        use rayon::prelude::*;
+
         let nx = self.pmgp.nx as usize;
         let ny = self.pmgp.ny as usize;
         let nz = self.pmgp.nz as usize;
@@ -1274,102 +1396,108 @@ impl Vpmg {
 
         let pre1 = EC / (4.0 * PI * EPS0 * eps_w * KB * _t) * 1.0e10;
         let num_atoms = self.pbe.alist.number_atoms();
-        let xlen = 2 * ny * nz;
-        let ylen = 2 * nx * nz;
-        let zlen = 2 * nx * ny;
 
-        let partials: Vec<(Vec<f64>, Vec<f64>, Vec<f64>)> = (0..num_atoms).into_par_iter().map(|iatom| {
-            let atom = self.pbe.alist.get_atom(iatom);
-            let apos = atom.position;
-            let charge = EC * atom.charge;
-            let size = atom.radius;
-            let mut gx = vec![0.0; xlen];
-            let mut gy = vec![0.0; ylen];
-            let mut gz = vec![0.0; zlen];
-
-            for k in 0..nz {
-                for j in 0..ny {
-                    let gpos = [self.xf[0], self.yf[j], self.zf[k]];
-                    let dist = ((gpos[0]-apos[0]).powi(2) + (gpos[1]-apos[1]).powi(2) + (gpos[2]-apos[2]).powi(2)).sqrt();
-                    let val = if xkappa > VSMALL {
-                        pre1 * (charge / dist) * (-xkappa * (dist - size)).exp() / (1.0 + xkappa * size)
-                    } else {
-                        pre1 * (charge / dist)
-                    };
-                    gx[ijkx(j, k, 0, ny, nz)] += val;
-
-                    let gpos = [self.xf[nx-1], self.yf[j], self.zf[k]];
-                    let dist = ((gpos[0]-apos[0]).powi(2) + (gpos[1]-apos[1]).powi(2) + (gpos[2]-apos[2]).powi(2)).sqrt();
-                    let val = if xkappa > VSMALL {
-                        pre1 * (charge / dist) * (-xkappa * (dist - size)).exp() / (1.0 + xkappa * size)
-                    } else {
-                        pre1 * (charge / dist)
-                    };
-                    gx[ijkx(j, k, 1, ny, nz)] += val;
-                }
-            }
-
-            for k in 0..nz {
-                for i in 0..nx {
-                    let gpos = [self.xf[i], self.yf[0], self.zf[k]];
-                    let dist = ((gpos[0]-apos[0]).powi(2) + (gpos[1]-apos[1]).powi(2) + (gpos[2]-apos[2]).powi(2)).sqrt();
-                    let val = if xkappa > VSMALL {
-                        pre1 * (charge / dist) * (-xkappa * (dist - size)).exp() / (1.0 + xkappa * size)
-                    } else {
-                        pre1 * (charge / dist)
-                    };
-                    gy[ijky(i, k, 0, nx, nz)] += val;
-
-                    let gpos = [self.xf[i], self.yf[ny-1], self.zf[k]];
-                    let dist = ((gpos[0]-apos[0]).powi(2) + (gpos[1]-apos[1]).powi(2) + (gpos[2]-apos[2]).powi(2)).sqrt();
-                    let val = if xkappa > VSMALL {
-                        pre1 * (charge / dist) * (-xkappa * (dist - size)).exp() / (1.0 + xkappa * size)
-                    } else {
-                        pre1 * (charge / dist)
-                    };
-                    gy[ijky(i, k, 1, nx, nz)] += val;
-                }
-            }
-
-            for j in 0..ny {
-                for i in 0..nx {
-                    let gpos = [self.xf[i], self.yf[j], self.zf[0]];
-                    let dist = ((gpos[0]-apos[0]).powi(2) + (gpos[1]-apos[1]).powi(2) + (gpos[2]-apos[2]).powi(2)).sqrt();
-                    let val = if xkappa > VSMALL {
-                        pre1 * (charge / dist) * (-xkappa * (dist - size)).exp() / (1.0 + xkappa * size)
-                    } else {
-                        pre1 * (charge / dist)
-                    };
-                    gz[ijkz(i, j, 0, nx, ny)] += val;
-
-                    let gpos = [self.xf[i], self.yf[j], self.zf[nz-1]];
-                    let dist = ((gpos[0]-apos[0]).powi(2) + (gpos[1]-apos[1]).powi(2) + (gpos[2]-apos[2]).powi(2)).sqrt();
-                    let val = if xkappa > VSMALL {
-                        pre1 * (charge / dist) * (-xkappa * (dist - size)).exp() / (1.0 + xkappa * size)
-                    } else {
-                        pre1 * (charge / dist)
-                    };
-                    gz[ijkz(i, j, 1, nx, ny)] += val;
-                }
-            }
-
-            (gx, gy, gz)
-        }).collect();
-
-        for (gx, gy, gz) in partials {
-            for (dst, src) in self.gxcf.iter_mut().zip(gx.iter()) {
-                *dst += *src;
-            }
-            for (dst, src) in self.gycf.iter_mut().zip(gy.iter()) {
-                *dst += *src;
-            }
-            for (dst, src) in self.gzcf.iter_mut().zip(gz.iter()) {
-                *dst += *src;
+        // GPU path (use_gpu on): the atom table is tiny and the face points
+        // are computed in-shader, so only scalars cross the bus.  Falls back
+        // to the CPU rayon path whenever the GPU is unavailable.
+        if apbs_pmgc::gpu_mg::gpu_requested() {
+            let atoms: Vec<[f64; 5]> = (0..num_atoms)
+                .map(|iatom| {
+                    let atom = self.pbe.alist.get_atom(iatom);
+                    [
+                        atom.position[0],
+                        atom.position[1],
+                        atom.position[2],
+                        EC * atom.charge,
+                        atom.radius,
+                    ]
+                })
+                .collect();
+            if let Some((gx, gy, gz)) = apbs_pmgc::gpu_mg::dh_boundary_gpu(
+                &atoms, &self.xf, &self.yf, &self.zf, xkappa, pre1,
+            ) {
+                // The arrays are allocated with headroom (4 * n per face pair
+                // axis) but the BC formulas only fill the first 2 * n entries;
+                // bc_calc pre-zeroed the rest.
+                self.gxcf[..gx.len()].copy_from_slice(&gx);
+                self.gycf[..gy.len()].copy_from_slice(&gy);
+                self.gzcf[..gz.len()].copy_from_slice(&gz);
+                return Ok(());
             }
         }
 
+        // Snapshot atom data so the per-point closures borrow nothing from self.
+        let atoms: Vec<([f64; 3], f64, f64)> = (0..num_atoms)
+            .map(|iatom| {
+                let atom = self.pbe.alist.get_atom(iatom);
+                (atom.position, EC * atom.charge, atom.radius)
+            })
+            .collect();
+        let xf = self.xf.clone();
+        let yf = self.yf.clone();
+        let zf = self.zf.clone();
+
+        let sum_dh = |gpos: [f64; 3]| -> f64 {
+            let mut acc = 0.0;
+            for &(apos, charge, size) in &atoms {
+                let dist = ((gpos[0] - apos[0]).powi(2)
+                    + (gpos[1] - apos[1]).powi(2)
+                    + (gpos[2] - apos[2]).powi(2))
+                .sqrt();
+                acc += if xkappa > VSMALL {
+                    pre1 * (charge / dist) * (-xkappa * (dist - size)).exp() / (1.0 + xkappa * size)
+                } else {
+                    pre1 * (charge / dist)
+                };
+            }
+            acc
+        };
+
+        // gxcf layout: face * ny * nz + k * ny + j.
+        let ny_nz = ny * nz;
+        self.gxcf
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(m, out)| {
+                let face = m / ny_nz;
+                let r = m % ny_nz;
+                let k = r / ny;
+                let j = r % ny;
+                let x = if face == 0 { xf[0] } else { xf[nx - 1] };
+                *out = sum_dh([x, yf[j], zf[k]]);
+            });
+
+        // gycf layout: face * nx * nz + k * nx + i.
+        let nx_nz = nx * nz;
+        self.gycf
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(m, out)| {
+                let face = m / nx_nz;
+                let r = m % nx_nz;
+                let k = r / nx;
+                let i2 = r % nx;
+                let y = if face == 0 { yf[0] } else { yf[ny - 1] };
+                *out = sum_dh([xf[i2], y, zf[k]]);
+            });
+
+        // gzcf layout: face * nx * ny + j * nx + i.
+        let nx_ny = nx * ny;
+        self.gzcf
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(m, out)| {
+                let face = m / nx_ny;
+                let r = m % nx_ny;
+                let j = r / nx;
+                let i2 = r % nx;
+                let z = if face == 0 { zf[0] } else { zf[nz - 1] };
+                *out = sum_dh([xf[i2], yf[j], z]);
+            });
+
         Ok(())
     }
+
 
     /// Membrane boundary conditions
     fn bcfl_mem(&mut self) -> ApbsResult<()> {
