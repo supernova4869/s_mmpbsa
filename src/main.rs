@@ -70,7 +70,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/09/27";
+    let compile_date = "2026/10/17";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
 
     // Keep the progress bars of the embedded gmx-rs-tools tools (trajectory
