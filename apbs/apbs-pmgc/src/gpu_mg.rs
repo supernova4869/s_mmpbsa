@@ -1183,6 +1183,21 @@ fn interior_count(nx: u32, ny: u32, nz: u32) -> u32 {
     }
 }
 
+/// PCI vendor ID of AMD/ATI.
+const VENDOR_AMD: u32 = 0x1002;
+
+/// Whether this adapter is an AMD GPU.  AMD drivers break on the s_mmpbsa
+/// f64 compute pipelines (on a Radeon 780M Windows Vulkan stack the pipeline
+/// compilation intermittently lost the device, the builtin f64 exp produced
+/// wrong results, and multigrid solves wedged mid-run), so AMD adapters
+/// always take the CPU path regardless of what the driver advertises.
+fn is_amd_adapter(info: &wgpu::AdapterInfo) -> bool {
+    (info.vendor & 0xffff) == VENDOR_AMD
+        || info.name.contains("AMD")
+        || info.name.contains("Radeon")
+        || info.name.contains("Advanced Micro Devices")
+}
+
 impl GpuMg {
     fn new() -> Result<GpuMg, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
@@ -1192,6 +1207,13 @@ impl GpuMg {
             force_fallback_adapter: false,
         }))
         .map_err(|e| format!("no GPU adapter found: {}", e))?;
+        let adapter_info = adapter.get_info();
+        if is_amd_adapter(&adapter_info) {
+            return Err(format!(
+                "AMD GPU '{}' detected, the GPU path is disabled for AMD drivers",
+                adapter_info.name
+            ));
+        }
         if !adapter.features().contains(wgpu::Features::SHADER_F64) {
             return Err(format!(
                 "adapter '{}' lacks 64-bit float shader support",
@@ -1253,8 +1275,7 @@ impl GpuMg {
             ],
         });
         let pipelines = Pipelines::new(&device, &bgl, &module);
-        let info = adapter.get_info();
-        let adapter_name = format!("{} ({:?})", info.name, info.backend);
+        let adapter_name = format!("{} ({:?})", adapter_info.name, adapter_info.backend);
         let dummy = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("PB mg dummy"),
             size: 256,
