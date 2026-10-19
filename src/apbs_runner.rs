@@ -7,10 +7,13 @@
 use apbs_generic::error::{ApbsError, ApbsResult};
 use apbs_generic::nosh::{NOsh, NOshCalc, NOshPrint};
 use apbs_generic::valist::Valist;
+use apbs_generic::vhal::ijk;
 use apbs_generic::vpbe::Vpbe;
 
 use std::collections::HashMap;
 use std::cell::RefCell;
+use std::sync::RwLock;
+use std::sync::atomic::{AtomicI8, Ordering};
 // use std::fs;
 // use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -573,6 +576,216 @@ fn process_prints(nosh: &NOsh, energies: &HashMap<String, f64>) {
     }
 }
 
+// -- Warm start: reuse the previous frame's converged PB potential ---------
+//
+// s_mmpbsa solves the same six PB problems (complex/receptor/ligand x
+// solvated/vacuum) once per trajectory frame.  Consecutive frames differ
+// only by small atom displacements, so the previous frame's converged
+// potential — trilinearly interpolated onto the current frame's grid, which
+// is regenerated per frame from the atom bounding box — is a far better
+// initial guess than zero.  The multigrid stopping test is a relative
+// residual, so a warm guess only reduces the V-cycle count: the converged
+// solution stays within the solver tolerance of the cold-start result.
+//
+// Opt-in while under evaluation: APBS_RUST_WARM_START=1.  Frames are solved
+// sequentially, so one entry per calculation bounds the extra memory at one
+// frame's worth of grids (per-frame entries are overwritten, never
+// accumulated).  Grids beyond WARM_MAX_POINTS are not cached.
+
+/// Grid geometry of one ELEC calculation (fine grid point coordinates are
+/// xmin + i*hx, ymin + j*hy, zmin + k*hz).
+#[derive(Clone, Copy)]
+struct WarmGeom {
+    nx: usize,
+    ny: usize,
+    nz: usize,
+    xmin: f64,
+    ymin: f64,
+    zmin: f64,
+    hx: f64,
+    hy: f64,
+    hzed: f64,
+}
+
+impl WarmGeom {
+    fn of_pmgp(p: &apbs_mg::vpmgp::Vpmgp) -> Self {
+        WarmGeom {
+            nx: p.nx as usize,
+            ny: p.ny as usize,
+            nz: p.nz as usize,
+            xmin: p.xmin,
+            ymin: p.ymin,
+            zmin: p.zmin,
+            hx: p.hx,
+            hy: p.hy,
+            hzed: p.hzed,
+        }
+    }
+}
+
+struct WarmPot {
+    geom: WarmGeom,
+    u: Vec<f64>,
+}
+
+/// Skip caching absurdly large grids (~512 MB of f64 each, six of them).
+const WARM_MAX_POINTS: usize = 64_000_000;
+
+static WARM_POTS: OnceLock<RwLock<HashMap<String, WarmPot>>> = OnceLock::new();
+static WARM_START_OVERRIDE: AtomicI8 = AtomicI8::new(-1);
+static WARM_HITS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn warm_pots() -> &'static RwLock<HashMap<String, WarmPot>> {
+    WARM_POTS.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+/// Number of solves seeded from a previous frame's potential.
+pub fn warm_hits() -> usize {
+    WARM_HITS.load(Ordering::Relaxed)
+}
+
+/// Test hook: force the warm start on/off regardless of the environment.
+pub fn set_warm_start_override(on: bool) {
+    WARM_START_OVERRIDE.store(if on { 1 } else { 0 }, Ordering::Relaxed);
+}
+
+/// Test hook: drop every cached potential.
+pub fn warm_pots_clear() {
+    warm_pots().write().unwrap().clear();
+    WARM_HITS.store(0, Ordering::Relaxed);
+}
+
+fn warm_start_enabled() -> bool {
+    match WARM_START_OVERRIDE.load(Ordering::Relaxed) {
+        0 => false,
+        1 => true,
+        _ => std::env::var("APBS_RUST_WARM_START")
+            .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+            .unwrap_or(false),
+    }
+}
+
+/// Calc names look like "{system}_{time}ns_{com|rec|lig}_{SOL|VAC}", with
+/// mg-auto expanding every ELEC calc into focusing levels: `<calc>_<level>`
+/// for all but the finest, which keeps the plain `<calc>` name.  Strip the
+/// frame-time token (stable across the frames of one system) and tag the
+/// focusing level (coarse and fine potentials must not cross-seed).
+/// Anything not matching the pattern (APOLAR calcs) returns None and is
+/// never warm-started.
+fn warm_key(calc_name: &str) -> Option<String> {
+    let (base, level) = match calc_name.rsplit_once('_') {
+        Some((b, suffix))
+            if !suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit()) =>
+        {
+            (b, Some(suffix))
+        }
+        _ => (calc_name, None),
+    };
+    let (base, kind) = ["_SOL", "_VAC"]
+        .into_iter()
+        .find_map(|k| base.strip_suffix(k).map(|b| (b, k)))?;
+    let (sys_time, part) = base.rsplit_once('_')?;
+    let (sys, time) = sys_time.rsplit_once('_')?;
+    let time_ok = time
+        .strip_suffix("ns")
+        .and_then(|t| t.parse::<f64>().ok())
+        .is_some();
+    if sys.is_empty() || part.is_empty() || !time_ok {
+        return None;
+    }
+    Some(match level {
+        Some(l) => format!("{sys}_{part}{kind}@{l}"),
+        None => format!("{sys}_{part}{kind}"),
+    })
+}
+
+/// Per-destination-axis trilinear source indices: for each destination index
+/// the (lower, upper, weight) source pair, or None when the destination
+/// plane lies outside the source grid.
+fn warm_axis_map(
+    n: usize,
+    min: f64,
+    h: f64,
+    sn: usize,
+    smin: f64,
+    sh: f64,
+) -> Vec<Option<(usize, usize, f64)>> {
+    (0..n)
+        .map(|i| {
+            let f = (min + i as f64 * h - smin) / sh;
+            if !(0.0..=((sn - 1) as f64)).contains(&f) {
+                return None;
+            }
+            let i0 = (f.floor() as usize).min(sn.saturating_sub(1));
+            let i1 = (i0 + 1).min(sn - 1);
+            Some((i0, i1, f - i0 as f64))
+        })
+        .collect()
+}
+
+/// Trilinear gather of the source potential onto the destination grid's
+/// interior; destination padding is left untouched (the multigrid treats it
+/// as homogeneous Dirichlet — build_a folds the true boundary values into
+/// the RHS), exactly matching the all-zero cold-start semantics.
+fn warm_trilinear_seed(dst: &mut [f64], d: WarmGeom, src: &[f64], s: WarmGeom) {
+    if d.nx < 3 || d.ny < 3 || d.nz < 3 {
+        return;
+    }
+    let mx = warm_axis_map(d.nx, d.xmin, d.hx, s.nx, s.xmin, s.hx);
+    let my = warm_axis_map(d.ny, d.ymin, d.hy, s.ny, s.ymin, s.hy);
+    let mz = warm_axis_map(d.nz, d.zmin, d.hzed, s.nz, s.zmin, s.hzed);
+    for k in 1..d.nz - 1 {
+        let Some((k0, k1, wz)) = mz[k] else { continue };
+        for j in 1..d.ny - 1 {
+            let Some((j0, j1, wy)) = my[j] else { continue };
+            for i in 1..d.nx - 1 {
+                let Some((i0, i1, wx)) = mx[i] else { continue };
+                let v = src[ijk(i0, j0, k0, s.nx, s.ny)] * (1.0 - wx) * (1.0 - wy) * (1.0 - wz)
+                    + src[ijk(i1, j0, k0, s.nx, s.ny)] * wx * (1.0 - wy) * (1.0 - wz)
+                    + src[ijk(i0, j1, k0, s.nx, s.ny)] * (1.0 - wx) * wy * (1.0 - wz)
+                    + src[ijk(i1, j1, k0, s.nx, s.ny)] * wx * wy * (1.0 - wz)
+                    + src[ijk(i0, j0, k1, s.nx, s.ny)] * (1.0 - wx) * (1.0 - wy) * wz
+                    + src[ijk(i1, j0, k1, s.nx, s.ny)] * wx * (1.0 - wy) * wz
+                    + src[ijk(i0, j1, k1, s.nx, s.ny)] * (1.0 - wx) * wy * wz
+                    + src[ijk(i1, j1, k1, s.nx, s.ny)] * wx * wy * wz;
+                dst[ijk(i, j, k, d.nx, d.ny)] = v;
+            }
+        }
+    }
+}
+
+/// Seed `vpmg.u` with the previous frame's potential for this calculation.
+/// Returns whether a cached potential was found and interpolated.
+fn seed_warm_guess(vpmg: &mut apbs_mg::vpmg::Vpmg, key: &str) -> bool {
+    let map = warm_pots().read().unwrap();
+    let Some(prev) = map.get(key) else {
+        return false;
+    };
+    let geom = WarmGeom::of_pmgp(&vpmg.pmgp);
+    let nf = geom.nx * geom.ny * geom.nz;
+    if vpmg.u.len() < nf || prev.u.len() < prev.geom.nx * prev.geom.ny * prev.geom.nz {
+        return false;
+    }
+    warm_trilinear_seed(&mut vpmg.u[..nf], geom, &prev.u, prev.geom);
+    drop(map);
+    WARM_HITS.fetch_add(1, Ordering::Relaxed);
+    true
+}
+
+/// Cache this calculation's converged potential for the next frame.
+fn store_warm_pot(vpmg: &apbs_mg::vpmg::Vpmg, key: &str) {
+    let geom = WarmGeom::of_pmgp(&vpmg.pmgp);
+    let nf = geom.nx * geom.ny * geom.nz;
+    if nf > WARM_MAX_POINTS || vpmg.u.len() < nf {
+        return;
+    }
+    let pot = WarmPot {
+        geom,
+        u: vpmg.u[..nf].to_vec(),
+    };
+    warm_pots().write().unwrap().insert(key.to_string(), pot);
+}
+
 /// Run an ELEC (electrostatics) calculation
 fn run_elec(
     nosh: &NOsh,
@@ -692,6 +905,17 @@ fn run_elec(
     }
 
     // Solve
+    // Warm start: seed the previous frame's converged potential as the
+    // initial guess (linear PBE only; the seed only touches interior
+    // points, so it is a pure iteration-count optimization.  It composes
+    // with the focus BC handoff, which supplies boundaries, not guesses).
+    let warm = warm_start_enabled() && vpmg.pmgp.nonlin == 0;
+    let warm_key = if warm { warm_key(&elec.name) } else { None };
+    if let Some(key) = &warm_key {
+        if seed_warm_guess(&mut vpmg, key) {
+            eprintln!("[warm-start] {} seeded from the previous frame", elec.name);
+        }
+    }
     let t_fillco_done = t_fillco.elapsed();
     let t_solve = std::time::Instant::now();
     vpmg.solve()?;
@@ -733,6 +957,12 @@ fn run_elec(
             t_energy.elapsed().as_secs_f64()
         );
     }
+    // Cache the converged potential for the same calculation on the next
+    // frame (vpmg is moved into the result right after this).
+    if let Some(key) = &warm_key {
+        store_warm_pot(&vpmg, key);
+    }
+
     Ok(ElecResult::Mg { energy, vpmg })
 }
 
@@ -2200,5 +2430,125 @@ mod tests {
         let out_path = std::path::Path::new(&dir).join("rust_atoms.txt");
         std::fs::write(&out_path, out).expect("write rust_atoms.txt");
         println!("wrote {}", out_path.display());
+    }
+
+    #[test]
+    fn warm_key_strips_the_frame_time_token() {
+        assert_eq!(
+            warm_key("Sys_0ns_com_SOL").as_deref(),
+            Some("Sys_com_SOL")
+        );
+        assert_eq!(
+            warm_key("Haibara_Ai_12.5ns_lig_VAC").as_deref(),
+            Some("Haibara_Ai_lig_VAC")
+        );
+        // mg-auto coarse focusing level: same calc, tagged so coarse and
+        // fine potentials never cross-seed.
+        assert_eq!(
+            warm_key("Sys_0ns_com_SOL_0").as_deref(),
+            Some("Sys_com_SOL@0")
+        );
+        // APOLAR calcs have no PB solve to seed.
+        assert_eq!(warm_key("Sys_0ns_com_SAS"), None);
+        // Missing the frame-time token: not a per-frame calc name.
+        assert_eq!(warm_key("Sys_com_SOL"), None);
+        assert_eq!(warm_key("unrelated_name"), None);
+    }
+
+    #[test]
+    fn warm_trilinear_seed_reproduces_multilinear_fields_exactly() {
+        // Source grid 5^3 spanning [0,4]^3, destination grid 7^3 spanning
+        // [0,6]^3 (shifted and coarser).  A multilinear field is reproduced
+        // exactly by trilinear interpolation, and constant fields are
+        // preserved as well.
+        let s = WarmGeom {
+            nx: 5, ny: 5, nz: 5,
+            xmin: 0.0, ymin: 0.0, zmin: 0.0,
+            hx: 1.0, hy: 1.0, hzed: 1.0,
+        };
+        let d = WarmGeom {
+            nx: 7, ny: 7, nz: 7,
+            xmin: 0.0, ymin: 0.0, zmin: 0.0,
+            hx: 1.0, hy: 1.0, hzed: 1.0,
+        };
+        let field = |x: f64, y: f64, z: f64| 2.0 * x + 3.0 * y - 0.5 * z + 7.0;
+        let src: Vec<f64> = (0..s.nz)
+            .flat_map(|k| (0..s.ny).flat_map(move |j| (0..s.nx).map(move |i| field(
+                s.xmin + i as f64 * s.hx,
+                s.ymin + j as f64 * s.hy,
+                s.zmin + k as f64 * s.hzed,
+            ))))
+            .collect();
+
+        let mut dst = vec![0.0f64; d.nx * d.ny * d.nz];
+        warm_trilinear_seed(&mut dst, d, &src, s);
+        for k in 1..d.nz - 1 {
+            for j in 1..d.ny - 1 {
+                for i in 1..d.nx - 1 {
+                    let (x, y, z) = (
+                        d.xmin + i as f64 * d.hx,
+                        d.ymin + j as f64 * d.hy,
+                        d.zmin + k as f64 * d.hzed,
+                    );
+                    let got = dst[ijk(i, j, k, d.nx, d.ny)];
+                    let in_source = x <= s.xmin + (s.nx - 1) as f64 * s.hx
+                        && y <= s.ymin + (s.ny - 1) as f64 * s.hy
+                        && z <= s.zmin + (s.nz - 1) as f64 * s.hzed;
+                    if !in_source {
+                        assert_eq!(got, 0.0, "outside ({i},{j},{k})");
+                        continue;
+                    }
+                    let want = field(x, y, z);
+                    assert!(
+                        (got - want).abs() < 1e-12,
+                        "({i},{j},{k}): got {got}, want {want}"
+                    );
+                }
+            }
+        }
+
+        // Destination padding must stay zero (homogeneous-Dirichlet seed).
+        for k in 0..d.nz {
+            for j in 0..d.ny {
+                for i in 0..d.nx {
+                    let on_face =
+                        i == 0 || j == 0 || k == 0 || i == d.nx - 1 || j == d.ny - 1 || k == d.nz - 1;
+                    if on_face {
+                        assert_eq!(dst[ijk(i, j, k, d.nx, d.ny)], 0.0, "padding ({i},{j},{k})");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn warm_trilinear_seed_zeroes_points_outside_the_source_grid() {
+        // Destination extends past the source in +x; interior destination
+        // points beyond the source domain must stay at the pre-seed value.
+        let s = WarmGeom {
+            nx: 5, ny: 5, nz: 5,
+            xmin: 0.0, ymin: 0.0, zmin: 0.0,
+            hx: 1.0, hy: 1.0, hzed: 1.0,
+        };
+        let d = WarmGeom {
+            nx: 9, ny: 5, nz: 5,
+            xmin: 0.0, ymin: 0.0, zmin: 0.0,
+            hx: 1.0, hy: 1.0, hzed: 1.0,
+        };
+        let src = vec![1.0f64; s.nx * s.ny * s.nz];
+        let mut dst = vec![0.0f64; d.nx * d.ny * d.nz];
+        warm_trilinear_seed(&mut dst, d, &src, s);
+        for k in 1..d.nz - 1 {
+            for j in 1..d.ny - 1 {
+                for i in 1..d.nx - 1 {
+                    let got = dst[ijk(i, j, k, d.nx, d.ny)];
+                    if i <= s.nx - 1 {
+                        assert_eq!(got, 1.0, "inside ({i},{j},{k})");
+                    } else {
+                        assert_eq!(got, 0.0, "outside ({i},{j},{k})");
+                    }
+                }
+            }
+        }
     }
 }

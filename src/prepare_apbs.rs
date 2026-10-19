@@ -368,4 +368,214 @@ mod tests {
         }
         assert_eq!(names.len(), 3, "no complex/ligand calcs expected: {names:?}");
     }
+
+    /// Detector for a pre-existing APOLAR flake (present on pristine HEAD,
+    /// unrelated to the warm start): the same frame solved twice with an
+    /// intermediate frame in between occasionally disagrees — e.g. com_SAS
+    /// atom 0 flips between 84.3585 and 84.5109 A^2 — when solver runs from
+    /// concurrent test threads interleave.  Suspect: the process-global
+    /// SURF_CACHE in apbs-generic (single-entry per-atom-surface cache).
+    /// Ignored so the suite stays green; run explicitly when investigating:
+    /// `cargo test --bin s_mmpbsa sas_concurrency_detector -- --nocapture`
+    #[test]
+    #[ignore = "pre-existing APOLAR/SURF_CACHE concurrency flake, see comment"]
+    fn sas_concurrency_detector() {
+        let aps = tiny_aps([0.4, -0.2, -0.2]);
+        let coord_a =
+            Array2::from_shape_vec((3, 3), vec![0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 9.0, 0.0, 0.0])
+                .unwrap();
+        let coord_b = Array2::from_shape_vec(
+            (3, 3),
+            vec![0.1, 0.0, 0.0, 4.1, 0.0, 0.0, 9.1, 0.0, 0.0],
+        )
+        .unwrap();
+        let ndx_rec: BTreeSet<usize> = [0usize, 1].into_iter().collect();
+        let ndx_lig: Option<BTreeSet<usize>> = Some([2usize].into_iter().collect());
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+        let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+        let mols_a = build_molecules(&aps, &coord_a.view(), &ndx_rec, &ndx_lig);
+        let mols_b = build_molecules(&aps, &coord_b.view(), &ndx_rec, &ndx_lig);
+        let text_a = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_a.view(), &radius,
+            &pbe_set, &pba_set, "coldchk_0ns", &settings);
+        let text_b = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_b.view(), &radius,
+            &pbe_set, &pba_set, "coldchk_0.1ns", &settings);
+        let r1 = run_apbs_in_process_text(&text_b, &mols_b).unwrap();
+        let _a = run_apbs_in_process_text(&text_a, &mols_a).unwrap();
+        let r2 = run_apbs_in_process_text(&text_b, &mols_b).unwrap();
+        for (c1, c2) in r1.calcs.iter().zip(r2.calcs.iter()) {
+            assert_eq!(c1.name, c2.name);
+            for (i, (&v1, &v2)) in c1.per_atom.iter().zip(c2.per_atom.iter()).enumerate() {
+                assert_eq!(v1.to_bits(), v2.to_bits(), "{} atom {i}: {v1} vs {v2}", c1.name);
+            }
+        }
+    }
+
+    /// The warm start (previous frame's potential as the initial guess) must
+    /// actually seed the second frame and leave every per-atom result within
+    /// the solver tolerance of the cold-start run.
+    #[test]
+    fn warm_start_seeds_the_next_frame_and_matches_cold_start() {
+        use crate::apbs_runner::{set_warm_start_override, warm_hits, warm_pots_clear};
+
+        let aps = tiny_aps([0.4, -0.2, -0.2]);
+        // Two frames of the same molecule with a small (0.1 A) displacement,
+        // the situation the warm start is built for.
+        let coord_a =
+            Array2::from_shape_vec((3, 3), vec![0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 9.0, 0.0, 0.0])
+                .unwrap();
+        let coord_b = Array2::from_shape_vec(
+            (3, 3),
+            vec![0.1, 0.0, 0.0, 4.1, 0.0, 0.0, 9.1, 0.0, 0.0],
+        )
+        .unwrap();
+        let ndx_rec: BTreeSet<usize> = [0usize, 1].into_iter().collect();
+        let ndx_lig: Option<BTreeSet<usize>> = Some([2usize].into_iter().collect());
+
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+        let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+        let mols_a = build_molecules(&aps, &coord_a.view(), &ndx_rec, &ndx_lig);
+        let mols_b = build_molecules(&aps, &coord_b.view(), &ndx_rec, &ndx_lig);
+        let text_a = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_a.view(), &radius,
+            &pbe_set, &pba_set, "warm_0ns", &settings);
+        let text_b = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_b.view(), &radius,
+            &pbe_set, &pba_set, "warm_0.1ns", &settings);
+
+        // Reference: frame B cold.
+        set_warm_start_override(false);
+        warm_pots_clear();
+        let cold = run_apbs_in_process_text(&text_b, &mols_b).expect("cold run failed");
+        assert_eq!(warm_hits(), 0, "nothing may seed while disabled");
+
+        // Warm pass: frame A populates the cache, frame B seeds from it.
+        warm_pots_clear();
+        set_warm_start_override(true);
+        let _frame_a = run_apbs_in_process_text(&text_a, &mols_a).expect("frame A failed");
+        let hits_before = warm_hits();
+        let warm = run_apbs_in_process_text(&text_b, &mols_b).expect("warm frame B failed");
+        let hits_after = warm_hits();
+
+        set_warm_start_override(false);
+        warm_pots_clear();
+
+        assert!(
+            hits_after > hits_before,
+            "frame B must seed from frame A's potentials"
+        );
+        // The same six ELEC calcs, in the same order.  Only ELEC results are
+        // compared: the warm start only touches PB solves, and the APOLAR
+        // (SAS) path has a pre-existing concurrency flake of its own (see
+        // the ignored sas_concurrency_detector test below).
+        use crate::apbs_runner::SolverCalcKind;
+        let cold_elec: Vec<_> = cold
+            .calcs
+            .iter()
+            .filter(|c| c.kind == SolverCalcKind::Elec)
+            .collect();
+        let warm_elec: Vec<_> = warm
+            .calcs
+            .iter()
+            .filter(|c| c.kind == SolverCalcKind::Elec)
+            .collect();
+        assert_eq!(cold_elec.len(), warm_elec.len());
+        assert!(!cold_elec.is_empty(), "no ELEC calcs to compare");
+        for (c, w) in cold_elec.iter().zip(warm_elec.iter()) {
+            assert_eq!(c.name, w.name);
+            assert_eq!(c.per_atom.len(), w.per_atom.len(), "{}", c.name);
+            for (i, (&vc, &vw)) in c.per_atom.iter().zip(w.per_atom.iter()).enumerate() {
+                let tol = 1e-5_f64.max(vc.abs() * 1e-4);
+                assert!(
+                    (vc - vw).abs() <= tol,
+                    "{} atom {i}: cold {vc:.6e} vs warm {vw:.6e}",
+                    c.name
+                );
+            }
+        }
+    }
+
+    /// Temporary benchmark: 60 atoms, 6 frames; compare per-frame PB time
+    /// cold vs warm.  Run with:
+    /// cargo test --release --bin s_mmpbsa warm_start_benchmark -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn warm_start_benchmark() {
+        use crate::apbs_runner::{set_warm_start_override, warm_hits, warm_pots_clear};
+        use crate::atom_property::AtomProperty;
+        use std::time::Instant;
+
+        let n = 60usize;
+        let aps = AtomProperties {
+            c6: Array2::zeros((0, 0)),
+            c12: Array2::zeros((0, 0)),
+            at_map: std::collections::HashMap::new(),
+            radius_type: "mBondi".to_string(),
+            atom_props: (0..n)
+                .map(|i| AtomProperty {
+                    charge: if i % 2 == 0 { 0.4 } else { -0.4 },
+                    radius: 1.4,
+                    type_id: 0,
+                    id: i,
+                    name: "CA".to_string(),
+                    at_type: "C".to_string(),
+                    resname: "ALA".to_string(),
+                    resid: i / 3,
+                })
+                .collect(),
+        };
+        let ndx_rec: BTreeSet<usize> = (0..30).collect();
+        let ndx_lig: Option<BTreeSet<usize>> = Some((30..60).collect());
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+        let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+
+        let n_frames = 6usize;
+        let frames: Vec<Array2<f64>> = (0..n_frames)
+            .map(|f| {
+                Array2::from_shape_fn((n, 3), |(i, d)| {
+                    let base = match d {
+                        0 => 6.0 * (i % 10) as f64,
+                        1 => 6.0 * (i / 10) as f64,
+                        _ => 3.0 * (i % 3) as f64,
+                    };
+                    base + 0.05 * f as f64
+                })
+            })
+            .collect();
+        let mols: Vec<_> = frames
+            .iter()
+            .map(|c| build_molecules(&aps, &c.view(), &ndx_rec, &ndx_lig))
+            .collect();
+        let texts: Vec<String> = frames
+            .iter()
+            .enumerate()
+            .map(|(f, c)| {
+                build_apbs_input_text(&ndx_rec, &ndx_lig, &c.view(), &radius,
+                    &pbe_set, &pba_set, &format!("bench_{}ns", f), &settings)
+            })
+            .collect();
+
+        for warm_on in [false, true] {
+            warm_pots_clear();
+            set_warm_start_override(warm_on);
+            let t0 = Instant::now();
+            let mut per_frame = Vec::new();
+            for f in 0..n_frames {
+                let tf = Instant::now();
+                run_apbs_in_process_text(&texts[f], &mols[f]).expect("bench frame failed");
+                per_frame.push(tf.elapsed().as_secs_f64());
+            }
+            let total = t0.elapsed().as_secs_f64();
+            println!(
+                "[bench] warm={warm_on}: total {total:.2} s, per-frame {:?}, hits {}",
+                per_frame.iter().map(|t| format!("{t:.2}")).collect::<Vec<_>>(),
+                warm_hits(),
+            );
+            set_warm_start_override(false);
+            warm_pots_clear();
+        }
+    }
 }

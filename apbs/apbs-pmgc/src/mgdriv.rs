@@ -141,7 +141,6 @@ fn linear_mgdriv(
             (pnx, pny, pnz), (cnx, cny, cnz),
             &mut ac_c,
         );
-        hier_galerkin += t.elapsed();
         if galerkin_done {
             hier_galerkin_gpu += 1;
         } else {
@@ -156,6 +155,9 @@ fn linear_mgdriv(
             };
             crate::build_g::build_galerkin(pnx, pny, pnz, cnx, cny, cnz, &pc, fine_op, &mut ac_c);
         }
+        // Time the CPU fallback too: on non-GPU runs it dominates the
+        // hierarchy build, and leaving it out hides that from profiling.
+        hier_galerkin += t.elapsed();
 
         let t = std::time::Instant::now();
         let mut cc_c = vec![0.0f64; ncl];

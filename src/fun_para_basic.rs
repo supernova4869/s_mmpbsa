@@ -12,11 +12,11 @@ use crate::fun_para_system;
 use crate::parse_tpr::TPR;
 
 fn list_basic_programs(settings: &mut Settings) {
-    println!(" -5 Toggle GPU for MM calculations, current: {}", if settings.use_gpu { "on" } else { "off" });
+    println!(" -5 Toggle whether to enable GPU calculations, current: {}", if settings.use_gpu { "on" } else { "off" });
     println!(" -4 Set number of parallel kernels, current: {}", settings.nkernels);
-    println!(" -3 Toggle whether do PBSA calculations, current: {}", settings.calc_pbsa);
-    println!(" -2 Toggle whether do MM calculations, current: {}", settings.calc_mm);
-    println!(" -1 Toggle whether debug mode, current: {}", settings.debug_mode);
+    println!(" -3 Toggle whether to do PBSA calculations, current: {}", settings.calc_pbsa);
+    println!(" -2 Toggle whether to do MM calculations, current: {}", settings.calc_mm);
+    println!(" -1 Toggle whether to use debug mode, current: {}", settings.debug_mode);
 }
 
 fn set_basic_programs(opt: i32, settings: &mut Settings) {

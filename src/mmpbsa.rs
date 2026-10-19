@@ -221,6 +221,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     // "GPU enabled" lines do not appear mid-progress on the first frame.
     if settings.use_gpu {
         crate::gpu::mm_context();
+        apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
         apbs_pmgc::gpu_mg::warm_up();
     }
 

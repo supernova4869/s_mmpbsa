@@ -149,6 +149,10 @@ const STORED_DIRS: [(isize, isize, isize); 13] = [
 /// Galerkin coarse operator: ac_out (14 bands * nxc*nyc*nzc) = P^T A_f P.
 /// Only interior coarse points are written; boundaries stay zero (only
 /// interior rows are ever consumed by Vgsrb27x/Vmresid27/Vbuildband).
+///
+/// Rayon-parallel over coarse points: each point owns 14 disjoint output
+/// slots and its accumulation order is unchanged, so the result is bitwise
+/// identical to the serial loop.
 #[allow(clippy::too_many_arguments)]
 pub fn build_galerkin(
     nxf: usize, nyf: usize, nzf: usize,
@@ -157,128 +161,161 @@ pub fn build_galerkin(
     fine: FineOp,
     ac_out: &mut [f64],
 ) {
+    use rayon::prelude::*;
+
     let nc = nxc * nyc * nzc;
     assert!(ac_out.len() >= 14 * nc, "coarse operator buffer too small");
     ac_out[..14 * nc].fill(0.0);
 
-    for kc in 1..nzc.saturating_sub(1) {
-        for jc in 1..nyc.saturating_sub(1) {
-            for ic in 1..nxc.saturating_sub(1) {
-                let c = ic + jc * nxc + kc * nxc * nyc;
-                let mut loc = [0.0f64; 27];
+    let bands: Vec<[f64; 14]> = (0..nc)
+        .into_par_iter()
+        .with_min_len(256)
+        .map(|c| {
+            let ic = c % nxc;
+            let rem = c / nxc;
+            let jc = rem % nyc;
+            let kc = rem / nyc;
+            if ic == 0 || jc == 0 || kc == 0
+                || ic + 1 >= nxc || jc + 1 >= nyc || kc + 1 >= nzc
+            {
+                [0.0; 14]
+            } else {
+                assemble_coarse_point(
+                    ic, jc, kc,
+                    nxf, nyf, nzf, nxc, nyc, nzc,
+                    pc, &fine,
+                )
+            }
+        })
+        .collect();
+    for (c, point) in bands.into_iter().enumerate() {
+        for (band, v) in point.into_iter().enumerate() {
+            ac_out[band * nc + c] = v;
+        }
+    }
+}
 
-                for dz in -1isize..=1 {
-                    for dy in -1isize..=1 {
-                        for dx in -1isize..=1 {
-                            let w = pc_weight(pc, nc, c, (dx, dy, dz));
-                            if w == 0.0 {
-                                continue;
-                            }
-                            let ax = 2 * ic as isize + dx;
-                            let ay = 2 * jc as isize + dy;
-                            let az = 2 * kc as isize + dz;
-                            if ax < 0 || ay < 0 || az < 0
-                                || ax >= nxf as isize || ay >= nyf as isize || az >= nzf as isize
-                            {
-                                continue;
-                            }
-                            let a =
-                                (ax as usize) + (ay as usize) * nxf + (az as usize) * nxf * nyf;
+/// Assemble the 14 bands of one interior coarse point: `loc` holds the true
+/// coarse matrix entries; off-diagonal bands are returned negated (positive),
+/// matching the fine-band convention.
+#[allow(clippy::too_many_arguments)]
+fn assemble_coarse_point(
+    ic: usize, jc: usize, kc: usize,
+    nxf: usize, nyf: usize, nzf: usize,
+    nxc: usize, nyc: usize, nzc: usize,
+    pc: &[f64],
+    fine: &FineOp,
+) -> [f64; 14] {
+    let c = ic + jc * nxc + kc * nxc * nyc;
+    let nc = nxc * nyc * nzc;
+    let mut loc = [0.0f64; 27];
 
-                            // p == q terms of P^T A P: the fine diagonal A[a][a]
-                            // couples the weights of EVERY coarse support that
-                            // contains a (supports overlap at odd fine points),
-                            // so distribute to each owner of a.
-                            {
-                                let (oa1, oa2) = owners_axis(ax as usize);
-                                let (ob1, ob2) = owners_axis(ay as usize);
-                                let (oc1, oc2) = owners_axis(az as usize);
-                                let oxs = [Some(oa1), oa2];
-                                let oys = [Some(ob1), ob2];
-                                let ozs = [Some(oc1), oc2];
-                                for &(c2x, dpx) in oxs.iter().flatten() {
-                                    for &(c2y, dpy) in oys.iter().flatten() {
-                                        for &(c2z, dpz) in ozs.iter().flatten() {
-                                            if c2x >= nxc || c2y >= nyc || c2z >= nzc {
-                                                continue;
-                                            }
-                                            let c2 = c2x + c2y * nxc + c2z * nxc * nyc;
-                                            let e = (
-                                                c2x as isize - ic as isize,
-                                                c2y as isize - jc as isize,
-                                                c2z as isize - kc as isize,
-                                            );
-                                            let w2 = pc_weight(pc, nc, c2, (dpx, dpy, dpz));
-                                            loc[loc_index(e)] += w * fine.diag(a) * w2;
-                                        }
-                                    }
-                                }
-                            }
+    for dz in -1isize..=1 {
+        for dy in -1isize..=1 {
+            for dx in -1isize..=1 {
+                let w = pc_weight(pc, nc, c, (dx, dy, dz));
+                if w == 0.0 {
+                    continue;
+                }
+                let ax = 2 * ic as isize + dx;
+                let ay = 2 * jc as isize + dy;
+                let az = 2 * kc as isize + dz;
+                if ax < 0 || ay < 0 || az < 0
+                    || ax >= nxf as isize || ay >= nyf as isize || az >= nzf as isize
+                {
+                    continue;
+                }
+                let a = (ax as usize) + (ay as usize) * nxf + (az as usize) * nxf * nyf;
 
-                            for (ddx, ddy, ddz) in OFFDIAG_DIRS {
-                                let bx = ax + ddx;
-                                let by = ay + ddy;
-                                let bz = az + ddz;
-                                if bx < 0 || by < 0 || bz < 0
-                                    || bx >= nxf as isize
-                                    || by >= nyf as isize
-                                    || bz >= nzf as isize
-                                {
+                // p == q terms of P^T A P: the fine diagonal A[a][a]
+                // couples the weights of EVERY coarse support that
+                // contains a (supports overlap at odd fine points),
+                // so distribute to each owner of a.
+                {
+                    let (oa1, oa2) = owners_axis(ax as usize);
+                    let (ob1, ob2) = owners_axis(ay as usize);
+                    let (oc1, oc2) = owners_axis(az as usize);
+                    let oxs = [Some(oa1), oa2];
+                    let oys = [Some(ob1), ob2];
+                    let ozs = [Some(oc1), oc2];
+                    for &(c2x, dpx) in oxs.iter().flatten() {
+                        for &(c2y, dpy) in oys.iter().flatten() {
+                            for &(c2z, dpz) in ozs.iter().flatten() {
+                                if c2x >= nxc || c2y >= nyc || c2z >= nzc {
                                     continue;
                                 }
-                                // Bands store |A| (matvec subtracts), so the
-                                // true operator coefficient is the negated band.
-                                let coef = -fine.offdiag(
-                                    a,
-                                    (ddx, ddy, ddz),
-                                    nxf,
-                                    nyf,
+                                let c2 = c2x + c2y * nxc + c2z * nxc * nyc;
+                                let e = (
+                                    c2x as isize - ic as isize,
+                                    c2y as isize - jc as isize,
+                                    c2z as isize - kc as isize,
                                 );
-                                if coef == 0.0 {
-                                    continue;
-                                }
-
-                                let (ox1, ox2) = owners_axis(bx as usize);
-                                let (oy1, oy2) = owners_axis(by as usize);
-                                let (oz1, oz2) = owners_axis(bz as usize);
-                                let xs = [Some(ox1), ox2];
-                                let ys = [Some(oy1), oy2];
-                                let zs = [Some(oz1), oz2];
-                                for &(cxx, dpx) in xs.iter().flatten() {
-                                    for &(cyy, dpy) in ys.iter().flatten() {
-                                        for &(czz, dpz) in zs.iter().flatten() {
-                                            if cxx >= nxc || cyy >= nyc || czz >= nzc {
-                                                continue;
-                                            }
-                                            let c2 = cxx
-                                                + cyy * nxc
-                                                + czz * nxc * nyc;
-                                            let e = (
-                                                cxx as isize - ic as isize,
-                                                cyy as isize - jc as isize,
-                                                czz as isize - kc as isize,
-                                            );
-                                            let w2 = pc_weight(pc, nc, c2, (dpx, dpy, dpz));
-                                            loc[loc_index(e)] += w * coef * w2;
-                                        }
-                                    }
-                                }
+                                let w2 = pc_weight(pc, nc, c2, (dpx, dpy, dpz));
+                                loc[loc_index(e)] += w * fine.diag(a) * w2;
                             }
                         }
                     }
                 }
 
-                // Store the 14 bands for this coarse point. The loc array
-                // holds the true coarse matrix entries; off-diagonal bands are
-                // stored negated (positive), matching the fine-band convention.
-                let base = |band: usize| band * nc + c;
-                ac_out[base(0)] = loc[loc_index((0, 0, 0))];
-                for (band, dir) in STORED_DIRS.iter().enumerate() {
-                    ac_out[base(band + 1)] = -loc[loc_index(*dir)];
+                for (ddx, ddy, ddz) in OFFDIAG_DIRS {
+                    let bx = ax + ddx;
+                    let by = ay + ddy;
+                    let bz = az + ddz;
+                    if bx < 0 || by < 0 || bz < 0
+                        || bx >= nxf as isize
+                        || by >= nyf as isize
+                        || bz >= nzf as isize
+                    {
+                        continue;
+                    }
+                    // Bands store |A| (matvec subtracts), so the
+                    // true operator coefficient is the negated band.
+                    let coef = -fine.offdiag(
+                        a,
+                        (ddx, ddy, ddz),
+                        nxf,
+                        nyf,
+                    );
+                    if coef == 0.0 {
+                        continue;
+                    }
+
+                    let (ox1, ox2) = owners_axis(bx as usize);
+                    let (oy1, oy2) = owners_axis(by as usize);
+                    let (oz1, oz2) = owners_axis(bz as usize);
+                    let xs = [Some(ox1), ox2];
+                    let ys = [Some(oy1), oy2];
+                    let zs = [Some(oz1), oz2];
+                    for &(cxx, dpx) in xs.iter().flatten() {
+                        for &(cyy, dpy) in ys.iter().flatten() {
+                            for &(czz, dpz) in zs.iter().flatten() {
+                                if cxx >= nxc || cyy >= nyc || czz >= nzc {
+                                    continue;
+                                }
+                                let c2 = cxx
+                                    + cyy * nxc
+                                    + czz * nxc * nyc;
+                                let e = (
+                                    cxx as isize - ic as isize,
+                                    cyy as isize - jc as isize,
+                                    czz as isize - kc as isize,
+                                );
+                                let w2 = pc_weight(pc, nc, c2, (dpx, dpy, dpz));
+                                loc[loc_index(e)] += w * coef * w2;
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+
+    let mut bands = [0.0f64; 14];
+    bands[0] = loc[loc_index((0, 0, 0))];
+    for (band, dir) in STORED_DIRS.iter().enumerate() {
+        bands[band + 1] = -loc[loc_index(*dir)];
+    }
+    bands
 }
 
 /// All 26 off-stencil directions of the 27-point neighborhood.
