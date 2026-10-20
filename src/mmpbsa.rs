@@ -217,6 +217,9 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     println!("Start MM-PBSA calculation...");
 
+    // 预计算常量
+    let r_cutoff_sq = settings.r_cutoff.powi(2);
+
     // Bring both GPU contexts up before the progress bar starts, so the
     // "GPU enabled" lines do not appear mid-progress on the first frame.
     if settings.use_gpu {
@@ -242,7 +245,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
             if let Some(ndx_lig) = ndx_lig {
                 let t_mm = std::time::Instant::now();
                 let (de_elec, de_vdw) =
-                    calc_mm(&ndx_rec, &ndx_lig, aps, &coord, &coeff, &settings, use_parallel);
+                    calc_mm(&ndx_rec, &ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
                 mm_phase += t_mm.elapsed();
                 elec_atom.row_mut(cur_frm).assign(&de_elec);
                 vdw_atom.row_mut(cur_frm).assign(&de_vdw);
@@ -307,7 +310,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                             pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
                             vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
                         } else {
-                            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, &coeff, &settings, use_parallel);
+                            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
                             pgb.inc(1);
                             pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
                             de_elec.sum() + de_vdw.sum()
@@ -355,11 +358,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 }
 
 fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
-            coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
+            r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
-
-    // 预计算常量
-    let r_cutoff_sq = settings.r_cutoff.powi(2);
 
     // 预提取数据
     let rec_props: Vec<_> = ndx_rec.iter().map(|&i| {

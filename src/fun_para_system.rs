@@ -387,18 +387,17 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         println!("\x1b[0mFitting rot+trans...\x1b[90m");
         let trj_mmpbsa = append_new_name(&trj, ".xtc", ".MMPBSA_"); // get trj output file name
         trjconv(&["Complex", "Complex"], &env::current_dir().unwrap(), 
-            settings, &trj_fit, &tpr_path, &ndx_mmpbsa, &trj_mmpbsa, 
+            settings, &trj_fit, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, 
             &["-fit", "rot+trans"], false);
         
         // 生成初始结构方便查看
         println!("\x1b[0mGenerating initial structure...\x1b[90m");
         let init_struct = append_new_name(trj, "_struct.gro", ".MMPBSA_"); // get trj output file name
         trjconv(&["Complex"], &env::current_dir().unwrap(), settings, 
-            &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"], false);
+            &trj_mmpbsa, &tpr_mmpbsa, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"], false);
 
         // step 5: Read trajectory and get time and coordinate
-        println!("\x1b[0mPreparing trajectories for IE calculation...");
-        println!("Loading trajectory coordinates...");
+        println!("\x1b[0mLoading trajectory coordinates...");
         // Frames arrive already as one f64 array (nm); scale to Angstrom in
         // place, which is the unit the MM-PBSA calculation works in.
         let (time_list_ie, mut coordinates_ie) = read_traj(&trj_mmpbsa);
