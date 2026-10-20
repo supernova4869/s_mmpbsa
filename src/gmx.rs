@@ -111,7 +111,10 @@ fn default_index_groups(tpr_path: &str, n: &str, o: &str) -> Result<(), String> 
 
 /// Extracts and manipulates a trajectory.
 pub fn trjconv(options: &[&str], wd: &Path, settings: &Settings, f: &str, s: &str, n: &str,
-               o: &str, others: &[&str]) {
+               o: &str, others: &[&str], verbose: bool) {
+    // Re-sync at call time: the setting may have changed since start-up
+    // (config file, interactive menu).
+    gmx_rs_tools::progress::set_enabled(verbose);
     let args: Vec<String> = ["-f", f, "-s", s, "-n", n, "-o", o].iter()
         .map(|a| a.to_string())
         .chain(others.iter().map(|a| a.to_string()))

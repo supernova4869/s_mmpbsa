@@ -70,14 +70,9 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/10/17";
+    let compile_date = "2026/10/20";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
 
-    // Keep the progress bars of the embedded gmx-rs-tools tools (trajectory
-    // extraction and reading) visible: nothing else, in particular no
-    // environment variable, switches them off.
-    gmx_rs_tools::progress::set_enabled(true);
-    
     // Show version info
     if cli.version {
         utils::show_famous_quotes();

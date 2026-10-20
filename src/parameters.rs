@@ -207,6 +207,7 @@ impl Config {
         text += &yaml_field(2, "calc_pbsa", &yaml_scalar(&self.program_set.calc_pbsa), "calculate the PB/SA term");
         text += &yaml_field(2, "debug", &yaml_scalar(&self.program_set.debug), "keep intermediate PB/SA files");
         text += &yaml_field(2, "use_gpu", &yaml_scalar(&self.program_set.use_gpu), "run the MM pairwise kernel on the GPU (CPU fallback when unsupported)");
+        text += &yaml_field(2, "show_progress", &yaml_scalar(&self.program_set.show_progress), "show the progress bars of trajectory processing (trjconv/reading)");
         text += &yaml_field(2, "trj", &yaml_scalar(&self.program_set.trj), "trajectory file (xtc/trr/gro/pdb)");
         text += &yaml_field(2, "tpr", &yaml_scalar(&self.program_set.tpr), "run input file");
         text += &yaml_field(2, "ndx", &yaml_scalar(&self.program_set.ndx), "index file (generated when missing)");
@@ -254,6 +255,10 @@ pub struct ProgramSet {
     /// config files predate this switch and default it to on.
     #[serde(default = "default_use_gpu")]
     pub use_gpu: bool,
+    /// Draw the progress bars of the embedded trajectory tools.  Old config
+    /// files predate this switch and default it to on.
+    #[serde(default = "default_show_progress")]
+    pub show_progress: bool,
     pub trj: String,
     pub tpr: String,
     pub ndx: String,
@@ -268,6 +273,7 @@ impl ProgramSet {
             calc_pbsa: true,
             debug: false,
             use_gpu: true,
+            show_progress: true,
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
             ndx: "index.ndx".to_string(),
@@ -277,6 +283,10 @@ impl ProgramSet {
 }
 
 fn default_use_gpu() -> bool {
+    true
+}
+
+fn default_show_progress() -> bool {
     true
 }
 
@@ -692,9 +702,27 @@ mod tests {
                       ala_scan_range: \"\"";
         let back: ProgramSet = serde_yaml::from_str(legacy).unwrap();
         assert_eq!(back.use_gpu, true);
+        assert_eq!(back.show_progress, true);
         let explicit: ProgramSet =
             serde_yaml::from_str(format!("{legacy}\nuse_gpu: true").as_str()).unwrap();
         assert_eq!(explicit.use_gpu, true);
+    }
+
+    #[test]
+    fn show_progress_is_optional_in_configs() {
+        let legacy = "sys_name: system\n\
+                      calc_mm: true\n\
+                      calc_pbsa: true\n\
+                      debug: false\n\
+                      trj: md.xtc\n\
+                      tpr: md.tpr\n\
+                      ndx: index.ndx\n\
+                      ala_scan_range: \"\"";
+        let back: ProgramSet = serde_yaml::from_str(legacy).unwrap();
+        assert_eq!(back.show_progress, true);
+        let off: ProgramSet =
+            serde_yaml::from_str(format!("{legacy}\nshow_progress: false").as_str()).unwrap();
+        assert_eq!(off.show_progress, false);
     }
 
     #[test]

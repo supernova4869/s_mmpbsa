@@ -1,5 +1,5 @@
 use core::f64;
-use std::{env, fs};
+use std::env;
 use std::process::exit;
 use colored::*;
 use ndarray::Array3;
@@ -316,8 +316,6 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
             &mut aps, &ndx_rec, &ndx_lig, receptor_grp, ligand_grp, &residues, settings);
     } else {
         // pre-treat trajectory
-        let trj_mmpbsa = append_new_name(trj, ".xtc", ".MMPBSA_"); // get trj output file name
-        
         // step 1: generate new index
         println!("Generating Index...");
         let ndx_whole = if let Some(ndx_lig) = &ndx_lig {
@@ -337,17 +335,19 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         // step 2: extract new trj with old tpr and new index
         println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
         // currently use smaller dt_ie
+        let trj_nopbc = append_new_name(trj, "_nopbc.xtc", ".MMPBSA_"); // get trj output file name
         trjconv(&["Complex"], &env::current_dir().unwrap(), 
-            settings, &trj, &tpr_path, &ndx_mmpbsa, &trj_mmpbsa, 
-            &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "whole"]);
+            settings, &trj, &tpr_path, &ndx_mmpbsa, &trj_nopbc, 
+            &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "whole"], true);
         
         // step 3: extract new tpr from old tpr
+        println!("\x1b[0mConverting tpr...\x1b[90m");
         let tpr_mmpbsa = append_new_name(&tpr_path, ".tpr", ".MMPBSA_"); // get extracted tpr file name
         convert_tpr(&["Complex"], &env::current_dir().unwrap(), settings, &tpr_path, &ndx_mmpbsa, &tpr_mmpbsa);
         
         // step 4: generate new index with new tpr
         // must normalize index here after trajectory extracion, or the traj may contain less atoms
-        println!("\x1b[0mNormalizing index...\x1b[90m");   // turn white
+        println!("\x1b[0mNormalizing index...\x1b[90m");
         let ndx_lig = match ligand_grp {
             Some(ligand_grp) => Some(ndx.groups[ligand_grp].indexes.clone()),
             None => None
@@ -371,19 +371,30 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         // 需要处理一下atom_properties的id
         aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
         
+        // fix pbc with new tpr and new index
+        let trj_fit = if fix_pbc {
+            println!("\x1b[0mFixing PBC...\x1b[90m");
+            let trj_pbc = append_new_name(&trj, "_pbc.xtc", ".MMPBSA_");
+            trjconv(&["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), 
+                settings, &trj_nopbc, &tpr_mmpbsa, &ndx_mmpbsa, &trj_pbc, 
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"], false);
+            trj_pbc
+        } else {
+            trj_nopbc
+        };
+
+        // fit rot+trans
+        println!("\x1b[0mFitting rot+trans...\x1b[90m");
+        let trj_mmpbsa = append_new_name(&trj, ".xtc", ".MMPBSA_"); // get trj output file name
+        trjconv(&["Complex", "Complex"], &env::current_dir().unwrap(), 
+            settings, &trj_fit, &tpr_path, &ndx_mmpbsa, &trj_mmpbsa, 
+            &["-fit", "rot+trans"], false);
+        
         // 生成初始结构方便查看
+        println!("\x1b[0mGenerating initial structure...\x1b[90m");
         let init_struct = append_new_name(trj, "_struct.gro", ".MMPBSA_"); // get trj output file name
         trjconv(&["Complex"], &env::current_dir().unwrap(), settings, 
-            &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"]);
-        
-        // fix pbc with new tpr and new index
-        if fix_pbc {
-            let trj_mmpbsa_nopbc = append_new_name(&trj_mmpbsa, "_nopbc.xtc", "");
-            fs::rename(&trj_mmpbsa, &trj_mmpbsa_nopbc).unwrap();
-            trjconv(&["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), 
-                settings, &trj_mmpbsa_nopbc, &tpr_mmpbsa, &ndx_mmpbsa, &trj_mmpbsa, 
-                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"]);
-        }
+            &trj_mmpbsa, &tpr_path, &ndx_mmpbsa, &init_struct, &vec!["-dump", "0"], false);
 
         // step 5: Read trajectory and get time and coordinate
         println!("\x1b[0mPreparing trajectories for IE calculation...");
