@@ -16,7 +16,7 @@ use crate::parse_tpr::Residue;
 use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
 use crate::prepare_apbs::{build_apbs_input_text, build_molecules, prepare_pqr};
-use crate::apbs_runner::{self, SolverCalcKind, SolverRun};
+use crate::apbs_runner::{self, MemMols, SolverCalcKind, SolverRun};
 
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
                                temp_dir: &PathBuf, sys_name: &str, aps: &AtomProperties,
@@ -228,53 +228,153 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         apbs_pmgc::gpu_mg::warm_up();
     }
 
-    let pgb = ProgressBar::new(time_list.len() as u64);
-    set_style(&pgb);
-    pgb.inc(0);
-    pgb.set_message(format!("at {} ns...", times[0]));
-
     // Frames whose PB/SA solve failed; they count as zero, which would
     // silently distort the average binding energy if nobody was told.
     let mut failed_pb_frames: Vec<f64> = Vec::new();
     let mut mm_phase = std::time::Duration::ZERO;
     let mut pb_phase = std::time::Duration::ZERO;
-    for cur_frm in 0..time_list.len() {
-        // MM
-        if settings.calc_mm {
-            let coord = coordinates.slice(s![cur_frm, .., ..]);
-            if let Some(ndx_lig) = ndx_lig {
-                let t_mm = std::time::Instant::now();
-                let (de_elec, de_vdw) =
-                    calc_mm(&ndx_rec, &ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
-                mm_phase += t_mm.elapsed();
-                elec_atom.row_mut(cur_frm).assign(&de_elec);
-                vdw_atom.row_mut(cur_frm).assign(&de_vdw);
-            }
-        }
+    let mut mm_ie: Option<Array1<f64>> = None;
 
-        // PBSA
-        if settings.calc_pbsa {
-            let coord = coordinates.slice(s![cur_frm, .., ..]);
-            let t_pb = std::time::Instant::now();
-            match calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir,
-                            aps, pbe_set, pba_set, settings) {
-                Some((de_pb, de_sa)) => {
-                    pb_atom.row_mut(cur_frm).assign(&de_pb);
-                    sa_atom.row_mut(cur_frm).assign(&de_sa);
+    if settings.calc_mm {
+        println!("Start MM calculation...");
+        let t_mm = std::time::Instant::now();
+        // The MM part runs first for the whole trajectory, and the interaction
+        // entropy is calculated before the per-frame MM sums: every IE frame's MM
+        // energy is computed during the IE pass, and the frames the IE trajectory
+        // shares with the main one are taken directly from it instead of being
+        // calculated a second time.  Only then are the PB/SA terms processed.
+        let mut ie_mm_rows: HashMap<usize, (Array1<f64>, Array1<f64>)> = HashMap::new();
+        if settings.inter_entropy {
+            let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
+            set_style(&pgb);
+            pgb.inc(0);
+            if settings.calc_mm {
+                if let Some(ndx_lig) = ndx_lig {
+                    let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
+                    for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
+                        let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
+                        let ie_energy = de_elec.sum() + de_vdw.sum();
+                        // Frames shared with the main trajectory keep their
+                        // per-atom sums for the MM loop to reuse.
+                        if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
+                            ie_mm_rows.insert(frame_id, (de_elec, de_vdw));
+                        }
+                        atoms_ie.push(ie_energy);
+                        pgb.inc(1);
+                        pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
+                    }
+                    pgb.finish();
+                    mm_ie = Some(Array1::from_vec(atoms_ie));
+                    
+                    // 直接从IE结果里拿
+                    for cur_frm in 0..time_list.len() {
+                        if let Some((de_elec, de_vdw)) = ie_mm_rows.remove(&cur_frm) {
+                            // Already computed during the IE pass.
+                            elec_atom.row_mut(cur_frm).assign(&de_elec);
+                            vdw_atom.row_mut(cur_frm).assign(&de_vdw);
+                        }
+                    }
+                } else {
+                    println!("Since no ligand, will not calculate IE.");
                 }
-                None => failed_pb_frames.push(times[cur_frm]),
+            } else {
+                println!("Since MM calculation is not enabled, will not calculate IE.");
             }
-            pb_phase += t_pb.elapsed();
+        } else {
+            let pgb = ProgressBar::new(time_list.len() as u64);
+            set_style(&pgb);
+            pgb.inc(0);
+            for cur_frm in 0..time_list.len() {
+                if let Some(ndx_lig) = ndx_lig {
+                    let coord = coordinates.slice(s![cur_frm, .., ..]);
+                    let (de_elec, de_vdw) =
+                        calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
+                    elec_atom.row_mut(cur_frm).assign(&de_elec);
+                    vdw_atom.row_mut(cur_frm).assign(&de_vdw);
+                    pgb.inc(1);
+                }
+            }
+            pgb.finish();
         }
-
-        pgb.inc(1);
-        pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s",
-                                        times[cur_frm],
-                                        vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() +
-                                        pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
-                                        pgb.eta().as_secs()));
+        mm_phase += t_mm.elapsed();
     }
-    pgb.finish();
+
+    // The PB/SA phase: every frame's structure is read and the frames are
+    // solved batch by batch on the GPU (`n_batch` frames at a time); on the
+    // CPU they are solved one after another.
+    if settings.calc_pbsa {
+        println!("Start PB/SA calculation...");
+        let pgb = ProgressBar::new(time_list.len() as u64);
+        set_style(&pgb);
+        pgb.inc(0);
+        let t_pb = std::time::Instant::now();
+        if settings.use_gpu {
+            let batch_size = settings.n_batch.max(1);
+            let times_ref = &times;
+            let frames: Vec<usize> = (0..time_list.len()).collect();
+            for batch in frames.chunks(batch_size) {
+                // Read this batch's structures up front so the worker threads
+                // only have to run the solver.
+                let prepared: Vec<PreparedPbsa> = batch.iter().map(|&cur_frm| {
+                    let coord = coordinates.slice(s![cur_frm, .., ..]);
+                    prepare_pbsa_frame(&coord, &times, cur_frm, ndx_rec, ndx_lig, sys_name,
+                                       temp_dir, aps, pbe_set, pba_set, settings)
+                }).collect();
+
+                // Solve every frame of the batch concurrently.
+                let results: Vec<Option<(Array1<f64>, Array1<f64>)>> = std::thread::scope(|scope| {
+                    let handles: Vec<_> = batch.iter().zip(prepared)
+                        .map(|(&cur_frm, (f_name, input_text, mem_mols))| {
+                            scope.spawn(move || {
+                                solve_prepared_pbsa(cur_frm, times_ref, &f_name, &input_text, &mem_mols,
+                                                    temp_dir, aps, ndx_rec, ndx_lig, pba_set, settings)
+                            })
+                        })
+                        .collect();
+                    handles.into_iter().map(|handle| handle.join().unwrap_or_else(|_| {
+                        println!("A PB/SA worker thread panicked; the frame counts as failed.");
+                        None
+                    })).collect()
+                });
+
+                for (&cur_frm, result) in batch.iter().zip(results) {
+                    match result {
+                        Some((de_pb, de_sa)) => {
+                            pb_atom.row_mut(cur_frm).assign(&de_pb);
+                            sa_atom.row_mut(cur_frm).assign(&de_sa);
+                        }
+                        None => failed_pb_frames.push(times[cur_frm]),
+                    }
+                    pgb.inc(1);
+                    pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s",
+                                                    times[cur_frm],
+                                                    vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() +
+                                                    pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
+                                                    pgb.eta().as_secs()));
+                }
+            }
+        } else {
+            for cur_frm in 0..time_list.len() {
+                let coord = coordinates.slice(s![cur_frm, .., ..]);
+                match calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir,
+                                aps, pbe_set, pba_set, settings) {
+                    Some((de_pb, de_sa)) => {
+                        pb_atom.row_mut(cur_frm).assign(&de_pb);
+                        sa_atom.row_mut(cur_frm).assign(&de_sa);
+                    }
+                    None => failed_pb_frames.push(times[cur_frm]),
+                }
+                pgb.inc(1);
+                pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s",
+                                                times[cur_frm],
+                                                vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() +
+                                                pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
+                                                pgb.eta().as_secs()));
+            }
+        }
+        pb_phase = t_pb.elapsed();
+        pgb.finish();
+    }
     println!(
         "Phase time breakdown: MM {:.2} s, PB/SA {:.2} s.",
         mm_phase.as_secs_f64(),
@@ -294,40 +394,6 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
             std::process::exit(1);
         }
     }
-
-    let mm_ie: Option<Array1<f64>> = if settings.inter_entropy {
-        println!("Start IE calculation...");
-        if settings.calc_mm {
-            if let Some(ndx_lig) = ndx_lig {
-                let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
-                set_style(&pgb);
-                pgb.inc(0);
-                let atoms_ie: Vec::<f64> = coordinates_ie.axis_iter(Axis(0))
-                    .enumerate()
-                    .map(|(i, frame)| 
-                        if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
-                            pgb.inc(1);
-                            pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
-                            vdw_atom.row(frame_id).sum() + elec_atom.row(frame_id).sum()
-                        } else {
-                            let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
-                            pgb.inc(1);
-                            pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
-                            de_elec.sum() + de_vdw.sum()
-                        }).collect();
-                pgb.finish();
-                Some(Array1::from_vec(atoms_ie))
-            } else {
-                println!("Since no ligand, will not calculate IE.");
-                None
-            }
-        } else {
-            println!("Since MM calculation is not enabled, will not calculate IE.");
-            None
-        }
-    } else {
-        None
-    };
 
     // end calculation
     let t_end = Local::now();
@@ -487,80 +553,109 @@ fn calc_mm_cpu(n_atoms: usize,
 fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &str, temp_dir: &PathBuf,
             aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Option<(Array1<f64>, Array1<f64>)> {
-    // the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
-    // then the SA energy term is subsequently calculated
-    let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
     if settings.calc_pbsa {
-        // Assemble the APBS input and the molecule lists in memory; the PQR
-        // files are only written (and the input text saved next to them) when
-        // debug mode keeps intermediate files for inspection.
-        let atom_radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
-        let input_text = build_apbs_input_text(ndx_rec, ndx_lig, coord,
-                &atom_radius, pbe_set, pba_set, &f_name, settings);
-        let mem_mols = build_molecules(aps, coord, ndx_rec, ndx_lig);
-        if settings.debug_mode {
-            prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
-            let apbs_input = temp_dir.join(format!("{}.apbs", f_name));
-            fs::write(&apbs_input, &input_text).expect("Failed to write apbs input file.");
-        }
-        // solve the PB/SA calculations in-process with the built-in APBS
-        // solver (apbs-rs), no external process is spawned.
-        let solver_run = match apbs_runner::run_apbs_in_process_text(&input_text, &mem_mols) {
-            Ok(run) => run,
-            Err(e) => {
-                println!("PBSA calculation failed at {} ns: {}", times[cur_frm], e);
-                return None;
-            }
-        };
-        if settings.debug_mode {
-            let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name)))
-                .expect("Failed to create output file.");
-            outfile.write_all(solver_run.log.as_bytes()).expect("Failed to write apbs output.");
-        };
-
-        let apbs_results = ApbsResults::from_solver_run(&solver_run);
-        let com_pb_sol = apbs_results.com_pb_sol;
-        let com_pb_vac = apbs_results.com_pb_vac;
-        let rec_pb_sol = apbs_results.rec_pb_sol;
-        let rec_pb_vac = apbs_results.rec_pb_vac;
-        let lig_pb_sol = apbs_results.lig_pb_sol;
-        let lig_pb_vac = apbs_results.lig_pb_vac;
-        let com_sa = apbs_results.com_sa;
-        let rec_sa = apbs_results.rec_sa;
-        let lig_sa = apbs_results.lig_sa;
-
-        let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
-        let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter()
-            .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
-        let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
-        let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter()
-            .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
-        let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
-        let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter()
-            .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
-
-        let (pb, sa) = if let Some(ndx_lig) = ndx_lig {
-            if ndx_rec.iter().min() < ndx_lig.iter().min() {
-                rec_pb.append(Axis(0), lig_pb.view()).unwrap();
-                rec_sa.append(Axis(0), lig_sa.view()).unwrap();
-                (com_pb - rec_pb, com_sa - rec_sa)
-            } else {
-                lig_pb.append(Axis(0), rec_pb.view()).unwrap();
-                lig_sa.append(Axis(0), rec_sa.view()).unwrap();
-                (com_pb - lig_pb, com_sa - lig_sa)
-            }
-        } else {
-            (rec_pb, rec_sa)
-        };
-        if pb.len() != aps.atom_props.len() || sa.len() != aps.atom_props.len() {
-            println!("Warning: The number of PB/SA values does not match the number of atoms. \
-                This may indicate an issue with the in-process APBS solver results.");
-            return None;
-        }
-        Some((pb, sa))
+        let (f_name, input_text, mem_mols) = prepare_pbsa_frame(coord, times, cur_frm,
+                ndx_rec, ndx_lig, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
+        solve_prepared_pbsa(cur_frm, times, &f_name, &input_text, &mem_mols,
+                temp_dir, aps, ndx_rec, ndx_lig, pba_set, settings)
     } else {
         Some((Array1::zeros(aps.atom_props.len()), Array1::zeros(aps.atom_props.len())))
     }
+}
+
+/// A frame's PB/SA input, fully assembled in memory: the APBS input text, its
+/// file name stem and the complex/receptor/ligand molecule lists the input
+/// refers to as `mol 1/2/3`.
+type PreparedPbsa = (String, String, MemMols);
+
+/// Assembles one frame's APBS input and molecule lists in memory (the "read
+/// the frame's structure" step).  In debug mode the PQR files and the input
+/// text are additionally written next to the intermediate files.
+fn prepare_pbsa_frame(coord: &ArrayView2<f64>, times: &Vec<f64>, cur_frm: usize,
+                      ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
+                      sys_name: &str, temp_dir: &PathBuf, aps: &AtomProperties,
+                      pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> PreparedPbsa {
+    // the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
+    // then the SA energy term is subsequently calculated
+    let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
+    // Assemble the APBS input and the molecule lists in memory; the PQR
+    // files are only written (and the input text saved next to them) when
+    // debug mode keeps intermediate files for inspection.
+    let atom_radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+    let input_text = build_apbs_input_text(ndx_rec, ndx_lig, coord,
+            &atom_radius, pbe_set, pba_set, &f_name, settings);
+    let mem_mols = build_molecules(aps, coord, ndx_rec, ndx_lig);
+    if settings.debug_mode {
+        prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
+        let apbs_input = temp_dir.join(format!("{}.apbs", f_name));
+        fs::write(&apbs_input, &input_text).expect("Failed to write apbs input file.");
+    }
+    (f_name, input_text, mem_mols)
+}
+
+/// Runs the in-process APBS solver for a frame prepared by
+/// [`prepare_pbsa_frame`] and reduces the raw calculation results to the
+/// per-atom PB and SA terms.  `None` means the frame failed and counts as
+/// zero.
+fn solve_prepared_pbsa(cur_frm: usize, times: &Vec<f64>, f_name: &str, input_text: &str,
+                       mem_mols: &MemMols, temp_dir: &PathBuf, aps: &AtomProperties,
+                       ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
+                       pba_set: &PBASet, settings: &Settings) -> Option<(Array1<f64>, Array1<f64>)> {
+    // solve the PB/SA calculations in-process with the built-in APBS
+    // solver (apbs-rs), no external process is spawned.
+    let solver_run = match apbs_runner::run_apbs_in_process_text(input_text, mem_mols) {
+        Ok(run) => run,
+        Err(e) => {
+            println!("PBSA calculation failed at {} ns: {}", times[cur_frm], e);
+            return None;
+        }
+    };
+    if settings.debug_mode {
+        let mut outfile = File::create(temp_dir.join(format!("{}.out", f_name)))
+            .expect("Failed to create output file.");
+        outfile.write_all(solver_run.log.as_bytes()).expect("Failed to write apbs output.");
+    };
+
+    let apbs_results = ApbsResults::from_solver_run(&solver_run);
+    let com_pb_sol = apbs_results.com_pb_sol;
+    let com_pb_vac = apbs_results.com_pb_vac;
+    let rec_pb_sol = apbs_results.rec_pb_sol;
+    let rec_pb_vac = apbs_results.rec_pb_vac;
+    let lig_pb_sol = apbs_results.lig_pb_sol;
+    let lig_pb_vac = apbs_results.lig_pb_vac;
+    let com_sa = apbs_results.com_sa;
+    let rec_sa = apbs_results.rec_sa;
+    let lig_sa = apbs_results.lig_sa;
+
+    let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
+    let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter()
+        .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
+    let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
+    let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter()
+        .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
+    let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
+    let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter()
+        .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
+
+    let (pb, sa) = if let Some(ndx_lig) = ndx_lig {
+        if ndx_rec.iter().min() < ndx_lig.iter().min() {
+            rec_pb.append(Axis(0), lig_pb.view()).unwrap();
+            rec_sa.append(Axis(0), lig_sa.view()).unwrap();
+            (com_pb - rec_pb, com_sa - rec_sa)
+        } else {
+            lig_pb.append(Axis(0), rec_pb.view()).unwrap();
+            lig_sa.append(Axis(0), rec_sa.view()).unwrap();
+            (com_pb - lig_pb, com_sa - lig_sa)
+        }
+    } else {
+        (rec_pb, rec_sa)
+    };
+    if pb.len() != aps.atom_props.len() || sa.len() != aps.atom_props.len() {
+        println!("Warning: The number of PB/SA values does not match the number of atoms. \
+            This may indicate an issue with the in-process APBS solver results.");
+        return None;
+    }
+    Some((pb, sa))
 }
 
 /// Prints a prominent report of the frames whose PB/SA solve failed.
@@ -711,6 +806,73 @@ mod tests {
         assert_eq!(r.com_sa, vec![44.0, 45.0]);
         assert_eq!(r.rec_sa, vec![6.6]);
         assert_eq!(r.lig_sa, vec![7.7]);
+    }
+
+    /// The GPU mode solves a whole batch of frames on concurrent worker
+    /// threads.  The PB terms of a frame must not depend on whether the frame
+    /// was solved sequentially or concurrently with the other frames of its
+    /// batch.  (SA terms are not compared: the APOLAR path has a pre-existing
+    /// concurrency flake, see prepare_apbs::sas_concurrency_detector.)
+    #[test]
+    fn batched_concurrent_pb_matches_sequential_solving() {
+        let mut aps = aps_from_atoms(&[("CA", "ALA"), ("CB", "ALA"), ("OW", "SOL")], 0);
+        aps.atom_props[0].charge = 0.4;
+        aps.atom_props[1].charge = -0.2;
+        aps.atom_props[2].charge = -0.2;
+        let ndx_rec: BTreeSet<usize> = [0usize, 1].into_iter().collect();
+        let ndx_lig: Option<BTreeSet<usize>> = Some([2usize].into_iter().collect());
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+        let temp_dir = std::env::temp_dir();
+
+        // Three slightly displaced frames, like consecutive trajectory frames.
+        let frames: Vec<Array2<f64>> = (0..3).map(|f| {
+            Array2::from_shape_vec((3, 3), vec![
+                0.1 * f as f64, 0.0, 0.0,  4.1, 0.0, 0.0,  9.0 + 0.1 * f as f64, 0.0, 0.0,
+            ]).unwrap()
+        }).collect();
+        let times: Vec<f64> = (0..3).map(|f| f as f64 * 0.1).collect();
+
+        // Read every frame's structure up front, like the GPU batch path does.
+        let prepared: Vec<PreparedPbsa> = frames.iter().enumerate().map(|(f, coord)| {
+            prepare_pbsa_frame(&coord.view(), &times, f, &ndx_rec, &ndx_lig,
+                               "batchchk", &temp_dir, &aps, &pbe_set, &pba_set, &settings)
+        }).collect();
+
+        // Sequential reference.
+        let (aps_r, ndx_rec_r, ndx_lig_r, pba_set_r, settings_r, temp_dir_r, times_r) =
+            (&aps, &ndx_rec, &ndx_lig, &pba_set, &settings, &temp_dir, &times);
+        let sequential: Vec<Array1<f64>> = prepared.iter().enumerate()
+            .map(|(f, (f_name, text, mols))| {
+                solve_prepared_pbsa(f, times_r, f_name, text, mols, temp_dir_r, aps_r,
+                                    ndx_rec_r, ndx_lig_r, pba_set_r, settings_r)
+                    .expect("sequential solve failed").0
+            }).collect();
+
+        // All frames of the batch at the same time.
+        let concurrent: Vec<Array1<f64>> = std::thread::scope(|scope| {
+            let handles: Vec<_> = prepared.iter().enumerate()
+                .map(|(f, (f_name, text, mols))| {
+                    scope.spawn(move || {
+                        solve_prepared_pbsa(f, times_r, f_name, text, mols, temp_dir_r, aps_r,
+                                            ndx_rec_r, ndx_lig_r, pba_set_r, settings_r)
+                            .expect("concurrent solve failed").0
+                    })
+                }).collect();
+            handles.into_iter().map(|h| h.join().expect("worker panicked")).collect()
+        });
+
+        for (f, (seq, par)) in sequential.into_iter().zip(concurrent).enumerate() {
+            assert_eq!(seq.len(), par.len());
+            for (i, (&a, &b)) in seq.iter().zip(par.iter()).enumerate() {
+                let tol = 1e-5_f64.max(a.abs() * 1e-4);
+                assert!(
+                    (a - b).abs() <= tol,
+                    "frame {f} atom {i}: sequential {a:.6e} vs concurrent {b:.6e}"
+                );
+            }
+        }
     }
 
     fn aps_from_atoms(atoms: &[(&str, &str)], resid: usize) -> AtomProperties {
