@@ -199,7 +199,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     };
 
     // setting up environment
-    env::set_var("OMP_NUM_THREADS", settings.nkernels.to_string());
+    env::set_var("OMP_NUM_THREADS", settings.n_kernels.to_string());
 
     // Decide whether to use parallel
     let total_iterations = if let Some(ndx_lig) = ndx_lig {
@@ -299,78 +299,30 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         mm_phase += t_mm.elapsed();
     }
 
-    // The PB/SA phase: every frame's structure is read and the frames are
-    // solved batch by batch on the GPU (`n_batch` frames at a time); on the
-    // CPU they are solved one after another.
+    // The PB/SA phase: every frame's structure is read and solved one
+    // after another.
     if settings.calc_pbsa {
         println!("Start PB/SA calculation...");
         let pgb = ProgressBar::new(time_list.len() as u64);
         set_style(&pgb);
         pgb.inc(0);
         let t_pb = std::time::Instant::now();
-        if settings.use_gpu {
-            let batch_size = settings.n_batch.max(1);
-            let times_ref = &times;
-            let frames: Vec<usize> = (0..time_list.len()).collect();
-            for batch in frames.chunks(batch_size) {
-                // Read this batch's structures up front so the worker threads
-                // only have to run the solver.
-                let prepared: Vec<PreparedPbsa> = batch.iter().map(|&cur_frm| {
-                    let coord = coordinates.slice(s![cur_frm, .., ..]);
-                    prepare_pbsa_frame(&coord, &times, cur_frm, ndx_rec, ndx_lig, sys_name,
-                                       temp_dir, aps, pbe_set, pba_set, settings)
-                }).collect();
-
-                // Solve every frame of the batch concurrently.
-                let results: Vec<Option<(Array1<f64>, Array1<f64>)>> = std::thread::scope(|scope| {
-                    let handles: Vec<_> = batch.iter().zip(prepared)
-                        .map(|(&cur_frm, (f_name, input_text, mem_mols))| {
-                            scope.spawn(move || {
-                                solve_prepared_pbsa(cur_frm, times_ref, &f_name, &input_text, &mem_mols,
-                                                    temp_dir, aps, ndx_rec, ndx_lig, pba_set, settings)
-                            })
-                        })
-                        .collect();
-                    handles.into_iter().map(|handle| handle.join().unwrap_or_else(|_| {
-                        println!("A PB/SA worker thread panicked; the frame counts as failed.");
-                        None
-                    })).collect()
-                });
-
-                for (&cur_frm, result) in batch.iter().zip(results) {
-                    match result {
-                        Some((de_pb, de_sa)) => {
-                            pb_atom.row_mut(cur_frm).assign(&de_pb);
-                            sa_atom.row_mut(cur_frm).assign(&de_sa);
-                        }
-                        None => failed_pb_frames.push(times[cur_frm]),
-                    }
-                    pgb.inc(1);
-                    pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s",
-                                                    times[cur_frm],
-                                                    vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() +
-                                                    pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
-                                                    pgb.eta().as_secs()));
+        for cur_frm in 0..time_list.len() {
+            let coord = coordinates.slice(s![cur_frm, .., ..]);
+            match calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir,
+                            aps, pbe_set, pba_set, settings) {
+                Some((de_pb, de_sa)) => {
+                    pb_atom.row_mut(cur_frm).assign(&de_pb);
+                    sa_atom.row_mut(cur_frm).assign(&de_sa);
                 }
+                None => failed_pb_frames.push(times[cur_frm]),
             }
-        } else {
-            for cur_frm in 0..time_list.len() {
-                let coord = coordinates.slice(s![cur_frm, .., ..]);
-                match calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir,
-                                aps, pbe_set, pba_set, settings) {
-                    Some((de_pb, de_sa)) => {
-                        pb_atom.row_mut(cur_frm).assign(&de_pb);
-                        sa_atom.row_mut(cur_frm).assign(&de_sa);
-                    }
-                    None => failed_pb_frames.push(times[cur_frm]),
-                }
-                pgb.inc(1);
-                pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s",
-                                                times[cur_frm],
-                                                vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() +
-                                                pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
-                                                pgb.eta().as_secs()));
-            }
+            pgb.inc(1);
+            pgb.set_message(format!("at {} ns, ΔH={:.2} kJ/mol, eta. {} s",
+                                    times[cur_frm],
+                                    vdw_atom.row(cur_frm).sum() + elec_atom.row(cur_frm).sum() +
+                                    pb_atom.row(cur_frm).sum() + sa_atom.row(cur_frm).sum(),
+                                    pgb.eta().as_secs()));
         }
         pb_phase = t_pb.elapsed();
         pgb.finish();

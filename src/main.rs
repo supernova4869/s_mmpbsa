@@ -258,10 +258,10 @@ fn env_check() -> Settings {
 
     // Set global parallel kernels
     rayon::ThreadPoolBuilder::new()
-        .num_threads(settings.nkernels)
+        .num_threads(settings.n_kernels)
         .build_global()
         .unwrap();
-    println!("Set global parallel kernels to {}.", settings.nkernels);
+    println!("Set global parallel kernels to {}.", settings.n_kernels);
 
     // GPU execution for the PB multigrid solver (falls back to CPU when no
     // suitable GPU is found).

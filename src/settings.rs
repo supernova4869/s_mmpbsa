@@ -19,7 +19,7 @@ pub struct Settings {
     pub df: f64,
     pub chg_m: usize,
     pub pymol_path: Option<String>,
-    pub nkernels: usize,
+    pub n_kernels: usize,
     pub debug_mode: bool,
     /// Stop with a non-zero exit code when a PB/SA frame fails instead of
     /// counting it as zero and continuing.
@@ -27,11 +27,6 @@ pub struct Settings {
     /// Run the MM pairwise kernel on the GPU.  Falls back to the CPU path
     /// when no suitable GPU (64-bit float shader support) is found.
     pub use_gpu: bool,
-    /// Number of trajectory frames whose PB/SA solves run at the same time
-    /// when the GPU is enabled (`use_gpu = "y"`): MM is finished for the
-    /// whole trajectory first, then the frames are solved batch by batch.
-    /// The CPU path always solves the frames one after another.
-    pub n_batch: usize,
     pub last_opened: String,
 }
 
@@ -51,11 +46,10 @@ impl Settings {
             df: 0.5,
             chg_m: 0,
             pymol_path: None,
-            nkernels: 1,
+            n_kernels: 1,
             debug_mode: false,
             exit_on_error: false,
             use_gpu: false,
-            n_batch: 1,
             last_opened: String::new(),
         }
     }
@@ -91,7 +85,7 @@ impl Settings {
         let chg_m = parse_param(&setting_values, "chg_m", 0);
         let pymol_path = parse_param(&setting_values, "pymol_path", "".to_string());
         let pymol_path = Some(pymol_path.trim_start_matches('\"').trim_end_matches('\"').to_string());
-        let nkernels = parse_param(&setting_values, "n_kernels", default_settings.nkernels);
+        let n_kernels = parse_param(&setting_values, "n_kernels", default_settings.n_kernels);
         // debug mode preserves intermediate files, which the default run
         // should not do: an absent key means off, like Settings::new().
         let debug_mode = parse_param(&setting_values, "debug_mode", "\"n\"".to_string());
@@ -100,7 +94,6 @@ impl Settings {
         let exit_on_error = get_settings_bool(&exit_on_error);
         let use_gpu = parse_param(&setting_values, "use_gpu", "\"n\"".to_string());
         let use_gpu = get_settings_bool(&use_gpu);
-        let n_batch = parse_param_any(&setting_values, &["n_batch", "n_process"], default_settings.n_batch);
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
 
@@ -118,11 +111,10 @@ impl Settings {
             df,
             chg_m,
             pymol_path,
-            nkernels,
+            n_kernels,
             debug_mode,
             exit_on_error,
             use_gpu,
-            n_batch,
             last_opened,
         }
     }
@@ -242,26 +234,6 @@ mod tests {
         let settings = Settings::from(&path);
         fs::remove_file(&path).ok();
         assert!(settings.use_gpu);
-    }
-
-    #[test]
-    fn n_batch_defaults_to_one_and_is_parsed() {
-        let path = std::env::temp_dir().join("s_mmpbsa_settings_n_batch.ini");
-        // An old settings.ini without the key keeps the sequential batch size.
-        fs::write(&path, "mm = \"y\"\n").unwrap();
-        let settings = Settings::from(&path);
-        assert_eq!(settings.n_batch, 1);
-
-        fs::write(&path, "n_batch = 4\n").unwrap();
-        let settings = Settings::from(&path);
-        assert_eq!(settings.n_batch, 4);
-
-        // The n_process spelling used by the first batched-GPU release still
-        // works.
-        fs::write(&path, "n_process = 2\n").unwrap();
-        let settings = Settings::from(&path);
-        fs::remove_file(&path).ok();
-        assert_eq!(settings.n_batch, 2);
     }
 
     #[test]

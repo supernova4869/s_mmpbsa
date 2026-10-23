@@ -13,7 +13,7 @@ use crate::parse_tpr::TPR;
 
 fn list_basic_programs(settings: &mut Settings) {
     println!(" -5 Toggle whether to enable GPU calculations, current: {}", if settings.use_gpu { "on" } else { "off" });
-    println!(" -4 Set number of parallel kernels, current: {}", settings.nkernels);
+    println!(" -4 Set number of parallel kernels, current: {}", settings.n_kernels);
     println!(" -3 Toggle whether to do PBSA calculations, current: {}", settings.calc_pbsa);
     println!(" -2 Toggle whether to do MM calculations, current: {}", settings.calc_mm);
     println!(" -1 Toggle whether to use debug mode, current: {}", settings.debug_mode);
@@ -33,8 +33,8 @@ fn set_basic_programs(opt: i32, settings: &mut Settings) {
             let threads_to_use = (num_cores / 2).max(1);
 
             println!("Input number of parallel kernels (default: {}, currently {}):",
-                threads_to_use, settings.nkernels);
-            settings.nkernels = get_input(threads_to_use).max(1);
+                threads_to_use, settings.n_kernels);
+            settings.n_kernels = get_input(threads_to_use).max(1);
         }
         -5 => settings.use_gpu = !settings.use_gpu,
         _ => {}
