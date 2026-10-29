@@ -244,11 +244,11 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         // shares with the main one are taken directly from it instead of being
         // calculated a second time.  Only then are the PB/SA terms processed.
         let mut ie_mm_rows: HashMap<usize, (Array1<f64>, Array1<f64>)> = HashMap::new();
-        if settings.inter_entropy {
-            let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
-            set_style(&pgb);
-            pgb.inc(0);
-            if let Some(ndx_lig) = ndx_lig {
+        if let Some(ndx_lig) = ndx_lig {
+            if settings.inter_entropy {
+                let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
+                set_style(&pgb);
+                pgb.inc(0);
                 let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
                 for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
                     let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
@@ -274,23 +274,21 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                     }
                 }
             } else {
-                println!("Since no ligand, will not calculate IE.");
-            }
-        } else {
-            let pgb = ProgressBar::new(time_list.len() as u64);
-            set_style(&pgb);
-            pgb.inc(0);
-            for cur_frm in 0..time_list.len() {
-                if let Some(ndx_lig) = ndx_lig {
+                let pgb = ProgressBar::new(time_list.len() as u64);
+                set_style(&pgb);
+                pgb.inc(0);
+                for cur_frm in 0..time_list.len() {
                     let coord = coordinates.slice(s![cur_frm, .., ..]);
                     let (de_elec, de_vdw) =
                         calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
                     elec_atom.row_mut(cur_frm).assign(&de_elec);
                     vdw_atom.row_mut(cur_frm).assign(&de_vdw);
+                    pgb.inc(1);
                 }
-                pgb.inc(1);
+                pgb.finish();
             }
-            pgb.finish();
+        } else {
+            println!("Since no ligand, will not calculate MM.");
         }
         mm_phase += t_mm.elapsed();
     } else {

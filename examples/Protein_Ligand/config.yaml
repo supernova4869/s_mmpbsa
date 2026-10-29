@@ -15,7 +15,7 @@ mm_set:
   electric_screening: true              # electrostatic screening (J. Chem. Inf. Model. 2021, 61, 2454)
   interaction_entropy: true             # interaction entropy (-TDS); turning it off speeds the run up a lot
   rec_grp: Protein                      # receptor group name of the index file
-  lig_grp: BEC                           # ligand group name; empty = solvation-only calculation
+  lig_grp: ''                           # ligand group name; empty = solvation-only calculation
   start_time: 0.0                       # first time to analyze (ns)
   end_time: .inf                        # last time to analyze (ns); .inf = until the end
   dt: 1.0                               # time interval between analyzed frames (ns)
