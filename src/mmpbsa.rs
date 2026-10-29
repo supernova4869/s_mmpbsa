@@ -248,34 +248,34 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
             let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
             set_style(&pgb);
             pgb.inc(0);
-                if let Some(ndx_lig) = ndx_lig {
-                    let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
-                    for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
-                        let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
-                        let ie_energy = de_elec.sum() + de_vdw.sum();
-                        // Frames shared with the main trajectory keep their
-                        // per-atom sums for the MM loop to reuse.
-                        if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
-                            ie_mm_rows.insert(frame_id, (de_elec, de_vdw));
-                        }
-                        atoms_ie.push(ie_energy);
-                        pgb.inc(1);
-                        pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
+            if let Some(ndx_lig) = ndx_lig {
+                let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
+                for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
+                    let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
+                    let ie_energy = de_elec.sum() + de_vdw.sum();
+                    // Frames shared with the main trajectory keep their
+                    // per-atom sums for the MM loop to reuse.
+                    if let Some(frame_id) = times.iter().position(|&x| x == times_ie[i]) {
+                        ie_mm_rows.insert(frame_id, (de_elec, de_vdw));
                     }
-                    pgb.finish();
-                    mm_ie = Some(Array1::from_vec(atoms_ie));
-                    
-                    // 直接从IE结果里拿
-                    for cur_frm in 0..time_list.len() {
-                        if let Some((de_elec, de_vdw)) = ie_mm_rows.remove(&cur_frm) {
-                            // Already computed during the IE pass.
-                            elec_atom.row_mut(cur_frm).assign(&de_elec);
-                            vdw_atom.row_mut(cur_frm).assign(&de_vdw);
-                        }
-                    }
-                } else {
-                    println!("Since no ligand, will not calculate IE.");
+                    atoms_ie.push(ie_energy);
+                    pgb.inc(1);
+                    pgb.set_message(format!("eta. {} s", pgb.eta().as_secs()));
                 }
+                pgb.finish();
+                mm_ie = Some(Array1::from_vec(atoms_ie));
+                
+                // 直接从IE结果里拿
+                for cur_frm in 0..time_list.len() {
+                    if let Some((de_elec, de_vdw)) = ie_mm_rows.remove(&cur_frm) {
+                        // Already computed during the IE pass.
+                        elec_atom.row_mut(cur_frm).assign(&de_elec);
+                        vdw_atom.row_mut(cur_frm).assign(&de_vdw);
+                    }
+                }
+            } else {
+                println!("Since no ligand, will not calculate IE.");
+            }
         } else {
             let pgb = ProgressBar::new(time_list.len() as u64);
             set_style(&pgb);
@@ -287,8 +287,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                         calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
                     elec_atom.row_mut(cur_frm).assign(&de_elec);
                     vdw_atom.row_mut(cur_frm).assign(&de_vdw);
-                    pgb.inc(1);
                 }
+                pgb.inc(1);
             }
             pgb.finish();
         }
