@@ -248,7 +248,6 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
             let pgb = ProgressBar::new(coordinates_ie.shape()[0] as u64);
             set_style(&pgb);
             pgb.inc(0);
-            if settings.calc_mm {
                 if let Some(ndx_lig) = ndx_lig {
                     let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
                     for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
@@ -277,9 +276,6 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 } else {
                     println!("Since no ligand, will not calculate IE.");
                 }
-            } else {
-                println!("Since MM calculation is not enabled, will not calculate IE.");
-            }
         } else {
             let pgb = ProgressBar::new(time_list.len() as u64);
             set_style(&pgb);
@@ -297,6 +293,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
             pgb.finish();
         }
         mm_phase += t_mm.elapsed();
+    } else {
+        println!("MM calculation is not enabled.");
     }
 
     // The PB/SA phase: every frame's structure is read and solved one
