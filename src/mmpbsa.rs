@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -288,7 +288,19 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 pgb.finish();
             }
         } else {
-            println!("Since no ligand, will not calculate MM.");
+            println!("Solvation-only calculation: MM = intra-receptor non-bonded energy.");
+            let pgb = ProgressBar::new(time_list.len() as u64);
+            set_style(&pgb);
+            pgb.inc(0);
+            for cur_frm in 0..time_list.len() {
+                let coord = coordinates.slice(s![cur_frm, .., ..]);
+                let (de_elec, de_vdw) =
+                    calc_mm_self(&ndx_rec, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
+                elec_atom.row_mut(cur_frm).assign(&de_elec);
+                vdw_atom.row_mut(cur_frm).assign(&de_vdw);
+                pgb.inc(1);
+            }
+            pgb.finish();
         }
         mm_phase += t_mm.elapsed();
     } else {
@@ -494,6 +506,230 @@ fn calc_mm_cpu(n_atoms: usize,
         }
     }
     
+    // Scaling to physical units happens in the caller for both paths.
+    (de_elec, de_vdw)
+}
+
+/// MM self-interaction of one group (used when no ligand is present): every
+/// atom of `ndx_rec` against all other atoms of the same set, aggregated into
+/// per-atom electrostatic and van-der-Waals rows and scaled exactly like
+/// [`calc_mm`].  The self pair and the bonded exclusions of the run input
+/// (1-2/1-3 for the usual `nrexcl = 3`) are skipped; the explicit `[ pairs ]`
+/// (1-4) interactions are evaluated on top with their own Lennard-Jones
+/// parameters and electrostatic scaling (`fudgeQQ`), matching what the
+/// GROMACS non-bonded force would compute for the group.
+fn calc_mm_self(ndx_rec: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
+                r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
+    let n_atoms = aps.atom_props.len();
+
+    // 预提取数据；self_props 的顺序即组内局部编号。
+    let self_props: Vec<_> = ndx_rec.iter().map(|&i| {
+        (i, aps.atom_props[i].charge, aps.atom_props[i].type_id,
+        coord[[i, 0]], coord[[i, 1]], coord[[i, 2]])
+    }).collect();
+
+    // 组内局部编号映射。
+    let local: HashMap<usize, u32> = self_props.iter().enumerate()
+        .map(|(li, &(gid, ..))| (gid, li as u32)).collect();
+
+    // 排除对（1-2/1-3），规范化为 (小, 大) 的局部编号。
+    let mut excluded: HashSet<(u32, u32)> = HashSet::new();
+    for &(gid, ..) in &self_props {
+        if let Some(list) = aps.exclusions.get(gid) {
+            for &other in list {
+                if let Some(&lo) = local.get(&other) {
+                    let li = local[&gid];
+                    if li != lo {
+                        excluded.insert(if li < lo { (li, lo) } else { (lo, li) });
+                    }
+                }
+            }
+        }
+    }
+
+    // 1-4 对：组内两端都在的 [ pairs ] 项，带各自的 LJ 参数与静电缩放；
+    // 它们同样从通用的对循环里排除，能量在后面单独累加。
+    let mut pairs14: Vec<(u32, u32, usize, usize, f64, f64, f64)> = Vec::new();
+    for p in &aps.pairs14 {
+        if let (Some(&li), Some(&lj)) = (local.get(&p.ai), local.get(&p.aj)) {
+            if li == lj {
+                continue;
+            }
+            let fudge = p.fudge_qq.unwrap_or(aps.fudge_qq);
+            pairs14.push((li, lj, p.ai, p.aj, p.c6, p.c12, fudge));
+            excluded.insert(if li < lj { (li, lj) } else { (lj, li) });
+        }
+    }
+
+    // 排除表 CSR（每原子的升序局部编号列表），GPU 与 CPU 的对循环共用。
+    let mut excl_by_atom: Vec<Vec<u32>> = vec![Vec::new(); self_props.len()];
+    for &(a, b) in &excluded {
+        excl_by_atom[a as usize].push(b);
+        excl_by_atom[b as usize].push(a);
+    }
+    for list in &mut excl_by_atom {
+        list.sort_unstable();
+    }
+    let mut excl_offsets = vec![0u32; self_props.len() + 1];
+    let mut excl_list: Vec<u32> = Vec::with_capacity(excluded.len() * 2);
+    for (li, list) in excl_by_atom.iter().enumerate() {
+        excl_list.extend_from_slice(list);
+        excl_offsets[li + 1] = excl_list.len() as u32;
+    }
+
+    // GPU path when requested; a missing/unsupported GPU (or a failed launch)
+    // falls back to the CPU implementation below.
+    let ctx = crate::gpu::mm_context();
+    let (mut de_elec, mut de_vdw) = if settings.use_gpu {
+        if let Some(ctx) = ctx {
+            match crate::gpu::calc_mm_self_gpu(ctx, n_atoms, &self_props,
+                    &aps.c6, &aps.c12, r_cutoff_sq, settings.elec_screen, coeff.lambda_d,
+                    &excl_offsets, &excl_list) {
+                Ok(result) => result,
+                Err(e) => {
+                    println!("GPU self MM calculation failed ({}); recalculating on CPU.", e);
+                    calc_mm_self_cpu(n_atoms, &self_props, &excl_offsets, &excl_list,
+                                     aps, coeff, settings, r_cutoff_sq, use_parallel)
+                }
+            }
+        } else {
+            calc_mm_self_cpu(n_atoms, &self_props, &excl_offsets, &excl_list,
+                             aps, coeff, settings, r_cutoff_sq, use_parallel)
+        }
+    } else {
+        calc_mm_self_cpu(n_atoms, &self_props, &excl_offsets, &excl_list,
+                         aps, coeff, settings, r_cutoff_sq, use_parallel)
+    };
+
+    // 1-4 对：用 [ pairs ] 自带的参数显式计算。静电乘以逐对的缩放因子
+    // （无逐对值时用 fudgeQQ），LJ 用参数表中的 c6/c12；这两个量 grompp
+    // 生成时已按力场定义解析好。1-4 对不受距离截断影响（它就是该对的
+    // 非键相互作用本身）。
+    let a2nm = 1.0 / 10.0;
+    for &(li, lj, gi, gj, c6_pair, c12_pair, fudge) in &pairs14 {
+        let (_, qi, _, xi, yi, zi) = self_props[li as usize];
+        let (_, qj, _, xj, yj, zj) = self_props[lj as usize];
+        let dx = xi - xj;
+        let dy = yi - yj;
+        let dz = zi - zj;
+        let r_sq = dx * dx + dy * dy + dz * dz;
+        let r = r_sq.sqrt() * a2nm;
+        let r_inv = 1.0 / r;
+
+        let e_elec = fudge * qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+        let r6_inv = r_inv.powi(6);
+        let e_vdw = (c12_pair * r6_inv - c6_pair) * r6_inv;
+
+        de_elec[gi] += e_elec;
+        de_elec[gj] += e_elec;
+        de_vdw[gi] += e_vdw;
+        de_vdw[gj] += e_vdw;
+    }
+
+    // 应用与calc_mm相同的缩放因子（每对相互作用出现在两个原子的行中）
+    let elec_scale = coeff.f / coeff.pdie / 2.0;
+    let vdw_scale = 0.5;
+
+    de_elec = de_elec * elec_scale;
+    de_vdw = de_vdw * vdw_scale;
+
+    (de_elec, de_vdw)
+}
+
+/// The CPU implementation of the self-interaction MM sums, returning the
+/// unscaled per-atom electrostatic and van-der-Waals terms.  Bonded
+/// exclusions are skipped with the same per-atom merge walk the GPU kernel
+/// uses; the explicit `[ pairs ]` (1-4) energy is added by the caller.
+fn calc_mm_self_cpu(n_atoms: usize,
+                    self_props: &[(usize, f64, usize, f64, f64, f64)],
+                    excl_offsets: &[u32], excl_list: &[u32],
+                    aps: &AtomProperties, coeff: &Coefficients, settings: &Settings,
+                    r_cutoff_sq: f64, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
+    let mut de_elec: Array1<f64> = Array1::zeros(n_atoms);
+    let mut de_vdw: Array1<f64> = Array1::zeros(n_atoms);
+    let a2nm = 1.0 / 10.0;
+
+    if use_parallel {
+        // 并行版本
+        let (par_elec, par_vdw): (Vec<f64>, Vec<f64>) = self_props.par_iter().enumerate()
+            .map(|(li, &(i, qi, ci, xi, yi, zi))| {
+                let mut local_elec = vec![0.0; n_atoms];
+                let mut local_vdw = vec![0.0; n_atoms];
+                let mut ex = excl_offsets[li];
+                let ex_end = excl_offsets[li + 1];
+
+                for (lj, &(_, qj, cj, xj, yj, zj)) in self_props.iter().enumerate() {
+                    if lj == li {
+                        continue;
+                    }
+                    if ex < ex_end && excl_list[ex as usize] == lj as u32 {
+                        ex += 1;
+                        continue;
+                    }
+                    let dx = xi - xj;
+                    let dy = yi - yj;
+                    let dz = zi - zj;
+                    let r_sq = dx * dx + dy * dy + dz * dz;
+
+                    if r_sq <= r_cutoff_sq {
+                        let r = r_sq.sqrt() * a2nm;
+                        let r_inv = 1.0 / r;
+
+                        let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+                        let r6_inv = r_inv.powi(6);
+                        let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
+
+                        local_elec[i] += e_elec;
+                        local_vdw[i] += e_vdw;
+                    }
+                }
+
+                (local_elec, local_vdw)
+            })
+            .reduce(|| (vec![0.0; n_atoms], vec![0.0; n_atoms]),
+                    |(mut acc_elec, mut acc_vdw), (elec, vdw)| {
+                        for i in 0..n_atoms {
+                            acc_elec[i] += elec[i];
+                            acc_vdw[i] += vdw[i];
+                        }
+                        (acc_elec, acc_vdw)
+                    });
+
+        de_elec = Array1::from_vec(par_elec);
+        de_vdw = Array1::from_vec(par_vdw);
+    } else {
+        // 串行版本
+        for (li, &(i, qi, ci, xi, yi, zi)) in self_props.iter().enumerate() {
+            let mut ex = excl_offsets[li];
+            let ex_end = excl_offsets[li + 1];
+            for (lj, &(_, qj, cj, xj, yj, zj)) in self_props.iter().enumerate() {
+                if lj == li {
+                    continue;
+                }
+                if ex < ex_end && excl_list[ex as usize] == lj as u32 {
+                    ex += 1;
+                    continue;
+                }
+                let dx = xi - xj;
+                let dy = yi - yj;
+                let dz = zi - zj;
+                let r_sq = dx * dx + dy * dy + dz * dz;
+
+                if r_sq <= r_cutoff_sq {
+                    let r = r_sq.sqrt() * a2nm;
+                    let r_inv = 1.0 / r;
+
+                    let e_elec = qi * qj * r_inv * coefficients::screening_method(r, coeff, settings.elec_screen);
+                    let r6_inv = r_inv.powi(6);
+                    let e_vdw = (aps.c12[[ci, cj]] * r6_inv - aps.c6[[ci, cj]]) * r6_inv;
+
+                    de_elec[i] += e_elec;
+                    de_vdw[i] += e_vdw;
+                }
+            }
+        }
+    }
+
     // Scaling to physical units happens in the caller for both paths.
     (de_elec, de_vdw)
 }
@@ -843,6 +1079,153 @@ mod tests {
                     resid,
                 })
                 .collect(),
+            exclusions: Vec::new(),
+            pairs14: Vec::new(),
+            fudge_qq: 1.0,
+        }
+    }
+
+    /// Builds an `AtomProperties` with a small LJ table, per-atom charges and
+    /// the given bonded exclusions / explicit pairs, for the self-MM tests.
+    fn aps_with_topology(charges: &[f64],
+                         exclusions: Vec<Vec<usize>>,
+                         pairs14: Vec<crate::parse_tpr::Pair14>,
+                         fudge_qq: f64) -> AtomProperties {
+        let n_types = 2usize;
+        let c6 = Array2::from_shape_fn((n_types, n_types), |(i, j)| 0.001 + 0.0005 * (i + 2 * j) as f64);
+        let c12 = Array2::from_shape_fn((n_types, n_types), |(i, j)| 1e-6 + 5e-7 * (i + 2 * j) as f64);
+        AtomProperties {
+            c6,
+            c12,
+            at_map: HashMap::new(),
+            radius_type: "mBondi".to_string(),
+            atom_props: charges
+                .iter()
+                .enumerate()
+                .map(|(i, &q)| AtomProperty {
+                    charge: q,
+                    radius: 1.4,
+                    type_id: i % n_types,
+                    id: i,
+                    name: "CA".to_string(),
+                    at_type: "C".to_string(),
+                    resname: "ALA".to_string(),
+                    resid: i,
+                })
+                .collect(),
+            exclusions,
+            pairs14,
+            fudge_qq,
+        }
+    }
+
+    /// `calc_mm_self` must skip the self pair and the bonded exclusions
+    /// (1-2/1-3), evaluate the explicit `[ pairs ]` (1-4) with their own LJ
+    /// parameters and electrostatic scaling, and apply the same scaling as
+    /// `calc_mm`.  The expectation is computed by hand for a four-atom group:
+    /// a bonded chain 0-1-2 (so 0-1, 1-2 are 1-2 and 0-2 is a 1-3) plus a
+    /// far-away fourth atom.
+    #[test]
+    fn calc_mm_self_excludes_bonded_and_adds_pairs() {
+        let pbe_set = PBESet::new(298.15);
+        let coeff = Coefficients::new(&pbe_set);
+        let settings = Settings::new();
+
+        let coords = [[0.0, 0.0, 0.0], [2.5, 0.0, 0.0], [0.0, 3.0, 0.0], [9.0, 9.0, 9.0]];
+        let charges = [0.4, -0.3, 0.2, -0.1];
+        // grompp-style exclusions for the chain 0-1-2 (both directions) and a
+        // 1-4 pair list with the 0-2 pair (global fudgeQQ) plus a 1-3 pair
+        // with a per-pair scaling, to exercise both parameter layouts.
+        let exclusions = vec![
+            vec![1usize, 2usize],
+            vec![0usize, 2usize],
+            vec![0usize, 1usize],
+            Vec::new(),
+        ];
+        let pairs14 = vec![
+            crate::parse_tpr::Pair14 { ai: 0, aj: 2, c6: 0.004, c12: 8e-6, fudge_qq: None },
+            crate::parse_tpr::Pair14 { ai: 1, aj: 3, c6: 0.002, c12: 3e-6, fudge_qq: Some(0.3) },
+        ];
+        let aps = aps_with_topology(&charges, exclusions, pairs14, 0.5);
+        let n_atoms = aps.atom_props.len();
+        let ndx_rec: BTreeSet<usize> = (0..n_atoms).collect();
+        let coord = Array2::from_shape_fn((n_atoms, 3), |(i, d)| coords[i][d]);
+
+        let (de_elec, de_vdw) = calc_mm_self(&ndx_rec, &aps, &coord.view(),
+                                             f64::INFINITY, &coeff, &settings, false);
+
+        // Hand-computed expectation (unscaled generic sum + explicit pairs,
+        // then the calc_mm scaling).
+        let a2nm = 0.1;
+        let mut e_elec = [0.0f64; 4];
+        let mut e_vdw = [0.0f64; 4];
+        // Generic sum: all pairs except the bonded exclusions 0-1, 0-2, 1-2
+        // and the explicit pairs 0-2 (1-4) and 1-3, which are evaluated
+        // separately below.
+        let excluded_pairs = [
+            (0usize, 1usize), (0usize, 2usize), (1usize, 2usize),
+            (0usize, 2usize), (1usize, 3usize),
+        ];
+        for i in 0..4 {
+            for j in 0..4 {
+                if i == j || excluded_pairs.contains(&(i.min(j), i.max(j))) {
+                    continue;
+                }
+                let (dx, dy, dz) = (coords[i][0] - coords[j][0], coords[i][1] - coords[j][1], coords[i][2] - coords[j][2]);
+                let r_sq = dx * dx + dy * dy + dz * dz;
+                assert!(r_sq <= f64::INFINITY);
+                let r = r_sq.sqrt() * a2nm;
+                let r_inv = 1.0 / r;
+                let e = charges[i] * charges[j] * r_inv
+                    * coefficients::screening_method(r, &coeff, settings.elec_screen);
+                let r6_inv = r_inv.powi(6);
+                let v = (aps.c12[[i % 2, j % 2]] * r6_inv - aps.c6[[i % 2, j % 2]]) * r6_inv;
+                e_elec[i] += e;
+                e_vdw[i] += v;
+            }
+        }
+        // Explicit pairs.
+        let pair_expectations = [
+            (0usize, 2usize, 0.004f64, 8e-6f64, 0.5f64),
+            (1usize, 3usize, 0.002f64, 3e-6f64, 0.3f64),
+        ];
+        for (i, j, c6p, c12p, fudge) in pair_expectations {
+            let (dx, dy, dz) = (coords[i][0] - coords[j][0], coords[i][1] - coords[j][1], coords[i][2] - coords[j][2]);
+            let r = (dx * dx + dy * dy + dz * dz).sqrt() * a2nm;
+            let r_inv = 1.0 / r;
+            let e = fudge * charges[i] * charges[j] * r_inv
+                * coefficients::screening_method(r, &coeff, settings.elec_screen);
+            let r6_inv = r_inv.powi(6);
+            let v = (c12p * r6_inv - c6p) * r6_inv;
+            e_elec[i] += e;
+            e_elec[j] += e;
+            e_vdw[i] += v;
+            e_vdw[j] += v;
+        }
+        let elec_scale = coeff.f / coeff.pdie / 2.0;
+        let vdw_scale = 0.5;
+
+        for i in 0..4 {
+            let want_e = e_elec[i] * elec_scale;
+            let want_v = e_vdw[i] * vdw_scale;
+            assert!(
+                (de_elec[i] - want_e).abs() < 1e-10,
+                "elec atom {i}: got {}, want {want_e}",
+                de_elec[i]
+            );
+            assert!(
+                (de_vdw[i] - want_v).abs() < 1e-10,
+                "vdw atom {i}: got {}, want {want_v}",
+                de_vdw[i]
+            );
+        }
+
+        // The parallel variant must agree with the serial one.
+        let (par_e, par_v) = calc_mm_self(&ndx_rec, &aps, &coord.view(),
+                                          f64::INFINITY, &coeff, &settings, true);
+        for i in 0..4 {
+            assert!((par_e[i] - de_elec[i]).abs() < 1e-12, "parallel elec atom {i}");
+            assert!((par_v[i] - de_vdw[i]).abs() < 1e-12, "parallel vdw atom {i}");
         }
     }
 

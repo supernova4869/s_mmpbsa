@@ -278,6 +278,9 @@ mod tests {
                     resid: i,
                 })
                 .collect(),
+            exclusions: Vec::new(),
+            pairs14: Vec::new(),
+            fudge_qq: 1.0,
         }
     }
 
@@ -524,6 +527,9 @@ mod tests {
                     resid: i / 3,
                 })
                 .collect(),
+            exclusions: Vec::new(),
+            pairs14: Vec::new(),
+            fudge_qq: 1.0,
         };
         let ndx_rec: BTreeSet<usize> = (0..30).collect();
         let ndx_lig: Option<BTreeSet<usize>> = Some((30..60).collect());
