@@ -8,6 +8,7 @@ use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
 use indicatif::ProgressBar;
 use chrono::{Local, Duration};
 use crate::fun_para_system::normalize_index;
+use crate::gpu::GpuContext;
 use crate::settings::Settings;
 use crate::utils::{self, is_amino, set_style};
 use crate::coefficients::{self, Coefficients};
@@ -222,11 +223,14 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     // Bring both GPU contexts up before the progress bar starts, so the
     // "GPU enabled" lines do not appear mid-progress on the first frame.
-    if settings.use_gpu {
-        crate::gpu::mm_context();
+    let ctx = if settings.use_gpu {
+        let ctx = crate::gpu::mm_context();
         apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
         apbs_pmgc::gpu_mg::warm_up();
-    }
+        ctx
+    } else {
+        None
+    };
 
     // Frames whose PB/SA solve failed; they count as zero, which would
     // silently distort the average binding energy if nobody was told.
@@ -251,7 +255,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 pgb.inc(0);
                 let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
                 for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
-                    let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
+                    let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, 
+                        r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
                     let ie_energy = de_elec.sum() + de_vdw.sum();
                     // Frames shared with the main trajectory keep their
                     // per-atom sums for the MM loop to reuse.
@@ -280,7 +285,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 for cur_frm in 0..time_list.len() {
                     let coord = coordinates.slice(s![cur_frm, .., ..]);
                     let (de_elec, de_vdw) =
-                        calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
+                        calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
                     elec_atom.row_mut(cur_frm).assign(&de_elec);
                     vdw_atom.row_mut(cur_frm).assign(&de_vdw);
                     pgb.inc(1);
@@ -372,7 +377,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 }
 
 fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
-            r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
+            r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool, ctx: &Option<&GpuContext>) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
 
     // 预提取数据
@@ -388,10 +393,10 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
 
     // GPU path when requested; a missing/unsupported GPU (or a failed launch)
     // falls back to the CPU implementation below.
-    let ctx = crate::gpu::mm_context();
+    // let ctx = crate::gpu::mm_context();
     let (mut de_elec, mut de_vdw) = if settings.use_gpu {
-        if ctx.is_some() {
-            match crate::gpu::calc_mm_gpu(ctx.unwrap(), n_atoms, &rec_props, &lig_props,
+        if let Some(ctx) = ctx {
+            match crate::gpu::calc_mm_gpu(ctx, n_atoms, &rec_props, &lig_props,
                     &aps.c6, &aps.c12, r_cutoff_sq, settings.elec_screen, coeff.lambda_d) {
                 Ok(result) => result,
                 Err(e) => {
