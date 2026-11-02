@@ -979,26 +979,4 @@ mod tests {
             assert!((gpu_e[i] - want[i]).abs() < 1e-12, "atom {i}: gpu {} vs want {}", gpu_e[i], want[i]);
         }
     }
-
-    fn gpu_leaves_non_group_atoms_and_empty_groups_at_zero() {
-        let Some(ctx) = mm_context() else {
-            println!("No f64-capable GPU found; skipping the GPU/CPU comparison test.");
-            return;
-        };
-        let c6 = ndarray::Array2::from_elem((1, 1), 0.001);
-        let c12 = ndarray::Array2::from_elem((1, 1), 1e-6);
-        let (rec, lig, _, _) = random_system(3, 2, 1);
-        let n_atoms = 10;
-        let (gpu_e, gpu_v) = calc_mm_gpu(ctx, n_atoms, &rec, &lig, &c6, &c12, f64::INFINITY, true, 0.8)
-            .expect("GPU MM run failed");
-        for i in 5..n_atoms {
-            assert_eq!(gpu_e[i], 0.0);
-            assert_eq!(gpu_v[i], 0.0);
-        }
-        let (e0, v0) = calc_mm_gpu(ctx, n_atoms, &rec, &[], &c6, &c12, f64::INFINITY, true, 0.8)
-            .expect("GPU MM run failed");
-        assert!(e0.iter().all(|&x| x == 0.0));
-        assert!(v0.iter().all(|&x| x == 0.0));
-    }
 }
-

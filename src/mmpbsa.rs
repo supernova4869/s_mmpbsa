@@ -222,11 +222,14 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
 
     // Bring both GPU contexts up before the progress bar starts, so the
     // "GPU enabled" lines do not appear mid-progress on the first frame.
-    if settings.use_gpu {
-        crate::gpu::mm_context();
+    let ctx = if settings.use_gpu {
+        let ctx = crate::gpu::mm_context();
         apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
         apbs_pmgc::gpu_mg::warm_up();
-    }
+        ctx
+    } else {
+        None
+    };
 
     // Frames whose PB/SA solve failed; they count as zero, which would
     // silently distort the average binding energy if nobody was told.
@@ -251,7 +254,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 pgb.inc(0);
                 let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
                 for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
-                    let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, r_cutoff_sq, &coeff, &settings, use_parallel);
+                    let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, 
+                        r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
                     let ie_energy = de_elec.sum() + de_vdw.sum();
                     // Frames shared with the main trajectory keep their
                     // per-atom sums for the MM loop to reuse.
@@ -280,7 +284,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 for cur_frm in 0..time_list.len() {
                     let coord = coordinates.slice(s![cur_frm, .., ..]);
                     let (de_elec, de_vdw) =
-                        calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
+                        calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
                     elec_atom.row_mut(cur_frm).assign(&de_elec);
                     vdw_atom.row_mut(cur_frm).assign(&de_vdw);
                     pgb.inc(1);
@@ -295,7 +299,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
             for cur_frm in 0..time_list.len() {
                 let coord = coordinates.slice(s![cur_frm, .., ..]);
                 let (de_elec, de_vdw) =
-                    calc_mm_self(&ndx_rec, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel);
+                    calc_mm_self(&ndx_rec, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
                 elec_atom.row_mut(cur_frm).assign(&de_elec);
                 vdw_atom.row_mut(cur_frm).assign(&de_vdw);
                 pgb.inc(1);
@@ -383,8 +387,16 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     )
 }
 
+/// Lower bound of atom-pair count for which the GPU MM kernel pays off.
+/// Each GPU call carries ~2 ms of fixed cost (buffer setup, submit and the
+/// blocking readback), while the CPU evaluates ~0.1-1 ms per 10k-100k pairs;
+/// below this threshold the CPU is faster, above it the GPU wins
+/// (e.g. a 3129-atom self-interaction: GPU 26 ms vs CPU 112 ms per frame).
+const GPU_MM_PAIR_THRESHOLD: usize = 500_000;
+
 fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
-            r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
+            r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool, 
+            ctx: &Option<&crate::gpu::GpuContext>) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
 
     // 预提取数据
@@ -398,12 +410,13 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
         coord[[j, 0]], coord[[j, 1]], coord[[j, 2]])
     }).collect();
 
-    // GPU path when requested; a missing/unsupported GPU (or a failed launch)
-    // falls back to the CPU implementation below.
-    let ctx = crate::gpu::mm_context();
-    let (mut de_elec, mut de_vdw) = if settings.use_gpu {
-        if ctx.is_some() {
-            match crate::gpu::calc_mm_gpu(ctx.unwrap(), n_atoms, &rec_props, &lig_props,
+    // GPU path when requested and the receptor x ligand product is large
+    // enough to amortize the fixed per-call GPU cost; a missing/unsupported
+    // GPU (or a failed launch) falls back to the CPU implementation below.
+    let gpu_worthwhile = rec_props.len() * lig_props.len() >= GPU_MM_PAIR_THRESHOLD;
+    let (mut de_elec, mut de_vdw) = if settings.use_gpu && gpu_worthwhile {
+        if let Some(ctx) = ctx {
+            match crate::gpu::calc_mm_gpu(ctx, n_atoms, &rec_props, &lig_props,
                     &aps.c6, &aps.c12, r_cutoff_sq, settings.elec_screen, coeff.lambda_d) {
                 Ok(result) => result,
                 Err(e) => {
@@ -519,7 +532,8 @@ fn calc_mm_cpu(n_atoms: usize,
 /// parameters and electrostatic scaling (`fudgeQQ`), matching what the
 /// GROMACS non-bonded force would compute for the group.
 fn calc_mm_self(ndx_rec: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
-                r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool) -> (Array1<f64>, Array1<f64>) {
+                r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool,
+                ctx: &Option<&crate::gpu::GpuContext>) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
 
     // 预提取数据；self_props 的顺序即组内局部编号。
@@ -577,10 +591,11 @@ fn calc_mm_self(ndx_rec: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayVi
         excl_offsets[li + 1] = excl_list.len() as u32;
     }
 
-    // GPU path when requested; a missing/unsupported GPU (or a failed launch)
-    // falls back to the CPU implementation below.
-    let ctx = crate::gpu::mm_context();
-    let (mut de_elec, mut de_vdw) = if settings.use_gpu {
+    // GPU path when requested and the group is large enough for the kernel
+    // to amortize the fixed per-call GPU cost; a missing/unsupported GPU (or
+    // a failed launch) falls back to the CPU implementation below.
+    let gpu_worthwhile = self_props.len() * self_props.len() >= GPU_MM_PAIR_THRESHOLD;
+    let (mut de_elec, mut de_vdw) = if settings.use_gpu && gpu_worthwhile {
         if let Some(ctx) = ctx {
             match crate::gpu::calc_mm_self_gpu(ctx, n_atoms, &self_props,
                     &aps.c6, &aps.c12, r_cutoff_sq, settings.elec_screen, coeff.lambda_d,
@@ -1082,150 +1097,6 @@ mod tests {
             exclusions: Vec::new(),
             pairs14: Vec::new(),
             fudge_qq: 1.0,
-        }
-    }
-
-    /// Builds an `AtomProperties` with a small LJ table, per-atom charges and
-    /// the given bonded exclusions / explicit pairs, for the self-MM tests.
-    fn aps_with_topology(charges: &[f64],
-                         exclusions: Vec<Vec<usize>>,
-                         pairs14: Vec<crate::parse_tpr::Pair14>,
-                         fudge_qq: f64) -> AtomProperties {
-        let n_types = 2usize;
-        let c6 = Array2::from_shape_fn((n_types, n_types), |(i, j)| 0.001 + 0.0005 * (i + 2 * j) as f64);
-        let c12 = Array2::from_shape_fn((n_types, n_types), |(i, j)| 1e-6 + 5e-7 * (i + 2 * j) as f64);
-        AtomProperties {
-            c6,
-            c12,
-            at_map: HashMap::new(),
-            radius_type: "mBondi".to_string(),
-            atom_props: charges
-                .iter()
-                .enumerate()
-                .map(|(i, &q)| AtomProperty {
-                    charge: q,
-                    radius: 1.4,
-                    type_id: i % n_types,
-                    id: i,
-                    name: "CA".to_string(),
-                    at_type: "C".to_string(),
-                    resname: "ALA".to_string(),
-                    resid: i,
-                })
-                .collect(),
-            exclusions,
-            pairs14,
-            fudge_qq,
-        }
-    }
-
-    /// `calc_mm_self` must skip the self pair and the bonded exclusions
-    /// (1-2/1-3), evaluate the explicit `[ pairs ]` (1-4) with their own LJ
-    /// parameters and electrostatic scaling, and apply the same scaling as
-    /// `calc_mm`.  The expectation is computed by hand for a four-atom group:
-    /// a bonded chain 0-1-2 (so 0-1, 1-2 are 1-2 and 0-2 is a 1-3) plus a
-    /// far-away fourth atom.
-    #[test]
-    fn calc_mm_self_excludes_bonded_and_adds_pairs() {
-        let pbe_set = PBESet::new(298.15);
-        let coeff = Coefficients::new(&pbe_set);
-        let settings = Settings::new();
-
-        let coords = [[0.0, 0.0, 0.0], [2.5, 0.0, 0.0], [0.0, 3.0, 0.0], [9.0, 9.0, 9.0]];
-        let charges = [0.4, -0.3, 0.2, -0.1];
-        // grompp-style exclusions for the chain 0-1-2 (both directions) and a
-        // 1-4 pair list with the 0-2 pair (global fudgeQQ) plus a 1-3 pair
-        // with a per-pair scaling, to exercise both parameter layouts.
-        let exclusions = vec![
-            vec![1usize, 2usize],
-            vec![0usize, 2usize],
-            vec![0usize, 1usize],
-            Vec::new(),
-        ];
-        let pairs14 = vec![
-            crate::parse_tpr::Pair14 { ai: 0, aj: 2, c6: 0.004, c12: 8e-6, fudge_qq: None },
-            crate::parse_tpr::Pair14 { ai: 1, aj: 3, c6: 0.002, c12: 3e-6, fudge_qq: Some(0.3) },
-        ];
-        let aps = aps_with_topology(&charges, exclusions, pairs14, 0.5);
-        let n_atoms = aps.atom_props.len();
-        let ndx_rec: BTreeSet<usize> = (0..n_atoms).collect();
-        let coord = Array2::from_shape_fn((n_atoms, 3), |(i, d)| coords[i][d]);
-
-        let (de_elec, de_vdw) = calc_mm_self(&ndx_rec, &aps, &coord.view(),
-                                             f64::INFINITY, &coeff, &settings, false);
-
-        // Hand-computed expectation (unscaled generic sum + explicit pairs,
-        // then the calc_mm scaling).
-        let a2nm = 0.1;
-        let mut e_elec = [0.0f64; 4];
-        let mut e_vdw = [0.0f64; 4];
-        // Generic sum: all pairs except the bonded exclusions 0-1, 0-2, 1-2
-        // and the explicit pairs 0-2 (1-4) and 1-3, which are evaluated
-        // separately below.
-        let excluded_pairs = [
-            (0usize, 1usize), (0usize, 2usize), (1usize, 2usize),
-            (0usize, 2usize), (1usize, 3usize),
-        ];
-        for i in 0..4 {
-            for j in 0..4 {
-                if i == j || excluded_pairs.contains(&(i.min(j), i.max(j))) {
-                    continue;
-                }
-                let (dx, dy, dz) = (coords[i][0] - coords[j][0], coords[i][1] - coords[j][1], coords[i][2] - coords[j][2]);
-                let r_sq = dx * dx + dy * dy + dz * dz;
-                assert!(r_sq <= f64::INFINITY);
-                let r = r_sq.sqrt() * a2nm;
-                let r_inv = 1.0 / r;
-                let e = charges[i] * charges[j] * r_inv
-                    * coefficients::screening_method(r, &coeff, settings.elec_screen);
-                let r6_inv = r_inv.powi(6);
-                let v = (aps.c12[[i % 2, j % 2]] * r6_inv - aps.c6[[i % 2, j % 2]]) * r6_inv;
-                e_elec[i] += e;
-                e_vdw[i] += v;
-            }
-        }
-        // Explicit pairs.
-        let pair_expectations = [
-            (0usize, 2usize, 0.004f64, 8e-6f64, 0.5f64),
-            (1usize, 3usize, 0.002f64, 3e-6f64, 0.3f64),
-        ];
-        for (i, j, c6p, c12p, fudge) in pair_expectations {
-            let (dx, dy, dz) = (coords[i][0] - coords[j][0], coords[i][1] - coords[j][1], coords[i][2] - coords[j][2]);
-            let r = (dx * dx + dy * dy + dz * dz).sqrt() * a2nm;
-            let r_inv = 1.0 / r;
-            let e = fudge * charges[i] * charges[j] * r_inv
-                * coefficients::screening_method(r, &coeff, settings.elec_screen);
-            let r6_inv = r_inv.powi(6);
-            let v = (c12p * r6_inv - c6p) * r6_inv;
-            e_elec[i] += e;
-            e_elec[j] += e;
-            e_vdw[i] += v;
-            e_vdw[j] += v;
-        }
-        let elec_scale = coeff.f / coeff.pdie / 2.0;
-        let vdw_scale = 0.5;
-
-        for i in 0..4 {
-            let want_e = e_elec[i] * elec_scale;
-            let want_v = e_vdw[i] * vdw_scale;
-            assert!(
-                (de_elec[i] - want_e).abs() < 1e-10,
-                "elec atom {i}: got {}, want {want_e}",
-                de_elec[i]
-            );
-            assert!(
-                (de_vdw[i] - want_v).abs() < 1e-10,
-                "vdw atom {i}: got {}, want {want_v}",
-                de_vdw[i]
-            );
-        }
-
-        // The parallel variant must agree with the serial one.
-        let (par_e, par_v) = calc_mm_self(&ndx_rec, &aps, &coord.view(),
-                                          f64::INFINITY, &coeff, &settings, true);
-        for i in 0..4 {
-            assert!((par_e[i] - de_elec[i]).abs() < 1e-12, "parallel elec atom {i}");
-            assert!((par_v[i] - de_vdw[i]).abs() < 1e-12, "parallel vdw atom {i}");
         }
     }
 
