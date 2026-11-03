@@ -112,6 +112,7 @@ fn main() {
     let mut settings = env_check();
     if config.is_some() {
         settings.debug_mode = config.as_ref().unwrap().program_set.debug;
+        settings.use_gpu = config.as_ref().unwrap().program_set.use_gpu;
     }
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
