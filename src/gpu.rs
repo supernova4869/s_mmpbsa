@@ -68,6 +68,10 @@ struct Params {
 @group(0) @binding(4) var<storage> c12: array<f64>;
 // Per-atom (electrostatic, van-der-Waals) sums: [0..n_a) receptor, [n_a..n_a+n_b) ligand.
 @group(0) @binding(5) var<storage, read_write> out: array<vec2<f64>>;
+// Bonded exclusion CSR (main_self only): excl_offsets[n + 1] slice ends into
+// the sorted per-atom exclusion lists in excl_list.
+@group(0) @binding(6) var<storage> excl_offsets: array<u32>;
+@group(0) @binding(7) var<storage> excl_list: array<u32>;
 
 // Driver f64 transcendentals (exp/exp2) are implemented with reduced
 // precision or are outright wrong for some arguments on common GPU stacks,
@@ -160,6 +164,39 @@ fn main_b(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     out[params.n_a + i] = acc;
 }
+
+// Dispatch S: one thread per atom, summing over all OTHER atoms of the same
+// group (the zero-distance self pair would poison the sum with infinities).
+// Bonded exclusions (1-2/1-3 and the explicit [ pairs ] handled elsewhere)
+// arrive as a CSR list per atom, sorted ascending; the inner loop walks a
+// cursor through it while j advances, so every excluded partner is skipped
+// exactly once.  The thread's atom stays the first pair_energy argument, so
+// the c6/c12 lookup is [own type, other type].
+@compute @workgroup_size(64)
+fn main_self(
+    @builtin(global_invocation_id) gid: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>,
+) {
+    let i = gid.x;
+    if (i >= params.n_a) {
+        return;
+    }
+    _ = lid;
+    var acc = vec2<f64>(0.0, 0.0);
+    var ex = excl_offsets[i];
+    let ex_end = excl_offsets[i + 1u];
+    for (var j = 0u; j < params.n_b; j += 1u) {
+        if (j == i) {
+            continue;
+        }
+        if (ex < ex_end && excl_list[ex] == j) {
+            ex += 1u;
+            continue;
+        }
+        acc = acc + pair_energy(atoms_a[i], atoms_b[j]);
+    }
+    out[i] = acc;
+}
 "#;
 
 const WORKGROUP_SIZE: u32 = 64;
@@ -169,6 +206,7 @@ pub struct GpuContext {
     queue: wgpu::Queue,
     pipeline_a: wgpu::ComputePipeline,
     pipeline_b: wgpu::ComputePipeline,
+    pipeline_self: wgpu::ComputePipeline,
     bind_group_layout: wgpu::BindGroupLayout,
     adapter_name: String,
 }
@@ -264,12 +302,14 @@ impl GpuContext {
         };
         let pipeline_a = make_pipeline("main_a");
         let pipeline_b = make_pipeline("main_b");
+        let pipeline_self = make_pipeline("main_self");
         let adapter_name = format!("{} ({:?})", adapter_info.name, adapter_info.backend);
         Ok(GpuContext {
             device,
             queue,
             pipeline_a,
             pipeline_b,
+            pipeline_self,
             bind_group_layout,
             adapter_name,
         })
@@ -305,6 +345,8 @@ impl GpuContext {
                 storage_read(3), // c6 matrix
                 storage_read(4), // c12 matrix
                 storage_rw(5),   // per-atom (elec, vdw) sums
+                storage_read(6), // exclusion CSR offsets (main_self)
+                storage_read(7), // exclusion CSR lists (main_self)
             ],
         })
     }
@@ -451,6 +493,17 @@ pub fn calc_mm_gpu(
                 binding: 5,
                 resource: out_buf.as_entire_binding(),
             },
+            // main_a / main_b never read the exclusion CSR; it is only bound
+            // to satisfy the shared layout (main_self builds its own bind
+            // group with the real buffers).
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: params_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: params_buf.as_entire_binding(),
+            },
         ],
     });
 
@@ -490,6 +543,190 @@ pub fn calc_mm_gpu(
     for (local, &(gid, _, _, _, _, _)) in lig_props.iter().enumerate() {
         de_elec[gid] = raw[n_a + local][0];
         de_vdw[gid] = raw[n_a + local][1];
+    }
+    Ok((de_elec, de_vdw))
+}
+
+/// Runs the MM pairwise kernel on the GPU for the self-interaction of one
+/// atom group: every atom against all other atoms of the same set, the self
+/// pair and the bonded exclusions (1-2/1-3, plus the explicit `[ pairs ]`
+/// whose energy the caller adds separately) skipped.  Returns the unscaled
+/// per-atom electrostatic and van-der-Waals sums, in the same (unscaled)
+/// units the CPU path produces before applying `elec_scale` / `vdw_scale`.
+///
+/// `excl_offsets` / `excl_list` hold the per-atom exclusion lists of the
+/// group in CSR form with **group-local, ascending** indices; `c6` / `c12`
+/// are indexed by `[type_id, type_id]` with the summing atom first, matching
+/// the WGSL `pair_energy` lookup.
+pub fn calc_mm_self_gpu(
+    ctx: &GpuContext,
+    n_atoms: usize,
+    self_props: &[AtomEntry],
+    c6: &ndarray::Array2<f64>,
+    c12: &ndarray::Array2<f64>,
+    r_cutoff_sq: f64,
+    use_screen: bool,
+    lambda_d: f64,
+    excl_offsets: &[u32],
+    excl_list: &[u32],
+) -> Result<(Array1<f64>, Array1<f64>), String> {
+    let n = self_props.len();
+    if n == 0 || n_atoms == 0 {
+        return Ok((Array1::zeros(n_atoms), Array1::zeros(n_atoms)));
+    }
+    if excl_offsets.len() != n + 1 {
+        return Err("exclusion CSR offsets do not match the group size".to_string());
+    }
+    let n_types = c6.dim().0;
+    if c6.dim() != c12.dim() || c6.dim().1 != n_types {
+        return Err("LJ matrices are not square or differ in shape".to_string());
+    }
+
+    let atoms: Vec<GpuAtom> = self_props
+        .iter()
+        .map(|&(_, q, t, x, y, z)| GpuAtom {
+            charge: q,
+            x,
+            y,
+            z,
+            type_id: t as u32,
+            _pad: 0,
+        })
+        .collect();
+    let params = GpuParams {
+        n_a: n as u32,
+        n_b: n as u32,
+        use_screen: use_screen as u32,
+        n_types: n_types as u32,
+        r_cutoff_sq,
+        lambda_d,
+    };
+    let c6_flat = flatten_row_major(c6);
+    let c12_flat = flatten_row_major(c12);
+
+    let params_buf = ctx
+        .device
+        .create_buffer_init(&BufferInitDescriptor {
+            label: Some("MM self params"),
+            contents: bytemuck::bytes_of(&params),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+    let atoms_buf = ctx
+        .device
+        .create_buffer_init(&BufferInitDescriptor {
+            label: Some("MM self atoms"),
+            contents: bytemuck::cast_slice(&atoms),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+    let c6_buf = ctx
+        .device
+        .create_buffer_init(&BufferInitDescriptor {
+            label: Some("MM self c6"),
+            contents: bytemuck::cast_slice(&c6_flat),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+    let c12_buf = ctx
+        .device
+        .create_buffer_init(&BufferInitDescriptor {
+            label: Some("MM self c12"),
+            contents: bytemuck::cast_slice(&c12_flat),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+    let excl_offsets_buf = ctx
+        .device
+        .create_buffer_init(&BufferInitDescriptor {
+            label: Some("MM self excl offsets"),
+            contents: bytemuck::cast_slice(excl_offsets),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+    let excl_list_buf = ctx
+        .device
+        .create_buffer_init(&BufferInitDescriptor {
+            label: Some("MM self excl list"),
+            contents: bytemuck::cast_slice(excl_list),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+    let out_buf = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("MM self out"),
+        size: (n * std::mem::size_of::<[f64; 2]>()) as u64,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        mapped_at_creation: false,
+    });
+    let read_buf = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("MM self readback"),
+        size: out_buf.size(),
+        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+
+    // The same read-only atom buffer feeds both the "a" and "b" slots of the
+    // shader.
+    let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("MM self bind group"),
+        layout: &ctx.bind_group_layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: params_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: atoms_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: atoms_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: c6_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: c12_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: out_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: excl_offsets_buf.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 7,
+                resource: excl_list_buf.as_entire_binding(),
+            },
+        ],
+    });
+
+    let mut encoder = ctx
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("MM self encoder"),
+        });
+    {
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("MM self pass"),
+            timestamp_writes: None,
+        });
+        pass.set_bind_group(0, &bind_group, &[]);
+        let groups = (n as u32).div_ceil(WORKGROUP_SIZE);
+        if groups > 0 {
+            pass.set_pipeline(&ctx.pipeline_self);
+            pass.dispatch_workgroups(groups, 1, 1);
+        }
+    }
+    encoder.copy_buffer_to_buffer(&out_buf, 0, &read_buf, 0, out_buf.size());
+    ctx.queue.submit(Some(encoder.finish()));
+    let raw = map_read_f64(&ctx.device, &read_buf)?;
+
+    // Scatter the group-local sums back onto their global atom indices.
+    let mut de_elec = Array1::zeros(n_atoms);
+    let mut de_vdw = Array1::zeros(n_atoms);
+    for (local, &(gid, _, _, _, _, _)) in self_props.iter().enumerate() {
+        de_elec[gid] = raw[local][0];
+        de_vdw[gid] = raw[local][1];
     }
     Ok((de_elec, de_vdw))
 }
@@ -634,26 +871,112 @@ mod tests {
 
     /// Atoms outside both groups must stay zero on the GPU path, and empty
     /// groups must produce all-zero results.
+    /// The self-interaction kernel must skip the bonded exclusions given as
+    /// a CSR list and otherwise match a per-atom CPU reference.
     #[test]
-    fn gpu_leaves_non_group_atoms_and_empty_groups_at_zero() {
+    fn gpu_self_skips_exclusions_and_matches_cpu() {
         let Some(ctx) = mm_context() else {
-            println!("No f64-capable GPU found; skipping the GPU/CPU comparison test.");
+            println!("No f64-capable GPU found; skipping the GPU self test.");
             return;
         };
+        let (rec, _lig, c6, c12) = random_system(23, 5, 4);
+        let n_atoms = 23;
+
+        // Exclude a handful of pairs in group-local indices.
+        let excluded: Vec<(usize, usize)> = vec![
+            (0, 1), (0, 5), (2, 9), (7, 11), (4, 17), (13, 21), (6, 18),
+        ];
+        let mut excl_by_atom: Vec<Vec<u32>> = vec![Vec::new(); n_atoms];
+        let mut excluded_set = std::collections::HashSet::new();
+        for &(a, b) in &excluded {
+            excl_by_atom[a].push(b as u32);
+            excl_by_atom[b].push(a as u32);
+            // Both directions, so the reference loop skips whichever order it
+            // meets the pair in.
+            excluded_set.insert((a, b));
+            excluded_set.insert((b, a));
+        }
+        for list in &mut excl_by_atom {
+            list.sort_unstable();
+        }
+        let mut excl_offsets = vec![0u32; n_atoms + 1];
+        let mut excl_list: Vec<u32> = Vec::new();
+        for (li, list) in excl_by_atom.iter().enumerate() {
+            excl_list.extend_from_slice(list);
+            excl_offsets[li + 1] = excl_list.len() as u32;
+        }
+
+        for (r_cutoff_sq, use_screen) in [(f64::INFINITY, true), (100.0, false)] {
+            let (gpu_e, gpu_v) = calc_mm_self_gpu(
+                ctx, n_atoms, &rec, &c6, &c12, r_cutoff_sq, use_screen, 0.8,
+                &excl_offsets, &excl_list,
+            ).expect("GPU self MM run failed");
+
+            let mut cpu_e = Array1::zeros(n_atoms);
+            let mut cpu_v = Array1::zeros(n_atoms);
+            for &(i, qi, ci, xi, yi, zi) in &rec {
+                for &(j, qj, cj, xj, yj, zj) in &rec {
+                    if j == i {
+                        continue;
+                    }
+                    if excluded_set.contains(&(i, j)) {
+                        continue;
+                    }
+                    let (dx, dy, dz) = (xi - xj, yi - yj, zi - zj);
+                    let r_sq = dx * dx + dy * dy + dz * dz;
+                    if r_sq <= r_cutoff_sq {
+                        let r = r_sq.sqrt() * 0.1;
+                        let r_inv = 1.0 / r;
+                        let screen = if use_screen { (-r / 0.8).exp() } else { 1.0 };
+                        let e_elec = qi * qj * r_inv * screen;
+                        let r6_inv = r_inv * r_inv * r_inv * r_inv * r_inv * r_inv;
+                        let e_vdw = (c12[[ci, cj]] * r6_inv - c6[[ci, cj]]) * r6_inv;
+                        cpu_e[i] += e_elec;
+                        cpu_v[i] += e_vdw;
+                    }
+                }
+            }
+            assert_close(&gpu_e, &cpu_e, "self+excl elec");
+            assert_close(&gpu_v, &cpu_v, "self+excl vdw");
+        }
+    }
+
+    /// Minimal deterministic probe: three atoms, the pair (0, 1) excluded.
+    #[test]
+    fn gpu_self_minimal_exclusion_probe() {
+        let Some(ctx) = mm_context() else {
+            println!("No f64-capable GPU found; skipping the minimal probe.");
+            return;
+        };
+        let rec: Vec<AtomEntry> = vec![
+            (0, 0.4, 0, 0.0, 0.0, 0.0),
+            (1, 0.4, 0, 2.5, 0.0, 0.0),
+            (2, 0.4, 0, 0.0, 3.0, 0.0),
+        ];
         let c6 = ndarray::Array2::from_elem((1, 1), 0.001);
         let c12 = ndarray::Array2::from_elem((1, 1), 1e-6);
-        let (rec, lig, _, _) = random_system(3, 2, 1);
-        let n_atoms = 10;
-        let (gpu_e, gpu_v) = calc_mm_gpu(ctx, n_atoms, &rec, &lig, &c6, &c12, f64::INFINITY, true, 0.8)
-            .expect("GPU MM run failed");
-        for i in 5..n_atoms {
-            assert_eq!(gpu_e[i], 0.0);
-            assert_eq!(gpu_v[i], 0.0);
+
+        // Exclude the pair (0, 1): atom 1 keeps only its pair with atom 2.
+        let excl_offsets: Vec<u32> = vec![0, 1, 2, 2];
+        let excl_list: Vec<u32> = vec![1, 0];
+
+        let (gpu_e, _) = calc_mm_self_gpu(
+            ctx, 3, &rec, &c6, &c12, f64::INFINITY, false, 0.8,
+            &excl_offsets, &excl_list,
+        ).expect("GPU self MM run failed");
+
+        let pair = |ri: &[f64; 3], rj: &[f64; 3]| -> f64 {
+            let (dx, dy, dz) = (ri[0] - rj[0], ri[1] - rj[1], ri[2] - rj[2]);
+            let r = (dx * dx + dy * dy + dz * dz).sqrt() * 0.1;
+            0.4 * 0.4 / r
+        };
+        let c = [[0.0, 0.0, 0.0], [2.5, 0.0, 0.0], [0.0, 3.0, 0.0]];
+        // Atom 0: only pair with atom 2.  Atom 1: only pair with atom 2.
+        // Atom 2: pairs with 0 and 1.
+        let want = [pair(&c[0], &c[2]), pair(&c[1], &c[2]), pair(&c[0], &c[2]) + pair(&c[1], &c[2])];
+        for i in 0..3 {
+            println!("[mini] atom {i}: gpu={} want={}", gpu_e[i], want[i]);
+            assert!((gpu_e[i] - want[i]).abs() < 1e-12, "atom {i}: gpu {} vs want {}", gpu_e[i], want[i]);
         }
-        let (e0, v0) = calc_mm_gpu(ctx, n_atoms, &rec, &[], &c6, &c12, f64::INFINITY, true, 0.8)
-            .expect("GPU MM run failed");
-        assert!(e0.iter().all(|&x| x == 0.0));
-        assert!(v0.iter().all(|&x| x == 0.0));
     }
 }
-

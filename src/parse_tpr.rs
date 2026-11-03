@@ -38,6 +38,29 @@ pub struct TPR {
     pub molecule_types: Vec<MoleculeType>,
     pub temp: f64,
     pub coordinates: Array2<f64>,
+    /// Electrostatic 1-4 scaling factor of the force field (`fudgeQQ`).
+    pub fudge_qq: f64,
+    /// Per-atom bonded exclusions in global atom numbering, exactly the
+    /// exclusions `grompp` generated (1-2/1-3 for the usual `nrexcl = 3`,
+    /// plus any explicit `[ exclusions ]`).
+    pub exclusions: Vec<Vec<usize>>,
+    /// Explicit pair interactions (the `[ pairs ]` 1-4 list, global atom
+    /// numbering) with their own Lennard-Jones parameters.
+    pub pairs: Vec<Pair14>,
+}
+
+/// One entry of the `[ pairs ]` list: an explicitly parameterized
+/// interaction between two atoms (normally a 1-4 pair).
+#[derive(Clone, Debug)]
+pub struct Pair14 {
+    pub ai: usize,
+    pub aj: usize,
+    pub c6: f64,
+    pub c12: f64,
+    /// Per-pair electrostatic scaling; `None` falls back to the force field
+    /// `fudgeQQ` (`F_LJ14` pairs), `Some` is a per-pair factor
+    /// (`F_LJC_PAIRS_Q` pairs).
+    pub fudge_qq: Option<f64>,
 }
 
 impl fmt::Display for TPR {
@@ -167,6 +190,97 @@ impl TPR {
             .collect();
         println!("Reading coordinate information...");
 
+        // Bonded exclusions and explicit pairs in global atom numbering.  The
+        // exclusions are what `grompp` generated (1-2/1-3 for the usual
+        // `nrexcl = 3`); the pairs list carries its own Lennard-Jones
+        // parameters (and sometimes a per-pair electrostatic scaling).  Each
+        // interaction list entry holds the parameter index first, then the
+        // atom indices, exactly like the SETTLE handling in the vendored
+        // reader.
+        let mut exclusions: Vec<Vec<usize>> = vec![Vec::new(); mtop.natoms];
+        let mut pairs: Vec<Pair14> = Vec::new();
+        let mut atom_base = 0usize;
+        for mb in &mtop.molblocks {
+            let Some(mt) = mtop.moltypes.get(mb.moltype_index.max(0) as usize) else { continue };
+            let mt_atoms = mt.atoms.nr();
+            for copy in 0..mb.nmol.max(0) as usize {
+                let offset = atom_base + copy * mt_atoms;
+                for (a, list) in mt.excls.iter().enumerate() {
+                    let global = offset + a;
+                    if global >= mtop.natoms {
+                        continue;
+                    }
+                    for &j in list {
+                        if j >= 0 {
+                            let other = offset + j as usize;
+                            if other < mtop.natoms && !exclusions[global].contains(&other) {
+                                exclusions[global].push(other);
+                            }
+                        }
+                    }
+                }
+                // `[ pairs ]` interactions: F_LJ14 (33), F_LJC_PAIRS_Q (35)
+                // and F_LJC_PAIRS_NB (36); two atoms per interaction.
+                for &ftype in &[33usize, 35, 36] {
+                    let list = mt.ilists.get(ftype);
+                    let Some(list) = list else { continue };
+                    let mut i = 0usize;
+                    while i + 3 <= list.len() {
+                        let pidx = list[i];
+                        let (ai, aj) = (list[i + 1], list[i + 2]);
+                        if pidx >= 0 && ai >= 0 && aj >= 0 {
+                            if let (Some(ft), Some(vals)) = (
+                                mtop.ffparams.functype.get(pidx as usize),
+                                mtop.ffparams.iparams.get(pidx as usize),
+                            ) {
+                                let real = |k: usize| vals.get(k).and_then(|v| match v {
+                                    gmx_rs_tools::tpr::PVal::Real(x) => Some(*x),
+                                    _ => None,
+                                }).unwrap_or(0.0);
+                                // Params keep the A and B free-energy states;
+                                // plain runs use the A state.
+                                let pair = match ft {
+                                    33 => Some(Pair14 {
+                                        ai: offset + ai as usize,
+                                        aj: offset + aj as usize,
+                                        c6: real(0),
+                                        c12: real(1),
+                                        fudge_qq: None,
+                                    }),
+                                    35 => Some(Pair14 {
+                                        ai: offset + ai as usize,
+                                        aj: offset + aj as usize,
+                                        c6: real(3),
+                                        c12: real(4),
+                                        fudge_qq: Some(real(0)),
+                                    }),
+                                    // Full non-bonded pair: unscaled Coulomb.
+                                    36 => Some(Pair14 {
+                                        ai: offset + ai as usize,
+                                        aj: offset + aj as usize,
+                                        c6: real(0),
+                                        c12: real(1),
+                                        fudge_qq: Some(1.0),
+                                    }),
+                                    _ => None,
+                                };
+                                if let Some(pair) = pair {
+                                    if pair.ai < mtop.natoms && pair.aj < mtop.natoms {
+                                        pairs.push(pair);
+                                    }
+                                }
+                            }
+                        }
+                        i += 3;
+                    }
+                }
+            }
+            atom_base += mb.nmol.max(0) as usize * mt_atoms;
+        }
+        let fudge_qq = mtop.ffparams.fudge_qq;
+        println!("Bonded exclusions for {} atoms, {} explicit pairs, fudgeQQ = {}.",
+                 exclusions.iter().filter(|l| !l.is_empty()).count(), pairs.len(), fudge_qq);
+
         Ok(TPR {
             name,
             n_atoms: mtop.natoms,
@@ -178,6 +292,9 @@ impl TPR {
             temp,
             coordinates: Array2::from_shape_vec((mtop.natoms, 3), coordinates)
                 .expect("Unable to arrange run input file coordinates."),
+            fudge_qq,
+            exclusions,
+            pairs,
         })
     }
 
@@ -253,7 +370,13 @@ impl TPR {
             lj_sr_params: fun_type,
             molecule_types,
             temp: temperature,
-            coordinates: Array2::from_shape_vec((atoms_num, 3), coordinates).unwrap()
+            coordinates: Array2::from_shape_vec((atoms_num, 3), coordinates).unwrap(),
+            // `gmx dump` output parsed here does not carry the exclusion and
+            // pair lists; the self-interaction MM falls back to the plain
+            // non-bonded sum (bonded pairs would have to be excluded by hand).
+            fudge_qq: 1.0,
+            exclusions: Vec::new(),
+            pairs: Vec::new(),
         }
     }
 }
