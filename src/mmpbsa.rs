@@ -3,10 +3,10 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::env;
+use colored::Colorize;
 use ndarray::parallel::prelude::*;
 use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
 use indicatif::ProgressBar;
-use chrono::{Local, Duration};
 use crate::fun_para_system::normalize_index;
 use crate::settings::Settings;
 use crate::utils::{self, is_amino, set_style};
@@ -24,13 +24,50 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
                                ala_list: &Vec<i32>, residues: &Vec<Residue>, temperature: f64,
                                pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings)
                                -> SMResults {
-    println!("Running MM-PBSA calculations of {}...", sys_name);
 
     // calculate MM and PBSA
-    println!("Calculating binding energy for {}...", sys_name);
+    println!("Running MM-PBSA calculations for {}...", sys_name.cyan());
+
+    // Decide whether to use parallel
+    let total_iterations = if let Some(ndx_lig) = ndx_lig {
+        ndx_rec.len() * ndx_lig.len()
+    } else {
+        ndx_rec.len().pow(2)
+    };
+
+    const PARALLEL_THRESHOLD: usize = 100_000;
+    /// Lower bound of atom-pair count for which the GPU MM kernel pays off.
+    /// Each GPU call carries ~2 ms of fixed cost (buffer setup, submit and the
+    /// blocking readback), while the CPU evaluates ~0.1-1 ms per 10k-100k pairs;
+    /// below this threshold the CPU is faster, above it the GPU wins
+    /// (e.g. a 3129-atom self-interaction: GPU 26 ms vs CPU 112 ms per frame).
+    const GPU_MM_PAIR_THRESHOLD: usize = 10_000_000;
+    let use_parallel = total_iterations > PARALLEL_THRESHOLD;
+    let use_mm_gpu = settings.use_gpu && total_iterations > GPU_MM_PAIR_THRESHOLD;
+
+    if use_mm_gpu {
+        println!("For atom pairs more than {} (currently {}), will turn on GPU computation for faster MM.", GPU_MM_PAIR_THRESHOLD, total_iterations);
+    } else {
+        if settings.use_gpu {
+            println!("Since atom pairs less than {} (currently {}), will turn off GPU computation for faster MM.", GPU_MM_PAIR_THRESHOLD, total_iterations);
+        } else if use_parallel {
+            println!("For atom pairs more than {} (currently {}), will use parallel computation for faster MM.", PARALLEL_THRESHOLD, total_iterations);
+        }
+    }
+
+    let ctx = if use_mm_gpu {
+        crate::gpu::mm_context()
+    } else {
+        None
+    };
+    if settings.use_gpu {
+        apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
+        apbs_pmgc::gpu_mg::warm_up();
+    };
+
     let result_wt = calculate_mmpbsa(time_list, time_list_ie, coordinates_ie, aps, &temp_dir, 
-        &ndx_rec, &ndx_lig, residues, temperature,
-        sys_name, "", pbe_set, pba_set, settings);
+        &ndx_rec, &ndx_lig, residues, temperature, sys_name, "", 
+        use_parallel, use_mm_gpu, pbe_set, pba_set, settings, &ctx);
 
     let mut result_ala_scan: Vec<SMResult> = vec![result_wt];
     if ala_list.len() > 0 {
@@ -55,10 +92,10 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
 
             let mutation = format!("-{}{}A", mutation, asr.nr);
             let sys_name = format!("{}{}", sys_name, mutation);
-            println!("Calculating binding energy for {}...", sys_name);
+            println!("Running MM-PBSA calculations for {}...", sys_name.cyan());
             let result_as = calculate_mmpbsa(time_list, time_list_ie, &new_coordinates_ie,
                 &new_aps, &temp_dir, &new_ndx_rec, &new_ndx_lig, &new_residues, temperature,
-                &sys_name, &mutation, pbe_set, pba_set, settings);
+                &sys_name, &mutation, use_parallel, use_mm_gpu, pbe_set, pba_set, settings, &ctx);
             result_ala_scan.push(result_as);
         }
     };
@@ -168,7 +205,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                     aps: &AtomProperties, temp_dir: &PathBuf,
                     ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                     residues: &Vec<Residue>, temperature: f64, sys_name: &str, mutation: &str,
-                    pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> SMResult {
+                    use_parallel: bool, use_mm_gpu: bool, pbe_set: &PBESet, pba_set: &PBASet, 
+                    settings: &Settings, ctx: &Option<&crate::gpu::GpuContext>) -> SMResult {
     let mut elec_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut vdw_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
     let mut pb_atom: Array2<f64> = Array2::zeros((time_list.len(), aps.atom_props.len()));
@@ -201,36 +239,10 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     // setting up environment
     env::set_var("OMP_NUM_THREADS", settings.n_kernels.to_string());
 
-    // Decide whether to use parallel
-    let total_iterations = if let Some(ndx_lig) = ndx_lig {
-        ndx_rec.len() * ndx_lig.len()
-    } else {
-        ndx_rec.len()
-    };
-    const PARALLEL_THRESHOLD: usize = 100000;
-    let use_parallel = total_iterations > PARALLEL_THRESHOLD;
-    if use_parallel {
-        println!("Since there are too many atom pairs (> {}), will use parallel computation for MM.", PARALLEL_THRESHOLD);
-    }
-
-    let t_start = Local::now();
-
-    println!("Start MM-PBSA calculation...");
-
     // 预计算常量
     let r_cutoff_sq = settings.r_cutoff.powi(2);
 
-    // Bring both GPU contexts up before the progress bar starts, so the
-    // "GPU enabled" lines do not appear mid-progress on the first frame.
-    let ctx = if settings.use_gpu {
-        let ctx = crate::gpu::mm_context();
-        apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
-        apbs_pmgc::gpu_mg::warm_up();
-        ctx
-    } else {
-        None
-    };
-
+    let t_start = std::time::Instant::now();
     // Frames whose PB/SA solve failed; they count as zero, which would
     // silently distort the average binding energy if nobody was told.
     let mut failed_pb_frames: Vec<f64> = Vec::new();
@@ -255,7 +267,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 let mut atoms_ie: Vec<f64> = Vec::with_capacity(coordinates_ie.shape()[0]);
                 for (i, frame) in coordinates_ie.axis_iter(Axis(0)).enumerate() {
                     let (de_elec, de_vdw) = calc_mm(&ndx_rec, &ndx_lig, aps, &frame, 
-                        r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
+                        r_cutoff_sq, &coeff, &settings, use_parallel, use_mm_gpu, &ctx);
                     let ie_energy = de_elec.sum() + de_vdw.sum();
                     // Frames shared with the main trajectory keep their
                     // per-atom sums for the MM loop to reuse.
@@ -284,7 +296,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
                 for cur_frm in 0..time_list.len() {
                     let coord = coordinates.slice(s![cur_frm, .., ..]);
                     let (de_elec, de_vdw) =
-                        calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
+                        calc_mm(&ndx_rec, ndx_lig, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel, use_mm_gpu, &ctx);
                     elec_atom.row_mut(cur_frm).assign(&de_elec);
                     vdw_atom.row_mut(cur_frm).assign(&de_vdw);
                     pgb.inc(1);
@@ -299,7 +311,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
             for cur_frm in 0..time_list.len() {
                 let coord = coordinates.slice(s![cur_frm, .., ..]);
                 let (de_elec, de_vdw) =
-                    calc_mm_self(&ndx_rec, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel, &ctx);
+                    calc_mm_self(&ndx_rec, aps, &coord, r_cutoff_sq, &coeff, &settings, use_parallel, use_mm_gpu, &ctx);
                 elec_atom.row_mut(cur_frm).assign(&de_elec);
                 vdw_atom.row_mut(cur_frm).assign(&de_vdw);
                 pgb.inc(1);
@@ -360,8 +372,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     }
 
     // end calculation
-    let t_end = Local::now();
-    let t_spend = Duration::from(t_end - t_start).num_milliseconds() as f64 / 1000.0;
+    let t_spend = t_start.elapsed().as_millis() as f64 / 1000.0;
     println!("MM-PBSA calculation of {} finished. Total time cost: {:.2} s", sys_name, t_spend);
     fs::write(format!(".MMPBSA_time_cost_{}.txt", sys_name), format!("{:.2}", t_spend))
         .expect("Failed to write time cost file.");
@@ -387,15 +398,8 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     )
 }
 
-/// Lower bound of atom-pair count for which the GPU MM kernel pays off.
-/// Each GPU call carries ~2 ms of fixed cost (buffer setup, submit and the
-/// blocking readback), while the CPU evaluates ~0.1-1 ms per 10k-100k pairs;
-/// below this threshold the CPU is faster, above it the GPU wins
-/// (e.g. a 3129-atom self-interaction: GPU 26 ms vs CPU 112 ms per frame).
-const GPU_MM_PAIR_THRESHOLD: usize = 500_000;
-
 fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
-            r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool, 
+            r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool, use_mm_gpu: bool,
             ctx: &Option<&crate::gpu::GpuContext>) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
 
@@ -413,8 +417,7 @@ fn calc_mm(ndx_rec: &BTreeSet<usize>, ndx_lig: &BTreeSet<usize>, aps: &AtomPrope
     // GPU path when requested and the receptor x ligand product is large
     // enough to amortize the fixed per-call GPU cost; a missing/unsupported
     // GPU (or a failed launch) falls back to the CPU implementation below.
-    let gpu_worthwhile = rec_props.len() * lig_props.len() >= GPU_MM_PAIR_THRESHOLD;
-    let (mut de_elec, mut de_vdw) = if settings.use_gpu && gpu_worthwhile {
+    let (mut de_elec, mut de_vdw) = if settings.use_gpu && use_mm_gpu {
         if let Some(ctx) = ctx {
             match crate::gpu::calc_mm_gpu(ctx, n_atoms, &rec_props, &lig_props,
                     &aps.c6, &aps.c12, r_cutoff_sq, settings.elec_screen, coeff.lambda_d) {
@@ -532,7 +535,7 @@ fn calc_mm_cpu(n_atoms: usize,
 /// parameters and electrostatic scaling (`fudgeQQ`), matching what the
 /// GROMACS non-bonded force would compute for the group.
 fn calc_mm_self(ndx_rec: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayView2<f64>,
-                r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool,
+                r_cutoff_sq: f64, coeff: &Coefficients, settings: &Settings, use_parallel: bool, use_mm_gpu: bool,
                 ctx: &Option<&crate::gpu::GpuContext>) -> (Array1<f64>, Array1<f64>) {
     let n_atoms = aps.atom_props.len();
 
@@ -594,8 +597,7 @@ fn calc_mm_self(ndx_rec: &BTreeSet<usize>, aps: &AtomProperties, coord: &ArrayVi
     // GPU path when requested and the group is large enough for the kernel
     // to amortize the fixed per-call GPU cost; a missing/unsupported GPU (or
     // a failed launch) falls back to the CPU implementation below.
-    let gpu_worthwhile = self_props.len() * self_props.len() >= GPU_MM_PAIR_THRESHOLD;
-    let (mut de_elec, mut de_vdw) = if settings.use_gpu && gpu_worthwhile {
+    let (mut de_elec, mut de_vdw) = if settings.use_gpu && use_mm_gpu {
         if let Some(ctx) = ctx {
             match crate::gpu::calc_mm_self_gpu(ctx, n_atoms, &self_props,
                     &aps.c6, &aps.c12, r_cutoff_sq, settings.elec_screen, coeff.lambda_d,

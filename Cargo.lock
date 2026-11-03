@@ -1496,7 +1496,6 @@ dependencies = [
  "apbs-mg",
  "apbs-pmgc",
  "bytemuck",
- "chrono",
  "clap",
  "colored",
  "gmx-rs-tools",

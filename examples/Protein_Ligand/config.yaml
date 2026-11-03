@@ -5,7 +5,7 @@ program_set:
   calc_mm: true                         # calculate the molecular mechanics term
   calc_pbsa: true                       # calculate the PB/SA term
   debug: false                          # keep intermediate PB/SA files
-  use_gpu: true                         # run the MM pairwise kernel on the GPU (CPU fallback when unsupported)
+  use_gpu: false                         # run the MM pairwise kernel on the GPU (CPU fallback when unsupported)
   trj: md.xtc                           # trajectory file (xtc/trr/gro/pdb)
   tpr: md.tpr                           # run input file
   ndx: index.ndx                        # index file (generated when missing)
@@ -15,7 +15,7 @@ mm_set:
   electric_screening: true              # electrostatic screening (J. Chem. Inf. Model. 2021, 61, 2454)
   interaction_entropy: true             # interaction entropy (-TΔS); turning it off speeds the run up a lot
   rec_grp: Protein                      # receptor group name of the index file
-  lig_grp: ''                           # ligand group name; empty = solvation-only calculation
+  lig_grp: BEC                           # ligand group name; empty = solvation-only calculation
   start_time: 0.0                       # first time to analyze (ns)
   end_time: .inf                        # last time to analyze (ns); .inf = until the end
   dt: 1.0                               # time interval between analyzed frames (ns)

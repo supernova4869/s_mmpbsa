@@ -58,7 +58,7 @@ fn solver() -> Option<&'static std::sync::Mutex<GpuMg>> {
         .get_or_init(|| match GpuMg::new() {
             Ok(s) => {
                 let name = s.adapter_name.clone();
-                println!("GPU enabled for the PB multigrid solver on: {}.", name);
+                println!("GPU enabled for PB multigrid solver on: {}.", name);
                 Some(std::sync::Mutex::new(s))
             }
             Err(e) => {
