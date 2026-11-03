@@ -639,11 +639,14 @@ pub fn calc_mm_self_gpu(
             contents: bytemuck::cast_slice(excl_offsets),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
+    // A zero-size storage buffer is invalid; with no exclusions at all,
+    // substitute a one-element dummy (the all-zero offsets never index it).
+    let excl_list_data: &[u32] = if excl_list.is_empty() { &[0u32] } else { excl_list };
     let excl_list_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM self excl list"),
-            contents: bytemuck::cast_slice(excl_list),
+            contents: bytemuck::cast_slice(excl_list_data),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let out_buf = ctx.device.create_buffer(&wgpu::BufferDescriptor {
@@ -978,5 +981,78 @@ mod tests {
             println!("[mini] atom {i}: gpu={} want={}", gpu_e[i], want[i]);
             assert!((gpu_e[i] - want[i]).abs() < 1e-12, "atom {i}: gpu {} vs want {}", gpu_e[i], want[i]);
         }
+    }
+
+    /// Breaks down the per-call cost of the self MM GPU path: GpuAtom
+    /// packing, the fixed submit/readback overhead (tiny group) and the
+    /// compute-dominated large call.  Run explicitly with
+    /// `cargo test --release --bin s_mmpbsa gpu_mm_overhead_breakdown -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn gpu_mm_overhead_breakdown() {
+        let Some(ctx) = mm_context() else {
+            println!("No f64-capable GPU; skipping the breakdown.");
+            return;
+        };
+        let (rec, _lig, c6, c12) = random_system(3129, 0, 8);
+        let n_atoms = rec.len();
+        let excl_offsets: Vec<u32> = vec![0u32; n_atoms + 1];
+        let excl_list: Vec<u32> = vec![0u32];
+
+        let iters = 30;
+        // Warm up once (pipelines, allocator pools).
+        let _ = calc_mm_self_gpu(ctx, n_atoms, &rec, &c6, &c12, f64::INFINITY, true, 0.8,
+                                 &excl_offsets, &excl_list).unwrap();
+
+        let mut t_atom = 0.0f64;
+        let mut t_full = 0.0f64;
+        for _ in 0..iters {
+            let t0 = std::time::Instant::now();
+            let atoms: Vec<GpuAtom> = rec.iter()
+                .map(|&(_, q, t, x, y, z)| GpuAtom { charge: q, x, y, z, type_id: t as u32, _pad: 0 })
+                .collect();
+            t_atom += t0.elapsed().as_secs_f64();
+
+            let t1 = std::time::Instant::now();
+            let _ = calc_mm_self_gpu(ctx, n_atoms, &rec, &c6, &c12, f64::INFINITY, true, 0.8,
+                                     &excl_offsets, &excl_list).unwrap();
+            t_full += t1.elapsed().as_secs_f64();
+            std::hint::black_box(&atoms);
+        }
+        println!("[breakdown] {} atoms over {} iters:", n_atoms, iters);
+        println!("[breakdown]   GpuAtom build : {:8.3} ms/call", t_atom / iters as f64 * 1e3);
+        println!("[breakdown]   full GPU call : {:8.3} ms/call  (9.8M pairs, compute-dominated)",
+                 t_full / iters as f64 * 1e3);
+
+        // Same call on a tiny group: compute is microseconds, so the full
+        // call time here is almost purely the fixed per-call overhead.
+        let (rec_t, _l, _c6t, _c12t) = random_system(23, 0, 4);
+        let off_t: Vec<u32> = vec![0u32; rec_t.len() + 1];
+        let lst_t: Vec<u32> = vec![0u32];
+        let _ = calc_mm_self_gpu(ctx, rec_t.len(), &rec_t, &c6, &c12, f64::INFINITY, true, 0.8,
+                                 &off_t, &lst_t).unwrap();
+        let mut t_tiny = 0.0f64;
+        for _ in 0..iters {
+            let t0 = std::time::Instant::now();
+            let _ = calc_mm_self_gpu(ctx, rec_t.len(), &rec_t, &c6, &c12, f64::INFINITY, true, 0.8,
+                                     &off_t, &lst_t).unwrap();
+            t_tiny += t0.elapsed().as_secs_f64();
+        }
+        println!("[breakdown]   tiny group    : {:8.3} ms/call  (23 atoms, ~pure fixed overhead)",
+                 t_tiny / iters as f64 * 1e3);
+
+        // Buffer-creation-only probe: one ~32 KB storage buffer per call.
+        let t2 = std::time::Instant::now();
+        let mut bufs = Vec::new();
+        for _ in 0..iters {
+            bufs.push(ctx.device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("probe"),
+                contents: bytemuck::cast_slice(&[0f64; 4096]),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            }));
+        }
+        let dt = t2.elapsed().as_secs_f64() * 1e3 / iters as f64;
+        std::hint::black_box(&bufs);
+        println!("[breakdown]   1 buffer create (~32KB): {dt:.3} ms");
     }
 }
