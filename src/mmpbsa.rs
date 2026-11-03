@@ -8,7 +8,6 @@ use ndarray::{s, Array1, Array2, Array3, ArrayView2, Axis};
 use indicatif::ProgressBar;
 use chrono::{Local, Duration};
 use crate::fun_para_system::normalize_index;
-use crate::gpu::GpuContext;
 use crate::settings::Settings;
 use crate::utils::{self, is_amino, set_style};
 use crate::coefficients::{self, Coefficients};
