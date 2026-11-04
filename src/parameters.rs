@@ -207,6 +207,7 @@ impl Config {
         text += &yaml_field(2, "calc_pbsa", &yaml_scalar(&self.program_set.calc_pbsa), "calculate the PB/SA term");
         text += &yaml_field(2, "debug", &yaml_scalar(&self.program_set.debug), "keep intermediate PB/SA files");
         text += &yaml_field(2, "use_gpu", &yaml_scalar(&self.program_set.use_gpu), "run the MM pairwise kernel on the GPU (CPU fallback when unsupported)");
+        text += &yaml_field(2, "gpu_precision", &yaml_scalar(&self.program_set.gpu_precision), "GPU floating-point precision: \"fp64\" (default, double, requires SHADER_F64) or \"fp32\" (single, all GPUs incl. AMD, slight precision loss); automatically switched to fp32 when an AMD GPU is detected");
         text += &yaml_field(2, "show_progress", &yaml_scalar(&self.program_set.show_progress), "show the progress bars of trajectory processing (trjconv/reading)");
         text += &yaml_field(2, "trj", &yaml_scalar(&self.program_set.trj), "trajectory file (xtc/trr/gro/pdb)");
         text += &yaml_field(2, "tpr", &yaml_scalar(&self.program_set.tpr), "run input file");
@@ -255,6 +256,10 @@ pub struct ProgramSet {
     /// config files predate this switch and default it to on.
     #[serde(default = "default_use_gpu")]
     pub use_gpu: bool,
+    /// GPU floating-point precision.  Old config files predate this switch
+    /// and default it to fp64.
+    #[serde(default = "default_gpu_precision")]
+    pub gpu_precision: String,
     /// Draw the progress bars of the embedded trajectory tools.  Old config
     /// files predate this switch and default it to on.
     #[serde(default = "default_show_progress")]
@@ -265,6 +270,18 @@ pub struct ProgramSet {
     pub ala_scan_range: String,
 }
 
+fn default_use_gpu() -> bool {
+    true
+}
+
+fn default_gpu_precision() -> String {
+    "fp64".to_string()
+}
+
+fn default_show_progress() -> bool {
+    true
+}
+
 impl ProgramSet {
     pub fn new() -> ProgramSet {
         ProgramSet {
@@ -273,6 +290,7 @@ impl ProgramSet {
             calc_pbsa: true,
             debug: false,
             use_gpu: true,
+            gpu_precision: "fp64".to_string(),
             show_progress: true,
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
@@ -280,14 +298,6 @@ impl ProgramSet {
             ala_scan_range: String::new(),
         }
     }
-}
-
-fn default_use_gpu() -> bool {
-    true
-}
-
-fn default_show_progress() -> bool {
-    true
 }
 
 #[derive(Serialize, Deserialize)]
@@ -337,9 +347,6 @@ pub struct PBESet {
     pub sdens: i32,
     pub ions: Vec<Ion>,
     pub calc_energy: CalcEnergy,
-    /// Grid knobs of the `-c config.yaml` path: they are synced into the
-    /// program settings (`settings.cfac/fadd/df`) when a config is loaded.
-    /// In the interactive menu they come from menu items 6/7/8 instead.
     pub cfac: f64,
     pub fadd: f64,
     pub df: f64,

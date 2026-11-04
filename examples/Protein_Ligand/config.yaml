@@ -6,6 +6,8 @@ program_set:
   calc_pbsa: true                       # calculate the PB/SA term
   debug: false                          # keep intermediate PB/SA files
   use_gpu: true                         # run the MM pairwise kernel on the GPU (CPU fallback when unsupported)
+  gpu_precision: fp64                   # GPU floating-point precision: "fp64" (default, double, requires SHADER_F64, excludes some AMD) or "fp32" (single, all GPUs incl. AMD, slower, slight precision loss)
+  show_progress: true                   # show the progress bars of trajectory processing (trjconv/reading)
   trj: md.xtc                           # trajectory file (xtc/trr/gro/pdb)
   tpr: md.tpr                           # run input file
   ndx: index.ndx                        # index file (generated when missing)
@@ -13,9 +15,9 @@ program_set:
 mm_set:
   cutoff: .inf                          # MM distance cutoff (A); .inf = no cutoff
   electric_screening: true              # electrostatic screening (J. Chem. Inf. Model. 2021, 61, 2454)
-  interaction_entropy: true             # interaction entropy (-TΔS); turning it off speeds the run up a lot
+  interaction_entropy: true             # interaction entropy (-TDS); turning it off speeds the run up a lot
   rec_grp: Protein                      # receptor group name of the index file
-  lig_grp: BEC                          # ligand group name; empty = solvation-only calculation
+  lig_grp: ''                           # ligand group name; empty = solvation-only calculation
   start_time: 0.0                       # first time to analyze (ns)
   end_time: .inf                        # last time to analyze (ns); .inf = until the end
   dt: 1.0                               # time interval between analyzed frames (ns)

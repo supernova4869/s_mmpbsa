@@ -25,8 +25,13 @@ pub struct Settings {
     /// counting it as zero and continuing.
     pub exit_on_error: bool,
     /// Run the MM pairwise kernel on the GPU.  Falls back to the CPU path
-    /// when no suitable GPU (64-bit float shader support) is found.
+    /// when no suitable GPU is found.
     pub use_gpu: bool,
+    /// GPU floating-point precision for the MM kernel and the PB multigrid
+    /// solver: "fp64" (default, double precision, requires SHADER_F64,
+    /// excludes some AMD drivers) or "fp32" (single precision, works on all
+    /// GPUs including AMD and integrated, ~2-4x faster on consumer cards).
+    pub gpu_precision: String,
     pub last_opened: String,
 }
 
@@ -50,6 +55,7 @@ impl Settings {
             debug_mode: false,
             exit_on_error: false,
             use_gpu: false,
+            gpu_precision: "fp64".to_string(),
             last_opened: String::new(),
         }
     }
@@ -94,6 +100,8 @@ impl Settings {
         let exit_on_error = get_settings_bool(&exit_on_error);
         let use_gpu = parse_param(&setting_values, "use_gpu", "\"n\"".to_string());
         let use_gpu = get_settings_bool(&use_gpu);
+        let gpu_precision = parse_param(&setting_values, "gpu_precision", "\"fp64\"".to_string());
+        let gpu_precision = gpu_precision.trim_matches('"').to_string();
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
 
@@ -115,6 +123,7 @@ impl Settings {
             debug_mode,
             exit_on_error,
             use_gpu,
+            gpu_precision,
             last_opened,
         }
     }

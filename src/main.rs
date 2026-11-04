@@ -70,7 +70,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/11/03";
+    let compile_date = "2026/11/04";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
 
     // Show version info
@@ -113,6 +113,7 @@ fn main() {
     if config.is_some() {
         settings.debug_mode = config.as_ref().unwrap().program_set.debug;
         settings.use_gpu = config.as_ref().unwrap().program_set.use_gpu;
+        settings.gpu_precision = config.as_ref().unwrap().program_set.gpu_precision.clone();
     }
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
@@ -267,6 +268,7 @@ fn env_check() -> Settings {
     // GPU execution for the PB multigrid solver (falls back to CPU when no
     // suitable GPU is found).
     apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
+    apbs_pmgc::gpu_mg::set_mg_gpu_precision(settings.gpu_precision == "fp32");
 
     // check necessary dat path
     let cur_path = env::current_exe().unwrap();

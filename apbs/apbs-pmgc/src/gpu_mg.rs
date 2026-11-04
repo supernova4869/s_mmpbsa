@@ -30,6 +30,18 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use crate::mgcs::Level;
 
 static MG_GPU_REQUESTED: AtomicBool = AtomicBool::new(false);
+static MG_F32_MODE: AtomicBool = AtomicBool::new(false);
+
+/// Sets the GPU floating-point precision for the PB multigrid solver.
+/// fp32 removes the SHADER_F64 requirement, enables AMD GPUs, and clamps
+/// the stopping tolerance to a floor reachable in single precision.
+pub fn set_mg_gpu_precision(f32_mode: bool) {
+    MG_F32_MODE.store(f32_mode, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn mg_f32_mode() -> bool {
+    MG_F32_MODE.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 /// Request GPU execution for the linear multigrid solve.  When no usable GPU
 /// is found (or a solve fails) the driver falls back to the CPU path.
@@ -55,7 +67,7 @@ static SOLVER: OnceLock<Option<std::sync::Mutex<GpuMg>>> = OnceLock::new();
 
 fn solver() -> Option<&'static std::sync::Mutex<GpuMg>> {
     SOLVER
-        .get_or_init(|| match GpuMg::new() {
+        .get_or_init(|| match GpuMg::new(mg_f32_mode()) {
             Ok(s) => {
                 let name = s.adapter_name.clone();
                 println!("GPU enabled for PB multigrid solver on: {}.", name);
@@ -77,6 +89,24 @@ fn solver() -> Option<&'static std::sync::Mutex<GpuMg>> {
 pub fn warm_up() {
     if mg_gpu_requested() {
         let _ = solver();
+    }
+}
+
+/// Whether the machine's default high-performance GPU adapter is an AMD one.
+/// Only enumerates the adapter — it never creates the solver device — so it
+/// is safe to call before `warm_up`.  AMD drivers cannot run the fp64
+/// compute pipelines (see `GpuMg::new`), so callers use this to switch to
+/// the fp32 mode automatically.
+pub fn adapter_is_amd() -> bool {
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        compatible_surface: None,
+        force_fallback_adapter: false,
+    }));
+    match adapter {
+        Ok(adapter) => is_amd_adapter(&adapter.get_info()),
+        Err(_) => false,
     }
 }
 
@@ -107,10 +137,13 @@ pub fn mvcs_gpu(
         // pc weights must exist on every level but the coarsest.
         return None;
     }
+    // The f32 path has a reachable residual floor slightly above 1e-6;
+    // clamp the stopping tolerance so the solve still converges.
+    let eff_errtol = if mg_f32_mode() { errtol.max(1.0e-5) } else { errtol };
     let Ok(mut s) = solver()?.lock() else {
         return None;
     };
-    match s.mvcs(u, levels, nu1, nu2, itmax, errtol) {
+    match s.mvcs(u, levels, nu1, nu2, itmax, eff_errtol) {
         Ok(iters) => Some(iters),
         Err(e) => {
             println!("GPU PB multigrid solve failed ({}); recomputing on CPU.", e);
@@ -1080,6 +1113,27 @@ struct Params {
     pre1: f64,
 }
 
+/// f32-layout mirror of the WGSL `P` struct used when the solver runs with
+/// `gpu_precision = "fp32"` (the WGSL `alpha`/`pre1` fields become f32).
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable, Default)]
+struct ParamsF32 {
+    n: u32,
+    nx: u32,
+    ny: u32,
+    nz: u32,
+    nxf: u32,
+    nyf: u32,
+    nzf: u32,
+    nc: u32,
+    color: u32,
+    iadjoint: u32,
+    m: u32,
+    pad0: u32,
+    alpha: f32,
+    pre1: f32,
+}
+
 macro_rules! pipelines {
     ($($field:ident => $entry:literal),* $(,)?) => {
         struct Pipelines {
@@ -1150,6 +1204,8 @@ pub struct GpuMg {
     dummy: wgpu::Buffer,
     /// Placeholder for unused read-write slots (must not alias `dummy`).
     dummy_rw: wgpu::Buffer,
+    /// true = the multigrid kernels compute and store in f32.
+    f32_mode: bool,
 }
 
 /// One segment of recorded GPU work between two synchronizations.
@@ -1199,7 +1255,7 @@ fn is_amd_adapter(info: &wgpu::AdapterInfo) -> bool {
 }
 
 impl GpuMg {
-    fn new() -> Result<GpuMg, String> {
+    fn new(f32_mode: bool) -> Result<GpuMg, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -1208,17 +1264,24 @@ impl GpuMg {
         }))
         .map_err(|e| format!("no GPU adapter found: {}", e))?;
         let adapter_info = adapter.get_info();
-        if is_amd_adapter(&adapter_info) {
-            return Err(format!(
-                "AMD GPU '{}' detected, the GPU path is disabled for AMD drivers",
-                adapter_info.name
-            ));
-        }
-        if !adapter.features().contains(wgpu::Features::SHADER_F64) {
-            return Err(format!(
-                "adapter '{}' lacks 64-bit float shader support",
-                adapter.get_info().name
-            ));
+
+        // fp64 requires SHADER_F64 and excludes some AMD drivers (f64 compute
+        // pipelines break on certain AMD stacks).  fp32 works on all GPUs.
+        let mut required_features = wgpu::Features::empty();
+        if !f32_mode {
+            required_features = wgpu::Features::SHADER_F64;
+            if is_amd_adapter(&adapter_info) {
+                return Err(format!(
+                    "AMD GPU '{}' detected, fp64 GPU mode is disabled for AMD drivers; use gpu_precision = \"fp32\"",
+                    adapter_info.name
+                ));
+            }
+            if !adapter.features().contains(wgpu::Features::SHADER_F64) {
+                return Err(format!(
+                    "adapter '{}' lacks 64-bit float shader support",
+                    adapter.get_info().name
+                ));
+            }
         }
         // PB grids need storage buffers well above the 128 MB default limit;
         // request what the adapter can give.  Every buffer is still checked
@@ -1230,16 +1293,21 @@ impl GpuMg {
             .max(adapter.limits().max_storage_buffer_binding_size);
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("s_mmpbsa PB multigrid device"),
-            required_features: wgpu::Features::SHADER_F64,
+            required_features,
             required_limits: limits,
             memory_hints: Default::default(),
             trace: Default::default(),
         }))
         .map_err(|e| format!("cannot open GPU device: {}", e))?;
 
+        let shader_src = if f32_mode {
+            WGSL_SHADER.replace("f64", "f32")
+        } else {
+            WGSL_SHADER.to_string()
+        };
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("s_mmpbsa PB multigrid shader"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(WGSL_SHADER)),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
         });
         let storage_read = |binding: u32, dynamic: bool| wgpu::BindGroupLayoutEntry {
             binding,
@@ -1320,6 +1388,7 @@ impl GpuMg {
             partials_stride: 256,
             dummy,
             dummy_rw,
+            f32_mode,
         })
     }
 
@@ -1328,7 +1397,7 @@ impl GpuMg {
         if need <= self.max_partials {
             return;
         }
-        let stride = (((need as u64) * 8).div_ceil(256)) * 256;
+        let stride = ((need as u64) * self.es()).div_ceil(256) * 256;
         self.partials = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("PB mg partials"),
             size: stride * 2,
@@ -1399,7 +1468,7 @@ impl GpuMg {
                 resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                     buffer: &self.partials,
                     offset: out_off,
-                    size: std::num::NonZeroU64::new((self.max_partials as u64) * 8),
+                    size: std::num::NonZeroU64::new((self.max_partials as u64) * self.es()),
                 }),
             },
         ]
@@ -1461,17 +1530,17 @@ impl GpuMg {
 
         let atoms_buf = self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("PB mg dh atoms"),
-            contents: bytemuck::cast_slice(atoms),
+            contents: &self.bytes_f(atoms),
             usage: wgpu::BufferUsages::STORAGE,
         });
         let pc_buf = self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("PB mg dh pc"),
-            contents: bytemuck::cast_slice(&fine_pc),
+            contents: &self.bytes_f(&fine_pc),
             usage: wgpu::BufferUsages::STORAGE,
         });
         let out = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("PB mg dh out"),
-            size: (total * 8) as u64,
+            size: (total as u64) * self.es(),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
@@ -1523,9 +1592,25 @@ impl GpuMg {
         Ok((gx, gy, gz))
     }
 
+    /// Bytes per float element in the configured precision.
+    fn es(&self) -> u64 {
+        if self.f32_mode { 4 } else { 8 }
+    }
+
+    /// Serializes f64 data (plain slices or #[repr(C)] f64 structs) as bytes
+    /// in the GPU's configured float width.
+    fn bytes_f<'a, T: bytemuck::Pod>(&self, data: &'a [T]) -> Vec<u8> {
+        if self.f32_mode {
+            let f: &[f64] = bytemuck::cast_slice(data);
+            f.iter().flat_map(|&x| (x as f32).to_ne_bytes()).collect()
+        } else {
+            bytemuck::cast_slice(data).to_vec()
+        }
+    }
+
     /// Storage-buffer size check against the device limits.
     fn fits(&self, len: usize) -> Result<(), String> {
-        let bytes = (len * 8) as u64;
+        let bytes = (len as u64) * self.es();
         let lim = self.device.limits();
         if bytes > lim.max_buffer_size || bytes > (lim.max_storage_buffer_binding_size as u64) {
             return Err(format!("grid buffer of {} bytes exceeds GPU limits", bytes));
@@ -1557,8 +1642,29 @@ impl GpuMg {
             "PB multigrid parameter ring exhausted"
         );
         let offset = seg.slot * PARAM_SLOT_SIZE;
-        self.params_stage[offset..offset + std::mem::size_of::<Params>()]
-            .copy_from_slice(bytemuck::bytes_of(&params));
+        if self.f32_mode {
+            let p = ParamsF32 {
+                n: params.n,
+                nx: params.nx,
+                ny: params.ny,
+                nz: params.nz,
+                nxf: params.nxf,
+                nyf: params.nyf,
+                nzf: params.nzf,
+                nc: params.nc,
+                color: params.color,
+                iadjoint: params.iadjoint,
+                m: params.m,
+                pad0: params.pad0,
+                alpha: params.alpha as f32,
+                pre1: params.pre1 as f32,
+            };
+            self.params_stage[offset..offset + std::mem::size_of::<ParamsF32>()]
+                .copy_from_slice(bytemuck::bytes_of(&p));
+        } else {
+            self.params_stage[offset..offset + std::mem::size_of::<Params>()]
+                .copy_from_slice(bytemuck::bytes_of(&params));
+        }
         // One pass per dispatch: pass boundaries synchronize storage access
         // between kernels, which the V-cycle's producer/consumer chains need.
         {
@@ -1587,11 +1693,12 @@ impl GpuMg {
         self.queue.submit(Some(encoder.finish()));
     }
 
-    /// Reads back `n` f64 elements of a storage buffer.
+    /// Reads back `n` float elements of a storage buffer, widened to f64.
     fn read_buffer(&self, buf: &wgpu::Buffer, n: usize) -> Result<Vec<f64>, String> {
+        let bytes = n * self.es() as usize;
         let staging = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("PB mg readback"),
-            size: (n * 8) as u64,
+            size: bytes as u64,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -1600,9 +1707,13 @@ impl GpuMg {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("PB mg readback copy"),
             });
-        enc.copy_buffer_to_buffer(buf, 0, &staging, 0, (n * 8) as u64);
+        enc.copy_buffer_to_buffer(buf, 0, &staging, 0, bytes as u64);
         self.queue.submit(Some(enc.finish()));
-        map_read(&self.device, &staging, n * 8)
+        if self.f32_mode {
+            map_read_f32(&self.device, &staging, bytes)
+        } else {
+            map_read(&self.device, &staging, bytes)
+        }
     }
 
     /// GPU Galerkin product for one hierarchy level (see `galerkin_gpu`).
@@ -1627,17 +1738,17 @@ impl GpuMg {
 
         let fine_buf = self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("PB mg galerkin fine op"),
-            contents: bytemuck::cast_slice(fine_ac),
+            contents: &self.bytes_f(fine_ac),
             usage: wgpu::BufferUsages::STORAGE,
         });
         let pc_buf = self.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("PB mg galerkin pc"),
-            contents: bytemuck::cast_slice(pc),
+            contents: &self.bytes_f(pc),
             usage: wgpu::BufferUsages::STORAGE,
         });
         let out = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("PB mg galerkin out"),
-            size: (14 * nc * 8) as u64,
+            size: (14 * nc as u64) * self.es(),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: true,
         });
@@ -1701,7 +1812,7 @@ impl GpuMg {
             return Ok(0.0);
         }
         let offset = (region as u64) * self.partials_stride;
-        let bytes = (count as u64) * 8;
+        let bytes = (count as u64) * self.es();
         let mut enc = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -1721,8 +1832,13 @@ impl GpuMg {
             .map_err(|_| "GPU map callback was dropped".to_string())?
             .map_err(|e| format!("GPU reduction mapping failed: {}", e))?;
         let view = slice.get_mapped_range();
-        let data: &[f64] = bytemuck::cast_slice(&view);
-        let sum: f64 = data.iter().sum();
+        let sum: f64 = if self.f32_mode {
+            let data: &[f32] = bytemuck::cast_slice(&view);
+            data.iter().map(|&v| v as f64).sum()
+        } else {
+            let data: &[f64] = bytemuck::cast_slice(&view);
+            data.iter().sum()
+        };
         drop(view);
         self.partials_read.unmap();
         Ok(sum)
@@ -1910,7 +2026,7 @@ impl GpuMg {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("PB mg w0 copy"),
                 });
-            enc.copy_buffer_to_buffer(&f.w1, 0, &f.w0, 0, (f.n * 8) as u64);
+            enc.copy_buffer_to_buffer(&f.w1, 0, &f.w0, 0, (f.n as u64) * self.es());
             self.queue.submit(Some(enc.finish()));
         }
 
@@ -1946,7 +2062,7 @@ impl GpuMg {
             let nf = l.n as usize;
             let mut w = self.read_buffer(&l.w0, nf)?;
             crate::lapack::dpbsl(&banded.abd, banded.lda, banded.n, banded.m, &mut w);
-            self.queue.write_buffer(&l.x, 0, bytemuck::cast_slice(&w));
+            self.queue.write_buffer(&l.x, 0, &self.bytes_f(&w));
             let mut seg = self.begin_seg();
             self.zero_boundary(&mut seg, l, &l.x);
             self.flush(seg);
@@ -2008,7 +2124,7 @@ impl GpuMg {
 
         // ---- upload all levels ----
         let fits = |len: usize| -> Result<(), String> {
-            let bytes = (len * 8) as u64;
+            let bytes = (len as u64) * self.es();
             let lim = self.device.limits();
             if bytes > lim.max_buffer_size || bytes > (lim.max_storage_buffer_binding_size as u64) {
                 return Err(format!("grid buffer of {} bytes exceeds GPU limits", bytes));
@@ -2025,7 +2141,7 @@ impl GpuMg {
                     fits(pc.len())?;
                     Some(self.device.create_buffer_init(&BufferInitDescriptor {
                         label: Some("PB mg pc"),
-                        contents: bytemuck::cast_slice(pc),
+                        contents: &self.bytes_f(pc),
                         usage: wgpu::BufferUsages::STORAGE,
                     }))
                 }
@@ -2033,25 +2149,26 @@ impl GpuMg {
             };
             let ac = self.device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("PB mg ac"),
-                contents: bytemuck::cast_slice(&l.ac),
+                contents: &self.bytes_f(&l.ac),
                 usage: wgpu::BufferUsages::STORAGE,
             });
             let cc = self.device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("PB mg cc"),
-                contents: bytemuck::cast_slice(&l.cc),
+                contents: &self.bytes_f(&l.cc),
                 usage: wgpu::BufferUsages::STORAGE,
             });
             let fc = self.device.create_buffer_init(&BufferInitDescriptor {
                 label: Some("PB mg fc"),
-                contents: bytemuck::cast_slice(&l.fc),
+                contents: &self.bytes_f(&l.fc),
                 usage: wgpu::BufferUsages::STORAGE,
             });
             let lnf = l.nf();
             let zeros = vec![0.0f64; lnf];
+            let zero_bytes = self.bytes_f(&zeros);
             let mk = || {
                 self.device.create_buffer_init(&BufferInitDescriptor {
                     label: Some("PB mg vec"),
-                    contents: bytemuck::cast_slice(&zeros),
+                    contents: &zero_bytes,
                     // COPY_SRC: the coarsest w0 is read back for the direct
                     // solve; COPY_DST: the solved coarsest x is written back
                     // with queue.write_buffer.
@@ -2064,7 +2181,7 @@ impl GpuMg {
                 fits(u.len().min(lnf))?;
                 self.device.create_buffer_init(&BufferInitDescriptor {
                     label: Some("PB mg u"),
-                    contents: bytemuck::cast_slice(&u[..lnf]),
+                    contents: &self.bytes_f(&u[..lnf]),
                     usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
                 })
             } else {
@@ -2187,6 +2304,30 @@ fn map_read(device: &wgpu::Device, buffer: &wgpu::Buffer, bytes: usize) -> Resul
     Ok(data)
 }
 
+/// Like `map_read`, but the buffer holds f32 values; they are widened to f64.
+fn map_read_f32(
+    device: &wgpu::Device,
+    buffer: &wgpu::Buffer,
+    bytes: usize,
+) -> Result<Vec<f64>, String> {
+    let slice = buffer.slice(0..bytes as u64);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx.send(res);
+    });
+    device
+        .poll(wgpu::PollType::Wait)
+        .map_err(|e| format!("GPU poll failed: {}", e))?;
+    rx.recv()
+        .map_err(|_| "GPU map callback was dropped".to_string())?
+        .map_err(|e| format!("GPU output mapping failed: {}", e))?;
+    let view = slice.get_mapped_range();
+    let raw: Vec<f32> = bytemuck::cast_slice(&view).to_vec();
+    drop(view);
+    buffer.unmap();
+    Ok(raw.iter().map(|&v| v as f64).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2273,7 +2414,7 @@ mod tests {
     /// plane_index table by evaluating it on the device.
     #[test]
     fn wgsl_plane27_matches_cpu_table() {
-        if GpuMg::new().is_err() {
+        if GpuMg::new(false).is_err() {
             println!("No f64-capable GPU; skipping the plane27 probe.");
             return;
         }
@@ -2403,7 +2544,7 @@ mod tests {
     /// formulation (the same formula, plain double-precision exp).
     #[test]
     fn gpu_dh_boundary_matches_cpu() {
-        if GpuMg::new().is_err() {
+        if GpuMg::new(false).is_err() {
             println!("No f64-capable GPU found; skipping the DH boundary test.");
             return;
         }
@@ -2510,7 +2651,7 @@ mod tests {
     /// The GPU V-cycle must reproduce the CPU solve to solver-tolerance level.
     #[test]
     fn gpu_mvcs_matches_cpu_mvcs() {
-        if GpuMg::new().is_err() {
+        if GpuMg::new(false).is_err() {
             println!("No f64-capable GPU found; skipping the multigrid GPU/CPU test.");
             return;
         }
@@ -2546,29 +2687,55 @@ mod tests {
         );
     }
 
+    /// The AMD probe only enumerates the adapter; it must not initialize the
+    /// solver device (which happens later, in `warm_up`).
+    #[test]
+    fn adapter_probe_does_not_initialize_solver() {
+        let _amd = adapter_is_amd();
+        assert!(
+            !SOLVER.get().is_some(),
+            "adapter_is_amd() must not initialize the solver"
+        );
+    }
+
+    /// Probes the reachable residual floor and iteration counts in f32 mode.
+    #[test]
+    fn f32_floor_probe() {
+        if GpuMg::new(true).is_err() {
+            println!("No GPU found; skipping the f32 floor probe.");
+            return;
+        }
+        let (levels, nf) = build_problem();
+        for errtol in [1.0e-4, 3.0e-5, 1.0e-5, 3.0e-6] {
+            let mut u = vec![0.0f64; nf];
+            let mut s = GpuMg::new(true).ok().unwrap();
+            let iters = s.mvcs(&mut u, &levels, 2, 2, 200, errtol).unwrap();
+            println!("f32 errtol={errtol:.0e}: iters={iters}");
+        }
+    }
+
     /// Rough timing at a production-like grid size.  Run explicitly with
     /// `cargo test -p apbs-pmgc gpu_bench -- --ignored --nocapture`.
     #[test]
     #[ignore]
     fn gpu_bench_production_grid() {
-        if GpuMg::new().is_err() {
-            println!("No f64-capable GPU; skipping the benchmark.");
-            return;
-        }
         let (levels, nf) = build_problem_sized(129, 5);
         let mut u_cpu = vec![0.0f64; nf];
         let t0 = std::time::Instant::now();
         let it_cpu = mgcs::mvcs(&mut u_cpu, &levels, 2, 2, 200, 1.0e-6, 1, 2.2204460492503131e-16);
         let t_cpu = t0.elapsed();
-        set_mg_gpu_requested(true);
-        let mut u_gpu = vec![0.0f64; nf];
-        let t0 = std::time::Instant::now();
-        let it_gpu = mvcs_gpu(&mut u_gpu, &levels, 2, 2, 200, 1.0e-6, 1).expect("GPU solve");
-        let t_gpu = t0.elapsed();
-        set_mg_gpu_requested(false);
-        println!(
-            "129^3 solve: cpu {it_cpu} iters in {t_cpu:?}, gpu {it_gpu} iters in {t_gpu:?}"
-        );
+        for f32_mode in [false, true] {
+            // Drive the struct directly: the global mvcs_gpu solver would
+            // cache the first mode's precision.
+            let mut s = GpuMg::new(f32_mode).expect("GPU solve");
+            let mut u_gpu = vec![0.0f64; nf];
+            let t0 = std::time::Instant::now();
+            let it_gpu = s.mvcs(&mut u_gpu, &levels, 2, 2, 200, 1.0e-6).expect("GPU solve");
+            let t_gpu = t0.elapsed();
+            println!(
+                "129^3 solve: cpu {it_cpu} iters in {t_cpu:?}, gpu(f32={f32_mode}) {it_gpu} iters in {t_gpu:?}"
+            );
+        }
     }
 
     fn build_problem_sized(n: usize, nlev: usize) -> (Vec<Level>, usize) {
@@ -2646,7 +2813,7 @@ mod tests {
     /// levels) on a real trilinear pc.
     #[test]
     fn gpu_galerkin_matches_cpu() {
-        if GpuMg::new().is_err() {
+        if GpuMg::new(false).is_err() {
             println!("No f64-capable GPU found; skipping the Galerkin GPU/CPU test.");
             return;
         }

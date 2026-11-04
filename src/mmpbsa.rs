@@ -55,12 +55,26 @@ pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, co
         }
     }
 
+    // AMD GPUs cannot run the fp64 compute pipelines (the drivers lose the
+    // device mid-run), so at warm-up time an AMD adapter switches the GPU
+    // precision to fp32 automatically.
+    let mut gpu_f32_mode = settings.gpu_precision == "fp32";
+    if settings.use_gpu && !gpu_f32_mode && apbs_pmgc::gpu_mg::adapter_is_amd() {
+        println!(
+            "AMD GPU detected: the GPU precision is switched from \"{}\" to \"fp32\" automatically (AMD drivers do not support the fp64 GPU mode).",
+            settings.gpu_precision
+        );
+        gpu_f32_mode = true;
+    }
+
     let ctx = if use_mm_gpu {
-        crate::gpu::mm_context()
+        crate::gpu::mm_context(gpu_f32_mode)
     } else {
         None
     };
     if settings.use_gpu {
+        // Re-apply here: the precision may have been switched for AMD above.
+        apbs_pmgc::gpu_mg::set_mg_gpu_precision(gpu_f32_mode);
         apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
         apbs_pmgc::gpu_mg::warm_up();
     };

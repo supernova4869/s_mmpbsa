@@ -27,18 +27,6 @@ struct GpuAtom {
     _pad: u32,
 }
 
-/// Mirror of the WGSL `Params` struct (32 bytes, align 8).
-#[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
-struct GpuParams {
-    n_a: u32,
-    n_b: u32,
-    use_screen: u32,
-    n_types: u32,
-    r_cutoff_sq: f64,
-    lambda_d: f64,
-}
-
 const WGSL_SHADER: &str = r#"
 // f64 types require the SHADER_F64 device feature; there is no WGSL
 // `enable f64;` directive in naga (wgpu's WGSL front end).
@@ -201,6 +189,28 @@ fn main_self(
 
 const WORKGROUP_SIZE: u32 = 64;
 
+/// Generates the f32 shader variant from the f64 source: replaces `f64`
+/// types with `f32` and the Taylor-series `exp_neg` with the hardware `exp`.
+/// The Taylor function definitions remain as dead code (WGSL allows unused
+/// functions) after the type substitution.
+fn make_f32_shader(src: &str) -> String {
+    src.replace("f64", "f32").replace("exp_neg(", "exp(")
+}
+
+/// Element size for float data in the requested precision.
+fn float_elem_size(f32_mode: bool) -> usize {
+    if f32_mode { 4 } else { 8 }
+}
+
+/// Packs a f64 slice as bytes in the requested precision.
+fn float_bytes(data: &[f64], f32_mode: bool) -> Vec<u8> {
+    if f32_mode {
+        data.iter().flat_map(|&x| (x as f32).to_ne_bytes()).collect()
+    } else {
+        data.iter().flat_map(|&x| x.to_ne_bytes()).collect()
+    }
+}
+
 pub struct GpuContext {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -209,30 +219,37 @@ pub struct GpuContext {
     pipeline_self: wgpu::ComputePipeline,
     bind_group_layout: wgpu::BindGroupLayout,
     adapter_name: String,
+    /// true = the kernels compute in f32 (fp32 precision setting).
+    pub f32_mode: bool,
 }
 
-static GPU_CONTEXT: OnceLock<Option<GpuContext>> = OnceLock::new();
+static GPU_CONTEXT_F64: OnceLock<Option<GpuContext>> = OnceLock::new();
+static GPU_CONTEXT_F32: OnceLock<Option<GpuContext>> = OnceLock::new();
 
-/// Returns the shared GPU context, initializing it on first use.  `None` means
-/// GPU is not supported on this machine (no adapter, or no f64 shader support);
-/// the reason is printed once and the caller must fall back to the CPU path.
-pub fn mm_context() -> Option<&'static GpuContext> {
-    GPU_CONTEXT
-        .get_or_init(|| match GpuContext::new() {
-            Ok(ctx) => {
-                println!(
-                    "GPU enabled for MM calculations on: {}.",
-                    ctx.adapter_name
-                );
-                Some(ctx)
+/// Returns the shared GPU context for the requested precision, initializing
+/// it on first use.
+pub fn mm_context(f32_mode: bool) -> Option<&'static GpuContext> {
+    let ctx = if f32_mode {
+        GPU_CONTEXT_F32.get_or_init(|| {
+            let ctx = GpuContext::new(true).ok();
+            if let Some(c) = &ctx {
+                println!("GPU enabled for MM energies (fp32) on: {}.", c.adapter_name);
             }
-            Err(e) => {
-                println!("GPU requested but not supported ({}); falling back to CPU.", e);
-                None
-            }
+            ctx
         })
-        .as_ref()
+    } else {
+        GPU_CONTEXT_F64.get_or_init(|| {
+            let ctx = GpuContext::new(false).ok();
+            if let Some(c) = &ctx {
+                println!("GPU enabled for MM energies (fp64) on: {}.", c.adapter_name);
+            }
+            ctx
+        })
+    };
+    ctx.as_ref()
 }
+
+
 
 /// PCI vendor ID of AMD/ATI.
 const VENDOR_AMD: u32 = 0x1002;
@@ -250,7 +267,7 @@ fn is_amd_adapter(info: &wgpu::AdapterInfo) -> bool {
 }
 
 impl GpuContext {
-    fn new() -> Result<GpuContext, String> {
+    fn new(f32_mode: bool) -> Result<GpuContext, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -259,30 +276,38 @@ impl GpuContext {
         }))
         .map_err(|e| format!("no GPU adapter found: {}", e))?;
         let adapter_info = adapter.get_info();
-        if is_amd_adapter(&adapter_info) {
-            return Err(format!(
-                "AMD GPU '{}' detected, the GPU path is disabled for AMD drivers",
-                adapter_info.name
-            ));
+
+        // fp64 requires the SHADER_F64 feature and excludes some AMD drivers
+        // (f64 compute pipelines break on certain AMD stacks).  fp32 works on
+        // all GPUs including AMD and integrated.
+        let mut required_features = wgpu::Features::empty();
+        if !f32_mode {
+            required_features = wgpu::Features::SHADER_F64;
+            if is_amd_adapter(&adapter_info) {
+                return Err(format!(
+                    "AMD GPU '{}' detected, fp64 GPU mode is disabled for AMD drivers; use gpu_precision = \"fp32\"",
+                    adapter_info.name
+                ));
+            }
         }
-        if !adapter.features().contains(wgpu::Features::SHADER_F64) {
-            return Err(format!(
-                "adapter '{}' lacks 64-bit float shader support",
-                adapter.get_info().name
-            ));
-        }
+
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("s_mmpbsa MM device"),
-            required_features: wgpu::Features::SHADER_F64,
+            required_features,
             required_limits: wgpu::Limits::default(),
             memory_hints: Default::default(),
             trace: Default::default(),
         }))
         .map_err(|e| format!("cannot open GPU device: {}", e))?;
 
+        let shader_src = if f32_mode {
+            make_f32_shader(WGSL_SHADER)
+        } else {
+            WGSL_SHADER.to_string()
+        };
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("s_mmpbsa MM shader"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(WGSL_SHADER)),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(shader_src)),
         });
         let bind_group_layout = Self::create_bind_group_layout(&device);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -312,6 +337,7 @@ impl GpuContext {
             pipeline_self,
             bind_group_layout,
             adapter_name,
+            f32_mode,
         })
     }
 
@@ -381,38 +407,13 @@ pub fn calc_mm_gpu(
         return Err("LJ matrices are not square or differ in shape".to_string());
     }
 
-    let atoms_a: Vec<GpuAtom> = rec_props
-        .iter()
-        .map(|&(_, q, t, x, y, z)| GpuAtom {
-            charge: q,
-            x,
-            y,
-            z,
-            type_id: t as u32,
-            _pad: 0,
-        })
-        .collect();
-    let atoms_b: Vec<GpuAtom> = lig_props
-        .iter()
-        .map(|&(_, q, t, x, y, z)| GpuAtom {
-            charge: q,
-            x,
-            y,
-            z,
-            type_id: t as u32,
-            _pad: 0,
-        })
-        .collect();
-    let params = GpuParams {
-        n_a: n_a as u32,
-        n_b: n_b as u32,
-        use_screen: use_screen as u32,
-        n_types: n_types as u32,
-        r_cutoff_sq,
-        lambda_d,
-    };
-    let c6_flat = flatten_row_major(c6);
-    let c12_flat = flatten_row_major(c12);
+    let f32_mode = ctx.f32_mode;
+    let es = float_elem_size(f32_mode);
+    let atoms_a_bytes = pack_atoms(rec_props, f32_mode);
+    let atoms_b_bytes = pack_atoms(lig_props, f32_mode);
+    let params_bytes = pack_mm_params(n_a as u32, n_b as u32, use_screen as u32, n_types as u32, r_cutoff_sq, lambda_d, f32_mode);
+    let c6_bytes = float_bytes(&flatten_row_major(c6), f32_mode);
+    let c12_bytes = float_bytes(&flatten_row_major(c12), f32_mode);
 
     // Output layout: [0..n_a) receptor sums, [n_a..n_a+n_b) ligand sums,
     // each entry an interleaved (elec, vdw) pair.
@@ -421,40 +422,40 @@ pub fn calc_mm_gpu(
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM params"),
-            contents: bytemuck::bytes_of(&params),
+            contents: &params_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let atoms_a_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM atoms A"),
-            contents: bytemuck::cast_slice(&atoms_a),
+            contents: &atoms_a_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let atoms_b_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM atoms B"),
-            contents: bytemuck::cast_slice(&atoms_b),
+            contents: &atoms_b_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let c6_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM c6"),
-            contents: bytemuck::cast_slice(&c6_flat),
+            contents: &c6_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let c12_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM c12"),
-            contents: bytemuck::cast_slice(&c12_flat),
+            contents: &c12_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let out_buf = ctx.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("MM out"),
-        size: (n_out * std::mem::size_of::<[f64; 2]>()) as u64,
+        size: (n_out * 2 * es) as u64,
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         mapped_at_creation: false,
     });
@@ -531,7 +532,7 @@ pub fn calc_mm_gpu(
     }
     encoder.copy_buffer_to_buffer(&out_buf, 0, &read_buf, 0, out_buf.size());
     ctx.queue.submit(Some(encoder.finish()));
-    let raw = map_read_f64(&ctx.device, &read_buf)?;
+    let raw = map_read_pairs(&ctx.device, &read_buf, f32_mode)?;
 
     // Scatter the group-local sums back onto their global atom indices.
     let mut de_elec = Array1::zeros(n_atoms);
@@ -582,25 +583,17 @@ pub fn calc_mm_self_gpu(
         return Err("LJ matrices are not square or differ in shape".to_string());
     }
 
-    let atoms: Vec<GpuAtom> = self_props
-        .iter()
-        .map(|&(_, q, t, x, y, z)| GpuAtom {
-            charge: q,
-            x,
-            y,
-            z,
-            type_id: t as u32,
-            _pad: 0,
-        })
-        .collect();
-    let params = GpuParams {
-        n_a: n as u32,
-        n_b: n as u32,
-        use_screen: use_screen as u32,
-        n_types: n_types as u32,
+    let f32_mode = ctx.f32_mode;
+    let atoms_bytes = pack_atoms(self_props, f32_mode);
+    let params_bytes = pack_mm_params(
+        n as u32,
+        n as u32,
+        use_screen as u32,
+        n_types as u32,
         r_cutoff_sq,
         lambda_d,
-    };
+        f32_mode,
+    );
     let c6_flat = flatten_row_major(c6);
     let c12_flat = flatten_row_major(c12);
 
@@ -608,28 +601,28 @@ pub fn calc_mm_self_gpu(
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM self params"),
-            contents: bytemuck::bytes_of(&params),
+            contents: &params_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let atoms_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM self atoms"),
-            contents: bytemuck::cast_slice(&atoms),
+            contents: &atoms_bytes,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let c6_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM self c6"),
-            contents: bytemuck::cast_slice(&c6_flat),
+            contents: &float_bytes(&c6_flat, f32_mode),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let c12_buf = ctx
         .device
         .create_buffer_init(&BufferInitDescriptor {
             label: Some("MM self c12"),
-            contents: bytemuck::cast_slice(&c12_flat),
+            contents: &float_bytes(&c12_flat, f32_mode),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
     let excl_offsets_buf = ctx
@@ -651,7 +644,7 @@ pub fn calc_mm_self_gpu(
         });
     let out_buf = ctx.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("MM self out"),
-        size: (n * std::mem::size_of::<[f64; 2]>()) as u64,
+        size: (n * 2 * float_elem_size(f32_mode)) as u64,
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
         mapped_at_creation: false,
     });
@@ -722,7 +715,7 @@ pub fn calc_mm_self_gpu(
     }
     encoder.copy_buffer_to_buffer(&out_buf, 0, &read_buf, 0, out_buf.size());
     ctx.queue.submit(Some(encoder.finish()));
-    let raw = map_read_f64(&ctx.device, &read_buf)?;
+    let raw = map_read_pairs(&ctx.device, &read_buf, f32_mode)?;
 
     // Scatter the group-local sums back onto their global atom indices.
     let mut de_elec = Array1::zeros(n_atoms);
@@ -734,20 +727,67 @@ pub fn calc_mm_self_gpu(
     Ok((de_elec, de_vdw))
 }
 
-fn map_read_f64(device: &wgpu::Device, buffer: &wgpu::Buffer) -> Result<Vec<[f64; 2]>, String> {
+/// Packs AtomEntry tuples as bytes in the requested precision.
+fn pack_atoms(props: &[AtomEntry], f32_mode: bool) -> Vec<u8> {
+    let mut out = Vec::with_capacity(props.len() * if f32_mode { 24 } else { 40 });
+    for &(_, q, t, x, y, z) in props {
+        if f32_mode {
+            out.extend_from_slice(&(q as f32).to_ne_bytes());
+            out.extend_from_slice(&(x as f32).to_ne_bytes());
+            out.extend_from_slice(&(y as f32).to_ne_bytes());
+            out.extend_from_slice(&(z as f32).to_ne_bytes());
+        } else {
+            out.extend_from_slice(&q.to_ne_bytes());
+            out.extend_from_slice(&x.to_ne_bytes());
+            out.extend_from_slice(&y.to_ne_bytes());
+            out.extend_from_slice(&z.to_ne_bytes());
+        }
+        out.extend_from_slice(&(t as u32).to_ne_bytes());
+        out.extend_from_slice(&0u32.to_ne_bytes());
+    }
+    out
+}
+
+/// Packs the kernel params as bytes in the requested precision.
+fn pack_mm_params(n_a: u32, n_b: u32, use_screen: u32, n_types: u32,
+                  r_cutoff_sq: f64, lambda_d: f64, f32_mode: bool) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&n_a.to_ne_bytes());
+    out.extend_from_slice(&n_b.to_ne_bytes());
+    out.extend_from_slice(&use_screen.to_ne_bytes());
+    out.extend_from_slice(&n_types.to_ne_bytes());
+    if f32_mode {
+        out.extend_from_slice(&(r_cutoff_sq as f32).to_ne_bytes());
+        out.extend_from_slice(&(lambda_d as f32).to_ne_bytes());
+    } else {
+        out.extend_from_slice(&r_cutoff_sq.to_ne_bytes());
+        out.extend_from_slice(&lambda_d.to_ne_bytes());
+    }
+    out
+}
+
+/// Reads float pairs from a MAP_READ buffer, promoting to f64.
+fn map_read_pairs(device: &wgpu::Device, buffer: &wgpu::Buffer, f32_mode: bool) -> Result<Vec<[f64; 2]>, String> {
     let (tx, rx) = std::sync::mpsc::channel();
-    buffer
-        .slice(..)
-        .map_async(wgpu::MapMode::Read, move |res| {
-            let _ = tx.send(res);
-        });
-    device
-        .poll(wgpu::PollType::Wait)
-        .map_err(|e| format!("GPU poll failed: {}", e))?;
-    rx.recv()
-        .map_err(|_| "GPU map callback was dropped".to_string())?
+    buffer.slice(..).map_async(wgpu::MapMode::Read, move |res| {
+        let _ = tx.send(res);
+    });
+    device.poll(wgpu::PollType::Wait).map_err(|e| format!("GPU poll failed: {}", e))?;
+    rx.recv().map_err(|_| "GPU map callback was dropped".to_string())?
         .map_err(|e| format!("GPU output mapping failed: {}", e))?;
     let view = buffer.slice(..).get_mapped_range();
+    if f32_mode {
+        let mut data: Vec<[f64; 2]> = Vec::with_capacity(view.len() / 8);
+        for chunk in view.chunks_exact(8) {
+            data.push([
+                f32::from_ne_bytes(chunk[0..4].try_into().unwrap()) as f64,
+                f32::from_ne_bytes(chunk[4..8].try_into().unwrap()) as f64,
+            ]);
+        }
+        drop(view);
+        buffer.unmap();
+        return Ok(data);
+    }
     let mut data: Vec<[f64; 2]> = Vec::with_capacity(view.len() / 16);
     for chunk in view.chunks_exact(16) {
         data.push([
@@ -839,12 +879,12 @@ mod tests {
         (rec, lig, c6, c12)
     }
 
-    fn assert_close(a: &Array1<f64>, b: &Array1<f64>, what: &str) {
+    fn assert_close_tol(a: &Array1<f64>, b: &Array1<f64>, what: &str, tol: f64) {
         assert_eq!(a.len(), b.len(), "{}: length mismatch", what);
         for (i, (x, y)) in a.iter().zip(b.iter()).enumerate() {
             let scale = x.abs().max(y.abs()).max(1e-12);
             assert!(
-                (x - y).abs() / scale < 1e-12,
+                (x - y).abs() / scale < tol,
                 "{} mismatch at atom {}: gpu={} cpu={} (rel diff {:.3e})",
                 what, i, x, y, (x - y).abs() / scale
             );
@@ -855,19 +895,23 @@ mod tests {
     /// f64-capable GPU is available, so CPU-only environments still pass.
     #[test]
     fn gpu_matches_cpu_on_random_systems() {
-        let Some(ctx) = mm_context() else {
-            println!("No f64-capable GPU found; skipping the GPU/CPU comparison test.");
-            return;
-        };
-        for n_types in [1usize, 4] {
-            let (rec, lig, c6, c12) = random_system(37, 11, n_types);
-            for (r_cutoff_sq, use_screen) in [(f64::INFINITY, true), (100.0, false), (2500.0, true)] {
-                let (gpu_e, gpu_v) = calc_mm_gpu(
-                    ctx, 48, &rec, &lig, &c6, &c12, r_cutoff_sq, use_screen, 0.8,
-                ).expect("GPU MM run failed");
-                let (cpu_e, cpu_v) = reference(48, &rec, &lig, &c6, &c12, r_cutoff_sq, use_screen, 0.8);
-                assert_close(&gpu_e, &cpu_e, "elec");
-                assert_close(&gpu_v, &cpu_v, "vdw");
+        // fp32 keeps ~1e-6 relative per group sum; 2e-4 leaves slack for the
+        // shortest-range vdw terms while still catching layout/precision bugs.
+        for (f32_mode, tol) in [(false, 1e-12), (true, 2.0e-4)] {
+            let Some(ctx) = mm_context(f32_mode) else {
+                println!("GPU unavailable (f32={f32_mode}); skipping that mode.");
+                continue;
+            };
+            for n_types in [1usize, 4] {
+                let (rec, lig, c6, c12) = random_system(37, 11, n_types);
+                for (r_cutoff_sq, use_screen) in [(f64::INFINITY, true), (100.0, false), (2500.0, true)] {
+                    let (gpu_e, gpu_v) = calc_mm_gpu(
+                        ctx, 48, &rec, &lig, &c6, &c12, r_cutoff_sq, use_screen, 0.8,
+                    ).expect("GPU MM run failed");
+                    let (cpu_e, cpu_v) = reference(48, &rec, &lig, &c6, &c12, r_cutoff_sq, use_screen, 0.8);
+                    assert_close_tol(&gpu_e, &cpu_e, "elec", tol);
+                    assert_close_tol(&gpu_v, &cpu_v, "vdw", tol);
+                }
             }
         }
     }
@@ -878,9 +922,12 @@ mod tests {
     /// a CSR list and otherwise match a per-atom CPU reference.
     #[test]
     fn gpu_self_skips_exclusions_and_matches_cpu() {
-        let Some(ctx) = mm_context() else {
-            println!("No f64-capable GPU found; skipping the GPU self test.");
-            return;
+        // fp32 keeps ~1e-6 relative per atom sum; 2e-4 leaves slack while
+        // still catching layout/precision bugs.
+        for (f32_mode, tol) in [(false, 1e-12), (true, 2.0e-4)] {
+        let Some(ctx) = mm_context(f32_mode) else {
+            println!("GPU unavailable (f32={f32_mode}); skipping that mode.");
+            continue;
         };
         let (rec, _lig, c6, c12) = random_system(23, 5, 4);
         let n_atoms = 23;
@@ -939,15 +986,16 @@ mod tests {
                     }
                 }
             }
-            assert_close(&gpu_e, &cpu_e, "self+excl elec");
-            assert_close(&gpu_v, &cpu_v, "self+excl vdw");
+            assert_close_tol(&gpu_e, &cpu_e, "self+excl elec", tol);
+            assert_close_tol(&gpu_v, &cpu_v, "self+excl vdw", tol);
+        }
         }
     }
 
     /// Minimal deterministic probe: three atoms, the pair (0, 1) excluded.
     #[test]
     fn gpu_self_minimal_exclusion_probe() {
-        let Some(ctx) = mm_context() else {
+        let Some(ctx) = mm_context(false) else {
             println!("No f64-capable GPU found; skipping the minimal probe.");
             return;
         };
@@ -990,7 +1038,7 @@ mod tests {
     #[test]
     #[ignore]
     fn gpu_mm_overhead_breakdown() {
-        let Some(ctx) = mm_context() else {
+        let Some(ctx) = mm_context(false) else {
             println!("No f64-capable GPU; skipping the breakdown.");
             return;
         };
