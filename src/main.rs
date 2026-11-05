@@ -70,7 +70,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let compile_date = "2026/11/04";
+    let compile_date = "2026/11/05";
     welcome(&env!("CARGO_PKG_VERSION"), compile_date);
 
     // Show version info
@@ -114,7 +114,11 @@ fn main() {
         settings.debug_mode = config.as_ref().unwrap().program_set.debug;
         settings.use_gpu = config.as_ref().unwrap().program_set.use_gpu;
         settings.gpu_precision = config.as_ref().unwrap().program_set.gpu_precision.clone();
+        settings.pb_fast_path = config.as_ref().unwrap().program_set.pb_fast_path;
     }
+    // After the config merge, so the config.yaml pb_fast_path wins over
+    // settings.ini.
+    apply_pb_fast_path(&settings);
     match settings.debug_mode {
         true => println!("Debug mode on.\n"),
         false => println!("Debug mode off.\n"),
@@ -279,4 +283,15 @@ fn env_check() -> Settings {
         std::process::exit(1);
     }
     settings
+}
+
+/// Applies the PB fast-path switches from the (possibly config-overridden)
+/// settings.  Called after settings and config have been merged, since the
+/// config.yaml `pb_fast_path` wins over settings.ini.
+fn apply_pb_fast_path(settings: &Settings) {
+    let pb_fast = settings.pb_fast_path;
+    apbs_mg::vpmg::set_fillco_fast_path(pb_fast);
+    apbs_pmgc::gpu_mg::set_gpu_buffer_reuse(pb_fast);
+    apbs_pmgc::build_p::set_pc_cache_enabled(pb_fast);
+    apbs_runner::set_pb_warm_start(pb_fast);
 }

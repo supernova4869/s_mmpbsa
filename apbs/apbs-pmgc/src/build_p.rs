@@ -2,8 +2,40 @@
 // The 7-point path implements the APBS C interior op7 formulas with
 // trilinear boundary fallback. The 27-point path is still not implemented.
 
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+
+/// Whether the constant trilinear weight blocks are cached across solves
+/// (the `pb_fast_path` setting).  Off = rebuild the block every call.
+static PC_CACHE_ENABLED: AtomicBool = AtomicBool::new(true);
+
+/// Enables/disables the prolongation-weight cache.
+pub fn set_pc_cache_enabled(on: bool) {
+    PC_CACHE_ENABLED.store(on, Ordering::Relaxed);
+}
+
 fn idx3(i: usize, j: usize, k: usize, nx: usize, ny: usize) -> usize {
     i + j * nx + k * nx * ny
+}
+
+/// Cache of the constant trilinear weight blocks, keyed by coarse dims.
+/// The weights never depend on the physical problem, so on the shared PB
+/// grid every solve of every frame reuses one allocation per level.
+static TRILIN_CACHE: OnceLock<Mutex<HashMap<(usize, usize, usize), Arc<Vec<f64>>>>> =
+    OnceLock::new();
+
+/// [`build_p_trilin_block`] with cross-solve caching.
+pub fn cached_trilin_block(nxc: usize, nyc: usize, nzc: usize) -> Vec<f64> {
+    if !PC_CACHE_ENABLED.load(Ordering::Relaxed) {
+        return build_p_trilin_block(nxc, nyc, nzc);
+    }
+    let cache = TRILIN_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = cache.lock().unwrap();
+    let entry = guard
+        .entry((nxc, nyc, nzc))
+        .or_insert_with(|| Arc::new(build_p_trilin_block(nxc, nyc, nzc)));
+    entry.as_ref().clone()
 }
 
 fn set_plane(pc: &mut [f64], plane: usize, n: usize, value: f64) {

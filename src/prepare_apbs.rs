@@ -65,7 +65,7 @@ pub fn prepare_pqr(cur_frm: usize, times: &Vec<f64>,
 /// (receptor) and `mol 3` (ligand), matching [`build_molecules`].
 pub fn build_apbs_input_text(ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, coord: &ArrayView2<f64>,
                   atom_radius: &Array1<f64>, pbe_set: &PBESet, pba_set: &PBASet,
-                  f_name: &str, settings: &Settings) -> String {
+                  f_name: &str, settings: &Settings, fixed_boxes: Option<&MeshBoxes>) -> String {
     let mut input_apbs = String::from("read\n");
     if ndx_lig.is_some() {
         input_apbs.push_str(&format!("  mol pqr {}_com.pqr\n", f_name));
@@ -76,8 +76,13 @@ pub fn build_apbs_input_text(ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSe
     }
     input_apbs.push_str("end\n\n");
 
-    let (rec_box, lig_box, com_box) =
-        gen_mesh_edges(ndx_rec, ndx_lig, coord, atom_radius);
+    let (rec_box, lig_box, com_box) = match fixed_boxes {
+        // A shared grid over every PB frame: identical dime/cglen/fglen on
+        // every frame, so the previous frame's converged potentials seed the
+        // next frame's multigrid as exact initial guesses (no interpolation).
+        Some(boxes) => boxes.clone(),
+        None => gen_mesh_edges(ndx_rec, ndx_lig, coord, atom_radius),
+    };
 
     let mut pbe_set_vacuum = PBESet::from(pbe_set);
     pbe_set_vacuum.sdie = 1.0;
@@ -168,8 +173,8 @@ fn get_bounds(ndx: &BTreeSet<usize>, coord: &ArrayView2<f64>, atom_radius: &Arra
 }
 
 pub fn gen_mesh_edges(
-    ndx_rec: &BTreeSet<usize>, 
-    ndx_lig: &Option<BTreeSet<usize>>, 
+    ndx_rec: &BTreeSet<usize>,
+    ndx_lig: &Option<BTreeSet<usize>>,
     coord: &ArrayView2<f64>,
     atom_radius: &Array1<f64>
 ) -> ([f64; 6], Option<[f64; 6]>, Option<[f64; 6]>) {
@@ -197,6 +202,39 @@ pub fn gen_mesh_edges(
     };
     
     (rec_box, lig_box, com_box)
+}
+
+/// The per-molecule-group grid bounds of one frame, as returned by
+/// [`gen_mesh_edges`]: (receptor box, ligand box, complex box).
+pub type MeshBoxes = ([f64; 6], Option<[f64; 6]>, Option<[f64; 6]>);
+
+/// Elementwise union of per-frame mesh bounds, giving the smallest box that
+/// covers the molecule group in every frame.  Solving every PB frame on this
+/// shared box keeps dime/cglen/fglen (and therefore the whole multigrid
+/// geometry) identical across frames, so each frame's converged coarse- and
+/// fine-grid potentials seed the next frame's solve as exact initial guesses
+/// instead of interpolated approximations.
+pub fn union_mesh_edges(boxes: &[MeshBoxes]) -> MeshBoxes {
+    assert!(!boxes.is_empty(), "no frames to union the mesh bounds over");
+    let union_pair = |a: [f64; 6], b: [f64; 6]| -> [f64; 6] {
+        [
+            a[0].min(b[0]), a[1].min(b[1]), a[2].min(b[2]),
+            a[3].max(b[3]), a[4].max(b[4]), a[5].max(b[5]),
+        ]
+    };
+    let mut out = boxes[0].clone();
+    for (rec, lig, com) in &boxes[1..] {
+        out.0 = union_pair(out.0, *rec);
+        out.1 = match (out.1, lig) {
+            (Some(a), Some(b)) => Some(union_pair(a, *b)),
+            _ => None,
+        };
+        out.2 = match (out.2, com) {
+            (Some(a), Some(b)) => Some(union_pair(a, *b)),
+            _ => None,
+        };
+    }
+    out
 }
 
 pub fn prepare_apbs_content(file: &str, mol_index: i32, box_: [f64;6],
@@ -284,6 +322,66 @@ mod tests {
         }
     }
 
+    /// The union of per-frame mesh bounds must cover every frame, and a
+    /// shared-box input text must be identical across frames (that identity
+    /// is what lets the previous frame's potentials seed the next one as
+    /// exact initial guesses).
+    #[test]
+    fn union_mesh_bounds_cover_all_frames_and_share_the_grid() {
+        let aps = tiny_aps([0.4, -0.2, -0.2]);
+        let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+        let ndx_rec: BTreeSet<usize> = [0usize, 1].into_iter().collect();
+        let ndx_lig: Option<BTreeSet<usize>> = Some([2usize].into_iter().collect());
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+
+        // Two frames whose molecules drift in opposite directions.
+        let frames = [
+            Array2::from_shape_vec((3, 3), vec![0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 9.0, 0.0, 0.0]).unwrap(),
+            Array2::from_shape_vec((3, 3), vec![1.0, 0.5, -1.0, 5.0, 0.0, 0.0, 8.0, 1.0, 2.0]).unwrap(),
+        ];
+        let per_frame: Vec<MeshBoxes> = frames.iter()
+            .map(|c| gen_mesh_edges(&ndx_rec, &ndx_lig, &c.view(), &radius))
+            .collect();
+        let shared = union_mesh_edges(&per_frame);
+
+        // The union covers each frame's box elementwise.
+        for (rec, lig, com) in &per_frame {
+            for d in 0..3 {
+                assert!(shared.0[d] <= rec[d], "union rec min {d} smaller than frame");
+                assert!(shared.0[d + 3] >= rec[d + 3], "union rec max {d} larger than frame");
+                assert!(shared.1.unwrap()[d] <= lig.unwrap()[d]);
+                assert!(shared.1.unwrap()[d + 3] >= lig.unwrap()[d + 3]);
+                assert!(shared.2.unwrap()[d] <= com.unwrap()[d]);
+                assert!(shared.2.unwrap()[d + 3] >= com.unwrap()[d + 3]);
+            }
+        }
+
+        // With the shared boxes the two frames produce identical grid
+        // geometry lines (dime/cglen/fglen/centers) even though their atoms
+        // differ; without them, the geometry follows each frame's bounds.
+        let text_a = build_apbs_input_text(&ndx_rec, &ndx_lig, &frames[0].view(), &radius,
+            &pbe_set, &pba_set, "shared_0ns", &settings, Some(&shared));
+        let text_b = build_apbs_input_text(&ndx_rec, &ndx_lig, &frames[1].view(), &radius,
+            &pbe_set, &pba_set, "shared_0.1ns", &settings, Some(&shared));
+        let geom_lines = |t: &str| -> Vec<String> {
+            t.lines().filter(|l| {
+                let l = l.trim();
+                l.starts_with("dime ") || l.starts_with("cglen ")
+                    || l.starts_with("fglen ") || l.starts_with("fgcent ")
+                    || l.starts_with("cgcent ")
+            }).map(|l| l.to_string()).collect()
+        };
+        assert_eq!(geom_lines(&text_a), geom_lines(&text_b),
+            "shared-box frames must produce identical grid geometry");
+
+        let text_per_frame = build_apbs_input_text(&ndx_rec, &ndx_lig, &frames[1].view(), &radius,
+            &pbe_set, &pba_set, "perframe_0.1ns", &settings, None);
+        assert_ne!(geom_lines(&text_a), geom_lines(&text_per_frame),
+            "per-frame bounds must differ from the shared grid (frames move)");
+    }
+
     /// The in-memory path (input text + in-memory molecules) must run the real
     /// solver end to end and yield per-atom results for every calculation of
     /// the complex/receptor/ligand decomposition.
@@ -311,7 +409,7 @@ mod tests {
         let settings = Settings::new();
         let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
         let text = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord.view(), &radius,
-            &pbe_set, &pba_set, "t_0ns", &settings);
+            &pbe_set, &pba_set, "t_0ns", &settings, None);
         assert!(text.contains("mol pqr t_0ns_com.pqr"));
         assert!(text.contains("ELEC name t_0ns_com_SOL"));
         assert!(text.contains("APOLAR name t_0ns_com_SAS"));
@@ -358,7 +456,7 @@ mod tests {
         let settings = Settings::new();
         let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
         let text = build_apbs_input_text(&ndx_rec, &None, &coord.view(), &radius,
-            &pbe_set, &pba_set, "t_0ns", &settings);
+            &pbe_set, &pba_set, "t_0ns", &settings, None);
         assert!(text.contains("mol pqr t_0ns_rec.pqr"));
         assert!(!text.contains("_com"));
         assert!(!text.contains("_lig"));
@@ -401,9 +499,9 @@ mod tests {
         let mols_a = build_molecules(&aps, &coord_a.view(), &ndx_rec, &ndx_lig);
         let mols_b = build_molecules(&aps, &coord_b.view(), &ndx_rec, &ndx_lig);
         let text_a = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_a.view(), &radius,
-            &pbe_set, &pba_set, "coldchk_0ns", &settings);
+            &pbe_set, &pba_set, "coldchk_0ns", &settings, None);
         let text_b = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_b.view(), &radius,
-            &pbe_set, &pba_set, "coldchk_0.1ns", &settings);
+            &pbe_set, &pba_set, "coldchk_0.1ns", &settings, None);
         let r1 = run_apbs_in_process_text(&text_b, &mols_b).unwrap();
         let _a = run_apbs_in_process_text(&text_a, &mols_a).unwrap();
         let r2 = run_apbs_in_process_text(&text_b, &mols_b).unwrap();
@@ -443,9 +541,9 @@ mod tests {
         let mols_a = build_molecules(&aps, &coord_a.view(), &ndx_rec, &ndx_lig);
         let mols_b = build_molecules(&aps, &coord_b.view(), &ndx_rec, &ndx_lig);
         let text_a = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_a.view(), &radius,
-            &pbe_set, &pba_set, "warm_0ns", &settings);
+            &pbe_set, &pba_set, "warm_0ns", &settings, None);
         let text_b = build_apbs_input_text(&ndx_rec, &ndx_lig, &coord_b.view(), &radius,
-            &pbe_set, &pba_set, "warm_0.1ns", &settings);
+            &pbe_set, &pba_set, "warm_0.1ns", &settings, None);
 
         // Reference: frame B cold.
         set_warm_start_override(false);
@@ -560,7 +658,7 @@ mod tests {
             .enumerate()
             .map(|(f, c)| {
                 build_apbs_input_text(&ndx_rec, &ndx_lig, &c.view(), &radius,
-                    &pbe_set, &pba_set, &format!("bench_{}ns", f), &settings)
+                    &pbe_set, &pba_set, &format!("bench_{}ns", f), &settings, None)
             })
             .collect();
 

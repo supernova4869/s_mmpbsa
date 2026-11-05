@@ -13,7 +13,7 @@ use apbs_generic::vpbe::Vpbe;
 use std::collections::HashMap;
 use std::cell::RefCell;
 use std::sync::RwLock;
-use std::sync::atomic::{AtomicI8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI8, Ordering};
 // use std::fs;
 // use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -581,16 +581,20 @@ fn process_prints(nosh: &NOsh, energies: &HashMap<String, f64>) {
 // s_mmpbsa solves the same six PB problems (complex/receptor/ligand x
 // solvated/vacuum) once per trajectory frame.  Consecutive frames differ
 // only by small atom displacements, so the previous frame's converged
-// potential — trilinearly interpolated onto the current frame's grid, which
-// is regenerated per frame from the atom bounding box — is a far better
-// initial guess than zero.  The multigrid stopping test is a relative
-// residual, so a warm guess only reduces the V-cycle count: the converged
-// solution stays within the solver tolerance of the cold-start result.
+// potential is a far better initial guess than zero.  All PB frames share
+// one grid — the elementwise maximum of the per-frame molecule bounds —
+// so the previous frame's coarse- and fine-grid potentials apply to the
+// next frame's matching grids as exact initial guesses (the trilinear
+// gather below only runs as a fallback when the geometries differ).  The
+// multigrid stopping test is a relative residual, so a warm guess only
+// reduces the V-cycle count: the converged solution stays within the
+// solver tolerance of the cold-start result.
 //
-// Opt-in while under evaluation: APBS_RUST_WARM_START=1.  Frames are solved
-// sequentially, so one entry per calculation bounds the extra memory at one
-// frame's worth of grids (per-frame entries are overwritten, never
-// accumulated).  Grids beyond WARM_MAX_POINTS are not cached.
+// On by default; `APBS_RUST_WARM_START=0` (or false/no) disables it.
+// Frames are solved sequentially, so one entry per calculation bounds the
+// extra memory at one frame's worth of grids (per-frame entries are
+// overwritten, never accumulated).  Grids beyond WARM_MAX_POINTS are not
+// cached.
 
 /// Grid geometry of one ELEC calculation (fine grid point coordinates are
 /// xmin + i*hx, ymin + j*hy, zmin + k*hz).
@@ -620,6 +624,22 @@ impl WarmGeom {
             hy: p.hy,
             hzed: p.hzed,
         }
+    }
+
+    /// Whether two grids are point-for-point identical, i.e. a cached
+    /// potential can be copied instead of interpolated.  The shared PB grid
+    /// (same bounds, same dime/df text for every frame) makes this the
+    /// normal case for consecutive frames of one system.
+    fn same_grid_as(&self, other: &WarmGeom) -> bool {
+        self.nx == other.nx
+            && self.ny == other.ny
+            && self.nz == other.nz
+            && self.xmin == other.xmin
+            && self.ymin == other.ymin
+            && self.zmin == other.zmin
+            && self.hx == other.hx
+            && self.hy == other.hy
+            && self.hzed == other.hzed
     }
 }
 
@@ -659,10 +679,28 @@ fn warm_start_enabled() -> bool {
     match WARM_START_OVERRIDE.load(Ordering::Relaxed) {
         0 => false,
         1 => true,
-        _ => std::env::var("APBS_RUST_WARM_START")
-            .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
-            .unwrap_or(false),
+        _ => {
+            // The warm start belongs to the pb_fast_path: with the fast
+            // path off, frames are gridded from their own bounds and solve
+            // exactly as before the warm start existed.  The environment
+            // variable can still disable it within the fast path.
+            if !WARM_START_PB_FAST.load(Ordering::Relaxed) {
+                return false;
+            }
+            std::env::var("APBS_RUST_WARM_START")
+                .map(|v| !matches!(v.as_str(), "0" | "false" | "FALSE" | "no" | "NO"))
+                .unwrap_or(true)
+        }
     }
+}
+
+/// Whether warm-start seeding runs with the pb_fast_path (default on).
+/// The test override (`set_warm_start_override`) takes precedence.
+static WARM_START_PB_FAST: AtomicBool = AtomicBool::new(true);
+
+/// Ties the warm-start seeding to the pb_fast_path setting.
+pub fn set_pb_warm_start(on: bool) {
+    WARM_START_PB_FAST.store(on, Ordering::Relaxed);
 }
 
 /// Calc names look like "{system}_{time}ns_{com|rec|lig}_{SOL|VAC}", with
@@ -697,6 +735,25 @@ fn warm_key(calc_name: &str) -> Option<String> {
         Some(l) => format!("{sys}_{part}{kind}@{l}"),
         None => format!("{sys}_{part}{kind}"),
     })
+}
+
+/// Copies the source potential onto the destination grid's interior when
+/// both grids are point-for-point identical (the shared-grid warm start).
+/// Destination padding is left untouched (the multigrid treats it as
+/// homogeneous Dirichlet — build_a folds the true boundary values into the
+/// RHS), exactly matching the all-zero cold-start semantics.
+fn warm_copy_seed(dst: &mut [f64], d: WarmGeom, src: &[f64]) {
+    if d.nx < 3 || d.ny < 3 || d.nz < 3 {
+        return;
+    }
+    // The x rows are contiguous: copy each interior (j, k) row in one call.
+    for k in 1..d.nz - 1 {
+        for j in 1..d.ny - 1 {
+            let lo = ijk(1, j, k, d.nx, d.ny);
+            let hi = lo + d.nx - 2;
+            dst[lo..hi].copy_from_slice(&src[lo..hi]);
+        }
+    }
 }
 
 /// Per-destination-axis trilinear source indices: for each destination index
@@ -766,7 +823,15 @@ fn seed_warm_guess(vpmg: &mut apbs_mg::vpmg::Vpmg, key: &str) -> bool {
     if vpmg.u.len() < nf || prev.u.len() < prev.geom.nx * prev.geom.ny * prev.geom.nz {
         return false;
     }
-    warm_trilinear_seed(&mut vpmg.u[..nf], geom, &prev.u, prev.geom);
+    if geom.same_grid_as(&prev.geom) {
+        // All PB frames share one grid (the elementwise maximum of the
+        // per-frame molecule bounds), so the previous frame's converged
+        // coarse- or fine-grid potential is already on the right mesh:
+        // seed it directly instead of interpolating.
+        warm_copy_seed(&mut vpmg.u[..nf], geom, &prev.u);
+    } else {
+        warm_trilinear_seed(&mut vpmg.u[..nf], geom, &prev.u, prev.geom);
+    }
     drop(map);
     WARM_HITS.fetch_add(1, Ordering::Relaxed);
     true
@@ -913,7 +978,7 @@ fn run_elec(
     let warm_key = if warm { warm_key(&elec.name) } else { None };
     if let Some(key) = &warm_key {
         if seed_warm_guess(&mut vpmg, key) {
-            eprintln!("[warm-start] {} seeded from the previous frame", elec.name);
+            // eprintln!("[warm-start] {} seeded from the previous frame", elec.name);
         }
     }
     let t_fillco_done = t_fillco.elapsed();
@@ -2546,6 +2611,36 @@ mod tests {
                         assert_eq!(got, 1.0, "inside ({i},{j},{k})");
                     } else {
                         assert_eq!(got, 0.0, "outside ({i},{j},{k})");
+                    }
+                }
+            }
+        }
+    }
+
+    /// The shared-grid warm start copies the previous frame's potential
+    /// element-for-element onto the interior and leaves the Dirichlet
+    /// padding untouched.
+    #[test]
+    fn warm_copy_seed_transfers_the_interior_verbatim_and_keeps_padding() {
+        let d = WarmGeom {
+            nx: 5, ny: 4, nz: 4,
+            xmin: 0.0, ymin: 0.0, zmin: 0.0,
+            hx: 0.5, hy: 0.5, hzed: 0.5,
+        };
+        assert!(d.same_grid_as(&d), "identical geometry must compare equal");
+        let src: Vec<f64> = (0..d.nx * d.ny * d.nz).map(|v| v as f64 + 0.5).collect();
+        let mut dst = vec![-1.0f64; d.nx * d.ny * d.nz];
+        warm_copy_seed(&mut dst, d, &src);
+        for k in 0..d.nz {
+            for j in 0..d.ny {
+                for i in 0..d.nx {
+                    let idx = ijk(i, j, k, d.nx, d.ny);
+                    let on_face =
+                        i == 0 || j == 0 || k == 0 || i == d.nx - 1 || j == d.ny - 1 || k == d.nz - 1;
+                    if on_face {
+                        assert_eq!(dst[idx], -1.0, "padding ({i},{j},{k}) must stay untouched");
+                    } else {
+                        assert_eq!(dst[idx], src[idx], "interior ({i},{j},{k}) must match verbatim");
                     }
                 }
             }

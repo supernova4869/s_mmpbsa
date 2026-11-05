@@ -15,7 +15,7 @@ use crate::analysis::{SMResult, SMResults};
 use crate::parse_tpr::Residue;
 use crate::parameters::{PBASet, PBESet};
 use crate::atom_property::{AtomProperties, AtomProperty};
-use crate::prepare_apbs::{build_apbs_input_text, build_molecules, prepare_pqr};
+use crate::prepare_apbs::{build_apbs_input_text, build_molecules, prepare_pqr, MeshBoxes, gen_mesh_edges, union_mesh_edges};
 use crate::apbs_runner::{self, MemMols, SolverCalcKind, SolverRun};
 
 pub fn fun_mmpbsa_calculations(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_ie: &Array3<f64>, 
@@ -338,9 +338,31 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
     }
 
     // The PB/SA phase: every frame's structure is read and solved one
-    // after another.
+    // after another.  With the pb_fast_path on, all frames share one grid
+    // (the elementwise maximum of the per-frame molecule bounds) and each
+    // frame's converged coarse- and fine-grid potentials seed the next
+    // frame's solve as exact initial guesses; with it off, every frame is
+    // gridded from its own bounds as before (the warm start then seeds
+    // through the trilinear fallback).
     if settings.calc_pbsa {
         println!("Start PB/SA calculation...");
+        // The shared grid — the union of every frame's molecule bounds,
+        // letting each frame's converged potentials seed the next frame as
+        // exact initial guesses — belongs to the pb_fast_path.  With the
+        // fast path off, every frame is gridded from its own bounds, as
+        // before.
+        let shared_boxes = if settings.pb_fast_path {
+            let atom_radius: Array1<f64> =
+                Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+            let per_frame: Vec<MeshBoxes> = (0..time_list.len()).map(|cur_frm| {
+                let coord = coordinates.slice(s![cur_frm, .., ..]);
+                gen_mesh_edges(ndx_rec, ndx_lig, &coord, &atom_radius)
+            }).collect();
+            println!("PB/SA fast path: using a shared grid for all frames, the union of every frame's molecule bounds.");
+            Some(union_mesh_edges(&per_frame))
+        } else {
+            None
+        };
         let pgb = ProgressBar::new(time_list.len() as u64);
         set_style(&pgb);
         pgb.inc(0);
@@ -348,7 +370,7 @@ fn calculate_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinates_i
         for cur_frm in 0..time_list.len() {
             let coord = coordinates.slice(s![cur_frm, .., ..]);
             match calc_pbsa(&coord, &times, ndx_rec, ndx_lig, cur_frm, sys_name, temp_dir,
-                            aps, pbe_set, pba_set, settings) {
+                            aps, pbe_set, pba_set, settings, shared_boxes.as_ref()) {
                 Some((de_pb, de_sa)) => {
                     pb_atom.row_mut(cur_frm).assign(&de_pb);
                     sa_atom.row_mut(cur_frm).assign(&de_sa);
@@ -767,10 +789,11 @@ fn calc_mm_self_cpu(n_atoms: usize,
 
 fn calc_pbsa(coord: &ArrayView2<f64>, times: &Vec<f64>,
             ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>, cur_frm: usize, sys_name: &str, temp_dir: &PathBuf,
-            aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> Option<(Array1<f64>, Array1<f64>)> {
+            aps: &AtomProperties, pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings,
+            fixed_boxes: Option<&MeshBoxes>) -> Option<(Array1<f64>, Array1<f64>)> {
     if settings.calc_pbsa {
         let (f_name, input_text, mem_mols) = prepare_pbsa_frame(coord, times, cur_frm,
-                ndx_rec, ndx_lig, sys_name, temp_dir, aps, pbe_set, pba_set, settings);
+                ndx_rec, ndx_lig, sys_name, temp_dir, aps, pbe_set, pba_set, settings, fixed_boxes);
         solve_prepared_pbsa(cur_frm, times, &f_name, &input_text, &mem_mols,
                 temp_dir, aps, ndx_rec, ndx_lig, pba_set, settings)
     } else {
@@ -789,7 +812,8 @@ type PreparedPbsa = (String, String, MemMols);
 fn prepare_pbsa_frame(coord: &ArrayView2<f64>, times: &Vec<f64>, cur_frm: usize,
                       ndx_rec: &BTreeSet<usize>, ndx_lig: &Option<BTreeSet<usize>>,
                       sys_name: &str, temp_dir: &PathBuf, aps: &AtomProperties,
-                      pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings) -> PreparedPbsa {
+                      pbe_set: &PBESet, pba_set: &PBASet, settings: &Settings,
+                      fixed_boxes: Option<&MeshBoxes>) -> PreparedPbsa {
     // the default gamma parameter for apbs calculation is set to 1, in order to directly obtain the surface area
     // then the SA energy term is subsequently calculated
     let f_name = format!("{}_{}ns", sys_name, times[cur_frm]);
@@ -798,7 +822,7 @@ fn prepare_pbsa_frame(coord: &ArrayView2<f64>, times: &Vec<f64>, cur_frm: usize,
     // debug mode keeps intermediate files for inspection.
     let atom_radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
     let input_text = build_apbs_input_text(ndx_rec, ndx_lig, coord,
-            &atom_radius, pbe_set, pba_set, &f_name, settings);
+            &atom_radius, pbe_set, pba_set, &f_name, settings, fixed_boxes);
     let mem_mols = build_molecules(aps, coord, ndx_rec, ndx_lig);
     if settings.debug_mode {
         prepare_pqr(cur_frm, &times, &temp_dir, sys_name, coord, &ndx_rec, ndx_lig, aps);
@@ -1052,7 +1076,7 @@ mod tests {
         // Read every frame's structure up front, like the GPU batch path does.
         let prepared: Vec<PreparedPbsa> = frames.iter().enumerate().map(|(f, coord)| {
             prepare_pbsa_frame(&coord.view(), &times, f, &ndx_rec, &ndx_lig,
-                               "batchchk", &temp_dir, &aps, &pbe_set, &pba_set, &settings)
+                               "batchchk", &temp_dir, &aps, &pbe_set, &pba_set, &settings, None)
         }).collect();
 
         // Sequential reference.

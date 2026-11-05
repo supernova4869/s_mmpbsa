@@ -132,7 +132,10 @@ fn linear_mgdriv(
         let prev = &levels[lev - 1];
 
         let t = std::time::Instant::now();
-        let pc = crate::build_p::build_p_trilin_block(cnx, cny, cnz);
+        // The trilinear pc weights are constants that depend only on the
+        // coarse dims, so on the shared PB grid every solve reuses the same
+        // cached block instead of refilling 27*n doubles per level.
+        let pc = crate::build_p::cached_trilin_block(cnx, cny, cnz);
         hier_build_p += t.elapsed();
         let mut ac_c = vec![0.0f64; 14 * ncl];
         let t = std::time::Instant::now();

@@ -895,9 +895,11 @@ mod tests {
     /// f64-capable GPU is available, so CPU-only environments still pass.
     #[test]
     fn gpu_matches_cpu_on_random_systems() {
-        // fp32 keeps ~1e-6 relative per group sum; 2e-4 leaves slack for the
-        // shortest-range vdw terms while still catching layout/precision bugs.
-        for (f32_mode, tol) in [(false, 1e-12), (true, 2.0e-4)] {
+        // fp32 keeps ~1e-6 relative per group sum on elec; the vdw terms
+        // form c12*r^-12 - c6*r^-6, whose cancellation amplifies the f32
+        // rounding to ~1e-3 relative, so vdw carries a wider bound while
+        // still catching layout/precision bugs.
+        for (f32_mode, tol_elec, tol_vdw) in [(false, 1e-12, 1e-12), (true, 2.0e-4, 2.0e-3)] {
             let Some(ctx) = mm_context(f32_mode) else {
                 println!("GPU unavailable (f32={f32_mode}); skipping that mode.");
                 continue;
@@ -909,8 +911,8 @@ mod tests {
                         ctx, 48, &rec, &lig, &c6, &c12, r_cutoff_sq, use_screen, 0.8,
                     ).expect("GPU MM run failed");
                     let (cpu_e, cpu_v) = reference(48, &rec, &lig, &c6, &c12, r_cutoff_sq, use_screen, 0.8);
-                    assert_close_tol(&gpu_e, &cpu_e, "elec", tol);
-                    assert_close_tol(&gpu_v, &cpu_v, "vdw", tol);
+                    assert_close_tol(&gpu_e, &cpu_e, "elec", tol_elec);
+                    assert_close_tol(&gpu_v, &cpu_v, "vdw", tol_vdw);
                 }
             }
         }
@@ -922,9 +924,8 @@ mod tests {
     /// a CSR list and otherwise match a per-atom CPU reference.
     #[test]
     fn gpu_self_skips_exclusions_and_matches_cpu() {
-        // fp32 keeps ~1e-6 relative per atom sum; 2e-4 leaves slack while
-        // still catching layout/precision bugs.
-        for (f32_mode, tol) in [(false, 1e-12), (true, 2.0e-4)] {
+        // Same calibration as the pair test: elec 2e-4, vdw 2e-3 for f32.
+        for (f32_mode, tol_elec, tol_vdw) in [(false, 1e-12, 1e-12), (true, 2.0e-4, 2.0e-3)] {
         let Some(ctx) = mm_context(f32_mode) else {
             println!("GPU unavailable (f32={f32_mode}); skipping that mode.");
             continue;
@@ -986,8 +987,8 @@ mod tests {
                     }
                 }
             }
-            assert_close_tol(&gpu_e, &cpu_e, "self+excl elec", tol);
-            assert_close_tol(&gpu_v, &cpu_v, "self+excl vdw", tol);
+            assert_close_tol(&gpu_e, &cpu_e, "self+excl elec", tol_elec);
+            assert_close_tol(&gpu_v, &cpu_v, "self+excl vdw", tol_vdw);
         }
         }
     }

@@ -208,6 +208,7 @@ impl Config {
         text += &yaml_field(2, "debug", &yaml_scalar(&self.program_set.debug), "keep intermediate PB/SA files");
         text += &yaml_field(2, "use_gpu", &yaml_scalar(&self.program_set.use_gpu), "run the MM pairwise kernel on the GPU (CPU fallback when unsupported)");
         text += &yaml_field(2, "gpu_precision", &yaml_scalar(&self.program_set.gpu_precision), "GPU floating-point precision: \"fp64\" (default, double, requires SHADER_F64) or \"fp32\" (single, all GPUs incl. AMD, slight precision loss); automatically switched to fp32 when an AMD GPU is detected");
+        text += &yaml_field(2, "pb_fast_path", &yaml_scalar(&self.program_set.pb_fast_path), "use the optimized PB paths: one shared grid over all frames (union bounds, exact warm start), parallel coefficient fill, GPU buffer reuse, cached prolongation weights; off = every frame gridded from its own bounds with the plain serial fill");
         text += &yaml_field(2, "show_progress", &yaml_scalar(&self.program_set.show_progress), "show the progress bars of trajectory processing (trjconv/reading)");
         text += &yaml_field(2, "trj", &yaml_scalar(&self.program_set.trj), "trajectory file (xtc/trr/gro/pdb)");
         text += &yaml_field(2, "tpr", &yaml_scalar(&self.program_set.tpr), "run input file");
@@ -260,6 +261,11 @@ pub struct ProgramSet {
     /// and default it to fp64.
     #[serde(default = "default_gpu_precision")]
     pub gpu_precision: String,
+    /// Use the optimized PB paths (parallel coefficient fill, GPU buffer
+    /// reuse, cached prolongation weights).  Old config files predate this
+    /// switch and default it to on.
+    #[serde(default = "default_pb_fast_path")]
+    pub pb_fast_path: bool,
     /// Draw the progress bars of the embedded trajectory tools.  Old config
     /// files predate this switch and default it to on.
     #[serde(default = "default_show_progress")]
@@ -278,6 +284,10 @@ fn default_gpu_precision() -> String {
     "fp64".to_string()
 }
 
+fn default_pb_fast_path() -> bool {
+    true
+}
+
 fn default_show_progress() -> bool {
     true
 }
@@ -291,6 +301,7 @@ impl ProgramSet {
             debug: false,
             use_gpu: true,
             gpu_precision: "fp64".to_string(),
+            pb_fast_path: true,
             show_progress: true,
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
@@ -710,9 +721,34 @@ mod tests {
         let back: ProgramSet = serde_yaml::from_str(legacy).unwrap();
         assert_eq!(back.use_gpu, true);
         assert_eq!(back.show_progress, true);
+        assert_eq!(back.pb_fast_path, true);
         let explicit: ProgramSet =
             serde_yaml::from_str(format!("{legacy}\nuse_gpu: true").as_str()).unwrap();
         assert_eq!(explicit.use_gpu, true);
+    }
+
+    /// pb_fast_path must deserialize from configs: old files default it to
+    /// on, and an explicit off value must survive the round trip.
+    #[test]
+    fn pb_fast_path_is_optional_in_configs() {
+        let legacy = "sys_name: system\n\
+                      calc_mm: true\n\
+                      calc_pbsa: true\n\
+                      debug: false\n\
+                      trj: md.xtc\n\
+                      tpr: md.tpr\n\
+                      ndx: index.ndx\n\
+                      ala_scan_range: \"\"";
+        let back: ProgramSet = serde_yaml::from_str(legacy).unwrap();
+        assert_eq!(back.pb_fast_path, true, "old configs default pb_fast_path on");
+
+        let off: ProgramSet =
+            serde_yaml::from_str(format!("{legacy}\npb_fast_path: false").as_str()).unwrap();
+        assert_eq!(off.pb_fast_path, false);
+
+        let on: ProgramSet =
+            serde_yaml::from_str(format!("{legacy}\npb_fast_path: true").as_str()).unwrap();
+        assert_eq!(on.pb_fast_path, true);
     }
 
     #[test]

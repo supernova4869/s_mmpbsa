@@ -6,7 +6,8 @@ program_set:
   calc_pbsa: true                       # calculate the PB/SA term
   debug: false                          # keep intermediate PB/SA files
   use_gpu: true                         # run the MM pairwise kernel on the GPU (CPU fallback when unsupported)
-  gpu_precision: fp64                   # GPU floating-point precision: "fp64" (default, double, requires SHADER_F64, excludes some AMD) or "fp32" (single, all GPUs incl. AMD, slower, slight precision loss)
+  gpu_precision: fp64                   # GPU floating-point precision: "fp64" (default, double, requires SHADER_F64) or "fp32" (single, all GPUs incl. AMD, slight precision loss); automatically switched to fp32 when an AMD GPU is detected
+  pb_fast_path: true                    # use the optimized PB paths (parallel coefficient fill, GPU buffer reuse, cached prolongation weights); off = plain serial fill and fresh per-solve GPU buffers
   show_progress: true                   # show the progress bars of trajectory processing (trjconv/reading)
   trj: md.xtc                           # trajectory file (xtc/trr/gro/pdb)
   tpr: md.tpr                           # run input file

@@ -10,6 +10,21 @@ use crate::vpmgp::Vpmgp;
 
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Whether the coefficient-fill fast paths run (slab-bucketed sphere
+/// marking, parallel flat loops, parallel harmonic smoothing).  Toggled by
+/// the `pb_fast_path` setting; the fallbacks are the plain serial versions.
+static FILLCO_FAST_PATH: AtomicBool = AtomicBool::new(true);
+
+/// Enables/disables the fillco fast paths (see [`FILLCO_FAST_PATH`]).
+pub fn set_fillco_fast_path(on: bool) {
+    FILLCO_FAST_PATH.store(on, Ordering::Relaxed);
+}
+
+fn fillco_fast() -> bool {
+    FILLCO_FAST_PATH.load(Ordering::Relaxed)
+}
 use apbs_generic::vpbe::Vpbe;
 use crate::vgrid::Vgrid;
 use rayon::prelude::*;
@@ -381,13 +396,57 @@ impl Vpmg {
 
         let threads = rayon::current_num_threads().max(1);
         let kchunk = ((nz + threads - 1) / threads).max(1);
+        let n_chunks = (nz + kchunk - 1) / kchunk;
+        // Fast path: bucket the spheres by their k-extent once, so every
+        // chunk only scans the spheres that can actually reach its slab.
+        // With tens of thousands of surface spheres, re-scanning the whole
+        // list in every chunk dominates the marking cost.
+        // Fast path: bucket the spheres by their k-extent once, so every
+        // chunk only scans the spheres that can actually reach its slab.
+        // With tens of thousands of surface spheres, re-scanning the whole
+        // list in every chunk dominates the marking cost.  The plain path
+        // (pb_fast_path = "n") scans the full list per chunk instead.
+        let buckets = if fillco_fast() {
+            let mut buckets: Vec<Vec<usize>> = vec![Vec::new(); n_chunks];
+            for (si, &(_, _, pz, rtot)) in spheres.iter().enumerate() {
+                let posz = pz - zmin;
+                let zr = rtot + 0.5 * hz;
+                let kmin = 0.max(((posz - zr) / hz).ceil() as i32) as usize;
+                let kmax = (nz - 1).min(((posz + zr) / hz).floor() as usize);
+                if kmin > kmax {
+                    continue;
+                }
+                let c0 = kmin / kchunk;
+                let c1 = kmax / kchunk;
+                for b in &mut buckets[c0..=c1] {
+                    b.push(si);
+                }
+            }
+            Some(buckets)
+        } else {
+            None
+        };
+        let identity: Vec<usize> = if buckets.is_some() {
+            Vec::new()
+        } else {
+            (0..spheres.len()).collect()
+        };
         array
             .par_chunks_mut(nx * ny * kchunk)
             .enumerate()
             .for_each(|(ci, chunk)| {
+                // Coefficient arrays can carry padding past nz*nx*ny, so the
+                // chunk count can exceed the bucket count; those chunks hold
+                // no grid points (k0 >= nz) and never mark anything.
                 let k0 = ci * kchunk;
                 let k1 = (k0 + kchunk).min(nz);
-                for &(px, py, pz, rtot) in spheres {
+                let empty: &[usize] = &[];
+                let sphere_ids: &[usize] = match &buckets {
+                    Some(b) => b.get(ci).map(|v| &v[..]).unwrap_or(empty),
+                    None => &identity,
+                };
+                for &si in sphere_ids {
+                    let (px, py, pz, rtot) = spheres[si];
                     let posx = px - xmin;
                     let posy = py - ymin;
                     let posz = pz - zmin;
@@ -550,11 +609,18 @@ impl Vpmg {
             self.fillco_coef_map()?;
         } else {
             // Molecular dielectric mode
-            // Step 1: Initialize all to solvent dielectric
-            for i in 0..nf {
-                self.epsx[i] = eps_solvent;
-                self.epsy[i] = eps_solvent;
-                self.epsz[i] = eps_solvent;
+            // Step 1: Initialize all to solvent dielectric.
+            if fillco_fast() {
+                use rayon::prelude::*;
+                self.epsx.par_iter_mut().for_each(|v| *v = eps_solvent);
+                self.epsy.par_iter_mut().for_each(|v| *v = eps_solvent);
+                self.epsz.par_iter_mut().for_each(|v| *v = eps_solvent);
+            } else {
+                for i in 0..nf {
+                    self.epsx[i] = eps_solvent;
+                    self.epsy[i] = eps_solvent;
+                    self.epsz[i] = eps_solvent;
+                }
             }
 
             // Step 2: For each atom with non-zero radius, mark its
@@ -663,13 +729,25 @@ impl Vpmg {
         // Fill Helmholtz term (kappa^2 * eps) and ion accessibility
         let ionmask = if ionstr > VPMGSMALL { 1.0 } else { 0.0 };
 
-        // Initialize kappa: all accessible if ionic strength > 0
-        for i in 0..nf {
-            self.kappa[i] = ionmask;
-            // Store dielectric in a1cf/a2cf/a3cf for the operator
-            self.a1cf[i] = self.epsx[i];
-            self.a2cf[i] = self.epsy[i];
-            self.a3cf[i] = self.epsz[i];
+        // Initialize kappa: all accessible if ionic strength > 0, and copy
+        // the dielectric into the operator arrays.
+        if fillco_fast() {
+            use rayon::prelude::*;
+            self.kappa.par_iter_mut().for_each(|v| *v = ionmask);
+            let (epsx, epsy, epsz) = (&self.epsx, &self.epsy, &self.epsz);
+            let (a1cf, a2cf, a3cf) =
+                (&mut self.a1cf, &mut self.a2cf, &mut self.a3cf);
+            a1cf.par_iter_mut().zip(epsx.par_iter()).for_each(|(a, &e)| *a = e);
+            a2cf.par_iter_mut().zip(epsy.par_iter()).for_each(|(a, &e)| *a = e);
+            a3cf.par_iter_mut().zip(epsz.par_iter()).for_each(|(a, &e)| *a = e);
+        } else {
+            for i in 0..nf {
+                self.kappa[i] = ionmask;
+                // Store dielectric in a1cf/a2cf/a3cf for the operator
+                self.a1cf[i] = self.epsx[i];
+                self.a2cf[i] = self.epsy[i];
+                self.a3cf[i] = self.epsz[i];
+            }
         }
 
         // Mark ion-inaccessible regions (inside inflated VdW spheres)
@@ -689,8 +767,16 @@ impl Vpmg {
         }
 
         // Fill Helmholtz term AFTER kappa is marked (ccf = zkappa2 * kappa)
-        for i in 0..nf {
-            self.ccf[i] = self.pbe.zkappa2 * self.kappa[i];
+        if fillco_fast() {
+            let zkappa2 = self.pbe.zkappa2;
+            self.ccf
+                .par_iter_mut()
+                .zip(self.kappa.par_iter())
+                .for_each(|(c, &k)| *c = zkappa2 * k);
+        } else {
+            for i in 0..nf {
+                self.ccf[i] = self.pbe.zkappa2 * self.kappa[i];
+            }
         }
 
         if std::env::var_os("APBS_RUST_PROFILE").is_some() {
@@ -790,6 +876,15 @@ impl Vpmg {
     /// Smooth dielectric using 9-point harmonic mean (Bruccoleri et al. 1997)
     /// Assumes non-smoothed values were already placed in epsx/epsy/epsz
     fn fillco_coef_smooth(&mut self) -> ApbsResult<()> {
+        if fillco_fast() {
+            self.fillco_coef_smooth_par()
+        } else {
+            self.fillco_coef_smooth_serial()
+        }
+    }
+
+    /// Plain serial implementation (pb_fast_path = "n").
+    fn fillco_coef_smooth_serial(&mut self) -> ApbsResult<()> {
         let nx = self.pmgp.nx as usize;
         let ny = self.pmgp.ny as usize;
         let nz = self.pmgp.nz as usize;
@@ -901,6 +996,143 @@ impl Vpmg {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    /// Parallel implementation (default): every output point reads only the
+    /// snapshot arrays and writes its own eps* slot, so the k slabs are
+    /// independent.
+    fn fillco_coef_smooth_par(&mut self) -> ApbsResult<()> {
+        use rayon::prelude::*;
+        let nx = self.pmgp.nx as usize;
+        let ny = self.pmgp.ny as usize;
+        let nz = self.pmgp.nz as usize;
+        let nf = nx * ny * nz;
+        let epsw = self.pbe.solvent_diel;
+
+        // Copy existing dielectric to temporary arrays a1cf/a2cf/a3cf and
+        // reset eps* to the solvent value (index-wise, all independent).
+        {
+            let Self { epsx, epsy, epsz, a1cf, a2cf, a3cf, .. } = self;
+            a1cf[..nf].par_iter_mut().zip(&epsx[..nf]).for_each(|(a, &e)| *a = e);
+            a2cf[..nf].par_iter_mut().zip(&epsy[..nf]).for_each(|(a, &e)| *a = e);
+            a3cf[..nf].par_iter_mut().zip(&epsz[..nf]).for_each(|(a, &e)| *a = e);
+            epsx[..nf].par_iter_mut().for_each(|v| *v = epsw);
+            epsy[..nf].par_iter_mut().for_each(|v| *v = epsw);
+            epsz[..nf].par_iter_mut().for_each(|v| *v = epsw);
+        }
+
+        // Smooth using 9-point harmonic means.  Every output point reads the
+        // snapshot arrays only and writes its own eps* slot, so the k slabs
+        // are independent and run in parallel.
+        let nxny = nx * ny;
+        let Self { epsx, epsy, epsz, a1cf, a2cf, a3cf, .. } = self;
+        // Snapshot arrays stay whole (the k-neighbors cross chunk bounds);
+        // the eps* writes are disjoint per-k chunks.
+        let (a1cf, a2cf, a3cf) = (&a1cf[..], &a2cf[..], &a3cf[..]);
+        // Restrict the chunks to the nz interior slabs: the eps* arrays may
+        // carry padding past nx*ny*nz that this phase must not touch.
+        ((epsx[..nz * nxny].par_chunks_mut(nxny).enumerate(),
+            epsy[..nz * nxny].par_chunks_mut(nxny)),
+            epsz[..nz * nxny].par_chunks_mut(nxny))
+            .into_par_iter()
+            .for_each(|(((k, epsx), epsy), epsz)| {
+            let base = k * nxny;
+            for j in 0..ny {
+                for i in 0..nx {
+                    let col = i + j * nx;
+                    let idx = base + col;
+
+                    // --- epsx (X-shifted) ---
+                    let mut frac = 1.0 / a1cf[idx];
+                    frac += 1.0 / a2cf[idx];
+                    frac += 1.0 / a3cf[idx];
+                    let mut numpts = 3;
+
+                    if j > 0 {
+                        frac += 1.0 / a2cf[idx - nx];
+                        numpts += 1;
+                    }
+                    if k > 0 {
+                        frac += 1.0 / a3cf[idx - nxny];
+                        numpts += 1;
+                    }
+                    if i < nx - 1 {
+                        frac += 1.0 / a2cf[idx + 1];
+                        frac += 1.0 / a3cf[idx + 1];
+                        numpts += 2;
+                        if j > 0 {
+                            frac += 1.0 / a2cf[idx + 1 - nx];
+                            numpts += 1;
+                        }
+                        if k > 0 {
+                            frac += 1.0 / a3cf[idx + 1 - nxny];
+                            numpts += 1;
+                        }
+                    }
+                    epsx[col] = numpts as f64 / frac;
+
+                    // --- epsy (Y-shifted) ---
+                    let mut frac = 1.0 / a2cf[idx];
+                    frac += 1.0 / a1cf[idx];
+                    frac += 1.0 / a3cf[idx];
+                    let mut numpts = 3;
+
+                    if i > 0 {
+                        frac += 1.0 / a1cf[idx - 1];
+                        numpts += 1;
+                    }
+                    if k > 0 {
+                        frac += 1.0 / a3cf[idx - nxny];
+                        numpts += 1;
+                    }
+                    if j < ny - 1 {
+                        frac += 1.0 / a1cf[idx + nx];
+                        frac += 1.0 / a3cf[idx + nx];
+                        numpts += 2;
+                        if i > 0 {
+                            frac += 1.0 / a1cf[idx + nx - 1];
+                            numpts += 1;
+                        }
+                        if k > 0 {
+                            frac += 1.0 / a3cf[idx + nx - nxny];
+                            numpts += 1;
+                        }
+                    }
+                    epsy[col] = numpts as f64 / frac;
+
+                    // --- epsz (Z-shifted) ---
+                    let mut frac = 1.0 / a3cf[idx];
+                    frac += 1.0 / a1cf[idx];
+                    frac += 1.0 / a2cf[idx];
+                    let mut numpts = 3;
+
+                    if i > 0 {
+                        frac += 1.0 / a1cf[idx - 1];
+                        numpts += 1;
+                    }
+                    if j > 0 {
+                        frac += 1.0 / a2cf[idx - nx];
+                        numpts += 1;
+                    }
+                    if k < nz - 1 {
+                        frac += 1.0 / a1cf[idx + nxny];
+                        frac += 1.0 / a2cf[idx + nxny];
+                        numpts += 2;
+                        if i > 0 {
+                            frac += 1.0 / a1cf[idx + nxny - 1];
+                            numpts += 1;
+                        }
+                        if j > 0 {
+                            frac += 1.0 / a2cf[idx + nxny - nx];
+                            numpts += 1;
+                        }
+                    }
+                    epsz[col] = numpts as f64 / frac;
+                }
+            }
+        });
 
         Ok(())
     }

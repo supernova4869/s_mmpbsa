@@ -25,7 +25,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use bytemuck::{Pod, Zeroable};
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use crate::mgcs::Level;
 
@@ -41,6 +40,20 @@ pub fn set_mg_gpu_precision(f32_mode: bool) {
 
 fn mg_f32_mode() -> bool {
     MG_F32_MODE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Whether the solve reuses pooled GPU buffers, zeroes the work vectors
+/// on-device and caches the prolongation-weight blocks (the `pb_fast_path`
+/// setting).  Off = fresh buffers per solve with zero uploads, as before.
+static GPU_BUFFER_REUSE: AtomicBool = AtomicBool::new(true);
+
+/// Enables/disables the GPU buffer-reuse fast paths.
+pub fn set_gpu_buffer_reuse(on: bool) {
+    GPU_BUFFER_REUSE.store(on, Ordering::Relaxed);
+}
+
+fn gpu_buffer_reuse() -> bool {
+    GPU_BUFFER_REUSE.load(Ordering::Relaxed)
 }
 
 /// Request GPU execution for the linear multigrid solve.  When no usable GPU
@@ -1206,6 +1219,11 @@ pub struct GpuMg {
     dummy_rw: wgpu::Buffer,
     /// true = the multigrid kernels compute and store in f32.
     f32_mode: bool,
+    /// Pool of storage buffers from previous solves, keyed by size.  The
+    /// shared PB grid gives every solve the same level shapes, so reusing
+    /// the device allocations (write_buffer instead of a fresh buffer per
+    /// upload) removes the allocator from the per-frame hot path.
+    buf_pool: Vec<(u64, wgpu::Buffer)>,
 }
 
 /// One segment of recorded GPU work between two synchronizations.
@@ -1389,7 +1407,59 @@ impl GpuMg {
             dummy,
             dummy_rw,
             f32_mode,
+            buf_pool: Vec::new(),
         })
+    }
+
+    /// Takes a pooled storage buffer of at least `size` bytes (or creates
+    /// one).  Pooled buffers carry the superset usage every per-solve array
+    /// needs, so they bind and copy interchangeably.
+    fn take_buf(&mut self, size: u64) -> wgpu::Buffer {
+        if gpu_buffer_reuse() {
+            if let Some(pos) = self.buf_pool.iter().position(|(s, _)| *s >= size) {
+                let (_, b) = self.buf_pool.swap_remove(pos);
+                return b;
+            }
+        }
+        self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("PB mg pooled"),
+            size,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
+
+    /// Returns a solve's buffers to the pool (no-op when buffer reuse is
+    /// disabled, so the pool cannot grow across solves).
+    fn stash_buf(&mut self, b: wgpu::Buffer) {
+        if gpu_buffer_reuse() {
+            self.buf_pool.push((b.size(), b));
+        }
+    }
+
+    /// Uploads serialized float data into a pooled storage buffer.
+    fn upload_buf(&mut self, data: &[u8]) -> wgpu::Buffer {
+        let b = self.take_buf(data.len() as u64);
+        self.queue.write_buffer(&b, 0, data);
+        b
+    }
+
+    /// Returns a whole solve's level buffers to the pool.
+    fn stash_level_bufs(&mut self, bufs: Vec<LevelBufs>) {
+        for b in bufs {
+            if let Some(pc) = b.pc {
+                self.stash_buf(pc);
+            }
+            self.stash_buf(b.ac);
+            self.stash_buf(b.cc);
+            self.stash_buf(b.fc);
+            self.stash_buf(b.x);
+            self.stash_buf(b.w0);
+            self.stash_buf(b.w1);
+            self.stash_buf(b.w2);
+        }
     }
 
     fn ensure_partials(&mut self, partials: u32) {
@@ -1528,22 +1598,11 @@ impl GpuMg {
         fine_pc.extend_from_slice(zf);
         self.fits(fine_pc.len())?;
 
-        let atoms_buf = self.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("PB mg dh atoms"),
-            contents: &self.bytes_f(atoms),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-        let pc_buf = self.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("PB mg dh pc"),
-            contents: &self.bytes_f(&fine_pc),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-        let out = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("PB mg dh out"),
-            size: (total as u64) * self.es(),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
+        let atoms_bytes = self.bytes_f(atoms);
+        let atoms_buf = self.upload_buf(&atoms_bytes);
+        let pc_bytes = self.bytes_f(&fine_pc);
+        let pc_buf = self.upload_buf(&pc_bytes);
+        let out = self.take_buf((total as u64) * self.es());
 
         let dummy_ro = self.dummy.clone();
         let dummy_rw = self.dummy_rw.clone();
@@ -1583,6 +1642,9 @@ impl GpuMg {
         self.flush(seg);
 
         let values = self.read_buffer(&out, total)?;
+        self.stash_buf(atoms_buf);
+        self.stash_buf(pc_buf);
+        self.stash_buf(out);
         let mut gx = vec![0.0f64; n_x];
         let mut gy = vec![0.0f64; n_y];
         let mut gz = vec![0.0f64; n_z];
@@ -1736,27 +1798,13 @@ impl GpuMg {
         self.fits(fine_ac.len())?;
         self.fits(pc.len())?;
 
-        let fine_buf = self.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("PB mg galerkin fine op"),
-            contents: &self.bytes_f(fine_ac),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-        let pc_buf = self.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("PB mg galerkin pc"),
-            contents: &self.bytes_f(pc),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-        let out = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("PB mg galerkin out"),
-            size: (14 * nc as u64) * self.es(),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: true,
-        });
-        {
-            let mut view = out.slice(..).get_mapped_range_mut();
-            view.fill(0);
-        }
-        out.unmap();
+        let fine_bytes = self.bytes_f(fine_ac);
+        let fine_buf = self.upload_buf(&fine_bytes);
+        let pc_bytes = self.bytes_f(pc);
+        let pc_buf = self.upload_buf(&pc_bytes);
+        let out_bytes = self.es() as usize * 14 * nc;
+        let out = self.take_buf(out_bytes as u64);
+        self.queue.write_buffer(&out, 0, &vec![0u8; out_bytes]);
 
         let dummy_ro = self.dummy.clone();
         let dummy_rw = self.dummy_rw.clone();
@@ -1803,6 +1851,9 @@ impl GpuMg {
 
         let values = self.read_buffer(&out, 14 * nc)?;
         ac_out[..14 * nc].copy_from_slice(&values);
+        self.stash_buf(fine_buf);
+        self.stash_buf(pc_buf);
+        self.stash_buf(out);
         Ok(())
     }
 
@@ -2123,10 +2174,15 @@ impl GpuMg {
         self.ensure_partials(max_interior.div_ceil(RED_WORKGROUP));
 
         // ---- upload all levels ----
+        let t_upload = std::time::Instant::now();
+        let es = self.es();
+        let limits = self.device.limits();
+        let (max_buf, max_store) =
+            (limits.max_buffer_size, limits.max_storage_buffer_binding_size as u64);
+        // Captures only Copy values, so the &mut self uploads below are fine.
         let fits = |len: usize| -> Result<(), String> {
-            let bytes = (len as u64) * self.es();
-            let lim = self.device.limits();
-            if bytes > lim.max_buffer_size || bytes > (lim.max_storage_buffer_binding_size as u64) {
+            let bytes = (len as u64) * es;
+            if bytes > max_buf || bytes > max_store {
                 return Err(format!("grid buffer of {} bytes exceeds GPU limits", bytes));
             }
             Ok(())
@@ -2139,54 +2195,44 @@ impl GpuMg {
             let pc_buf = match &l.pc {
                 Some(pc) => {
                     fits(pc.len())?;
-                    Some(self.device.create_buffer_init(&BufferInitDescriptor {
-                        label: Some("PB mg pc"),
-                        contents: &self.bytes_f(pc),
-                        usage: wgpu::BufferUsages::STORAGE,
-                    }))
+                    let bytes = self.bytes_f(pc);
+                    Some(self.upload_buf(&bytes))
                 }
                 None => None,
             };
-            let ac = self.device.create_buffer_init(&BufferInitDescriptor {
-                label: Some("PB mg ac"),
-                contents: &self.bytes_f(&l.ac),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-            let cc = self.device.create_buffer_init(&BufferInitDescriptor {
-                label: Some("PB mg cc"),
-                contents: &self.bytes_f(&l.cc),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
-            let fc = self.device.create_buffer_init(&BufferInitDescriptor {
-                label: Some("PB mg fc"),
-                contents: &self.bytes_f(&l.fc),
-                usage: wgpu::BufferUsages::STORAGE,
-            });
+            let ac_bytes = self.bytes_f(&l.ac);
+            let ac = self.upload_buf(&ac_bytes);
+            let cc_bytes = self.bytes_f(&l.cc);
+            let cc = self.upload_buf(&cc_bytes);
+            let fc_bytes = self.bytes_f(&l.fc);
+            let fc = self.upload_buf(&fc_bytes);
             let lnf = l.nf();
-            let zeros = vec![0.0f64; lnf];
-            let zero_bytes = self.bytes_f(&zeros);
-            let mk = || {
-                self.device.create_buffer_init(&BufferInitDescriptor {
-                    label: Some("PB mg vec"),
-                    contents: &zero_bytes,
-                    // COPY_SRC: the coarsest w0 is read back for the direct
-                    // solve; COPY_DST: the solved coarsest x is written back
-                    // with queue.write_buffer.
-                    usage: wgpu::BufferUsages::STORAGE
-                        | wgpu::BufferUsages::COPY_SRC
-                        | wgpu::BufferUsages::COPY_DST,
-                })
+            // COPY_SRC: the coarsest w0 is read back for the direct solve;
+            // COPY_DST: the solved coarsest x is written back with
+            // queue.write_buffer.  All buffers are pooled; with buffer reuse
+            // on, the work vectors are zeroed on the GPU right after upload
+            // (the fill_zero pass below), so four zero vectors per level
+            // never cross the bus.
+            let vec_buf = |g: &mut Self, zeros: Option<&[u8]>| -> wgpu::Buffer {
+                match zeros {
+                    Some(zb) => g.upload_buf(zb),
+                    None => g.take_buf((lnf as u64) * es),
+                }
             };
+            let zero_bytes = (!gpu_buffer_reuse()).then(|| {
+                let zeros = vec![0.0f64; lnf];
+                self.bytes_f(&zeros)
+            });
             let x = if lev == 0 {
                 fits(u.len().min(lnf))?;
-                self.device.create_buffer_init(&BufferInitDescriptor {
-                    label: Some("PB mg u"),
-                    contents: &self.bytes_f(&u[..lnf]),
-                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-                })
+                let u_bytes = self.bytes_f(&u[..lnf]);
+                self.upload_buf(&u_bytes)
             } else {
-                mk()
+                vec_buf(self, zero_bytes.as_deref())
             };
+            let w0 = vec_buf(self, zero_bytes.as_deref());
+            let w1 = vec_buf(self, zero_bytes.as_deref());
+            let w2 = vec_buf(self, zero_bytes.as_deref());
             bufs.push(LevelBufs {
                 nx: l.nx as u32,
                 ny: l.ny as u32,
@@ -2198,12 +2244,30 @@ impl GpuMg {
                 fc,
                 pc: pc_buf,
                 x,
-                w0: mk(),
-                w1: mk(),
-                w2: mk(),
+                w0,
+                w1,
+                w2,
             });
         }
 
+        // Zero the work vectors on-device (a handful of single-pass kernels
+        // in one segment).  With buffer reuse off, the vectors arrive
+        // zero-filled by upload, so nothing to do here.
+        if gpu_buffer_reuse() {
+            let mut seg = self.begin_seg();
+            for (lev, b) in bufs.iter().enumerate() {
+                self.fill_zero(&mut seg, b, &b.w0);
+                self.fill_zero(&mut seg, b, &b.w1);
+                self.fill_zero(&mut seg, b, &b.w2);
+                if lev != 0 {
+                    self.fill_zero(&mut seg, b, &b.x);
+                }
+            }
+            self.flush(seg);
+        }
+
+        let t_up_done = t_upload.elapsed();
+        let t_cycles = std::time::Instant::now();
         // rsden = L1 norm of the fine right-hand side (istop == 1).
         let mut rsden = {
             let f = &bufs[0];
@@ -2258,8 +2322,30 @@ impl GpuMg {
         }
 
         // Read back the fine solution.
+        let t_read = std::time::Instant::now();
         let solution = self.read_buffer(&bufs[0].x, nf)?;
         u[..nf].copy_from_slice(&solution[..nf]);
+        let t_read_done = t_read.elapsed();
+
+        // Hand the level buffers back to the pool for the next solve; the
+        // queue serializes uploads behind the solves that used them.
+        self.stash_level_bufs(bufs);
+
+        if std::env::var_os("APBS_RUST_PROFILE").is_some() {
+            let nf0 = levels[0].nf();
+            let bytes: u64 = levels.iter().map(|l| {
+                ((l.ac.len() + l.cc.len() + l.fc.len() + l.pc.as_ref().map_or(0, |p| p.len()) + 4 * l.nf()) * 8) as u64
+            }).sum();
+            eprintln!(
+                "[PROFILE-MVCS] nf={} upload {:.3}s ({} MB) cycles {} it {:.3}s readback {:.3}s",
+                nf0,
+                t_up_done.as_secs_f64(),
+                bytes / (1024 * 1024),
+                iters,
+                t_cycles.elapsed().as_secs_f64() - t_read_done.as_secs_f64(),
+                t_read_done.as_secs_f64(),
+            );
+        }
 
         Ok(iters)
     }

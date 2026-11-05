@@ -32,6 +32,12 @@ pub struct Settings {
     /// excludes some AMD drivers) or "fp32" (single precision, works on all
     /// GPUs including AMD and integrated, ~2-4x faster on consumer cards).
     pub gpu_precision: String,
+    /// Use the optimized PB paths: slab-bucketed + parallel coefficient
+    /// fill (SAS marking, flat loops, harmonic-mean smoothing), the GPU
+    /// buffer pool with on-device work-vector zeroing, and the cached
+    /// prolongation weights.  Turning this off falls back to the plain
+    /// serial fill and fresh per-solve GPU buffers.
+    pub pb_fast_path: bool,
     pub last_opened: String,
 }
 
@@ -56,6 +62,7 @@ impl Settings {
             exit_on_error: false,
             use_gpu: false,
             gpu_precision: "fp64".to_string(),
+            pb_fast_path: true,
             last_opened: String::new(),
         }
     }
@@ -102,6 +109,8 @@ impl Settings {
         let use_gpu = get_settings_bool(&use_gpu);
         let gpu_precision = parse_param(&setting_values, "gpu_precision", "\"fp64\"".to_string());
         let gpu_precision = gpu_precision.trim_matches('"').to_string();
+        let pb_fast_path = parse_param(&setting_values, "pb_fast_path", "\"y\"".to_string());
+        let pb_fast_path = get_settings_bool(&pb_fast_path);
         let last_opened = parse_param(&setting_values, "last_opened", "\"\"".to_string());
         let last_opened = last_opened[1..last_opened.len() - 1].to_string();
 
@@ -124,6 +133,7 @@ impl Settings {
             exit_on_error,
             use_gpu,
             gpu_precision,
+            pb_fast_path,
             last_opened,
         }
     }
@@ -243,6 +253,20 @@ mod tests {
         let settings = Settings::from(&path);
         fs::remove_file(&path).ok();
         assert!(settings.use_gpu);
+    }
+
+    #[test]
+    fn pb_fast_path_defaults_on_and_can_be_disabled() {
+        let path = std::env::temp_dir().join("s_mmpbsa_settings_pb_fast.ini");
+        fs::write(&path, "mm = \"y\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(settings.pb_fast_path, "pb_fast_path must default to on");
+
+        fs::write(&path, "pb_fast_path = \"n\"\n").unwrap();
+        let settings = Settings::from(&path);
+        fs::remove_file(&path).ok();
+        assert!(!settings.pb_fast_path);
     }
 
     #[test]
