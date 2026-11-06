@@ -47,17 +47,11 @@ pub fn set_para_mmpbsa(time_list: &Vec<f64>, time_list_ie: &Vec<f64>, coordinate
         }
     };
     let mut ala_list: Vec<i32> = vec![];
-    if config.is_some() {
-        settings.elec_screen = config.as_ref().unwrap().mm_set.electric_screening;
-        settings.radius_type = radius_types.iter().position(|&r| r.eq(&config.as_ref().unwrap().mm_set.radius_type)).unwrap_or(3);
-        settings.r_cutoff = config.as_ref().unwrap().mm_set.cutoff;
-        settings.cfac = config.as_ref().unwrap().pbe_set.cfac;
-        settings.fadd = config.as_ref().unwrap().pbe_set.fadd;
-        settings.df = config.as_ref().unwrap().pbe_set.df;
-        ala_list = utils::range2list(config.as_ref().unwrap().program_set.ala_scan_range.as_str());
+    if let Some(config) = config {
+        ala_list = utils::range2list(config.program_set.ala_scan_range.as_str());
         run_mmpbsa_calculations(&radius_types, time_list, time_list_ie, coordinates_ie, 
             tpr, ndx_rec, ndx_lig, residues, aps, &ala_list, &pbe_set, &pba_set, 
-            &config.as_ref().unwrap().program_set.sys_name, settings);
+            &config.program_set.sys_name, settings);
         println!("");
         utils::show_famous_quotes();
         exit(0);

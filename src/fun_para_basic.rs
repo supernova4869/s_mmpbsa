@@ -47,12 +47,9 @@ pub fn set_para_basic_tpr(mut tpr: TPR, trj_path: &Option<String>,
     let mut trj = trj_path.clone().unwrap_or("".to_string());
     let mut ndx = ndx_path.clone().unwrap_or("".to_string());
     println!("\nFinished loading tpr file: {}", tpr);
-    if config.is_some() {
-        settings.calc_mm = config.as_ref().unwrap().program_set.calc_mm;
-        settings.calc_pbsa = config.as_ref().unwrap().program_set.calc_pbsa;
-        settings.use_gpu = config.as_ref().unwrap().program_set.use_gpu;
-        let trj = config.as_ref().unwrap().program_set.trj.clone();
-        let ndx = config.as_ref().unwrap().program_set.ndx.clone();
+    if let Some(cfg) = config {
+        let trj = cfg.program_set.trj.clone();
+        let ndx = cfg.program_set.ndx.clone();
         let ndx = if ndx.is_empty() {
             "index.ndx".to_string()
         } else {
