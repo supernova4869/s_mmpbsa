@@ -866,15 +866,23 @@ fn solve_prepared_pbsa(cur_frm: usize, times: &Vec<f64>, f_name: &str, input_tex
     let rec_sa = apbs_results.rec_sa;
     let lig_sa = apbs_results.lig_sa;
 
+    // The SA term is the AMBER-style nonpolar contribution
+    //   E_np = gamma * SASA + beta,
+    // with gamma = surften (kJ/mol/A^2) and beta = surfoff (kJ/mol, the
+    // `bconc` config field).  Beta is a per-molecule offset, so in the
+    // per-atom decomposition it is spread evenly over the molecule's atoms
+    // — adding it in full to every atom used to inflate the SA sum by
+    // N * beta (thousands of kJ/mol for a protein).
+    let sa_terms = |areas: &Vec<f64>| -> Vec<f64> {
+        let offset = pba_set.bconc / (areas.len().max(1) as f64);
+        areas.par_iter().map(|&sa| pba_set.gamma * sa + offset).collect()
+    };
     let com_pb: Array1<f64> = Array1::from_vec(com_pb_sol) - Array1::from_vec(com_pb_vac);
-    let com_sa: Array1<f64> = Array1::from_vec(com_sa.par_iter()
-        .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
+    let com_sa: Array1<f64> = Array1::from_vec(sa_terms(&com_sa));
     let mut rec_pb: Array1<f64> = Array1::from_vec(rec_pb_sol) - Array1::from_vec(rec_pb_vac);
-    let mut rec_sa: Array1<f64> = Array1::from_vec(rec_sa.par_iter()
-        .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
+    let mut rec_sa: Array1<f64> = Array1::from_vec(sa_terms(&rec_sa));
     let mut lig_pb: Array1<f64> = Array1::from_vec(lig_pb_sol) - Array1::from_vec(lig_pb_vac);
-    let mut lig_sa: Array1<f64> = Array1::from_vec(lig_sa.par_iter()
-        .map(|&sa| pba_set.gamma * sa + pba_set.bconc).collect());
+    let mut lig_sa: Array1<f64> = Array1::from_vec(sa_terms(&lig_sa));
 
     let (pb, sa) = if let Some(ndx_lig) = ndx_lig {
         if ndx_rec.iter().min() < ndx_lig.iter().min() {
@@ -1112,6 +1120,59 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The SA offset beta (the `bconc` field) is a per-molecule constant of
+    /// E_np = gamma * SASA + beta: it must enter the SA sum exactly once per
+    /// molecule, spread evenly over the atoms.  Adding it in full to every
+    /// atom inflated the SA of a protein by N * beta.
+    #[test]
+    fn sa_offset_enters_once_per_molecule() {
+        let mut aps = aps_from_atoms(&[("CA", "ALA"), ("CB", "ALA"), ("OW", "SOL")], 0);
+        aps.atom_props[0].charge = 0.4;
+        aps.atom_props[1].charge = -0.2;
+        aps.atom_props[2].charge = -0.2;
+        // Solvation-only: all three atoms form the receptor, so the SA sum
+        // is that one molecule's gamma * SASA + beta.
+        let ndx_rec: BTreeSet<usize> = (0..3).collect();
+        let ndx_lig: Option<BTreeSet<usize>> = None;
+        let pbe_set = PBESet::new(298.15);
+        let settings = Settings::new();
+        let temp_dir = std::env::temp_dir();
+        let coord = Array2::from_shape_vec((3, 3), vec![
+            0.0, 0.0, 0.0,  4.1, 0.0, 0.0,  9.0, 0.0, 0.0,
+        ]).unwrap();
+        let times = vec![0.0];
+
+        let sa_sum = |beta: f64| -> (f64, Array1<f64>) {
+            let mut pba_set = PBASet::new(298.15);
+            pba_set.bconc = beta;
+            let (f_name, text, mols) = prepare_pbsa_frame(&coord.view(), &times, 0,
+                &ndx_rec, &ndx_lig, "saoff", &temp_dir, &aps, &pbe_set, &pba_set,
+                &settings, None);
+            let (_pb, sa) = solve_prepared_pbsa(0, &times, &f_name, &text, &mols,
+                &temp_dir, &aps, &ndx_rec, &ndx_lig, &pba_set, &settings)
+                .expect("solve failed");
+            (sa.sum(), sa)
+        };
+
+        let beta = 3.84982;
+        let (sum0, sa0) = sa_sum(0.0);
+        let (sum_b, sa_b) = sa_sum(beta);
+
+        // The offset shifts the molecule's SA by exactly beta — not by
+        // N * beta.
+        assert!((sum_b - sum0 - beta).abs() < 1e-9,
+            "offset must enter once per molecule: sum(beta) - sum(0) = {} (beta = {beta})",
+            sum_b - sum0);
+        // And it is spread evenly over the atoms.
+        let per_atom = beta / 3.0;
+        for i in 0..3 {
+            assert!((sa_b[i] - sa0[i] - per_atom).abs() < 1e-9,
+                "atom {i} carries beta/N: {} vs {per_atom}", sa_b[i] - sa0[i]);
+        }
+        // gamma * SASA alone stays physical for three exposed atoms.
+        assert!(sum0 > 0.0 && sum0 < 50.0, "gamma * SASA of 3 atoms: {sum0}");
     }
 
     fn aps_from_atoms(atoms: &[(&str, &str)], resid: usize) -> AtomProperties {

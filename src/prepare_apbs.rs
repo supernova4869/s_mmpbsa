@@ -239,6 +239,21 @@ pub fn union_mesh_edges(boxes: &[MeshBoxes]) -> MeshBoxes {
 
 pub fn prepare_apbs_content(file: &str, mol_index: i32, box_: [f64;6],
                 settings: &Settings, pbe_set: &PBESet, pbe_set0: &PBESet, pba_set: &PBASet) -> String {
+    // `=1` forces zero Dirichlet boundaries; `=mdh` keeps the user boundary
+    // condition (isolates the coarse-solve removal from the BC change).
+    let single_grid_env = std::env::var("S_MMPBSA_PB_SINGLE_GRID").ok();
+    let single_zero_bc = single_grid_env.as_deref()
+        .map(|v| matches!(v, "1" | "true" | "TRUE" | "yes"))
+        .unwrap_or(false);
+    prepare_apbs_content_mode(file, mol_index, box_, settings, pbe_set, pbe_set0,
+        pba_set, single_grid_env.is_some(), single_zero_bc)
+}
+
+/// The generator proper, with the experimental single-grid mode explicit so
+/// tests can exercise both branches without touching process env vars.
+pub fn prepare_apbs_content_mode(file: &str, mol_index: i32, box_: [f64;6],
+                settings: &Settings, pbe_set: &PBESet, pbe_set0: &PBESet, pba_set: &PBASet,
+                single_grid: bool, single_zero_bc: bool) -> String {
     let cfac = settings.cfac;
     let fadd = settings.fadd;
     let df = settings.df;
@@ -263,14 +278,39 @@ pub fn prepare_apbs_content(file: &str, mol_index: i32, box_: [f64;6],
     let n_y = ((((f_y / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
     let n_z = ((((f_z / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
 
-    let mg_set = "mg-auto";
-
-    let xyz_set = format!("  {mg_set}\n  mol    {mol_index:7}\
-        \n  dime   {n_x:7}  {n_y:7}  {n_z:7}\
-        \n  cglen  {c_x:7.3}  {c_y:7.3}  {c_z:7.3}\
-        \n  fglen  {f_x:7.3}  {f_y:7.3}  {f_z:7.3}\
-        \n  fgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\
-        \n  cgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\n");
+    // Experimental single-grid mode (S_MMPBSA_PB_SINGLE_GRID=1): skip the
+    // coarse focusing solve entirely and solve one fine grid on the coarse
+    // bounds with the boundary potential fixed at zero.  Emits mg-manual
+    // ELEC blocks sized cglen/df instead of the mg-auto coarse+fine pair,
+    // so every problem costs one solve instead of two and no DH/coarse
+    // boundary pass runs.  Off by default; the standard scheme is untouched.
+    let (_mg_set, xyz_set, pbe_set, pbe_set0) = if single_grid {
+        let n_cx = ((((c_x / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
+        let n_cy = ((((c_y / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
+        let n_cz = ((((c_z / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0) as i32;
+        let xyz = format!("  mg-manual\n  mol    {mol_index:7}\
+            \n  dime   {n_cx:7}  {n_cy:7}  {n_cz:7}\
+            \n  glen   {c_x:7.3}  {c_y:7.3}  {c_z:7.3}\
+            \n  gcent  {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\n");
+        let mut pbe = pbe_set.clone();
+        if single_zero_bc {
+            pbe.bcfl = Bcfl::Zero;
+        }
+        let mut pbe0 = pbe_set0.clone();
+        if single_zero_bc {
+            pbe0.bcfl = Bcfl::Zero;
+        }
+        ("mg-manual", xyz, pbe, pbe0)
+    } else {
+        let mg_set = "mg-auto";
+        let xyz = format!("  {mg_set}\n  mol    {mol_index:7}\
+            \n  dime   {n_x:7}  {n_y:7}  {n_z:7}\
+            \n  cglen  {c_x:7.3}  {c_y:7.3}  {c_z:7.3}\
+            \n  fglen  {f_x:7.3}  {f_y:7.3}  {f_z:7.3}\
+            \n  fgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\
+            \n  cgcent {x_center:7.3}  {y_center:7.3}  {z_center:7.3}\n");
+        (mg_set, xyz, pbe_set.clone(), pbe_set0.clone())
+    };
 
     return format!("\nELEC name {}_SOL\n\
     {}\n\
@@ -436,6 +476,56 @@ mod tests {
             assert_eq!(calc.per_atom.len(), expect, "{}", calc.name);
             assert!(calc.per_atom.iter().all(|v| v.is_finite()), "{}", calc.name);
         }
+    }
+
+    /// The experimental single-grid mode (S_MMPBSA_PB_SINGLE_GRID=1) must
+    /// emit mg-manual ELEC blocks on the coarse bounds at the fine spacing
+    /// with zero boundary conditions, one solve per problem instead of the
+    /// mg-auto coarse+fine pair.  The default path is unaffected.
+    #[test]
+    fn single_grid_mode_emits_manual_zero_bc_blocks_on_coarse_bounds() {
+        let aps = tiny_aps([0.4, -0.2, -0.2]);
+        let coord = Array2::from_shape_vec((3, 3), vec![0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 9.0, 0.0, 0.0])
+            .unwrap();
+        let ndx_rec: BTreeSet<usize> = [0usize, 1].into_iter().collect();
+        let ndx_lig: Option<BTreeSet<usize>> = Some([2usize].into_iter().collect());
+        let radius: Array1<f64> = Array1::from_iter(aps.atom_props.iter().map(|a| a.radius));
+        let pbe_set = PBESet::new(298.15);
+        let pba_set = PBASet::new(298.15);
+        let settings = Settings::new();
+        let boxes = gen_mesh_edges(&ndx_rec, &ndx_lig, &coord.view(), &radius);
+
+        // Default path: mg-auto, untouched by the experiment.
+        let com_box = boxes.2.expect("complex box exists with a ligand");
+        let text = prepare_apbs_content("t_0ns", 1, com_box, &settings,
+            &pbe_set, &pbe_set, &pba_set);
+        assert!(text.contains("mg-auto"));
+        let bcfl_line = text.lines().find(|l| l.trim().starts_with("bcfl")).unwrap();
+        assert!(bcfl_line.contains("mdh"), "default keeps the user bcfl: {bcfl_line}");
+
+        // Single-grid path: manual blocks on the coarse lengths, zero BC.
+        let single = prepare_apbs_content_mode("t_0ns", 1, com_box, &settings,
+            &pbe_set, &pbe_set, &pba_set, true, true);
+
+        assert!(single.contains("mg-manual"), "single-grid emits mg-manual");
+        assert!(!single.contains("mg-auto"), "no mg-auto remains");
+        assert!(!single.contains("cglen"), "no focusing geometry remains");
+        assert!(!single.contains("fglen"), "no focusing geometry remains");
+        let zero_bcs = single.lines()
+            .filter(|l| l.trim().starts_with("bcfl") && l.contains("zero"))
+            .count();
+        assert_eq!(zero_bcs, 2,
+            "both SOL and VAC solve with zero Dirichlet boundaries");
+
+        // The single grid spans the coarse lengths at the fine spacing df.
+        let cfac = settings.cfac as f64;
+        let df = settings.df;
+        let x_len = 9.0 - 0.0; // complex bounds from the coordinates above
+        let c_x = (x_len + 2.0 * 1.4) * cfac; // radius-padded box, then cfac
+        let want_n = ((((c_x / df).round() - 1.0) / 32.0).round() * 32.0 + 1.0).max(33.0);
+        let dime_line = single.lines().find(|l| l.trim().starts_with("dime")).unwrap();
+        let n_x: f64 = dime_line.split_whitespace().nth(1).unwrap().parse().unwrap();
+        assert_eq!(n_x, want_n, "single grid dime follows cglen/df");
     }
 
     /// Without a ligand only the receptor molecule and its SOL/VAC/SAS set

@@ -891,6 +891,23 @@ mod tests {
         }
     }
 
+    /// Per-atom deviations bounded against the array's global scale.  f32
+    /// cancellation inside c12*r^-12 - c6*r^-6 amplifies rounding relative
+    /// to a small per-atom result but not to the group's largest term, so
+    /// the f32 vdw comparison uses this bound instead of a per-atom ratio.
+    fn assert_close_tol_global(a: &Array1<f64>, b: &Array1<f64>, what: &str, tol: f64) {
+        assert_eq!(a.len(), b.len(), "{}: length mismatch", what);
+        let scale = a.iter().fold(1e-30f64, |m, &v| m.max(v.abs()))
+            .max(b.iter().fold(1e-30f64, |m, &v| m.max(v.abs())));
+        for (i, (x, y)) in a.iter().zip(b.iter()).enumerate() {
+            assert!(
+                (x - y).abs() <= tol * scale,
+                "{} mismatch at atom {}: gpu={} cpu={} (abs diff {:.3e}, global scale {:.3e})",
+                what, i, x, y, (x - y).abs(), scale
+            );
+        }
+    }
+
     /// GPU vs CPU agreement.  Skipped (not failed) on machines where no
     /// f64-capable GPU is available, so CPU-only environments still pass.
     #[test]
@@ -912,7 +929,11 @@ mod tests {
                     ).expect("GPU MM run failed");
                     let (cpu_e, cpu_v) = reference(48, &rec, &lig, &c6, &c12, r_cutoff_sq, use_screen, 0.8);
                     assert_close_tol(&gpu_e, &cpu_e, "elec", tol_elec);
-                    assert_close_tol(&gpu_v, &cpu_v, "vdw", tol_vdw);
+                    if f32_mode {
+                        assert_close_tol_global(&gpu_v, &cpu_v, "vdw", tol_vdw);
+                    } else {
+                        assert_close_tol(&gpu_v, &cpu_v, "vdw", tol_vdw);
+                    }
                 }
             }
         }
@@ -988,7 +1009,11 @@ mod tests {
                 }
             }
             assert_close_tol(&gpu_e, &cpu_e, "self+excl elec", tol_elec);
-            assert_close_tol(&gpu_v, &cpu_v, "self+excl vdw", tol_vdw);
+            if f32_mode {
+                assert_close_tol_global(&gpu_v, &cpu_v, "self+excl vdw", tol_vdw);
+            } else {
+                assert_close_tol(&gpu_v, &cpu_v, "self+excl vdw", tol_vdw);
+            }
         }
         }
     }

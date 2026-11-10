@@ -310,4 +310,7 @@ fn apply_pb_fast_path(settings: &Settings) {
     apbs_pmgc::gpu_mg::set_gpu_buffer_reuse(pb_fast);
     apbs_pmgc::build_p::set_pc_cache_enabled(pb_fast);
     apbs_runner::set_pb_warm_start(pb_fast);
+    // Variable-dime focusing: the coarse focusing level runs at double the
+    // fine spacing (~1/8 of its points) instead of a full-size solve.
+    apbs_generic::nosh::setup::set_focusing_variable_dime(pb_fast);
 }

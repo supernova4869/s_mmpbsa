@@ -235,7 +235,7 @@ impl Config {
         text += &yaml_field(2, "srad", &yaml_scalar(&self.pba_set.srad), "probe radius (A)");
         text += &yaml_field(2, "gamma", &yaml_scalar(&self.pba_set.gamma), "surface tension (kJ/mol/A^2)");
         text += &yaml_field(2, "press", &yaml_scalar(&self.pba_set.press), "pressure for the SAV term (kJ/mol/A^3)");
-        text += &yaml_field(2, "bconc", &yaml_scalar(&self.pba_set.bconc), "solvent bulk density (A^-3)");
+        text += &yaml_field(2, "bconc", &yaml_scalar(&self.pba_set.bconc), "SA offset beta (kJ/mol) of E_np = gamma*SASA + beta, added once per molecule (AMBER surfoff)");
         text += &yaml_field(2, "sdens", &yaml_scalar(&self.pba_set.sdens), "surface point density");
         text += &yaml_field(2, "dpos", &yaml_scalar(&self.pba_set.dpos), "spacing of the volume-integration grid (A)");
         text += &yaml_field(2, "grid", &format!("[{}, {}, {}]", self.pba_set.grid.0, self.pba_set.grid.1, self.pba_set.grid.2), "explicit apolar integration grid spacing (A); keep [0.1, 0.1, 0.1]");
@@ -522,8 +522,12 @@ pub struct PBASet {
     srfm: String,
     swin: f64,
     srad: f64,
+    /// Surface tension gamma of the SA term (kJ/mol/A^2, AMBER surften).
     pub gamma: f64,
     press: f64,
+    /// Offset beta of the SA term E_np = gamma * SASA + beta (kJ/mol,
+    /// AMBER surfoff), applied once per molecule.  The name is kept for
+    /// config compatibility; the APOLAR solver input zeroes its own bconc.
     pub bconc: f64,
     sdens: f64,
     dpos: f64,
