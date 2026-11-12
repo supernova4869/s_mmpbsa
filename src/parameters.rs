@@ -301,7 +301,7 @@ impl ProgramSet {
             debug: false,
             use_gpu: true,
             gpu_precision: "fp64".to_string(),
-            pb_fast_path: true,
+            pb_fast_path: false,
             show_progress: true,
             trj: "md.xtc".to_string(),
             tpr: "md.tpr".to_string(),
