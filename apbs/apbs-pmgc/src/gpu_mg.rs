@@ -1309,6 +1309,9 @@ impl GpuMg {
         limits.max_storage_buffer_binding_size = limits
             .max_storage_buffer_binding_size
             .max(adapter.limits().max_storage_buffer_binding_size);
+        limits.max_compute_workgroups_per_dimension = limits
+            .max_compute_workgroups_per_dimension
+            .max(adapter.limits().max_compute_workgroups_per_dimension);
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("s_mmpbsa PB multigrid device"),
             required_features,
@@ -1590,6 +1593,10 @@ impl GpuMg {
         let n_z = 2 * nx * ny;
         let total = n_x + n_y + n_z;
         self.fits(atoms.len() * 5)?;
+        self.check_dispatch(
+            (total as u64).div_ceil(WORKGROUP as u64),
+            "Debye-Hueckel boundary",
+        )?;
 
         let mut fine_pc = Vec::with_capacity(6 + nx + ny + nz);
         fine_pc.extend_from_slice(&[xf[0], xf[nx - 1], yf[0], yf[ny - 1], zf[0], zf[nz - 1]]);
@@ -1676,6 +1683,21 @@ impl GpuMg {
         let lim = self.device.limits();
         if bytes > lim.max_buffer_size || bytes > (lim.max_storage_buffer_binding_size as u64) {
             return Err(format!("grid buffer of {} bytes exceeds GPU limits", bytes));
+        }
+        Ok(())
+    }
+
+    /// Dispatch-count check against the device limits.  wgpu validates every
+    /// dimension of `dispatch_workgroups`; since all PB kernels use a linear
+    /// `x` dispatch, reject oversized launches before encoding them and let
+    /// existing callers fall back to the CPU implementation.
+    fn check_dispatch(&self, workgroups: u64, what: &str) -> Result<(), String> {
+        let max = self.device.limits().max_compute_workgroups_per_dimension as u64;
+        if workgroups > max {
+            return Err(format!(
+                "{} needs {} workgroups per dispatch dimension, exceeding the GPU limit of {}",
+                what, workgroups, max
+            ));
         }
         Ok(())
     }
@@ -1797,6 +1819,7 @@ impl GpuMg {
         }
         self.fits(fine_ac.len())?;
         self.fits(pc.len())?;
+        self.check_dispatch((nc as u64).div_ceil(WORKGROUP as u64), "Galerkin build")?;
 
         let fine_bytes = self.bytes_f(fine_ac);
         let fine_buf = self.upload_buf(&fine_bytes);
@@ -2179,6 +2202,28 @@ impl GpuMg {
         let limits = self.device.limits();
         let (max_buf, max_store) =
             (limits.max_buffer_size, limits.max_storage_buffer_binding_size as u64);
+        let max_workgroups = limits.max_compute_workgroups_per_dimension as u64;
+        // Preflight every linear kernel launch in the V-cycle.  A grid can
+        // pass the storage-buffer checks while its dispatch count is still
+        // above wgpu's separate per-dimension workgroup limit.
+        for (lev, l) in levels.iter().enumerate() {
+            let workgroups = (l.nf() as u64).div_ceil(WORKGROUP as u64);
+            if workgroups > max_workgroups {
+                return Err(format!(
+                    "level {lev} grid of {} points needs {} workgroups, exceeding the GPU limit of {}",
+                    l.nf(), workgroups, max_workgroups
+                ));
+            }
+            let reduce_workgroups =
+                (interior_count(l.nx as u32, l.ny as u32, l.nz as u32) as u64)
+                    .div_ceil(RED_WORKGROUP as u64);
+            if reduce_workgroups > max_workgroups {
+                return Err(format!(
+                    "level {lev} reduction needs {} workgroups, exceeding the GPU limit of {}",
+                    reduce_workgroups, max_workgroups
+                ));
+            }
+        }
         // Captures only Copy values, so the &mut self uploads below are fine.
         let fits = |len: usize| -> Result<(), String> {
             let bytes = (len as u64) * es;

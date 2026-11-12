@@ -160,13 +160,7 @@ tools (`trjconv`, `dump -f` and `coords`) draw a progress bar with the
 
 ### `-pbc cluster`
 
-`calc_pbc_cluster()` writes its `\rClustering iteration ...` progress to
-standard output and ends with an unconditional `fprintf(stdout, "\n")`.  When
-the cluster group holds a single molecule the loop never runs, so GROMACS emits
-one empty line per frame; on a 11 frame trajectory that shows up as eleven
-blank lines in the output.  This port ends the progress line only when it was
-actually started, which removes the stray blank lines.  With more than one
-cluster molecule the output is unchanged (byte identical in the parity tests).
+`calc_pbc_cluster()` now dows not write its `\rClustering iteration ...` progress.
 
 ## `gmx convert-tpr` — `src/gromacs/tools/convert_tpr.cpp`
 

@@ -66,16 +66,16 @@ fn rmod(x: f64, first: f64, step: f64) -> bool {
 /// Virtual site interaction types and their atom counts (`def_vsite` entries
 /// in `gromacs/topology/ifunc.cpp`), indexed by `InteractionFunction`.
 const VSITE_TYPES: &[(usize, usize)] = &[
-    (65, 2),  // VirtualSite1
-    (66, 3),  // VirtualSite2
-    (67, 3),  // VirtualSite2FlexibleDistance
-    (68, 4),  // VirtualSite3
-    (69, 4),  // VirtualSite3FlexibleDistance
-    (70, 4),  // VirtualSite3FlexibleAngleDistance
-    (71, 4),  // VirtualSite3Outside
-    (72, 5),  // VirtualSite4FlexibleDistance
-    (73, 5),  // VirtualSite4FlexibleDistanceNormalization
-    (74, 2),  // VirtualSiteN
+    (65, 2), // VirtualSite1
+    (66, 3), // VirtualSite2
+    (67, 3), // VirtualSite2FlexibleDistance
+    (68, 4), // VirtualSite3
+    (69, 4), // VirtualSite3FlexibleDistance
+    (70, 4), // VirtualSite3FlexibleAngleDistance
+    (71, 4), // VirtualSite3Outside
+    (72, 5), // VirtualSite4FlexibleDistance
+    (73, 5), // VirtualSite4FlexibleDistanceNormalization
+    (74, 2), // VirtualSiteN
 ];
 
 /// Prints the same warning GROMACS emits when molecules cannot be made whole
@@ -268,11 +268,7 @@ fn make_whole_graph(
 
 /// Builds per-molecule atom lists from the topology (molecule blocks) or from
 /// residue indices when only a structure file is available.
-fn build_molecules(
-    atoms: &Atoms,
-    mtop: Option<&tpr::Mtop>,
-    per_residue: bool,
-) -> Vec<Vec<usize>> {
+fn build_molecules(atoms: &Atoms, mtop: Option<&tpr::Mtop>, per_residue: bool) -> Vec<Vec<usize>> {
     if per_residue {
         let mut out: Vec<Vec<usize>> = vec![Vec::new(); atoms.nres()];
         for (i, a) in atoms.atom.iter().enumerate() {
@@ -439,11 +435,7 @@ pub fn run(argv: Vec<String>) -> i32 {
     // file, which is not worth it in front of a conversion of that same file
     // (`trx::frame_count()` is there for callers that want the number).
     let mut progress = Progress::new();
-    progress.set_time_window(if b_end {
-        Some((tbegin, tend))
-    } else {
-        None
-    });
+    progress.set_time_window(if b_end { Some((tbegin, tend)) } else { None });
     // Frames before -b are skipped while reading, like read_first_frame().
     let mut first_frame = loop {
         match source.next_frame() {
@@ -536,7 +528,11 @@ pub fn run(argv: Vec<String>) -> i32 {
     // a run input file provides ("There are no molecule descriptions. I need a
     // .tpr file for this pbc option.").
     if mtop.is_none() && matches!(pbc_mode, PbcMode::Mol | PbcMode::Cluster) {
-        let name = if pbc_mode == PbcMode::Mol { "mol" } else { "cluster" };
+        let name = if pbc_mode == PbcMode::Mol {
+            "mol"
+        } else {
+            "cluster"
+        };
         eprintln!("Option -pbc {name} requires a .tpr file for the -s option");
         return 1;
     }
@@ -571,7 +567,14 @@ pub fn run(argv: Vec<String>) -> i32 {
     progress.pause();
     let mut fit_index: Vec<usize> = Vec::new();
     if b_reset {
-        println!("Select group for {} fit", if b_fit { "least squares" } else { "translational" });
+        println!(
+            "Select group for {} fit",
+            if b_fit {
+                "least squares"
+            } else {
+                "translational"
+            }
+        );
         let g = match require_group(&groups, "Select a group:") {
             Some(g) => g,
             None => return 1,
@@ -690,12 +693,9 @@ pub fn run(argv: Vec<String>) -> i32 {
     if b_reset {
         // bRmPBC is set for -fit as well, and the reference box is the one
         // from the structure file.
-        let b_rmpbc = b_fit
-            || matches!(pbc_mode, PbcMode::Whole | PbcMode::Mol | PbcMode::Res);
+        let b_rmpbc = b_fit || matches!(pbc_mode, PbcMode::Whole | PbcMode::Mol | PbcMode::Res);
         if b_rmpbc {
-            let box0 = structure_boxm
-                .or(first_frame.boxm)
-                .unwrap_or([[0.0; 3]; 3]);
+            let box0 = structure_boxm.or(first_frame.boxm).unwrap_or([[0.0; 3]; 3]);
             let mut xp2 = xp.clone();
             let pbc0 = structure_x
                 .as_ref()
@@ -710,7 +710,15 @@ pub fn run(argv: Vec<String>) -> i32 {
             x_shift = xp[out_index[0]];
         }
         let n = atoms.nr().max(xp.len());
-        pbc::reset_x_ndim(nfitdim, fit_index.len(), &fit_index, n, None, &mut xp, &w_rls);
+        pbc::reset_x_ndim(
+            nfitdim,
+            fit_index.len(),
+            &fit_index,
+            n,
+            None,
+            &mut xp,
+            &w_rls,
+        );
         if !out_index.is_empty() && out_index[0] < xp.len() {
             for d in 0..3 {
                 x_shift[d] -= xp[out_index[0]][d];
@@ -832,7 +840,11 @@ pub fn run(argv: Vec<String>) -> i32 {
         }
     } {
         n_frames += 1;
-        progress.update_from(source.read_progress(), n_frames as u64, fr.time.unwrap_or(0.0));
+        progress.update_from(
+            source.read_progress(),
+            n_frames as u64,
+            fr.time.unwrap_or(0.0),
+        );
         let t_process_start = std::time::Instant::now();
         // -e stops reading (and writing) beyond the requested end time.
         if b_end && fr.time.unwrap_or(0.0) > tend {
@@ -868,6 +880,39 @@ pub fn run(argv: Vec<String>) -> i32 {
             }
         }
 
+        // Determine whether this input frame will be written *before* the
+        // expensive PBC work.  Whole/cluster/mol/res/atom treatment has no
+        // memory between frames, so skipped `-dt` frames can skip it too.
+        // NoJump (and progressive fitting) keeps state from the previous
+        // frame, so those modes must still visit every input frame.
+        let frout_time = if b_timestep {
+            tzero + frame as f64 * timestep
+        } else if b_set_time {
+            fr.time.unwrap_or(0.0) + tshift
+        } else {
+            fr.time.unwrap_or(0.0)
+        };
+        let mut b_write = if b_tdump {
+            true
+        } else {
+            frame % skip_nr as usize == 0
+        };
+        if b_write && delta_t != 0.0 {
+            let t = if b_round {
+                (frout_time + 0.5).floor()
+            } else {
+                frout_time
+            };
+            let (t0, dt) = if b_round {
+                ((tzero + 0.5).floor(), (delta_t + 0.5).floor())
+            } else {
+                (tzero, delta_t)
+            };
+            b_write = rmod(t, t0, dt);
+        }
+        let stateful_frame = pbc_mode == PbcMode::NoJump || fit_mode == FitMode::Progressive;
+        let process_frame = b_write || stateful_frame;
+
         let boxm = fr.boxm.unwrap_or([[0.0; 3]; 3]);
         if pbc_mode == PbcMode::NoJump {
             if frame == 0 && structure_x.is_none() {
@@ -890,7 +935,7 @@ pub fn run(argv: Vec<String>) -> i32 {
                 }
                 previous = fr.x.clone();
             }
-        } else if pbc_mode == PbcMode::Cluster {
+        } else if pbc_mode == PbcMode::Cluster && process_frame {
             // `-pbc cluster` is applied to every frame, like the C tool.
             // If a structure file is given the first frame is additionally
             // unwrapped against it (bTPS case of the nojump branch).
@@ -906,50 +951,64 @@ pub fn run(argv: Vec<String>) -> i32 {
             }
         }
 
-        if let Some(x) = &mut fr.x {
-            if std::env::var_os("GMXRS_TRACE").is_some() {
-                eprintln!(
+        if process_frame {
+            if let Some(x) = &mut fr.x {
+                if std::env::var_os("GMXRS_TRACE").is_some() {
+                    eprintln!(
                     "[trjconv] frame {frame}: pbc={pbc_mode:?} natoms={} mol_instances={} res_groups={} atoms={}",
                     x.len(),
                     mol_instances.len(),
                     residue_groups.len(),
                     atoms.nr()
                 );
-            }
-            // bRmPBC is set for -fit, -pbc whole, -pbc mol and -pbc res.
-            let b_rmpbc =
-                b_fit || matches!(pbc_mode, PbcMode::Whole | PbcMode::Mol | PbcMode::Res);
-            if b_rmpbc {
-                unwrap(x, &boxm, fr.pbc_type);
-            }
-            match pbc_mode {
-                PbcMode::Atom => match ur_mode {
-                    UrMode::Rect => pbc::put_atoms_in_box(fr.pbc_type, &boxm, x),
-                    UrMode::Tric => pbc::put_atoms_in_triclinic_unitcell(ecenter, &boxm, x),
-                    UrMode::Compact => {
-                        pbc::put_atoms_in_compact_unitcell(fr.pbc_type, ecenter, &boxm, x)
-                    }
-                },
-                PbcMode::Whole => {}
-                PbcMode::Mol => {
-                    for mol in &molecule_atom_lists {
-                        put_group_com_in_box(
-                            x, mol, &boxm, fr.pbc_type, ecenter, ur_mode, &masses,
-                        );
-                    }
                 }
-                PbcMode::Res => {
-                    for res in &residue_groups {
-                        put_group_com_in_box(
-                            x, res, &boxm, fr.pbc_type, ecenter, ur_mode, &masses,
-                        );
-                    }
+                // bRmPBC is set for -fit, -pbc whole, -pbc mol and -pbc res.
+                let b_rmpbc =
+                    b_fit || matches!(pbc_mode, PbcMode::Whole | PbcMode::Mol | PbcMode::Res);
+                if b_rmpbc {
+                    unwrap(x, &boxm, fr.pbc_type);
                 }
-                _ => {}
+                match pbc_mode {
+                    PbcMode::Atom => match ur_mode {
+                        UrMode::Rect => pbc::put_atoms_in_box(fr.pbc_type, &boxm, x),
+                        UrMode::Tric => pbc::put_atoms_in_triclinic_unitcell(ecenter, &boxm, x),
+                        UrMode::Compact => {
+                            pbc::put_atoms_in_compact_unitcell(fr.pbc_type, ecenter, &boxm, x)
+                        }
+                    },
+                    PbcMode::Whole => {}
+                    PbcMode::Mol => {
+                        for mol in &molecule_atom_lists {
+                            put_group_com_in_box(
+                                x,
+                                mol,
+                                &boxm,
+                                fr.pbc_type,
+                                ecenter,
+                                ur_mode,
+                                &masses,
+                            );
+                        }
+                    }
+                    PbcMode::Res => {
+                        for res in &residue_groups {
+                            put_group_com_in_box(
+                                x,
+                                res,
+                                &boxm,
+                                fr.pbc_type,
+                                ecenter,
+                                ur_mode,
+                                &masses,
+                            );
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
 
-        if fit_mode == FitMode::Progressive || b_reset {
+        if fit_mode == FitMode::Progressive || (b_reset && b_write) {
             if let Some(x) = &mut fr.x {
                 let n = x.len();
                 pbc::reset_x_ndim(nfitdim, fit_index.len(), &fit_index, n, None, x, &w_rls);
@@ -971,37 +1030,10 @@ pub fn run(argv: Vec<String>) -> i32 {
             }
         }
 
-        if b_center {
+        if b_center && b_write {
             if let Some(x) = &mut fr.x {
                 pbc::center_x(ecenter, x, &boxm, &center_index);
             }
-        }
-
-        // Output frame time.
-        let mut frout_time = fr.time.unwrap_or(0.0);
-        if b_timestep {
-            frout_time = tzero + frame as f64 * timestep;
-        } else if b_set_time {
-            frout_time += tshift;
-        }
-
-        let mut b_write = if b_tdump {
-            true
-        } else {
-            frame % skip_nr as usize == 0
-        };
-        if b_write && delta_t != 0.0 {
-            let t = if b_round {
-                (frout_time + 0.5).floor()
-            } else {
-                frout_time
-            };
-            let (t0, dt) = if b_round {
-                ((tzero + 0.5).floor(), (delta_t + 0.5).floor())
-            } else {
-                (tzero, delta_t)
-            };
-            b_write = rmod(t, t0, dt);
         }
 
         if !b_write {
@@ -1179,11 +1211,7 @@ fn put_group_com_in_box(
             std::slice::from_mut(&mut newcom),
         ),
     }
-    let shift = [
-        newcom[0] - com[0],
-        newcom[1] - com[1],
-        newcom[2] - com[2],
-    ];
+    let shift = [newcom[0] - com[0], newcom[1] - com[1], newcom[2] - com[2]];
     if shift[0] != 0.0 || shift[1] != 0.0 || shift[2] != 0.0 {
         for &i in group {
             for d in 0..3 {
@@ -1192,7 +1220,6 @@ fn put_group_com_in_box(
         }
     }
 }
-
 
 fn mk_filenm(base: &str, ext: &str, ndigit: usize, file_nr: usize) -> String {
     let nbuf = file_nr.to_string();
@@ -1206,13 +1233,7 @@ fn mk_filenm(base: &str, ext: &str, ndigit: usize, file_nr: usize) -> String {
     out
 }
 
-fn build_title(
-    base: &str,
-    has_time: bool,
-    step: Option<i64>,
-    has_step: bool,
-    time: f64,
-) -> String {
+fn build_title(base: &str, has_time: bool, step: Option<i64>, has_step: bool, time: f64) -> String {
     let mut title = base.to_string();
     if let Some(p) = title.find(" t= ") {
         title.truncate(p);

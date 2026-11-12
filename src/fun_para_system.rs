@@ -331,14 +331,30 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         let ndx_mmpbsa = append_new_name(ndx_name, ".ndx", ".MMPBSA_");
         ndx_whole.to_ndx(&ndx_mmpbsa);
         
-        // step 2: extract new trj with old tpr and new index
-        println!("Extracting trajectory, be patient...\x1b[90m");   // turn gray
-        // currently use smaller dt_ie
-        let trj_nopbc = append_new_name(trj, "_nopbc.xtc", ".MMPBSA_"); // get trj output file name
-        trjconv(&["Complex"], &env::current_dir().unwrap(), 
-            settings, &trj, &tpr_path, &ndx_mmpbsa, &trj_nopbc, 
-            &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "whole"], true);
-        
+        // step 2: assemble the complex while the original topology is still
+        // available.  This is essential for a multi-chain binder: `cluster`
+        // must see chainA and chainB as two separate molecules.  A Complex
+        // tpr produced by convert-tpr collapses them into one molecule, so
+        // a second cluster pass on the extracted trajectory can leave the
+        // chains in different periodic images.
+        let trj_fit = if fix_pbc {
+            println!("Extracting trajectory and fixing PBC, be patient...\x1b[90m");
+            let trj_pbc = append_new_name(trj, "_pbc.xtc", ".MMPBSA_");
+            trjconv(&["Complex", "Complex", "Complex"], &env::current_dir().unwrap(),
+                settings, trj, tpr_path, &ndx_mmpbsa, &trj_pbc,
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(),
+                  "-pbc", "cluster", "-center"], true);
+            trj_pbc
+        } else {
+            println!("Extracting trajectory, be patient...\x1b[90m");
+            let trj_whole = append_new_name(trj, "_whole.xtc", ".MMPBSA_");
+            trjconv(&["Complex"], &env::current_dir().unwrap(),
+                settings, trj, tpr_path, &ndx_mmpbsa, &trj_whole,
+                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(),
+                  "-pbc", "whole"], true);
+            trj_whole
+        };
+
         // step 3: extract new tpr from old tpr
         println!("\x1b[0mConverting tpr...\x1b[90m");
         let tpr_mmpbsa = append_new_name(&tpr_path, ".tpr", ".MMPBSA_"); // get extracted tpr file name
@@ -370,18 +386,6 @@ fn prepare_system(receptor_grp: usize, ligand_grp: Option<usize>,
         // 需要处理一下atom_properties的id
         aps.atom_props.iter_mut().enumerate().for_each(|(i, ap)| ap.id = i);
         
-        // fix pbc with new tpr and new index
-        let trj_fit = if fix_pbc {
-            println!("\x1b[0mFixing PBC...\x1b[90m");
-            let trj_pbc = append_new_name(&trj, "_pbc.xtc", ".MMPBSA_");
-            trjconv(&["Complex", "Complex", "Complex"], &env::current_dir().unwrap(), 
-                settings, &trj_nopbc, &tpr_mmpbsa, &ndx_mmpbsa, &trj_pbc, 
-                &["-b", &bt.to_string(), "-e", &et.to_string(), "-dt", &dt_ie.to_string(), "-pbc", "cluster", "-center"], false);
-            trj_pbc
-        } else {
-            trj_nopbc
-        };
-
         // fit rot+trans
         println!("\x1b[0mFitting rot+trans...\x1b[90m");
         let trj_mmpbsa = append_new_name(&trj, ".xtc", ".MMPBSA_"); // get trj output file name

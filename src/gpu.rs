@@ -189,6 +189,19 @@ fn main_self(
 
 const WORKGROUP_SIZE: u32 = 64;
 
+/// Rejects a linear launch that wgpu would validate as invalid, so MM GPU
+/// callers can fall back to CPU instead of losing the device.
+fn check_dispatch_groups(ctx: &GpuContext, groups: u32, what: &str) -> Result<(), String> {
+    let max = ctx.device.limits().max_compute_workgroups_per_dimension;
+    if groups > max {
+        return Err(format!(
+            "{} needs {} workgroups per dispatch dimension, exceeding the GPU limit of {}",
+            what, groups, max
+        ));
+    }
+    Ok(())
+}
+
 /// Generates the f32 shader variant from the f64 source: replaces `f64`
 /// types with `f32` and the Taylor-series `exp_neg` with the hardware `exp`.
 /// The Taylor function definitions remain as dead code (WGSL allows unused
@@ -291,10 +304,14 @@ impl GpuContext {
             }
         }
 
+        let mut limits = wgpu::Limits::default();
+        limits.max_compute_workgroups_per_dimension = limits
+            .max_compute_workgroups_per_dimension
+            .max(adapter.limits().max_compute_workgroups_per_dimension);
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("s_mmpbsa MM device"),
             required_features,
-            required_limits: wgpu::Limits::default(),
+            required_limits: limits,
             memory_hints: Default::default(),
             trace: Default::default(),
         }))
@@ -406,6 +423,16 @@ pub fn calc_mm_gpu(
     if c6.dim() != c12.dim() || c6.dim().1 != n_types {
         return Err("LJ matrices are not square or differ in shape".to_string());
     }
+    check_dispatch_groups(
+        ctx,
+        (n_a as u32).div_ceil(WORKGROUP_SIZE),
+        "MM receptor kernel",
+    )?;
+    check_dispatch_groups(
+        ctx,
+        (n_b as u32).div_ceil(WORKGROUP_SIZE),
+        "MM ligand kernel",
+    )?;
 
     let f32_mode = ctx.f32_mode;
     let es = float_elem_size(f32_mode);
@@ -582,6 +609,11 @@ pub fn calc_mm_self_gpu(
     if c6.dim() != c12.dim() || c6.dim().1 != n_types {
         return Err("LJ matrices are not square or differ in shape".to_string());
     }
+    check_dispatch_groups(
+        ctx,
+        (n as u32).div_ceil(WORKGROUP_SIZE),
+        "MM self-interaction kernel",
+    )?;
 
     let f32_mode = ctx.f32_mode;
     let atoms_bytes = pack_atoms(self_props, f32_mode);

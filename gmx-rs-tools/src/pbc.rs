@@ -434,7 +434,6 @@ pub fn calc_pbc_cluster(
     let ncluster = cluster.len();
     let mut added: Vec<usize> = vec![center_mol];
     b_mol[center_mol] = false;
-    let mut printed_progress = false;
 
     while added.len() < ncluster {
         // Find the closest pair of an already added and a remaining molecule.
@@ -482,17 +481,8 @@ pub fn calc_pbc_cluster(
                 x[j][d] += shift[d];
             }
         }
-        print!("\rClustering iteration {} of {}...", added.len(), ncluster);
-        printed_progress = true;
         use std::io::Write;
-        let _ = std::io::stdout().flush();
-    }
-    // `calc_pbc_cluster()` ends with an unconditional `fprintf(stdout, "\n")`,
-    // which leaves a blank line on standard output for every frame when the
-    // cluster group holds a single molecule and the loop above never runs.
-    // Only end the progress line when it was actually started.
-    if printed_progress {
-        println!();
+        std::io::stdout().flush().unwrap();
     }
 }
 
