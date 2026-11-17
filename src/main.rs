@@ -113,6 +113,11 @@ fn main() {
     if config.is_some() {
         sync_settings_from_config(&mut settings, config.as_ref().unwrap());
     }
+    // `env_check()` applies the settings.ini GPU flags before the optional
+    // config has been loaded.  Re-apply them so an explicit `use_gpu: false`
+    // in config.yaml wins.
+    apply_gpu_settings(&settings);
+
     // After the config merge, so the config.yaml pb_fast_path wins over
     // settings.ini.
     apply_pb_fast_path(&settings);
@@ -191,6 +196,11 @@ fn sync_settings_from_config(settings: &mut Settings, config: &Config) {
     settings.gpu_precision = config.program_set.gpu_precision.clone();
     settings.pb_fast_path = config.program_set.pb_fast_path;
     settings.debug_mode = config.program_set.debug;
+}
+
+fn apply_gpu_settings(settings: &Settings) {
+    apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
+    apbs_pmgc::gpu_mg::set_mg_gpu_precision(settings.gpu_precision == "fp32");
 }
 
 fn welcome(version: &str, today: &str) {
@@ -287,8 +297,7 @@ fn env_check() -> Settings {
 
     // GPU execution for the PB multigrid solver (falls back to CPU when no
     // suitable GPU is found).
-    apbs_pmgc::gpu_mg::set_mg_gpu_requested(settings.use_gpu);
-    apbs_pmgc::gpu_mg::set_mg_gpu_precision(settings.gpu_precision == "fp32");
+    apply_gpu_settings(&settings);
 
     // check necessary dat path
     let cur_path = env::current_exe().unwrap();
